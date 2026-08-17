@@ -99,6 +99,8 @@ public class SuperheroMod
 
         ModNetworking.register();
         CharacterRegistry.register(new CyclopsCharacter());
+        CharacterRegistry.register(
+                new com.FIRNI.superheromod.heroes.sandman.SandmanCharacter());
         com.FIRNI.superheromod.heroes.cyclops.MaximumPowerCinematic.register();
 
         if (Config.logDirtBlock)

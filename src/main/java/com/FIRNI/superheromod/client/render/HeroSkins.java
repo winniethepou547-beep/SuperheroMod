@@ -36,6 +36,7 @@ public final class HeroSkins {
 
     static {
         register("cyclops");
+        register("sandman");
     }
 
     private HeroSkins() {}
