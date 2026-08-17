@@ -16,6 +16,7 @@ public class SandmanCharacter extends SuperCharacter {
 
     public SandmanCharacter() {
         super(ID, "Sandman");
-        registerAbility(new SandFistAbility());   // LMB
+        registerAbility(new SandFistAbility());    // LMB
+        registerAbility(new SandSpikeAbility());   // RMB
     }
 }
