@@ -102,8 +102,9 @@ public class ConcussiveBeamAbility extends Ability {
 
         Vec3 endPoint = chain.path.get(chain.path.size() - 1);
 
-        if (ticksActive % 4 == 0) {
-            CyclopsBeamRenderer.renderOriginFlash(level, beamOrigin);
+        // Kalin isin: partikuller TAM goz hizasindan saciliyor
+        if (ticksActive % 2 == 0) {
+            CyclopsBeamRenderer.renderEyeMuzzle(level, eyePos, lookDir, 2.0f);
         }
         if (ticksActive % 5 == 0) {
             CyclopsBeamRenderer.renderBeamParticles(level, beamOrigin, endPoint);

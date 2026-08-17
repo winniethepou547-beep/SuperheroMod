@@ -50,6 +50,39 @@ public class CyclopsBeamRenderer {
                 2, 0.15, 0.15, 0.15, 0);
     }
 
+    /**
+     * Kalin isinlarin cikis agzi: TAM GOZ HIZASINDAN sacilan kirmizi toz
+     * partikulleri. Isinin kendisi geometri olarak ciziliyor; bu partikuller
+     * gozun onunde "namlu" hissi veren ikincil detay.
+     *
+     * Onceki renderOriginFlash cagrilari isini bakis yonunde one kaydirilmis
+     * bir noktadan basliyordu; burasi kaydirmasiz, dogrudan gozun oldugu yer.
+     *
+     * @param widthMult isin kalinligi — sacilma yaricapi buna gore buyur
+     */
+    public static void renderEyeMuzzle(ServerLevel level, Vec3 eye, Vec3 look,
+                                       float widthMult) {
+        double spread = 0.09 * widthMult;
+        // Partikuller hafifce bakis yonunde ilerlesin
+        double drift = 0.02;
+
+        level.sendParticles(DOT_WHITE,
+                eye.x, eye.y, eye.z,
+                2 + (int) widthMult, spread * 0.6, spread * 0.6, spread * 0.6, drift);
+        level.sendParticles(DOT_BRIGHT_RED,
+                eye.x + look.x * 0.08, eye.y + look.y * 0.08, eye.z + look.z * 0.08,
+                3 + (int) (widthMult * 2), spread, spread, spread, drift);
+        level.sendParticles(DOT_PINK,
+                eye.x + look.x * 0.12, eye.y + look.y * 0.12, eye.z + look.z * 0.12,
+                2 + (int) widthMult, spread * 1.3, spread * 1.3, spread * 1.3, drift);
+        level.sendParticles(DOT_DEEP_RED,
+                eye.x + look.x * 0.16, eye.y + look.y * 0.16, eye.z + look.z * 0.16,
+                2 + (int) widthMult, spread * 1.6, spread * 1.6, spread * 1.6, drift * 1.5);
+        level.sendParticles(ORIGIN_GLOW,
+                eye.x, eye.y, eye.z,
+                2, spread * 0.5, spread * 0.5, spread * 0.5, 0);
+    }
+
     public static void renderOriginFlash(ServerLevel level, Vec3 origin) {
         level.sendParticles(ORIGIN_GLOW,
                 origin.x, origin.y, origin.z,

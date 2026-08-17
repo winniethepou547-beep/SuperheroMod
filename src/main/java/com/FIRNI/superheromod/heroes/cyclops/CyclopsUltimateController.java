@@ -390,7 +390,8 @@ public class CyclopsUltimateController {
         // Sweep sadece 10 tick surer; partikulleri her tick gondermek
         // FPS'i dusuruyordu. Seyreltilmis olarak gonderiliyor.
         if (st.ticks % 2 == 0) {
-            CyclopsBeamRenderer.renderOriginFlash(level, origin);
+            // Ultinin isini en kalini — partikuller TAM goz hizasindan
+            CyclopsBeamRenderer.renderEyeMuzzle(level, eye, dir, 4.0f);
             CyclopsBeamRenderer.renderImpact(level, hit);
         }
         if (st.ticks % 3 == 0) {

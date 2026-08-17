@@ -3,8 +3,10 @@ package com.FIRNI.superheromod.heroes.cyclops;
 import com.FIRNI.superheromod.core.ability.*;
 import com.FIRNI.superheromod.core.combat.raycast.RaycastResult;
 import com.FIRNI.superheromod.core.combat.raycast.RaycastSystem;
+import com.FIRNI.superheromod.core.world.SurfaceBreaker;
 import com.FIRNI.superheromod.network.ModNetworking;
 import com.FIRNI.superheromod.network.packet.BeamSyncPacket;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -25,6 +27,9 @@ public class OpticBlastAbility extends Ability {
         config.set("range", 40.0);
         config.set("knockback", 0.6);
         config.set("beamRadius", 0.3f);
+        // Yuzeye carpinca acilan minik patlama
+        config.set("breakRadius", 1.15);
+        config.set("breakMaxBlocks", 4);
     }
 
     @Override
@@ -60,6 +65,12 @@ public class OpticBlastAbility extends Ability {
                     target.hurtMarked = true;
                 }
             }
+        } else if (result.didHitBlock()) {
+            // Kimseye denk gelmediyse vurdugu yuzeyi minik patlamayla oy
+            SurfaceBreaker.chip((ServerLevel) player.level(), player,
+                    result.getHitPosition(),
+                    getConfig().getDouble("breakRadius", 1.15),
+                    getConfig().getInt("breakMaxBlocks", 4));
         }
     }
 }

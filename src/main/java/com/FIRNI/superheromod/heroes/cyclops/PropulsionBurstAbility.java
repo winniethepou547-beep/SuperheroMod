@@ -104,7 +104,8 @@ public class PropulsionBurstAbility extends Ability {
                 PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> player),
                 BeamSyncPacket.flash(eyePos, beamEnd, 1.0f, cfg.getInt("trailDurationTicks", 20)));
 
-        CyclopsBeamRenderer.renderOriginFlash(level, eyePos);
+        CyclopsBeamRenderer.renderEyeMuzzle(level,
+                player.getEyePosition(1.0f), lookDir, 3.0f);
 
         AABB aoe = player.getBoundingBox().inflate(aoeRadius);
         List<LivingEntity> nearby = level.getEntitiesOfClass(LivingEntity.class, aoe,
@@ -180,8 +181,10 @@ public class PropulsionBurstAbility extends Ability {
                 PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> player),
                 BeamSyncPacket.flash(eye, laserEnd, 1.0f, 3));
 
-        if (ticksActive % 3 == 0) {
-            CyclopsBeamRenderer.renderOriginFlash((ServerLevel) player.level(), eye);
+        // Kalin isin: partikuller TAM goz hizasindan saciliyor
+        if (ticksActive % 2 == 0) {
+            CyclopsBeamRenderer.renderEyeMuzzle((ServerLevel) player.level(),
+                    player.getEyePosition(1.0f), look, 2.5f);
         }
 
         // Iz de gozun ONUNDEN cikar. Tam goz merkezinden cikinca kafanin
