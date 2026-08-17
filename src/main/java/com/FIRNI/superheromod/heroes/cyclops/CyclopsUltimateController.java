@@ -12,8 +12,11 @@ import com.FIRNI.superheromod.network.packet.BeamSyncPacket;
 import com.FIRNI.superheromod.network.packet.GroundFxPacket;
 import com.FIRNI.superheromod.network.packet.UltimateStatePacket;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.tags.FluidTags;
+import net.minecraft.util.Mth;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
@@ -110,12 +113,15 @@ public class CyclopsUltimateController {
         final ServerLevel level;
         final List<Vec3> sources;
         final Vec3 center;
+        /** Krater suya degdiyse duman siyah degil BEYAZ buhar olur. */
+        final boolean steam;
         int ticks = 0;
 
-        Smolder(ServerLevel level, List<Vec3> sources, Vec3 center) {
+        Smolder(ServerLevel level, List<Vec3> sources, Vec3 center, boolean steam) {
             this.level = level;
             this.sources = sources;
             this.center = center;
+            this.steam = steam;
         }
     }
 
@@ -492,13 +498,15 @@ public class CyclopsUltimateController {
                 for (int i = 0; i < picks; i++) {
                     Vec3 src = sm.sources.get(level.random.nextInt(sm.sources.size()));
 
-                    // Kraterden yukselen duman
-                    level.sendParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE,
+                    // Kraterden yukselen duman / buhar
+                    level.sendParticles(
+                            sm.steam ? ParticleTypes.CLOUD : ParticleTypes.CAMPFIRE_COSY_SMOKE,
                             src.x, src.y + 0.2, src.z,
                             2, 0.5, 0.15, 0.5, 0.005);
 
                     // Havada asili kalan toz — hiz ~0, yavasca cokuyor
-                    level.sendParticles(ParticleTypes.ASH,
+                    level.sendParticles(
+                            sm.steam ? ParticleTypes.CLOUD : ParticleTypes.ASH,
                             src.x, src.y + 1.2 + level.random.nextDouble() * 2.2, src.z,
                             3, 1.1, 0.9, 1.1, 0.0);
                 }
@@ -507,14 +515,16 @@ public class CyclopsUltimateController {
             // Bulutun govdesi: merkezde genis ve agir, yavas suruklenen kutle
             if (sm.ticks % 5 == 0) {
                 int count = Math.max(2, Math.round(14 * fade));
-                level.sendParticles(ParticleTypes.LARGE_SMOKE,
+                level.sendParticles(
+                        sm.steam ? ParticleTypes.CLOUD : ParticleTypes.LARGE_SMOKE,
                         sm.center.x, sm.center.y + 1.4, sm.center.z,
                         count, 3.2, 1.3, 3.2, 0.0);
             }
 
             // Ilk saniyelerde yukari dogru kalkan sutun
             if (sm.ticks < 50 && sm.ticks % 8 == 0) {
-                level.sendParticles(ParticleTypes.CAMPFIRE_SIGNAL_SMOKE,
+                level.sendParticles(
+                        sm.steam ? ParticleTypes.CLOUD : ParticleTypes.CAMPFIRE_SIGNAL_SMOKE,
                         sm.center.x, sm.center.y + 0.8, sm.center.z,
                         2, 1.4, 0.2, 1.4, 0.01);
             }
@@ -582,10 +592,17 @@ public class CyclopsUltimateController {
             }
         }
 
+        // Her sutunda en dibe inen y — yanmis zemin buranin ALTINA serilecek
+        Map<Long, Integer> craterFloor = new HashMap<>();
+
         int launched = 0;
         for (BlockPos pos : blast) {
             BlockState state = level.getBlockState(pos);
             if (state.isAir() || state.getDestroySpeed(level, pos) < 0) continue;
+
+            long column = columnKey(pos.getX(), pos.getZ());
+            Integer prev = craterFloor.get(column);
+            if (prev == null || pos.getY() < prev) craterFloor.put(column, pos.getY());
 
             if (st.chargedBlocks.contains(pos)) {
                 level.sendParticles(ParticleTypes.EXPLOSION,
@@ -636,7 +653,122 @@ public class CyclopsUltimateController {
             target.hurtMarked = true;
         }
 
-        registerSmolder(level, st, center);
+        boolean touchedWater = scorchCraterFloor(level, st, craterFloor, center);
+        registerSmolder(level, st, center, touchedWater);
+    }
+
+    // ------------------------------------------------------------------
+    // Yanmis zemin
+    // ------------------------------------------------------------------
+
+    /** Bant genisligi — cizgiler bu kalinlikta seritler halinde uzanir. */
+    private static final double BAND_WIDTH = 1.7;
+
+    /**
+     * Kraterin en dibine, yok olan bloklarin hemen altina yanmis zemin serer.
+     *
+     * Desen: krater ekseni boyunca uzanan, kivrilarak ilerleyen seritler.
+     * Duz cizgi degil — boyuna gore sinus dalgasiyla saga sola kayiyor, bu
+     * yuzden serit kenarlari organik duruyor. Her seridin blogu bant
+     * numarasindan turetiliyor, yani serit boyunca ayni blok devam ediyor.
+     *
+     * @return krater suya degdi mi (duman beyaz buhara donecek mi)
+     */
+    private static boolean scorchCraterFloor(ServerLevel level, UltState st,
+                                             Map<Long, Integer> craterFloor, Vec3 center) {
+        if (craterFloor.isEmpty()) return false;
+
+        // Kraterin ana ekseni — seritler bu yonde uzanir
+        Vec3 axis = new Vec3(1, 0, 0);
+        if (st.spine.size() >= 2) {
+            BlockPos a = st.spine.get(0);
+            BlockPos b = st.spine.get(st.spine.size() - 1);
+            Vec3 d = new Vec3(b.getX() - a.getX(), 0, b.getZ() - a.getZ());
+            if (d.lengthSqr() > 1.0E-4) axis = d.normalize();
+        }
+        Vec3 side = new Vec3(-axis.z, 0, axis.x);
+
+        boolean touchedWater = false;
+
+        for (Map.Entry<Long, Integer> entry : craterFloor.entrySet()) {
+            int x = columnX(entry.getKey());
+            int z = columnZ(entry.getKey());
+            BlockPos floor = new BlockPos(x, entry.getValue() - 1, z);
+
+            BlockState existing = level.getBlockState(floor);
+            // Kirilmaz zemin (bedrock) korunur
+            if (existing.getDestroySpeed(level, floor) < 0) continue;
+
+            boolean water = nearWater(level, floor);
+            if (water) {
+                touchedWater = true;
+                // Kizgin zemin suya degdi — beyaz buhar
+                level.sendParticles(ParticleTypes.CLOUD,
+                        x + 0.5, floor.getY() + 1.1, z + 0.5,
+                        5, 0.35, 0.25, 0.35, 0.02);
+
+                // Suyun icine yanmis blok koymuyoruz, sadece buhar cikiyor
+                if (existing.getFluidState().is(FluidTags.WATER)) continue;
+            }
+
+            if (existing.isAir()) continue;
+
+            // Serit deseni: yanal konum, boyuna gore kivriliyor
+            double dx = x + 0.5 - center.x;
+            double dz = z + 0.5 - center.z;
+            double along = dx * axis.x + dz * axis.z;
+            double lateral = dx * side.x + dz * side.z;
+
+            double wobble = Math.sin(along * 0.42) * 1.7
+                          + Math.sin(along * 0.16 + 1.3) * 1.0;
+            int band = Mth.floor((lateral + wobble) / BAND_WIDTH);
+
+            BlockState scorched = bandBlock(band);
+            if (scorched == null) continue;   // bu serit bos — yanmis toprak kalir
+
+            // Bayrak 2: istemciye bildir ama komsu blok guncellemesi tetikleme
+            level.setBlock(floor, scorched, 2);
+        }
+
+        if (touchedWater) {
+            level.playSound(null, BlockPos.containing(center),
+                    SoundEvents.FIRE_EXTINGUISH, SoundSource.BLOCKS, 1.6f, 0.8f);
+        }
+        return touchedWater;
+    }
+
+    /**
+     * Serit numarasindan blok secer. Ayni numara hep ayni blogu verir, bu
+     * yuzden serit boyunca blok degismez.
+     */
+    private static BlockState bandBlock(int band) {
+        int h = Math.floorMod(band * 1103515245 + 12345, 10);
+        return switch (h) {
+            case 0, 1, 2 -> Blocks.MAGMA_BLOCK.defaultBlockState();   // hasar verir
+            case 3, 4, 5 -> Blocks.NETHERRACK.defaultBlockState();
+            case 6, 7 -> Blocks.OBSIDIAN.defaultBlockState();
+            default -> null;                                          // bos serit
+        };
+    }
+
+    private static boolean nearWater(ServerLevel level, BlockPos pos) {
+        if (level.getFluidState(pos).is(FluidTags.WATER)) return true;
+        for (Direction dir : Direction.values()) {
+            if (level.getFluidState(pos.relative(dir)).is(FluidTags.WATER)) return true;
+        }
+        return false;
+    }
+
+    private static long columnKey(int x, int z) {
+        return ((long) x << 32) | (z & 0xFFFFFFFFL);
+    }
+
+    private static int columnX(long key) {
+        return (int) (key >> 32);
+    }
+
+    private static int columnZ(long key) {
+        return (int) key;
     }
 
     /**
@@ -644,7 +776,8 @@ public class CyclopsUltimateController {
      * kaynak listesine alinir — hepsinden partikul cikarmak paket yagmuru
      * yaratiyordu.
      */
-    private static void registerSmolder(ServerLevel level, UltState st, Vec3 center) {
+    private static void registerSmolder(ServerLevel level, UltState st, Vec3 center,
+                                        boolean steam) {
         List<BlockPos> all = new ArrayList<>(st.chargedBlocks);
         if (all.isEmpty()) return;
 
@@ -655,7 +788,7 @@ public class CyclopsUltimateController {
             sources.add(new Vec3(p.getX() + 0.5, p.getY() + 1.0, p.getZ() + 0.5));
         }
 
-        smolders.add(new Smolder(level, sources, center));
+        smolders.add(new Smolder(level, sources, center, steam));
     }
 
     // ------------------------------------------------------------------

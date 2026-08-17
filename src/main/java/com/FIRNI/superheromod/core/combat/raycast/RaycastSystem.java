@@ -58,8 +58,12 @@ public class RaycastSystem {
         List<RaycastResult.EntityHit> entityHits = new ArrayList<>();
         double searchDist = hitBlock ? blockDist : maxDistance;
 
-        AABB searchBox = caster.getBoundingBox()
-                .expandTowards(direction.scale(searchDist))
+        // Arama kutusu ISININ kendi parcasindan kurulur, atiicinin etrafindan
+        // DEGIL. Eskiden caster.getBoundingBox() temel alindigi icin baslangici
+        // atiiciya uzak olan cagrilar (seri atis mermileri, sekmis isin
+        // parcalari) hedefi bulamiyordu: kutu atiicinin yaninda kaliyor, mermi
+        // 30 blok oteden gectigi icin kimse kutuya girmiyordu.
+        AABB searchBox = new AABB(origin, origin.add(direction.scale(searchDist)))
                 .inflate(beamRadius + 1.0);
 
         for (Entity entity : level.getEntities(caster, searchBox)) {
