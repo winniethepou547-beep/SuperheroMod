@@ -55,6 +55,13 @@ public class AbilityKeyHandler {
             "key.categories.superheromod"
     );
 
+    public static final KeyMapping KEY_SKILL_G = new KeyMapping(
+            "key.superheromod.skill_g",
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_G,
+            "key.categories.superheromod"
+    );
+
     public static final KeyMapping KEY_ULTIMATE = new KeyMapping(
             "key.superheromod.ruby_rage",
             InputConstants.Type.KEYSYM,
@@ -78,6 +85,7 @@ public class AbilityKeyHandler {
             event.register(KEY_SKILL_F);
             event.register(KEY_RICOCHET);
             event.register(KEY_XRAY);
+            event.register(KEY_SKILL_G);
             event.register(KEY_ULTIMATE);
         }
     }
@@ -136,6 +144,7 @@ public class AbilityKeyHandler {
             checkSlot(AbilitySlot.SKILL_F, KEY_SKILL_F.isDown());
             checkSlot(AbilitySlot.SKILL_C, KEY_RICOCHET.isDown());
             checkSlot(AbilitySlot.SKILL_X, KEY_XRAY.isDown());
+            checkSlot(AbilitySlot.SKILL_G, KEY_SKILL_G.isDown());
             checkSlot(AbilitySlot.ULTIMATE, KEY_ULTIMATE.isDown());
         }
 

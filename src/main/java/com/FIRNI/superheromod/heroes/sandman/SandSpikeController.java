@@ -71,15 +71,16 @@ public final class SandSpikeController {
         /** Ayni diken ayni hedefe tekrar vurmasin. */
         final Set<UUID> hit = new HashSet<>();
 
-        Spike(UUID owner, ServerLevel level, Vec3 base, AbilityConfig cfg) {
+        Spike(UUID owner, ServerLevel level, Vec3 base,
+              float damage, double radius, double knockUp, double knockback, double height) {
             this.owner = owner;
             this.level = level;
             this.base = base;
-            this.damage = cfg.getFloat("damage", 5.0f);
-            this.radius = cfg.getDouble("radius", 1.7);
-            this.knockUp = cfg.getDouble("knockUp", 0.85);
-            this.knockback = cfg.getDouble("knockback", 0.35);
-            this.height = cfg.getDouble("height", 3.0);
+            this.damage = damage;
+            this.radius = radius;
+            this.knockUp = knockUp;
+            this.knockback = knockback;
+            this.height = height;
         }
 
         /** 0..1 — dikenin o anki gorunur boy orani. */
@@ -96,6 +97,7 @@ public final class SandSpikeController {
 
     // ------------------------------------------------------------------
 
+    /** Normal Sand Spike — oyuncu basina diken sayisi sinirli. */
     public static void spawn(ServerPlayer player, Vec3 ground, AbilityConfig cfg) {
         ServerLevel level = (ServerLevel) player.level();
 
@@ -110,10 +112,28 @@ public final class SandSpikeController {
             }
         }
 
-        spikes.add(new Spike(player.getUUID(), level, ground, cfg));
+        spikes.add(new Spike(player.getUUID(), level, ground,
+                cfg.getFloat("damage", 5.0f),
+                cfg.getDouble("radius", 1.7),
+                cfg.getDouble("knockUp", 0.85),
+                cfg.getDouble("knockback", 0.35),
+                cfg.getDouble("height", 3.0)));
 
         level.playSound(null, BlockPos.containing(ground),
                 SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 1.3f, 0.55f);
+    }
+
+    /**
+     * Sand Burst icin diken — sayi sinirina TAKILMAZ.
+     *
+     * Normal dikende sinir var cunku oyuncu istedigi kadar dikebiliyor; burst
+     * ise biriken kumu tek seferde harciyor, sayisi zaten barin dolulugundan
+     * geliyor.
+     */
+    public static void spawnBurst(ServerPlayer player, Vec3 ground,
+                                  float damage, double height) {
+        spikes.add(new Spike(player.getUUID(), (ServerLevel) player.level(), ground,
+                damage, 1.5, 0.95, 0.55, height));
     }
 
     /**

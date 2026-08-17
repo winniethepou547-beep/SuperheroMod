@@ -23,5 +23,6 @@ public class SandmanCharacter extends SuperCharacter {
         registerAbility(new SandSoldiersAbility());     // C
         registerAbility(new GiantSandSoldierAbility()); // X
         registerAbility(new SandBodyAbility());         // R
+        registerAbility(new SandBurstAbility());        // G — zirhi bosaltir
     }
 }
