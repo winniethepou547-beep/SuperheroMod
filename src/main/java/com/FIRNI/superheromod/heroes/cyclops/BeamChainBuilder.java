@@ -24,8 +24,6 @@ public final class BeamChainBuilder {
     public static final class Chain {
         public final List<Vec3> path = new ArrayList<>();
         public final List<LivingEntity> hits = new ArrayList<>();
-        /** Isinin degdigi yuzey noktalari — sekme dahil, siraya gore. */
-        public final List<Vec3> surfaces = new ArrayList<>();
     }
 
     private BeamChainBuilder() {}
@@ -79,11 +77,6 @@ public final class BeamChainBuilder {
                 range = from.distanceTo(to) + 1.0;
                 chains++;
                 continue;
-            }
-
-            // Yuzeye degdiysek noktayi kaydet — cagiran taraf burayi kirabilir
-            if (result.didHitBlock()) {
-                chain.surfaces.add(hitPos);
             }
 
             // 2) Yuzeye carptik -> gelis acisiyla sek

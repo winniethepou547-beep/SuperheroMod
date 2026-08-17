@@ -6,7 +6,6 @@ import com.FIRNI.superheromod.core.combat.raycast.RaycastSystem;
 import com.FIRNI.superheromod.core.resource.ResourceBar;
 import com.FIRNI.superheromod.core.resource.ResourceManager;
 import com.FIRNI.superheromod.core.resource.ResourceType;
-import com.FIRNI.superheromod.core.world.SurfaceBreaker;
 import com.FIRNI.superheromod.network.ModNetworking;
 import com.FIRNI.superheromod.network.packet.BeamSyncPacket;
 import net.minecraft.server.level.ServerLevel;
@@ -45,10 +44,6 @@ public class ConcussiveBeamAbility extends Ability {
         config.set("beamForwardOffset", 0.3);
         config.set("maxBounces", 2);
         config.set("maxChains", 3);
-        // Sekerken degdigi yuzeyleri minik patlamayla oyar
-        config.set("breakInterval", 5);
-        config.set("breakRadius", 1.35);
-        config.set("breakMaxBlocks", 7);
         config.set("hoverGravityMultiplier", 0.55);
         config.set("hoverMaxFallSpeed", -0.4);
         config.set("hoverAirControl", 0.04);
@@ -118,17 +113,6 @@ public class ConcussiveBeamAbility extends Ability {
         }
         if (chain.hits.isEmpty()) {
             CyclopsBeamRenderer.renderImpact(level, endPoint);
-        }
-
-        // Isinin degdigi (ve sektigi) her yuzeyi minik patlamayla kir.
-        // Her tick kirmak duvarlari aninda yok ediyordu; araliga baglandi.
-        int breakInterval = cfg.getInt("breakInterval", 5);
-        if (ticksActive % breakInterval == 0) {
-            double breakRadius = cfg.getDouble("breakRadius", 1.35);
-            int breakMax = cfg.getInt("breakMaxBlocks", 7);
-            for (Vec3 surface : chain.surfaces) {
-                SurfaceBreaker.chip(level, player, surface, breakRadius, breakMax);
-            }
         }
 
         if (ticksActive % sndInterval == 0) {

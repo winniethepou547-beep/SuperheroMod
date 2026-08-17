@@ -2,7 +2,9 @@ package com.FIRNI.superheromod.client.render.anim;
 
 import com.FIRNI.superheromod.SuperheroMod;
 import com.FIRNI.superheromod.client.gui.PoseStudioScreen;
+import com.FIRNI.superheromod.core.cinematic.Easing;
 import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.math.Axis;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.CameraType;
 import net.minecraft.client.KeyMapping;
@@ -14,6 +16,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+import net.minecraftforge.client.event.RenderPlayerEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -47,14 +50,17 @@ public final class PoseStudio {
             "key.superheromod.pose_studio", InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_P, "key.categories.superheromod");
 
-    /** Klipteki tek kare: poz + bir sonrakine gecis suresi. */
+    /** Klipteki tek kare: poz + bir sonrakine gecis suresi ve egrisi. */
     public static final class Keyframe {
         public final StudioPose pose;
         public int hold;
+        /** Bu kareden bir sonrakine gecisin yumusatma egrisi. */
+        public Easing ease;
 
-        public Keyframe(StudioPose pose, int hold) {
+        public Keyframe(StudioPose pose, int hold, Easing ease) {
             this.pose = pose;
             this.hold = Math.max(1, hold);
+            this.ease = ease == null ? Easing.IN_OUT : ease;
         }
     }
 
@@ -68,6 +74,14 @@ public final class PoseStudio {
 
     private static boolean playing;
     private static float playhead;
+
+    /**
+     * Modelin kendi ekseninde cevrilme acisi (derece). Oyuncunun bakis acisina
+     * DOKUNMAZ — sadece cizim sirasinda model dondurulur, boylece kamera ve
+     * dunya sabit kalirken karakteri her acidan gorebilirsin.
+     */
+    private static float modelYaw;
+    private static boolean pushedRotation;
 
     private static CameraType previousCamera;
 
@@ -107,6 +121,33 @@ public final class PoseStudio {
         }
     }
 
+    public static float modelYaw() { return modelYaw; }
+
+    public static void spinModel(float degrees) {
+        modelYaw = (modelYaw + degrees) % 360f;
+    }
+
+    /**
+     * Modeli kendi ekseninde cevirir. Oyuncunun yRot'una dokunmadigimiz icin
+     * kamera ve dunya yerinde kalir — sadece cizilen model doner.
+     */
+    @SubscribeEvent
+    public static void onRenderPlayerPre(RenderPlayerEvent.Pre event) {
+        pushedRotation = false;
+        if (!active || modelYaw == 0f || !isLocal(event.getEntity())) return;
+
+        event.getPoseStack().pushPose();
+        event.getPoseStack().mulPose(Axis.YP.rotationDegrees(modelYaw));
+        pushedRotation = true;
+    }
+
+    @SubscribeEvent
+    public static void onRenderPlayerPost(RenderPlayerEvent.Post event) {
+        if (!pushedRotation) return;
+        pushedRotation = false;
+        event.getPoseStack().popPose();
+    }
+
     public static void togglePlay() {
         if (clip.size() < 2) {
             playing = false;
@@ -116,8 +157,8 @@ public final class PoseStudio {
         if (playing) playhead = 0f;
     }
 
-    public static void addKeyframe(int hold) {
-        clip.add(new Keyframe(current.copy(), hold));
+    public static void addKeyframe(int hold, Easing ease) {
+        clip.add(new Keyframe(current.copy(), hold, ease));
     }
 
     public static void removeKeyframe(int index) {
@@ -173,12 +214,14 @@ public final class PoseStudio {
 
         float t = playhead;
         for (int i = 0; i < clip.size() - 1; i++) {
-            int hold = clip.get(i).hold;
-            if (t < hold) {
-                StudioPose.lerp(clip.get(i).pose, clip.get(i + 1).pose, t / hold, blended);
+            Keyframe k = clip.get(i);
+            if (t < k.hold) {
+                // Gecis egrisi kareye ait; her gecis farkli hissettirilebilir
+                float eased = k.ease.apply(t / k.hold);
+                StudioPose.lerp(k.pose, clip.get(i + 1).pose, eased, blended);
                 return blended;
             }
-            t -= hold;
+            t -= k.hold;
         }
         return clip.get(clip.size() - 1).pose;
     }
@@ -193,12 +236,12 @@ public final class PoseStudio {
 
         StudioPose pose = effectivePose();
 
-        setRot(model.head, pose, StudioPose.HEAD);
-        setRot(model.body, pose, StudioPose.BODY);
-        setRot(model.rightArm, pose, StudioPose.RIGHT_ARM);
-        setRot(model.leftArm, pose, StudioPose.LEFT_ARM);
-        setRot(model.rightLeg, pose, StudioPose.RIGHT_LEG);
-        setRot(model.leftLeg, pose, StudioPose.LEFT_LEG);
+        setPart(model.head, pose, StudioPose.HEAD);
+        setPart(model.body, pose, StudioPose.BODY);
+        setPart(model.rightArm, pose, StudioPose.RIGHT_ARM);
+        setPart(model.leftArm, pose, StudioPose.LEFT_ARM);
+        setPart(model.rightLeg, pose, StudioPose.RIGHT_LEG);
+        setPart(model.leftLeg, pose, StudioPose.LEFT_LEG);
 
         model.hat.copyFrom(model.head);
         model.jacket.copyFrom(model.body);
@@ -222,10 +265,21 @@ public final class PoseStudio {
         return effectivePose().elbow;
     }
 
-    private static void setRot(ModelPart part, StudioPose pose, int index) {
+    /**
+     * Parcayi once varsayilan duruma dondurur, sonra pozu uygular.
+     * Oteleme varsayilan konumun UZERINE eklenir; boylece deger 0 oldugunda
+     * parca tam yerinde kalir.
+     */
+    private static void setPart(ModelPart part, StudioPose pose, int index) {
+        part.resetPose();
+
         part.xRot = pose.rot[index][0];
         part.yRot = pose.rot[index][1];
         part.zRot = pose.rot[index][2];
+
+        part.x += pose.pos[index][0];
+        part.y += pose.pos[index][1];
+        part.z += pose.pos[index][2];
     }
 
     private static boolean isLocal(LivingEntity entity) {
@@ -239,9 +293,9 @@ public final class PoseStudio {
 
     public static void save() {
         StringBuilder sb = new StringBuilder();
-        sb.append("# PoseStudio klibi. Satir: sure, ")
-          .append("kafa xyz, govde xyz, sag kol xyz, sol kol xyz, ")
-          .append("sag bacak xyz, sol bacak xyz, dirsek\n");
+        sb.append("# PoseStudio klibi. Satir: sure, 6 parca donus xyz, ")
+          .append("6 parca oteleme xyz, dirsek, gecis egrisi\n")
+          .append("# Parca sirasi: kafa, govde, sag kol, sol kol, sag bacak, sol bacak\n");
 
         for (Keyframe k : clip) {
             float[] row = k.pose.toRow(k.hold);
@@ -249,7 +303,7 @@ public final class PoseStudio {
                 if (i > 0) sb.append(',');
                 sb.append(String.format(java.util.Locale.ROOT, "%.4f", row[i]));
             }
-            sb.append('\n');
+            sb.append(',').append(k.ease.name()).append('\n');
         }
 
         write(CLIP_FILE, sb.toString(), clip.size() + " kare kaydedildi");
@@ -278,9 +332,18 @@ public final class PoseStudio {
                     row[i] = Float.parseFloat(parts[i].trim());
                 }
 
+                Easing ease = Easing.IN_OUT;
+                if (parts.length > StudioPose.ROW_SIZE) {
+                    try {
+                        ease = Easing.valueOf(parts[StudioPose.ROW_SIZE].trim());
+                    } catch (IllegalArgumentException ignored) {
+                        // Bilinmeyen egri adi -> varsayilan
+                    }
+                }
+
                 StudioPose pose = new StudioPose();
                 int hold = pose.fromRow(row);
-                loaded.add(new Keyframe(pose, hold));
+                loaded.add(new Keyframe(pose, hold, ease));
             }
 
             clip.clear();
@@ -303,9 +366,9 @@ public final class PoseStudio {
 
         StringBuilder sb = new StringBuilder();
         sb.append("// PoseStudio ciktisi — ").append(clip.size()).append(" kare.\n")
-          .append("// Satir duzeni: sure(tick), kafa xyz, govde xyz, sag kol xyz,\n")
-          .append("//               sol kol xyz, sag bacak xyz, sol bacak xyz, dirsek\n")
-          .append("// Aci degerleri RADYAN. StudioPose.fromRow(...) ile okunur.\n")
+          .append("// Satir duzeni: sure(tick), 6 parca DONUS xyz, 6 parca OTELEME xyz, dirsek\n")
+          .append("// Parca sirasi: kafa, govde, sag kol, sol kol, sag bacak, sol bacak\n")
+          .append("// Donus RADYAN, oteleme MODEL PIKSELI. StudioPose.fromRow(...) ile okunur.\n")
           .append("private static final float[][] CLIP = {\n");
 
         for (Keyframe k : clip) {
@@ -315,10 +378,18 @@ public final class PoseStudio {
                 if (i > 0) sb.append(", ");
                 sb.append(String.format(java.util.Locale.ROOT, "%.3ff", row[i]));
             }
-            sb.append("},\n");
+            sb.append("},   // gecis: ").append(k.ease.name()).append('\n');
         }
 
-        sb.append("};\n");
+        sb.append("};\n\n")
+          .append("// Kare basina gecis egrileri (yukaridaki sira ile):\n")
+          .append("private static final Easing[] CLIP_EASING = {\n        ");
+
+        for (int i = 0; i < clip.size(); i++) {
+            if (i > 0) sb.append(", ");
+            sb.append("Easing.").append(clip.get(i).ease.name());
+        }
+        sb.append("\n};\n");
 
         write(JAVA_FILE, sb.toString(), "Java klibi yazildi");
     }
