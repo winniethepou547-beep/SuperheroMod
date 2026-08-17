@@ -2,6 +2,7 @@ package com.FIRNI.superheromod.client.render;
 
 import com.FIRNI.superheromod.client.ClientHeroState;
 import com.FIRNI.superheromod.client.hud.ClientUltimateState;
+import com.FIRNI.superheromod.client.render.anim.PoseStudio;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.PlayerModel;
 import net.minecraft.util.Mth;
@@ -52,11 +53,18 @@ public final class HeroArmPose {
 
     /** BendableArmLayer bunu okur; 0 ise vanilla kol cizilir. */
     public static float getElbowBend(Player player) {
+        // Poz studyosu acikken kaydiraktaki deger her seyi ezer
+        float studio = PoseStudio.elbowFor(player);
+        if (studio >= 0f) return studio;
+
         return elbow.getOrDefault(player.getUUID(), 0f);
     }
 
     public static void apply(PlayerModel<?> model, LivingEntity entity, float ageInTicks) {
         if (!(entity instanceof Player player)) return;
+
+        // Poz studyosu devredeyse kahraman pozlari devre disi kalir
+        if (PoseStudio.apply(model, entity)) return;
 
         UUID id = player.getUUID();
 

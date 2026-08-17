@@ -115,8 +115,9 @@ public class GroundFxRenderer {
         synchronized (list) {
             for (ClientGroundFxData.Fx fx : list) {
                 switch (fx.kind) {
-                    case SCORCH -> cracks(matrix, buf, fx, time);
+                    case CRACK -> crackLine(matrix, buf, fx, time);
                     case CONE -> cone(matrix, buf, fx, time);
+                    case SCORCH -> { /* kaplama sadece ilk gecte */ }
                 }
             }
         }
@@ -146,57 +147,44 @@ public class GroundFxRenderer {
     }
 
     /**
-     * Kaplamanin uzerindeki catlaklar. Sarj arttikca merkezden disa dogru
-     * uzar, kalinlasir, parlar ve daha hizli nabiz atar — patlamanin geldigini
-     * anlatan tek gorsel bu; disari tasan geometri yok.
+     * Catlak agindan tek bir dal. Blok sinirlarini tanimaz — sunucu tum
+     * kaplama alani icin dallanan tek bir ag kurar, buraya o agin bir parcasi
+     * gelir. Duz cizgi degil: boyunca kirilarak ilerler.
+     *
+     * pos = baslangic, dir = yon, size = uzunluk, charge = catlak seviyesi.
      */
-    private static void cracks(Matrix4f matrix, BufferBuilder buf,
-                               ClientGroundFxData.Fx fx, float time) {
+    private static void crackLine(Matrix4f matrix, BufferBuilder buf,
+                                  ClientGroundFxData.Fx fx, float time) {
         Random rng = new Random(fx.seed);
         float charge = Mth.clamp(fx.charge, 0f, 1f);
-        float life = fx.life();
-        double h = fx.size * 0.5;
+        float life = Math.min(1f, fx.life() * 4f);
 
-        // Sarj yukseldikce hem parlaklik hem nabiz frekansi artar
+        Vec3 dir = fx.dir;
+        if (dir.lengthSqr() < 1.0E-6) return;
+        Vec3 side = new Vec3(-dir.z, 0, dir.x);
+        if (side.lengthSqr() < 1.0E-6) return;
+        side = side.normalize();
+
+        // Sarj yukseldikce parlaklik ve nabiz frekansi artar
         float pulse = 0.60f + 0.40f * Mth.sin(
-                time * (2.2f + 6.0f * charge) + (float) (fx.seed % 17));
-        float alpha = (0.18f + 0.82f * charge) * pulse * Math.min(1f, life * 4f);
-        double width = 0.020 + 0.045 * charge;
+                time * (2.0f + 5.5f * charge) + (float) (fx.seed % 19));
+        float alpha = (0.22f + 0.78f * charge) * pulse * life;
+        double width = 0.030 + 0.055 * charge;
 
-        // Sarjla birlikte acilan kolla sayisi
-        int branches = 4 + rng.nextInt(3);
-        Vec3 center = fx.pos.add(0, 0.03, 0);
+        // Uzunluga gore parcalanir; her kirilma noktasi yana sapar
+        int segs = Math.max(2, (int) Math.ceil(fx.size / 0.55));
+        double wobble = 0.16 + 0.10 * rng.nextDouble();
 
-        for (int i = 0; i < branches; i++) {
-            double ang = (i / (double) branches) * Math.PI * 2 + rng.nextDouble() * 0.7;
-            Vec3 dir = new Vec3(Math.cos(ang), 0, Math.sin(ang));
-            Vec3 side = new Vec3(-dir.z, 0, dir.x);
+        Vec3 prev = fx.pos;
+        for (int s = 1; s <= segs; s++) {
+            double t = s / (double) segs;
+            double off = (rng.nextDouble() - 0.5) * wobble * 2.0;
+            // Uc nokta tam hedefte bitsin ki dallar birbirine baglansin
+            if (s == segs) off = 0;
 
-            // Catlak blogun kenarina kadar buyur; dusuk sarjda kisa kalir
-            double maxReach = h * 0.95 * (0.35 + 0.65 * charge);
-
-            Vec3 prev = center;
-            int segs = 3;
-            for (int s = 1; s <= segs; s++) {
-                double t = s / (double) segs;
-                double jitter = (rng.nextDouble() - 0.5) * h * 0.30;
-                Vec3 next = center.add(dir.scale(maxReach * t)).add(side.scale(jitter));
-
-                // Uca dogru incelir ve soner
-                edge(buf, matrix, prev, next,
-                        width * (1.0 - 0.45 * t), EMBER,
-                        alpha * (float) (1.0 - 0.35 * t));
-                prev = next;
-            }
-        }
-
-        // Sarj sonuna dogru merkezde toplanan kor
-        if (charge > 0.5f) {
-            double g = h * 0.30 * (charge - 0.5) * 2.0;
-            float ga = alpha * 0.55f;
-            quad(buf, matrix,
-                    center.add(-g, 0, -g), center.add(g, 0, -g),
-                    center.add(g, 0, g), center.add(-g, 0, g), EMBER, ga);
+            Vec3 next = fx.pos.add(dir.scale(fx.size * t)).add(side.scale(off));
+            edge(buf, matrix, prev, next, width, EMBER, alpha);
+            prev = next;
         }
     }
 

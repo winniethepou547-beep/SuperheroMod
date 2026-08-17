@@ -62,17 +62,34 @@ public class CyclopsUltimateController {
     private static final float BEAM_HEALTH_PERCENT = 0.45f;
     /** Patlama: maks canin yuzdesi. */
     private static final float BLAST_HEALTH_PERCENT = 0.30f;
-    private static final double BLAST_RADIUS = 6.0;
+    private static final double BLAST_RADIUS = 8.0;
+
+    /** Isaretli bloklarin cevresinde kac blok yarikap sokulur. */
+    private static final int BLAST_SPREAD = 2;
+    /** Kac katman asagi kazilir (krater derinligi). */
+    private static final int BLAST_DEPTH = 1;
 
     /** Sadece patlama aninda kullaniliyor; sarj/yildirim efektleri geometri. */
     private static final DustParticleOptions CHARGE_CRACK =
             new DustParticleOptions(new Vector3f(1.0f, 0.12f, 0.05f), 1.4f);
+
+    /**
+     * Catlak agindaki tek bir dal. Bloklardan bagimsizdir; tum kaplama alani
+     * icin bir kez kurulur.
+     *
+     * @param threshold bu dalin gorunmeye basladigi sarj seviyesi (0..1)
+     */
+    private record Crack(Vec3 from, Vec3 dir, float length, float threshold) {}
 
     private static final class UltState {
         Phase phase = Phase.AIMING;
         int ticks = 0;
         float startYRot;
         final Set<BlockPos> chargedBlocks = new LinkedHashSet<>();
+        /** Isin hatti uzerindeki ana bloklar — catlak agi bunlari izler. */
+        final List<BlockPos> spine = new ArrayList<>();
+        /** CHARGE basinda bir kez kurulur, sonra sadece sarj seviyesi degisir. */
+        final List<Crack> cracks = new ArrayList<>();
         final Set<UUID> beamHitTargets = new HashSet<>();
     }
 
@@ -199,19 +216,82 @@ public class CyclopsUltimateController {
     /**
      * Isaretli her blogun UST YUZU icin bir kaplama efekti uretir.
      * Boyut tam 1 blok; yan yana bloklar kesintisiz tek siyah alan olusturur.
-     *
-     * @param charge 0 = catlaksiz duz siyah, 1 = patlamaya hazir catlaklar
+     * Catlaklar buraya DAHIL DEGIL — onlar alanin tamaminda tek bir agdir.
      */
-    private static List<GroundFxPacket.Entry> scorchEntries(UltState st, float charge, int ticks) {
+    private static List<GroundFxPacket.Entry> scorchEntries(UltState st, int ticks) {
         List<GroundFxPacket.Entry> out = new ArrayList<>(st.chargedBlocks.size());
         for (BlockPos pos : st.chargedBlocks) {
             out.add(new GroundFxPacket.Entry(
                     GroundFxPacket.KIND_SCORCH,
                     new Vec3(pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5),
                     new Vec3(0, 1, 0),
-                    1.0f, charge, ticks));
+                    1.0f, 0f, ticks));
         }
         return out;
+    }
+
+    /** Sarj seviyesine gore gorunur hale gelmis catlak dallari. */
+    private static List<GroundFxPacket.Entry> crackEntries(UltState st, float charge, int ticks) {
+        List<GroundFxPacket.Entry> out = new ArrayList<>();
+        for (Crack c : st.cracks) {
+            if (charge < c.threshold()) continue;
+            out.add(new GroundFxPacket.Entry(
+                    GroundFxPacket.KIND_CRACK,
+                    c.from(), c.dir(), c.length(), charge, ticks));
+        }
+        return out;
+    }
+
+    /**
+     * Tum kaplama alanini kaplayan TEK bir catlak agi kurar:
+     * isin hatti boyunca ana bir govde, uzerinden ayrilan yan dallar ve
+     * onlardan cikan kisa alt dallar. Blok basina ayri desen yok.
+     */
+    private static void buildCracks(ServerLevel level, UltState st) {
+        st.cracks.clear();
+        if (st.spine.size() < 2) return;
+
+        List<Vec3> points = new ArrayList<>(st.spine.size());
+        for (BlockPos p : st.spine) {
+            points.add(new Vec3(p.getX() + 0.5, p.getY() + 1.02, p.getZ() + 0.5));
+        }
+
+        for (int i = 0; i < points.size() - 1; i++) {
+            Vec3 from = points.get(i);
+            Vec3 to = points.get(i + 1);
+            Vec3 delta = to.subtract(from);
+            double len = delta.length();
+            if (len < 0.1) continue;
+
+            Vec3 dir = delta.normalize();
+            // Ana govde en bastan gorunur
+            st.cracks.add(new Crack(from, dir, (float) len, 0f));
+
+            // Yan dallar — govdenin iki yanina, sarj ilerledikce acilir
+            Vec3 side = new Vec3(-dir.z, 0, dir.x).normalize();
+            int branches = 1 + level.random.nextInt(2);
+
+            for (int b = 0; b < branches; b++) {
+                double lean = (level.random.nextDouble() - 0.5) * 0.9;
+                double sign = level.random.nextBoolean() ? 1 : -1;
+
+                Vec3 branchDir = side.scale(sign).add(dir.scale(lean)).normalize();
+                float branchLen = 0.8f + level.random.nextFloat() * 1.4f;
+                float threshold = 0.20f + level.random.nextFloat() * 0.45f;
+
+                Vec3 branchFrom = from.add(dir.scale(len * level.random.nextDouble()));
+                st.cracks.add(new Crack(branchFrom, branchDir, branchLen, threshold));
+
+                // Alt dal — agin ucu daha da yayilsin
+                if (level.random.nextFloat() < 0.55f) {
+                    Vec3 tip = branchFrom.add(branchDir.scale(branchLen * 0.7));
+                    Vec3 subDir = branchDir.add(side.scale(sign * -0.8)).normalize();
+                    st.cracks.add(new Crack(tip, subDir,
+                            0.5f + level.random.nextFloat() * 0.7f,
+                            threshold + 0.15f));
+                }
+            }
+        }
     }
 
     private static void sendGroundFx(ServerPlayer player, List<GroundFxPacket.Entry> entries) {
@@ -295,16 +375,19 @@ public class CyclopsUltimateController {
 
         markChargedBlocks(level, st, origin, hit);
 
-        // Lazerin degdigi bloklarin ustu aninda siyah kaplanir; catlaklar
-        // henuz yok (charge = 0), sarj fazinda buyuyecekler.
+        // Lazerin degdigi bloklarin ustu aninda siyah kaplanir; catlak agi
+        // henuz kurulmadi, sarj fazinda ortaya cikacak.
         if (st.ticks % 2 == 0) {
-            sendGroundFx(player, scorchEntries(st, 0f, 4));
+            sendGroundFx(player, scorchEntries(st, 4));
         }
 
         if (st.ticks >= SWEEP_TICKS) {
             st.phase = Phase.CHARGE;
             st.ticks = 0;
             sendPhase(player, UltimateStatePacket.PHASE_NONE);
+
+            // Catlak agi tum alan icin bir kez kurulur
+            buildCracks(level, st);
 
             // Lazer kesildi: kafayi duz one bakis pozisyonuna geri getir
             player.connection.teleport(player.getX(), player.getY(), player.getZ(),
@@ -320,14 +403,17 @@ public class CyclopsUltimateController {
         float progress = st.ticks / (float) CHARGE_TICKS;
         int every = progress > 0.6f ? 2 : 4;
 
-        // Kaplama duruyor, sadece catlak seviyesi (charge) yukseliyor.
+        // Kaplama sabit; uzerindeki tek catlak agi sarjla birlikte buyur.
         if (st.ticks % every == 0) {
-            sendGroundFx(player, scorchEntries(st, progress, every + 2));
+            List<GroundFxPacket.Entry> fx = new ArrayList<>();
+            fx.addAll(scorchEntries(st, every + 2));
+            fx.addAll(crackEntries(st, progress, every + 2));
+            sendGroundFx(player, fx);
 
             // Catlaklardan sizan cok minik kor — yanlara tasmaz, yukari cikar
             if (progress > 0.45f) {
-                for (BlockPos pos : st.chargedBlocks) {
-                    if (level.random.nextFloat() > 0.25f) continue;
+                for (BlockPos pos : st.spine) {
+                    if (level.random.nextFloat() > 0.35f) continue;
                     level.sendParticles(CHARGE_CRACK,
                             pos.getX() + 0.5, pos.getY() + 1.08, pos.getZ() + 0.5,
                             1, 0.16, 0.02, 0.16, 0.005);
@@ -371,15 +457,20 @@ public class CyclopsUltimateController {
         level.sendParticles(ParticleTypes.ASH,
                 center.x, center.y + 1.0, center.z, 40, 3.0, 1.2, 3.0, 0.02);
 
-        // Patlama isaretli bloklarla sinirli kalmaz; cevrelerindeki bloklari
-        // da sokup ucurur.
+        // Patlama isaretli bloklarla sinirli kalmaz: cevrede 2 blok yaricap,
+        // ayrica bir alt katman da sokulur — krater acilsin.
         Set<BlockPos> blast = new LinkedHashSet<>(st.chargedBlocks);
         for (BlockPos pos : st.chargedBlocks) {
-            for (int dx = -1; dx <= 1; dx++) {
-                for (int dz = -1; dz <= 1; dz++) {
-                    if (dx == 0 && dz == 0) continue;
-                    BlockPos n = pos.offset(dx, 0, dz);
-                    if (!level.getBlockState(n).isAir()) blast.add(n);
+            for (int dx = -BLAST_SPREAD; dx <= BLAST_SPREAD; dx++) {
+                for (int dz = -BLAST_SPREAD; dz <= BLAST_SPREAD; dz++) {
+                    for (int dy = -BLAST_DEPTH; dy <= 0; dy++) {
+                        if (dx == 0 && dz == 0 && dy == 0) continue;
+                        // Kare degil daire: kosede tasma olmasin
+                        if (dx * dx + dz * dz > BLAST_SPREAD * BLAST_SPREAD) continue;
+
+                        BlockPos n = pos.offset(dx, dy, dz);
+                        if (!level.getBlockState(n).isAir()) blast.add(n);
+                    }
                 }
             }
         }
@@ -398,7 +489,11 @@ public class CyclopsUltimateController {
                         6, 0.4, 0.3, 0.4, 0.05);
             }
 
-            if (launched >= MAX_LAUNCHED_BLOCKS) continue;
+            // Entity siniri dolduysa blok yine de yok olur, sadece ucmaz
+            if (launched >= MAX_LAUNCHED_BLOCKS) {
+                level.setBlockAndUpdate(pos, Blocks.AIR.defaultBlockState());
+                continue;
+            }
 
             // Merkezden disa dogru savrulup havalanir
             Vec3 blockCenter = new Vec3(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
@@ -443,7 +538,7 @@ public class CyclopsUltimateController {
     /** Performans siniri: bu sayidan fazla blok isaretlenmez. */
     private static final int MAX_CHARGED_BLOCKS = 70;
     /** Patlamada azami kac blok fiziksel olarak havaya ucar. */
-    private static final int MAX_LAUNCHED_BLOCKS = 90;
+    private static final int MAX_LAUNCHED_BLOCKS = 160;
 
     private static void markChargedBlocks(ServerLevel level, UltState st, Vec3 from, Vec3 to) {
         if (st.chargedBlocks.size() >= MAX_CHARGED_BLOCKS) return;
@@ -463,7 +558,8 @@ public class CyclopsUltimateController {
             BlockPos ground = findGroundBelow(level, BlockPos.containing(p));
             if (ground == null) continue;
 
-            st.chargedBlocks.add(ground);
+            // Ana hat: catlak agi bu noktalari izler
+            if (st.chargedBlocks.add(ground)) st.spine.add(ground);
 
             // Sadece capraz iki komsu — dolgun gorunsun ama patlamasin
             BlockPos a = ground.offset(1, 0, 0);

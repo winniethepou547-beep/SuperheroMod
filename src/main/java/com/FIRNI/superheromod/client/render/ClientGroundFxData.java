@@ -15,14 +15,20 @@ public class ClientGroundFxData {
     public enum Kind {
         /** Ultinin gidecegi alani gosteren yer konisi. */
         CONE,
-        /** Blok ustune oturan siyah kaplama + uzerinde catlaklar. */
-        SCORCH
+        /** Blok ustune oturan siyah kaplama. */
+        SCORCH,
+        /**
+         * Kaplamanin uzerindeki catlak agindan TEK bir parca. Bloklardan
+         * bagimsizdir: sunucu tum alan icin tek bir dallanan ag kurar,
+         * her dal bir CRACK parcasi olarak gelir.
+         */
+        CRACK
     }
 
     public static final class Fx {
         public final Kind kind;
         public final Vec3 pos;
-        /** CONE icin yon. */
+        /** CONE ve CRACK icin yon. */
         public final Vec3 dir;
         public final float size;
         /** 0..1 — kaplama icin "patlamaya hazirlik" (catlak) seviyesi. */
