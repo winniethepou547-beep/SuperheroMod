@@ -71,6 +71,12 @@ public class SandSoldiersAbility extends Ability {
                     SandSoldierEntity.create(level, player, ground.x, ground.y, ground.z);
             if (soldier == null) continue;
 
+            // Turler donusumlu veriliyor — rastgele birakinca bazen hepsi ayni
+            // turden cikiyor ve iki saldiri deseninin farki hic gorulmuyordu
+            soldier.setVariant(i % 2 == 0
+                    ? SandSoldierEntity.Variant.BLADE
+                    : SandSoldierEntity.Variant.BREAKER);
+
             soldier.setLifetime(lifetime);
             level.addFreshEntity(soldier);
             spawned++;

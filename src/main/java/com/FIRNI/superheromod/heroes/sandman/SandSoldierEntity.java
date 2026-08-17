@@ -19,9 +19,12 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.goal.*;
 import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.NetworkHooks;
 
 import javax.annotation.Nullable;
@@ -48,6 +51,26 @@ public class SandSoldierEntity extends PathfinderMob {
     /** Dagilma ilerlemesi 0..1 — 1 olunca entity siliniyor. */
     private static final EntityDataAccessor<Float> CRUMBLE_PROGRESS =
             SynchedEntityData.defineId(SandSoldierEntity.class, EntityDataSerializers.FLOAT);
+
+    /** Asker turu — model ve saldiri deseni buna gore degisiyor. */
+    private static final EntityDataAccessor<Byte> VARIANT =
+            SynchedEntityData.defineId(SandSoldierEntity.class, EntityDataSerializers.BYTE);
+
+    /**
+     * Asker turleri. Ikisi de ayni iskeleti kullanir; fark kollarda,
+     * dayaniklilikta ve SALDIRI DESENINDE.
+     */
+    public enum Variant {
+        /** Ince kollar, kum bicaklari. Hizli, seri cift vurus, dusuk hasar. */
+        BLADE,
+        /** Iri kollar, dev yumruklar. Yavas, agir tek darbe, alan savurmasi. */
+        BREAKER;
+
+        public static Variant byId(byte id) {
+            Variant[] all = values();
+            return id >= 0 && id < all.length ? all[id] : BLADE;
+        }
+    }
 
     /** Kumdan olusma suresi (tick). Dokumandaki 8 asama buna bolunuyor. */
     public static final int SPAWN_TICKS = 24;
@@ -85,12 +108,55 @@ public class SandSoldierEntity extends PathfinderMob {
         super.defineSynchedData();
         this.entityData.define(SPAWN_PROGRESS, 0f);
         this.entityData.define(CRUMBLE_PROGRESS, 0f);
+        this.entityData.define(VARIANT, (byte) 0);
+    }
+
+    public Variant getVariant() {
+        return Variant.byId(this.entityData.get(VARIANT));
+    }
+
+    /**
+     * Turu belirler ve o ture ait ozellikleri uygular.
+     *
+     * Ozellikler burada ayarlaniyor cunku iki tur ayri EntityType degil —
+     * carpisma kutulari ayni oldugu icin tek tur yeterli, sadece degerler
+     * ve gorunum degisiyor.
+     */
+    public void setVariant(Variant variant) {
+        setVariantIdOnly(variant);
+
+        switch (variant) {
+            case BLADE -> {
+                setAttr(Attributes.MAX_HEALTH, 16.0);
+                setAttr(Attributes.MOVEMENT_SPEED, 0.34);
+                setAttr(Attributes.ATTACK_DAMAGE, 2.5);
+                setAttr(Attributes.KNOCKBACK_RESISTANCE, 0.15);
+            }
+            case BREAKER -> {
+                setAttr(Attributes.MAX_HEALTH, 26.0);
+                setAttr(Attributes.MOVEMENT_SPEED, 0.23);
+                setAttr(Attributes.ATTACK_DAMAGE, 5.0);
+                setAttr(Attributes.KNOCKBACK_RESISTANCE, 0.55);
+            }
+        }
+
+        setHealth(getMaxHealth());
+    }
+
+    /** Sadece tur kimligini yazar, ozelliklere dokunmaz. */
+    protected void setVariantIdOnly(Variant variant) {
+        this.entityData.set(VARIANT, (byte) variant.ordinal());
+    }
+
+    private void setAttr(net.minecraft.world.entity.ai.attributes.Attribute attribute, double value) {
+        var instance = getAttribute(attribute);
+        if (instance != null) instance.setBaseValue(value);
     }
 
     @Override
     protected void registerGoals() {
         this.goalSelector.addGoal(0, new FloatGoal(this));
-        this.goalSelector.addGoal(1, new MeleeAttackGoal(this, 1.15, true));
+        this.goalSelector.addGoal(1, new PatternAttackGoal(this));
         this.goalSelector.addGoal(2, new FollowOwnerGoal(this));
         this.goalSelector.addGoal(3, new WaterAvoidingRandomStrollGoal(this, 0.8));
         this.goalSelector.addGoal(4, new LookAtPlayerGoal(this, Player.class, 8.0f));
@@ -109,7 +175,7 @@ public class SandSoldierEntity extends PathfinderMob {
      * Tek istisna sahibin kendisi ve ayni sahibin diger askerleri; onlarin
      * disinda ayirt etmiyoruz — asker Sandman'in yanindaki her seye saldirir.
      */
-    private boolean isValidTarget(LivingEntity candidate) {
+    boolean isValidTarget(LivingEntity candidate) {
         if (candidate == null || !candidate.isAlive()) return false;
         if (candidate == this) return false;
         if (ownerId != null && candidate.getUUID().equals(ownerId)) return false;
@@ -315,6 +381,7 @@ public class SandSoldierEntity extends PathfinderMob {
         if (ownerId != null) tag.putUUID("SandOwner", ownerId);
         tag.putInt("SandLifetime", lifetime);
         tag.putFloat("SandSpawn", getSpawnProgress());
+        tag.putByte("SandVariant", (byte) getVariant().ordinal());
     }
 
     @Override
@@ -323,6 +390,7 @@ public class SandSoldierEntity extends PathfinderMob {
         if (tag.hasUUID("SandOwner")) ownerId = tag.getUUID("SandOwner");
         lifetime = tag.getInt("SandLifetime");
         this.entityData.set(SPAWN_PROGRESS, tag.getFloat("SandSpawn"));
+        this.entityData.set(VARIANT, tag.getByte("SandVariant"));
     }
 
     @Override
@@ -340,6 +408,98 @@ public class SandSoldierEntity extends PathfinderMob {
     }
 
     // ------------------------------------------------------------------
+
+    /**
+     * Ture gore degisen saldiri deseni.
+     *
+     * Vanilla MeleeAttackGoal'un kendi bekleme sayaci sabit 20 tick ve alani
+     * private; o yuzden kendi sayacimizi tutuyoruz ve vurusu tamamen burada
+     * uyguluyoruz. Yol bulma kismi vanilla'dan miras kaliyor.
+     *
+     *   BLADE   : iki hizli savurma (ikincisi birkac tick sonra), kisa bekleme
+     *   BREAKER : tek agir darbe + hedefin cevresine savurma, uzun bekleme
+     */
+    private static class PatternAttackGoal extends MeleeAttackGoal {
+
+        private static final int BLADE_COOLDOWN = 16;
+        private static final int BREAKER_COOLDOWN = 34;
+        /** BLADE'in ikinci vurusunun ilkinden kac tick sonra gelecegi. */
+        private static final int SECOND_STRIKE_DELAY = 5;
+
+        private final SandSoldierEntity soldier;
+        private int cooldown;
+        private int pendingSecondStrike;
+
+        PatternAttackGoal(SandSoldierEntity soldier) {
+            super(soldier, 1.15, true);
+            this.soldier = soldier;
+        }
+
+        @Override
+        public boolean canUse() {
+            return !soldier.isForming() && super.canUse();
+        }
+
+        @Override
+        public void tick() {
+            super.tick();
+
+            if (pendingSecondStrike > 0 && --pendingSecondStrike == 0) {
+                LivingEntity target = soldier.getTarget();
+                if (target != null && soldier.distanceToSqr(target) <= getAttackReachSqr(target)) {
+                    soldier.swing(InteractionHand.OFF_HAND);
+                    soldier.doHurtTarget(target);
+                }
+            }
+        }
+
+        @Override
+        protected void checkAndPerformAttack(LivingEntity target, double distSqr) {
+            if (cooldown > 0) {
+                cooldown--;
+                return;
+            }
+            if (distSqr > getAttackReachSqr(target)) return;
+
+            soldier.swing(InteractionHand.MAIN_HAND);
+
+            if (soldier.getVariant() == Variant.BLADE) {
+                cooldown = BLADE_COOLDOWN;
+                soldier.doHurtTarget(target);
+                pendingSecondStrike = SECOND_STRIKE_DELAY;
+            } else {
+                cooldown = BREAKER_COOLDOWN;
+                soldier.doHurtTarget(target);
+                slam(target);
+            }
+        }
+
+        /** BREAKER darbesi hedefin cevresindekileri de savurur. */
+        private void slam(LivingEntity target) {
+            AABB area = new AABB(target.position(), target.position()).inflate(2.2);
+
+            for (LivingEntity nearby : soldier.level().getEntitiesOfClass(
+                    LivingEntity.class, area,
+                    e -> e != soldier && e.isAlive() && soldier.isValidTarget(e))) {
+
+                Vec3 push = nearby.position().subtract(soldier.position());
+                Vec3 flat = new Vec3(push.x, 0, push.z);
+                flat = flat.lengthSqr() < 1.0E-4 ? Vec3.ZERO : flat.normalize();
+
+                nearby.setDeltaMovement(flat.x * 0.55, 0.42, flat.z * 0.55);
+                nearby.hurtMarked = true;
+            }
+
+            if (soldier.level() instanceof ServerLevel server) {
+                server.sendParticles(sandParticle(),
+                        target.getX(), target.getY() + 0.1, target.getZ(),
+                        16, 0.6, 0.1, 0.6, 0.12);
+            }
+
+            soldier.level().playSound(null, soldier.blockPosition(),
+                    SoundEvents.SAND_BREAK, SoundSource.HOSTILE, 1.1f, 0.55f);
+        }
+    }
 
     /** Sahibi cok uzaklasirsa yanina doner. */
     private static class FollowOwnerGoal extends Goal {

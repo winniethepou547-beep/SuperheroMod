@@ -164,10 +164,12 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
      * bir asker degil, agir bir dev gibi duruyor.
      */
     private void applyBulk(T entity) {
+        if (entity.isForming()) return;   // olusma asamalari olcegi kendi yonetiyor
+
         if (!(entity instanceof com.FIRNI.superheromod.heroes.sandman.GiantSandSoldierEntity)) {
+            applyVariantShape(entity);
             return;
         }
-        if (entity.isForming()) return;   // olusma asamalari olcegi kendi yonetiyor
 
         body.xScale = 1.18f;
         body.zScale = 1.15f;
@@ -185,6 +187,40 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
         head.xScale = 0.88f;
         head.yScale = 0.88f;
         head.zScale = 0.88f;
+    }
+
+    /**
+     * Asker turune gore govde orani.
+     *
+     * BLADE ince ve cevik, BREAKER iri ve agir gorunur. Blockbench modelleri
+     * gelince buranin yerini gercek geometri alacak; simdilik ayni modeli
+     * olceklendirerek iki turu birbirinden ayirt edilebilir yapiyoruz.
+     */
+    private void applyVariantShape(T entity) {
+        switch (entity.getVariant()) {
+            case BLADE -> {
+                body.xScale = 0.88f;
+                body.zScale = 0.85f;
+                rightArm.xScale = 0.78f;
+                rightArm.zScale = 0.78f;
+                leftArm.xScale = 0.78f;
+                leftArm.zScale = 0.78f;
+                rightLeg.xScale = 0.9f;
+                leftLeg.xScale = 0.9f;
+            }
+            case BREAKER -> {
+                body.xScale = 1.22f;
+                body.zScale = 1.18f;
+                rightArm.xScale = 1.4f;
+                rightArm.zScale = 1.4f;
+                leftArm.xScale = 1.4f;
+                leftArm.zScale = 1.4f;
+                rightLeg.xScale = 1.12f;
+                leftLeg.xScale = 1.12f;
+                // Boynu yok gibi dursun
+                head.yScale = 0.92f;
+            }
+        }
     }
 
     /**

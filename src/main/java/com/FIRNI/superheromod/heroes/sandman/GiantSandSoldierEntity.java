@@ -36,6 +36,19 @@ public class GiantSandSoldierEntity extends SandSoldierEntity {
 
     public GiantSandSoldierEntity(EntityType<? extends GiantSandSoldierEntity> type, Level level) {
         super(type, level);
+        // Dev her zaman agir desenle vurur — hizli cift savurma ona yakismiyor
+        setVariant(Variant.BREAKER);
+    }
+
+    /**
+     * Tur sadece SALDIRI DESENINI belirler; devin kendi ozellikleri korunur.
+     *
+     * Ust sinifta setVariant ayni zamanda can/hiz/hasar degerlerini de
+     * yaziyor. Dev icin bunlar createGiantAttributes'tan geliyor, ezilmemeli.
+     */
+    @Override
+    public void setVariant(Variant variant) {
+        setVariantIdOnly(variant);
     }
 
     public static AttributeSupplier.Builder createGiantAttributes() {
