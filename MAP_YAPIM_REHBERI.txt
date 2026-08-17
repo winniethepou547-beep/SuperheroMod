@@ -1,0 +1,122 @@
+========================================
+   PVP MAP YAPIM REHBERI - SuperheroMod
+========================================
+
+## GENEL BILGI
+
+Maplar "pvp_arena" adinda ozel bir boyutta (dimension) yasiyor.
+Normal Overworld'den tamamen ayri, bos bir dunya.
+Her map 300x300 blok buyuklugunde, Barrier duvarlarla cevrili.
+
+Sunucu basladiginda maplar otomatik insa ediliyor (PvpMapBuilder).
+Simdilik placeholder (yer tutucu) maplar var - sen kendi tasarimlarini yapabilirsin.
+
+
+## MEVCUT MAPLAR
+
+1. Sehir   - Merkez: X=0,    Y=100, Z=0     (pvp_arena boyutu)
+2. Liman   - Merkez: X=1000, Y=100, Z=0     (pvp_arena boyutu)
+3. Kanyon  - Merkez: X=-1000, Y=100, Z=0    (pvp_arena boyutu)
+
+Her map 300x300 alan kapliyor (merkezden 150 blok her yone).
+Zemin Y=100'de, duvarlar 24 blok yukseklikte (ucus icin).
+
+
+## MAP NASIL YAPILIR (ADIM ADIM)
+
+### Yontem 1: Oyun icinde elle yap (en kolay)
+
+1. Sunucuyu baslat, oyuna gir
+2. Suna yaz:
+   /execute in superheromod:pvp_arena run tp @s 0 101 0
+   (Bu seni Sehir mapinin merkezine isinlar)
+
+3. Creative modda mapini tasarla:
+   - Zemin Y=100'de (zaten var, ustune yap)
+   - Duvarlar ve yapilar ekle
+   - Gizlenme noktalari, yukseklikler, platformlar koy
+   - Ucus yetenekleri icin acik alan birak
+
+4. Liman icin: /execute in superheromod:pvp_arena run tp @s 1000 101 0
+5. Kanyon icin: /execute in superheromod:pvp_arena run tp @s -1000 101 0
+
+
+### Yontem 2: Structure Block ile
+
+1. Baska bir dunyada mapini yap
+2. Structure Block ile kaydet (isim: "superheromod:sehir" vs.)
+3. pvp_arena boyutuna gidip Structure Block ile yukle
+4. Dogru koordinatlara yerlestir (yukaridaki merkez noktalar)
+
+
+### Yontem 3: WorldEdit (eger yuklediysen)
+
+1. Baska yerde yap, //copy ile kopyala
+2. pvp_arena boyutuna git
+3. Dogru koordinatta //paste yap
+
+
+## YENI MAP EKLEMEK
+
+Mevcut 3 mape ek olarak yeni map eklemek istersen:
+
+1. PvpMapLocations.java'da yeni koordinat ekle:
+   - Ornek: public static final BlockPos ORMAN_CENTER = new BlockPos(2000, FLOOR_Y, 0);
+   - Spawn: public static final BlockPos ORMAN_SPAWN = ORMAN_CENTER.above();
+
+2. MapRegistry.java'da listeye ekle:
+   - new GameMap("orman", "Orman", 0xFF228B22, PvpMapLocations.ORMAN_SPAWN)
+   - Renk kodu (0xFFxxxxxx) map secim ekranindaki cerceve rengi
+
+3. Build et, sunucuyu baslat, oyuna gir ve mapi tasarla
+
+
+## MAP TASARIM IPUCLARI
+
+- Simetrik maplar daha dengeli olur (her iki taraf icin esit avantaj)
+- Yukseklik farklari koy (platformlar, merdivenler, cattilar)
+- Gizlenme/korunma noktalari ekle (duvarlar, sutunlar)
+- Acik alanlar birak (ucus yetenekleri icin)
+- Spawn noktasi haritanin merkezinde (iki takim da ayni yere spawn oluyor simdilik)
+- Barrier bloklari gorunmez duvar olarak kullaniliyor (kenarlar)
+- Isiklandirma onemli - mob spawn istemiyorsan aydinlat
+- Dekoratif bloklar: Banner, Armor Stand, Item Frame vs. kullanabilirsin
+
+
+## MAP BOYUTLARI
+
+- Genislik/Derinlik: 300x300 blok (her yonde merkezden 150 blok)
+- Yukseklik: 24 blok (Y=100 ile Y=124 arasi)
+- Barrier duvarlari otomatik olusturuluyor, senin icine doldurman yeterli
+
+
+## SPAWN NOKTASI DEGISTIRMEK
+
+Eger spawn noktasini mapinin farkli bir yerine almak istersen:
+PvpMapLocations.java'da SPAWN degerini degistir.
+Ornek: public static final BlockPos CITY_SPAWN = new BlockPos(10, 105, -20);
+
+2v2 icin ileride takim bazli farkli spawn noktalari eklenecek.
+
+
+## RENK KODLARI (MAP SECIM EKRANI)
+
+MapRegistry.java'daki frameColor degerleri:
+- 0xFF7A8B99 = Gri-Mavi (Sehir)
+- 0xFF2E9CB0 = Turkuaz (Liman)
+- 0xFFC1662F = Turuncu (Kanyon)
+
+Kendi rengini secmek icin: 0xFF + RRGGBB hex kodu
+Ornek: Yesil = 0xFF228B22, Kirmizi = 0xFFCC3333, Mor = 0xFF8B008B
+
+
+## NOTLAR
+
+- Maplar sunucu her basladiginda yeniden insa ediliyor (PvpMapBuilder)
+  Eger elle yaptigin bir mapi kaybetmek istemiyorsan PvpMapBuilder'daki
+  ilgili build metodunu kaldir veya kontrol ekle (blok varsa atla).
+
+- pvp_arena boyutu superheromod:pvp_arena olarak tanimli
+  (data/superheromod/dimension/ altinda JSON dosyasi var)
+
+- Test icin: /superhero testmatch 1v1 komutuyla mac baslat
