@@ -6,7 +6,8 @@
   "refmap": "superheromod.refmap.json",
   "mixins": [],
   "client": [
-    "HumanoidModelMixin"
+    "HumanoidModelMixin",
+    "AbstractClientPlayerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

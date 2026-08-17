@@ -1,5 +1,6 @@
 package com.FIRNI.superheromod.client.render;
 
+import com.FIRNI.superheromod.client.ClientHeroRegistry;
 import com.FIRNI.superheromod.client.ClientHeroState;
 import com.FIRNI.superheromod.client.hud.ClientUltimateState;
 import com.FIRNI.superheromod.client.render.anim.PoseStudio;
@@ -132,7 +133,14 @@ public final class HeroArmPose {
         model.rightSleeve.skipDraw = model.rightArm.skipDraw;
     }
 
+    /**
+     * Sunucu kimin hangi kahraman oldugunu herkese duyuruyor; oncelik onda.
+     * Eski yollar (yerel bayrak / aktif isin) yedek olarak duruyor ki kimlik
+     * paketi henuz gelmemisken poz kaybolmasin.
+     */
     private static boolean isHero(Player player) {
+        if (ClientHeroRegistry.isHero(player)) return true;
+
         Minecraft mc = Minecraft.getInstance();
         if (mc.player != null && mc.player.getUUID().equals(player.getUUID())) {
             return ClientHeroState.isHero();

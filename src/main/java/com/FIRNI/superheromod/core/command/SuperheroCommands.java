@@ -6,6 +6,7 @@ import com.FIRNI.superheromod.core.region.Region;
 import com.FIRNI.superheromod.core.region.RegionManager;
 import com.FIRNI.superheromod.core.region.RegionType;
 import com.FIRNI.superheromod.core.ability.AbilityManager;
+import com.FIRNI.superheromod.core.hero.HeroIdentitySync;
 import com.FIRNI.superheromod.core.character.CharacterRegistry;
 import com.FIRNI.superheromod.core.character.SuperCharacter;
 import com.FIRNI.superheromod.network.ModNetworking;
@@ -237,6 +238,8 @@ public class SuperheroCommands {
         AbilityManager.assignCharacter(player, characterId);
         ModNetworking.CHANNEL.send(PacketDistributor.PLAYER.with(() -> player),
                 new CameraStatePacket(true));
+        // Skin ve poz herkeste dogru gorunsun diye kimlik tum istemcilere gider
+        HeroIdentitySync.broadcast(player);
         ctx.getSource().sendSuccess(() -> Component.literal(
                 "Karakter secildi: " + character.getDisplayName()), false);
         return 1;

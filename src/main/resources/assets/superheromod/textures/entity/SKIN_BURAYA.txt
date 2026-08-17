@@ -1,0 +1,29 @@
+KAHRAMAN SKINLERI
+=================
+
+Cyclops modu kusanildiginda giyilecek skin bu klasore konur:
+
+    cyclops.png
+
+Kurallar:
+  - 64 x 64 piksel, standart Minecraft skin duzeni (1.8+ format)
+  - PNG, saydamlik destekli
+  - Dosya adi kucuk harf: cyclops.png
+
+Dosya yoksa oyuncunun KENDI skini kullanilir; hata vermez, pembe-siyah
+eksik doku karesi cikmaz.
+
+Yeni kahraman eklerken: dosyayi <characterId>.png olarak koy ve
+HeroSkins sinifindaki static blokta register("<characterId>") satirini ekle.
+
+
+DIRSEK NOTU
+-----------
+Sag kol dirsekten bukulebiliyor (BendableArm). Kol iki parcaya bolunurken
+dokunun su bolgeleri kullaniliyor:
+
+    ust kol : u=40..48, v=20..26
+    on kol  : u=40..48, v=26..32
+
+Skini cizerken sag kolun bu iki yarisinin birbirine uyumlu olmasina dikkat
+et; bilek hizasinda 4x4 piksellik kucuk bir kayma olabiliyor.
