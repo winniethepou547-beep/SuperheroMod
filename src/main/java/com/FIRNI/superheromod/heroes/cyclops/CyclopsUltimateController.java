@@ -662,16 +662,22 @@ public class CyclopsUltimateController {
     // Yanmis zemin
     // ------------------------------------------------------------------
 
-    /** Bant genisligi — cizgiler bu kalinlikta seritler halinde uzanir. */
-    private static final double BAND_WIDTH = 1.7;
+    /** Magma cekirdeginin bittigi yer (0 = orta cizgi, 1 = krater kenari). */
+    private static final double ZONE_MAGMA = 0.30;
+    /** Netherrack kusaginin bittigi yer; disi obsidyen. */
+    private static final double ZONE_NETHER = 0.68;
 
     /**
      * Kraterin en dibine, yok olan bloklarin hemen altina yanmis zemin serer.
      *
-     * Desen: krater ekseni boyunca uzanan, kivrilarak ilerleyen seritler.
-     * Duz cizgi degil — boyuna gore sinus dalgasiyla saga sola kayiyor, bu
-     * yuzden serit kenarlari organik duruyor. Her seridin blogu bant
-     * numarasindan turetiliyor, yani serit boyunca ayni blok devam ediyor.
+     * Desen MERKEZE UZAKLIGA gore kuruluyor: ortada magma damari, cevresinde
+     * netherrack, kenarda obsidyen — icten disa sogumus gibi.
+     *
+     * Duz cizgi olmamasi icin iki sey var: orta cizgi krater boyunca sinusle
+     * kivriliyor (damar yilankavi ilerliyor) ve her blogun bolge sinirina
+     * gurultu ekleniyor (kusak kenarlari testere gibi degil, dagilarak
+     * geciyor). Ayrica her kusakta komsu blok turunden serpistirme var,
+     * boylece gecisler keskin durmuyor.
      *
      * @return krater suya degdi mi (duman beyaz buhara donecek mi)
      */
@@ -679,7 +685,7 @@ public class CyclopsUltimateController {
                                              Map<Long, Integer> craterFloor, Vec3 center) {
         if (craterFloor.isEmpty()) return false;
 
-        // Kraterin ana ekseni — seritler bu yonde uzanir
+        // Kraterin ana ekseni — magma damari bu yonde uzanir
         Vec3 axis = new Vec3(1, 0, 0);
         if (st.spine.size() >= 2) {
             BlockPos a = st.spine.get(0);
@@ -688,6 +694,15 @@ public class CyclopsUltimateController {
             if (d.lengthSqr() > 1.0E-4) axis = d.normalize();
         }
         Vec3 side = new Vec3(-axis.z, 0, axis.x);
+
+        // Kraterin gercek yari genisligi — bolgeler buna gore olceklenir,
+        // boylece dar da genis de olsa oran ayni kalir
+        double halfWidth = 1.0;
+        for (Long key : craterFloor.keySet()) {
+            double dx = columnX(key) + 0.5 - center.x;
+            double dz = columnZ(key) + 0.5 - center.z;
+            halfWidth = Math.max(halfWidth, Math.abs(dx * side.x + dz * side.z));
+        }
 
         boolean touchedWater = false;
 
@@ -700,8 +715,7 @@ public class CyclopsUltimateController {
             // Kirilmaz zemin (bedrock) korunur
             if (existing.getDestroySpeed(level, floor) < 0) continue;
 
-            boolean water = nearWater(level, floor);
-            if (water) {
+            if (nearWater(level, floor)) {
                 touchedWater = true;
                 // Kizgin zemin suya degdi — beyaz buhar
                 level.sendParticles(ParticleTypes.CLOUD,
@@ -714,21 +728,21 @@ public class CyclopsUltimateController {
 
             if (existing.isAir()) continue;
 
-            // Serit deseni: yanal konum, boyuna gore kivriliyor
             double dx = x + 0.5 - center.x;
             double dz = z + 0.5 - center.z;
             double along = dx * axis.x + dz * axis.z;
             double lateral = dx * side.x + dz * side.z;
 
-            double wobble = Math.sin(along * 0.42) * 1.7
-                          + Math.sin(along * 0.16 + 1.3) * 1.0;
-            int band = Mth.floor((lateral + wobble) / BAND_WIDTH);
+            // Orta cizgi krater boyunca kivriliyor — damar duz gitmesin
+            double drift = Math.sin(along * 0.33) * halfWidth * 0.28
+                         + Math.sin(along * 0.12 + 1.3) * halfWidth * 0.17;
 
-            BlockState scorched = bandBlock(band);
-            if (scorched == null) continue;   // bu serit bos — yanmis toprak kalir
+            // 0 = damarin tam ortasi, 1 = kraterin kenari
+            double t = Math.abs(lateral - drift) / halfWidth;
+            // Kusak sinirlarini dagit ki kenarlar duz cizgi olmasin
+            t += (level.random.nextDouble() - 0.5) * 0.30;
 
-            // Bayrak 2: istemciye bildir ama komsu blok guncellemesi tetikleme
-            level.setBlock(floor, scorched, 2);
+            level.setBlock(floor, zoneBlock(t, level), 2);
         }
 
         if (touchedWater) {
@@ -739,17 +753,32 @@ public class CyclopsUltimateController {
     }
 
     /**
-     * Serit numarasindan blok secer. Ayni numara hep ayni blogu verir, bu
-     * yuzden serit boyunca blok degismez.
+     * Merkeze uzakliga gore blok secer. Her kusakta komsu turden serpistirme
+     * var; boylece gecis cizgisi degil, karisim olarak gorunuyor.
+     *
+     * @param t 0 = damarin ortasi, 1 = kraterin kenari
      */
-    private static BlockState bandBlock(int band) {
-        int h = Math.floorMod(band * 1103515245 + 12345, 10);
-        return switch (h) {
-            case 0, 1, 2 -> Blocks.MAGMA_BLOCK.defaultBlockState();   // hasar verir
-            case 3, 4, 5 -> Blocks.NETHERRACK.defaultBlockState();
-            case 6, 7 -> Blocks.OBSIDIAN.defaultBlockState();
-            default -> null;                                          // bos serit
-        };
+    private static BlockState zoneBlock(double t, ServerLevel level) {
+        float roll = level.random.nextFloat();
+
+        if (t < ZONE_MAGMA) {
+            // Cekirdek: agirlikli magma, arasinda netherrack damarlari
+            return roll < 0.72f
+                    ? Blocks.MAGMA_BLOCK.defaultBlockState()
+                    : Blocks.NETHERRACK.defaultBlockState();
+        }
+
+        if (t < ZONE_NETHER) {
+            // Orta kusak: netherrack, seyrek magma lekesi ve sogumus parcalar
+            if (roll < 0.14f) return Blocks.MAGMA_BLOCK.defaultBlockState();
+            if (roll > 0.88f) return Blocks.OBSIDIAN.defaultBlockState();
+            return Blocks.NETHERRACK.defaultBlockState();
+        }
+
+        // Kenar: sogumus obsidyen, arasinda netherrack
+        return roll < 0.72f
+                ? Blocks.OBSIDIAN.defaultBlockState()
+                : Blocks.NETHERRACK.defaultBlockState();
     }
 
     private static boolean nearWater(ServerLevel level, BlockPos pos) {
