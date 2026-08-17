@@ -23,7 +23,7 @@ public class OpticBlastAbility extends Ability {
     @Override
     protected void initConfig(AbilityConfig config) {
         config.set("cooldownTicks", 8);
-        config.set("damage", 4.0f);
+        config.set("damage", 2.0f);      // 1 kalp
         config.set("range", 40.0);
         config.set("knockback", 0.6);
         config.set("beamRadius", 0.3f);
@@ -34,7 +34,7 @@ public class OpticBlastAbility extends Ability {
 
     @Override
     protected void onActivate(ServerPlayer player) {
-        float damage = getConfig().getFloat("damage", 4.0f);
+        float damage = getConfig().getFloat("damage", 2.0f);
         double range = getConfig().getDouble("range", 40.0);
         double knockback = getConfig().getDouble("knockback", 0.6);
         float beamRadius = getConfig().getFloat("beamRadius", 0.3f);

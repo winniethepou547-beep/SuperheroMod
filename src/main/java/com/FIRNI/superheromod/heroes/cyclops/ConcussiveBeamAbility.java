@@ -27,7 +27,12 @@ public class ConcussiveBeamAbility extends Ability {
     @Override
     protected void initConfig(AbilityConfig config) {
         config.set("cooldownTicks", 0);
-        config.set("damage", 1.5f);
+        // Isin uzerinde tutuldukca isinir: yarim kalpten baslar, her yarim
+        // saniyede bir kademe artar, 1.5 kalpte tavan yapar.
+        config.set("damageStart", 1.0f);
+        config.set("damageMax", 3.0f);
+        config.set("damageStep", 0.5f);
+        config.set("damageRampTicks", 10);
         config.set("range", 30.0);
         config.set("beamRadius", 0.4f);
         config.set("knockbackHorizontal", 0.35);
@@ -77,7 +82,7 @@ public class ConcussiveBeamAbility extends Ability {
         AbilityConfig cfg = getConfig();
         double range = cfg.getDouble("range", 30.0);
         float beamRadius = cfg.getFloat("beamRadius", 0.4f);
-        float damage = cfg.getFloat("damage", 1.5f);
+        float damage = rampedDamage(cfg, ticksActive);
         double kbH = cfg.getDouble("knockbackHorizontal", 0.35);
         double kbV = cfg.getDouble("knockbackVertical", 0.05);
         double kbMax = cfg.getDouble("knockbackMaxVelocity", 1.8);
@@ -133,6 +138,23 @@ public class ConcussiveBeamAbility extends Ability {
             applySmoothedKnockback(target, push, kbH, kbV, kbMax);
             CyclopsBeamRenderer.renderImpact(level, target.getEyePosition());
         }
+    }
+
+    /**
+     * Isin uzerinde tutuldukca artan hasar.
+     *
+     * Kademeli: her damageRampTicks tickte bir damageStep eklenir, damageMax
+     * degerinde durur. Surekli artis yerine kademe kullaniliyor cunku oyuncunun
+     * "isin isindi" hissini fark etmesi icin siçramanin gorulur olmasi gerekiyor.
+     */
+    private float rampedDamage(AbilityConfig cfg, int ticksActive) {
+        float start = cfg.getFloat("damageStart", 1.0f);
+        float max = cfg.getFloat("damageMax", 3.0f);
+        float step = cfg.getFloat("damageStep", 0.5f);
+        int rampTicks = Math.max(1, cfg.getInt("damageRampTicks", 10));
+
+        int stage = ticksActive / rampTicks;
+        return Math.min(max, start + step * stage);
     }
 
     private void applySmoothedKnockback(LivingEntity target, Vec3 pushDir,

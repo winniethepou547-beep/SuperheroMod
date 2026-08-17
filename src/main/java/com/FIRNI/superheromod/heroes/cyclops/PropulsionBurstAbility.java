@@ -55,7 +55,7 @@ public class PropulsionBurstAbility extends Ability {
         config.set("initialBurstForce", 1.9);
         config.set("aoeRadius", 3.5);
         config.set("aoeKnockback", 0.8);
-        config.set("aoeDamage", 3.0f);
+        config.set("aoeDamage", 1.0f);      // yarim kalp
         config.set("trailDurationTicks", 20);
         config.set("trailMinDistance", 0.25);
         config.set("eyeBeamLength", 5.0);
@@ -63,7 +63,7 @@ public class PropulsionBurstAbility extends Ability {
         config.set("rammRadius", 1.6);
         config.set("rammKnockback", 1.9);
         config.set("rammVertical", 0.45);
-        config.set("rammDamage", 4.0f);
+        config.set("rammDamage", 1.0f);     // yarim kalp
     }
 
     @Override
@@ -72,7 +72,7 @@ public class PropulsionBurstAbility extends Ability {
         double burst = cfg.getDouble("initialBurstForce", 1.2);
         double aoeRadius = cfg.getDouble("aoeRadius", 3.5);
         double aoeKb = cfg.getDouble("aoeKnockback", 0.8);
-        float aoeDmg = cfg.getFloat("aoeDamage", 3.0f);
+        float aoeDmg = cfg.getFloat("aoeDamage", 1.0f);
 
         ServerLevel level = (ServerLevel) player.level();
 
@@ -205,7 +205,7 @@ public class PropulsionBurstAbility extends Ability {
         double radius = cfg.getDouble("rammRadius", 1.6);
         double kb = cfg.getDouble("rammKnockback", 1.9);
         double kbY = cfg.getDouble("rammVertical", 0.45);
-        float dmg = cfg.getFloat("rammDamage", 4.0f);
+        float dmg = cfg.getFloat("rammDamage", 1.0f);
 
         AABB box = player.getBoundingBox().inflate(radius);
         List<LivingEntity> hits = player.level().getEntitiesOfClass(LivingEntity.class, box,

@@ -3,6 +3,7 @@ package com.FIRNI.superheromod.heroes.cyclops;
 import com.FIRNI.superheromod.SuperheroMod;
 import com.FIRNI.superheromod.core.combat.raycast.RaycastResult;
 import com.FIRNI.superheromod.core.combat.raycast.RaycastSystem;
+import com.FIRNI.superheromod.core.world.SurfaceBreaker;
 import com.FIRNI.superheromod.network.ModNetworking;
 import com.FIRNI.superheromod.network.packet.BeamSyncPacket;
 import net.minecraft.server.level.ServerLevel;
@@ -34,7 +35,12 @@ public class RapidFireController {
     private static final int FIRE_INTERVAL = 1;     // mermiler arasi tick
     private static final double SPEED = 5.5;        // blok / tick (2.2 -> 5.5)
     private static final double MAX_TRAVEL = 45.0;
-    private static final float DAMAGE = 1.6f;       // adet arttigi icin dusuruldu
+    /** Yarim kalp — seri atis oldugu icin tek mermi az vurur. */
+    private static final float DAMAGE = 1.0f;
+
+    // Carptigi yuzeyde acilan minik patlama (sol tikla ayni)
+    private static final double BREAK_RADIUS = 1.15;
+    private static final int BREAK_MAX_BLOCKS = 4;       // adet arttigi icin dusuruldu
     // Yaricap buyuk tutuluyor ki iskalamasin; dagilim ise ip gibi duz
     // gorunmesin diye orta seviyede (0.006 cok azdi, 0.025 cok fazlaydi).
     private static final float RADIUS = 0.55f;
@@ -190,6 +196,8 @@ public class RapidFireController {
                 }
                 stop = true;
             } else if (result.didHitBlock()) {
+                // Yuzeye carpti — sol tiktaki gibi minik patlama acar ve kirar
+                SurfaceBreaker.chip(level, shooter, to, BREAK_RADIUS, BREAK_MAX_BLOCKS);
                 stop = true;
             }
 

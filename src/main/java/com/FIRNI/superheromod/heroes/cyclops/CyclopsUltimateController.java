@@ -61,10 +61,14 @@ public class CyclopsUltimateController {
     private static final float SWEEP_START_PITCH = 65f;   // asagi
     private static final float SWEEP_END_PITCH = -35f;    // yukari
 
-    /** Dogrudan lazer isabeti: maks canin yuzdesi. */
-    private static final float BEAM_HEALTH_PERCENT = 0.45f;
-    /** Patlama: maks canin yuzdesi. */
-    private static final float BLAST_HEALTH_PERCENT = 0.38f;
+    /**
+     * Ulti hedefe maks caninin YARISI kadar vurur.
+     *
+     * Ayni deger hem dogrudan lazer isabetinde hem patlamada kullaniliyor;
+     * lazere yakalanan biri ayrica patlama hasari ALMAZ (asagida elenir),
+     * boylece ultinin toplam hasari her durumda yari can olarak kalir.
+     */
+    private static final float ULT_HEALTH_PERCENT = 0.50f;
     private static final double BLAST_RADIUS = 9.0;
 
     /** Isaretli bloklarin cevresinde kac blok yarikap sokulur. */
@@ -402,7 +406,7 @@ public class CyclopsUltimateController {
         for (RaycastResult.EntityHit eh : result.getEntityHits()) {
             if (eh.getEntity() instanceof LivingEntity target
                     && st.beamHitTargets.add(target.getUUID())) {
-                float dmg = target.getMaxHealth() * BEAM_HEALTH_PERCENT;
+                float dmg = target.getMaxHealth() * ULT_HEALTH_PERCENT;
                 target.hurt(player.damageSources().playerAttack(player), dmg);
                 target.setDeltaMovement(dir.x * 1.2, 0.6, dir.z * 1.2);
                 target.hurtMarked = true;
@@ -640,12 +644,14 @@ public class CyclopsUltimateController {
         // Patlama hasari: maks canin yuzdesi
         AABB blastBox = new AABB(center, center).inflate(BLAST_RADIUS);
         List<LivingEntity> caught = level.getEntitiesOfClass(LivingEntity.class, blastBox,
-                e -> e != player && e.isAlive());
+                // Lazer zaten vurduysa patlama tekrar vurmaz — ultinin toplam
+                // hasari yari can olarak kalsin
+                e -> e != player && e.isAlive() && !st.beamHitTargets.contains(e.getUUID()));
 
         for (LivingEntity target : caught) {
             double dist = target.position().distanceTo(center);
             double falloff = Math.max(0.35, 1.0 - dist / BLAST_RADIUS);
-            float dmg = (float) (target.getMaxHealth() * BLAST_HEALTH_PERCENT * falloff);
+            float dmg = (float) (target.getMaxHealth() * ULT_HEALTH_PERCENT * falloff);
 
             target.hurt(player.damageSources().playerAttack(player), dmg);
 

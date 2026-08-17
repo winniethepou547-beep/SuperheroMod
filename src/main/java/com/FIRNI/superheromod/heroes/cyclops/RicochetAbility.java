@@ -30,7 +30,7 @@ public class RicochetAbility extends Ability {
     @Override
     protected void initConfig(AbilityConfig config) {
         config.set("cooldownTicks", 140);
-        config.set("baseDamage", 8.0f);
+        config.set("baseDamage", 2.0f);   // 1 kalp
         config.set("range", 50.0);
         config.set("beamRadius", 0.35f);
         config.set("knockback", 1.0);
@@ -42,7 +42,7 @@ public class RicochetAbility extends Ability {
     @Override
     protected void onActivate(ServerPlayer player) {
         AbilityConfig cfg = getConfig();
-        float baseDamage = cfg.getFloat("baseDamage", 8.0f);
+        float baseDamage = cfg.getFloat("baseDamage", 2.0f);
         double range = cfg.getDouble("range", 50.0);
         float beamRadius = cfg.getFloat("beamRadius", 0.35f);
         double knockback = cfg.getDouble("knockback", 1.0);
