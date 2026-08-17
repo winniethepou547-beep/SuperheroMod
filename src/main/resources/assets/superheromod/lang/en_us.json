@@ -9,5 +9,6 @@
   "key.superheromod.cine_capture": "Cinematic: Capture Shot",
   "key.superheromod.cine_export": "Cinematic: Export Shots",
   "key.superheromod.pose_studio": "Pose Studio (Model Animator)",
-  "entity.superheromod.sand_soldier": "Sand Soldier"
+  "entity.superheromod.sand_soldier": "Sand Soldier",
+  "entity.superheromod.giant_sand_soldier": "Giant Sand Soldier"
 }

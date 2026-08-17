@@ -20,6 +20,8 @@ public class SandmanCharacter extends SuperCharacter {
         registerAbility(new SandSpikeAbility());    // RMB
         registerAbility(new SandWallAbility());     // SHIFT
         registerAbility(new SandTravelAbility());   // F
-        registerAbility(new SandSoldiersAbility()); // C
+        registerAbility(new SandSoldiersAbility());     // C
+        registerAbility(new GiantSandSoldierAbility()); // X
+        registerAbility(new SandBodyAbility());         // R
     }
 }

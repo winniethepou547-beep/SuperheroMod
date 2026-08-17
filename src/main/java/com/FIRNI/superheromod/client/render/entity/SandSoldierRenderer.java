@@ -7,29 +7,39 @@ import net.minecraft.client.renderer.entity.MobRenderer;
 import net.minecraft.resources.ResourceLocation;
 
 /**
- * Kum askerinin cizicisi.
+ * Kum askerinin cizicisi. Normal ve dev asker AYNI ciziciyi kullanir; fark
+ * sadece olcek. Boylece dev icin ayri model/cizici cogaltmak gerekmiyor.
  *
  * Doku olarak vanilla kum blogunun kendi dosyasi kullaniliyor; ayri bir entity
  * dokusu uretmeye gerek kalmiyor ve asker tam olarak dunyadaki kumla ayni
  * malzemeden gorunuyor.
  */
-public class SandSoldierRenderer extends MobRenderer<SandSoldierEntity, SandSoldierModel> {
+public class SandSoldierRenderer<T extends SandSoldierEntity>
+        extends MobRenderer<T, SandSoldierModel<T>> {
 
     private static final ResourceLocation TEXTURE =
             new ResourceLocation("minecraft", "textures/block/sand.png");
 
-    public SandSoldierRenderer(EntityRendererProvider.Context context) {
-        super(context, new SandSoldierModel(context.bakeLayer(SandSoldierModel.LAYER)), 0.4f);
+    private final float baseScale;
+
+    public SandSoldierRenderer(EntityRendererProvider.Context context,
+                               float baseScale, float shadowSize) {
+        super(context, new SandSoldierModel<>(context.bakeLayer(SandSoldierModel.LAYER)), shadowSize);
+        this.baseScale = baseScale;
     }
 
     @Override
-    public ResourceLocation getTextureLocation(SandSoldierEntity entity) {
+    public ResourceLocation getTextureLocation(T entity) {
         return TEXTURE;
     }
 
-    /** Dagilirken asker cokerek kuculur. */
     @Override
-    protected void scale(SandSoldierEntity entity, PoseStack pose, float partialTick) {
+    protected void scale(T entity, PoseStack pose, float partialTick) {
+        if (baseScale != 1.0f) {
+            pose.scale(baseScale, baseScale, baseScale);
+        }
+
+        // Dagilirken asker cokerek kuculur
         float crumble = entity.getCrumbleProgress();
         if (crumble <= 0f) return;
 

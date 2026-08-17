@@ -208,8 +208,12 @@ public class SandSoldierEntity extends PathfinderMob {
         if (progress >= 1.0f) {
             level().playSound(null, blockPosition(),
                     SoundEvents.SAND_PLACE, SoundSource.HOSTILE, 1.0f, 0.8f);
+            onFormed();
         }
     }
+
+    /** Olusma bittigi anda bir kez cagrilir. Dev asker burada yere cakiliyor. */
+    protected void onFormed() {}
 
     private void tickCrumble() {
         float progress = Math.min(1.0f, getCrumbleProgress() + 1.0f / CRUMBLE_TICKS);

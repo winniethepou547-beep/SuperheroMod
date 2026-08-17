@@ -23,7 +23,7 @@ import net.minecraft.util.Mth;
  * yuzler ayni bolgeden orneklem aliyor. Kum dokusu duzgun bir desen olmadigi
  * icin bu tekrar goze batmiyor ve ayri bir doku dosyasina gerek kalmiyor.
  */
-public class SandSoldierModel extends EntityModel<SandSoldierEntity> {
+public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T> {
 
     public static final ModelLayerLocation LAYER = new ModelLayerLocation(
             new ResourceLocation(SuperheroMod.MODID, "sand_soldier"), "main");
@@ -124,7 +124,7 @@ public class SandSoldierModel extends EntityModel<SandSoldierEntity> {
     // ------------------------------------------------------------------
 
     @Override
-    public void setupAnim(SandSoldierEntity entity, float limbSwing, float limbSwingAmount,
+    public void setupAnim(T entity, float limbSwing, float limbSwingAmount,
                           float ageInTicks, float netHeadYaw, float headPitch) {
 
         float progress = entity.getSpawnProgress();
@@ -155,6 +155,36 @@ public class SandSoldierModel extends EntityModel<SandSoldierEntity> {
         }
 
         applySpawnStages(progress);
+        applyBulk(entity);
+    }
+
+    /**
+     * Dev asker ayni geometriyi kullanir ama oranlari degisir: omuzlar ve
+     * govde kalinlasir, kafa govdeye gore KUCULUR. Boylece sadece buyutulmus
+     * bir asker degil, agir bir dev gibi duruyor.
+     */
+    private void applyBulk(T entity) {
+        if (!(entity instanceof com.FIRNI.superheromod.heroes.sandman.GiantSandSoldierEntity)) {
+            return;
+        }
+        if (entity.isForming()) return;   // olusma asamalari olcegi kendi yonetiyor
+
+        body.xScale = 1.18f;
+        body.zScale = 1.15f;
+
+        rightArm.xScale = 1.25f;
+        rightArm.zScale = 1.25f;
+        leftArm.xScale = 1.25f;
+        leftArm.zScale = 1.25f;
+
+        rightLeg.xScale = 1.15f;
+        rightLeg.zScale = 1.15f;
+        leftLeg.xScale = 1.15f;
+        leftLeg.zScale = 1.15f;
+
+        head.xScale = 0.88f;
+        head.yScale = 0.88f;
+        head.zScale = 0.88f;
     }
 
     /**
