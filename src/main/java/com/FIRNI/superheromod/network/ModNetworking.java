@@ -5,6 +5,8 @@ import com.FIRNI.superheromod.network.packet.AbilityInputPacket;
 import com.FIRNI.superheromod.network.packet.BeamSyncPacket;
 import com.FIRNI.superheromod.network.packet.CameraStatePacket;
 import com.FIRNI.superheromod.network.packet.HeroIdentityPacket;
+import com.FIRNI.superheromod.network.packet.SandWallActionPacket;
+import com.FIRNI.superheromod.network.packet.SandWallSyncPacket;
 import com.FIRNI.superheromod.network.packet.CinematicSyncPacket;
 import com.FIRNI.superheromod.network.packet.GroundFxPacket;
 import com.FIRNI.superheromod.network.packet.HeatSyncPacket;
@@ -87,5 +89,9 @@ public final class ModNetworking {
                 GroundFxPacket::encode, GroundFxPacket::decode, GroundFxPacket::handle);
         CHANNEL.registerMessage(id++, HeroIdentityPacket.class,
                 HeroIdentityPacket::encode, HeroIdentityPacket::decode, HeroIdentityPacket::handle);
+        CHANNEL.registerMessage(id++, SandWallSyncPacket.class,
+                SandWallSyncPacket::encode, SandWallSyncPacket::decode, SandWallSyncPacket::handle);
+        CHANNEL.registerMessage(id++, SandWallActionPacket.class,
+                SandWallActionPacket::encode, SandWallActionPacket::decode, SandWallActionPacket::handle);
     }
 }

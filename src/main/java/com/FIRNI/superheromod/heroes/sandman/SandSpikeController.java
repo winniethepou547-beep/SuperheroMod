@@ -140,6 +140,15 @@ public final class SandSpikeController {
         return null;
     }
 
+    /** Sand Travel bu dikenleri capa olarak kullanabilir. */
+    public static List<Vec3> anchorPoints(ServerLevel level) {
+        List<Vec3> out = new ArrayList<>();
+        for (Spike spike : spikes) {
+            if (spike.level == level) out.add(spike.base);
+        }
+        return out;
+    }
+
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;

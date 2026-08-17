@@ -2,9 +2,11 @@ package com.FIRNI.superheromod.client.input;
 
 import com.FIRNI.superheromod.SuperheroMod;
 import com.FIRNI.superheromod.client.hud.ClientUltimateState;
+import com.FIRNI.superheromod.client.render.ClientSandWallData;
 import com.FIRNI.superheromod.core.ability.AbilitySlot;
 import com.FIRNI.superheromod.network.ModNetworking;
 import com.FIRNI.superheromod.network.packet.AbilityInputPacket;
+import com.FIRNI.superheromod.network.packet.SandWallActionPacket;
 import com.FIRNI.superheromod.network.packet.UltimateConfirmPacket;
 import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.KeyMapping;
@@ -88,6 +90,27 @@ public class AbilityKeyHandler {
 
             Minecraft mc = Minecraft.getInstance();
             if (mc.player == null || mc.screen != null) return;
+
+            // Kum duvari onizlemesi acikken LMB onaylar, RMB iptal eder
+            if (ClientSandWallData.hasPreview()) {
+                boolean lmb = mc.options.keyAttack.isDown();
+                boolean rmb = mc.options.keyUse.isDown();
+
+                if (lmb && !previousState.get(AbilitySlot.LMB)) {
+                    ModNetworking.CHANNEL.sendToServer(
+                            new SandWallActionPacket(SandWallActionPacket.CONFIRM));
+                } else if (rmb && !previousState.get(AbilitySlot.RMB)) {
+                    ModNetworking.CHANNEL.sendToServer(
+                            new SandWallActionPacket(SandWallActionPacket.CANCEL));
+                }
+
+                previousState.put(AbilitySlot.LMB, lmb);
+                previousState.put(AbilitySlot.RMB, rmb);
+
+                // SHIFT onizleme sirasinda tekrar tetiklenmesin
+                previousState.put(AbilitySlot.SHIFT, mc.options.keyShift.isDown());
+                return;
+            }
 
             // Ulti nisan modunda LMB/RMB normal yeteneklere degil, Confirm/Cancel'a gider
             if (ClientUltimateState.isAiming()) {
