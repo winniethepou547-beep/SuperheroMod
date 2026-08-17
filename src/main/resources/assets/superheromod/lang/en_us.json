@@ -8,5 +8,6 @@
   "key.superheromod.cine_anchor": "Cinematic: Set Stage Anchor",
   "key.superheromod.cine_capture": "Cinematic: Capture Shot",
   "key.superheromod.cine_export": "Cinematic: Export Shots",
-  "key.superheromod.pose_studio": "Pose Studio (Model Animator)"
+  "key.superheromod.pose_studio": "Pose Studio (Model Animator)",
+  "entity.superheromod.sand_soldier": "Sand Soldier"
 }

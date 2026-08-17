@@ -81,6 +81,8 @@ public class SuperheroMod
         ITEMS.register(modEventBus);
         // Register the Deferred Register to the mod event bus so tabs get registered
         CREATIVE_MODE_TABS.register(modEventBus);
+        // Modun kendi entity turleri (kum askerleri vb.)
+        com.FIRNI.superheromod.core.entity.ModEntities.register(modEventBus);
 
         // Register ourselves for server and other game events we are interested in
         MinecraftForge.EVENT_BUS.register(this);
