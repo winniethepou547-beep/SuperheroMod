@@ -19,8 +19,7 @@ public class GroundFxPacket {
 
     // Sunucu tarafi bu sabitleri kullanir; istemci sinifina bagimlilik olmasin.
     public static final byte KIND_CONE = 0;
-    public static final byte KIND_MAGMA_ROCK = 1;
-    public static final byte KIND_SHARD = 2;
+    public static final byte KIND_SCORCH = 1;
 
     public record Entry(byte kind, Vec3 pos, Vec3 dir, float size, float charge, int ticks) {}
 

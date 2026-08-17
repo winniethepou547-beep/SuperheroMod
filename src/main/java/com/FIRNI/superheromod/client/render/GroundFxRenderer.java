@@ -22,16 +22,18 @@ import java.util.Random;
  * Yer efektleri cizici — lazer renderer'indan bagimsiz.
  *
  * Lazer: parlak, additive, ic ice silindirik katmanlar.
- * Burasi: MAT koyu volkanik kaya (alpha blend, opak) + aralarindan sizan
- * kizil catlak. Boylece "lazer izi" gibi degil, kaya gibi duruyor.
+ * Burasi: hedef alinan bloklarin USTUNE oturan %80 opak siyah kaplama ve
+ * uzerinde buyuyen catlaklar. Yandan cikan geometri YOK — her sey zemine
+ * yapisik duz kalir; patlamayi bloklarin kendisi yapar.
  */
 @Mod.EventBusSubscriber(modid = SuperheroMod.MODID, value = Dist.CLIENT)
 public class GroundFxRenderer {
 
-    // Koyu volkanik kaya tonlari (mat, opak)
-    private static final float[] ROCK_DARK = {0.13f, 0.10f, 0.11f};
-    private static final float[] ROCK_MID = {0.22f, 0.15f, 0.15f};
-    // Kayanin arasindan sizan kor
+    /** Blok ustunu kaplayan siyah. */
+    private static final float[] SCORCH = {0.02f, 0.01f, 0.01f};
+    /** Kaplamayi kaplayan siyahin opakligi. */
+    private static final float SCORCH_ALPHA = 0.80f;
+    /** Catlak / koni kor rengi. */
     private static final float[] EMBER = {1.00f, 0.22f, 0.06f};
 
     @SubscribeEvent
@@ -64,9 +66,9 @@ public class GroundFxRenderer {
         RenderSystem.getModelViewStack().last().normal().identity();
         RenderSystem.applyModelViewMatrix();
 
-        // 1) Kaya govdeleri — MAT, opak, alpha blend
-        drawRocks(matrix, list, time);
-        // 2) Kor catlaklar — additive, kayanin uzerine
+        // 1) Siyah kaplama — mat, %80 opak, alpha blend
+        drawScorch(matrix, list);
+        // 2) Catlaklar ve nisan konisi — additive, kaplamanin uzerine
         drawEmbers(matrix, list, time);
 
         RenderSystem.getModelViewStack().popPose();
@@ -74,11 +76,11 @@ public class GroundFxRenderer {
         pose.popPose();
     }
 
-    private static void drawRocks(Matrix4f matrix, List<ClientGroundFxData.Fx> list, float time) {
+    private static void drawScorch(Matrix4f matrix, List<ClientGroundFxData.Fx> list) {
         RenderSystem.enableBlend();
         RenderSystem.blendFunc(GlStateManager.SourceFactor.SRC_ALPHA,
                 GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA);
-        RenderSystem.depthMask(true);
+        RenderSystem.depthMask(false);
         RenderSystem.disableCull();
         RenderSystem.setShader(GameRenderer::getPositionColorShader);
 
@@ -88,11 +90,7 @@ public class GroundFxRenderer {
 
         synchronized (list) {
             for (ClientGroundFxData.Fx fx : list) {
-                switch (fx.kind) {
-                    case MAGMA_ROCK -> rockChunk(matrix, buf, fx, time, false);
-                    case SHARD -> shard(matrix, buf, fx, false);
-                    case CONE -> { /* koni sadece kor gecte */ }
-                }
+                if (fx.kind == ClientGroundFxData.Kind.SCORCH) scorchQuad(matrix, buf, fx);
             }
         }
 
@@ -100,6 +98,7 @@ public class GroundFxRenderer {
         RenderSystem.enableCull();
         RenderSystem.disableBlend();
         RenderSystem.defaultBlendFunc();
+        RenderSystem.depthMask(true);
     }
 
     private static void drawEmbers(Matrix4f matrix, List<ClientGroundFxData.Fx> list, float time) {
@@ -116,8 +115,7 @@ public class GroundFxRenderer {
         synchronized (list) {
             for (ClientGroundFxData.Fx fx : list) {
                 switch (fx.kind) {
-                    case MAGMA_ROCK -> rockChunk(matrix, buf, fx, time, true);
-                    case SHARD -> shard(matrix, buf, fx, true);
+                    case SCORCH -> cracks(matrix, buf, fx, time);
                     case CONE -> cone(matrix, buf, fx, time);
                 }
             }
@@ -131,100 +129,74 @@ public class GroundFxRenderer {
     }
 
     /**
-     * Patlamaya hazir volkanik yumru: yerden yukselen duzensiz kaya kutlesi.
-     * emberPass=false -> mat koyu kaya, true -> aralarindaki kizil catlak.
+     * Hedef alinan blogun ust yuzune oturan siyah kaplama.
+     * Blok boyutunda ve eksene hizali cizilir; boylece yan yana bloklar
+     * tek parca kesintisiz siyah bir alan olusturur.
      */
-    private static void rockChunk(Matrix4f matrix, BufferBuilder buf,
-                                  ClientGroundFxData.Fx fx, float time, boolean emberPass) {
-        Random rng = new Random(fx.seed);
-        float charge = Mth.clamp(fx.charge, 0f, 1f);
+    private static void scorchQuad(Matrix4f matrix, BufferBuilder buf,
+                                   ClientGroundFxData.Fx fx) {
+        double h = fx.size * 0.5;
+        // Giris/cikisi yumusat, ortada tam %80'de kalsin
+        float a = SCORCH_ALPHA * Math.min(1f, fx.life() * 4f);
 
-        // Referanstaki gibi: dikey diken DEGIL, yerden CAPRAZ cikan yatik
-        // kaya levhalari. Aralarindan magma sizar.
-        int slabs = 2 + rng.nextInt(2);
-
-        for (int i = 0; i < slabs; i++) {
-            // Her levha bir kosegen yone dogru yatik yukselir
-            double ang = rng.nextDouble() * Math.PI * 2;
-            Vec3 out = new Vec3(Math.cos(ang), 0, Math.sin(ang));
-            Vec3 side = new Vec3(-out.z, 0, out.x);
-
-            double w = fx.size * (0.45 + rng.nextDouble() * 0.35);
-            double len = fx.size * (0.85 + rng.nextDouble() * 0.75) * (0.5 + 0.5 * charge);
-            // Yatiklik: yukselirken disa dogru egilir
-            double lift = len * (0.45 + 0.35 * charge);
-
-            Vec3 b0 = fx.pos.add(side.scale(w)).add(out.scale(fx.size * 0.15));
-            Vec3 b1 = fx.pos.subtract(side.scale(w)).add(out.scale(fx.size * 0.15));
-            Vec3 t0 = b0.add(out.scale(len)).add(0, lift, 0);
-            Vec3 t1 = b1.add(out.scale(len)).add(0, lift, 0);
-
-            if (emberPass) {
-                // Levhanin tabanindan sizan kor — nabiz atar
-                float pulse = 0.5f + 0.5f * Mth.sin(time * 3.5f + i * 1.7f + (float) (fx.seed % 7));
-                float a = (0.20f + 0.70f * charge) * pulse * fx.life();
-
-                Vec3 e0 = b0.add(0, 0.03, 0);
-                Vec3 e1 = b1.add(0, 0.03, 0);
-                Vec3 e2 = e1.add(out.scale(len * 0.35)).add(0, lift * 0.3, 0);
-                Vec3 e3 = e0.add(out.scale(len * 0.35)).add(0, lift * 0.3, 0);
-                quad(buf, matrix, e0, e1, e2, e3, EMBER, a);
-            } else {
-                float[] col = (i % 2 == 0) ? ROCK_DARK : ROCK_MID;
-                float a = 0.95f * fx.life();
-                // Levhanin ust yuzu + iki yan yuzu
-                quad(buf, matrix, b0, b1, t1, t0, col, a);
-                tri(buf, matrix, b0, t0, fx.pos.add(0, 0.02, 0), ROCK_DARK, a);
-                tri(buf, matrix, b1, t1, fx.pos.add(0, 0.02, 0), ROCK_DARK, a);
-            }
-        }
-
-        // Zeminde yayilan magma catlagi — levhalarin cevresine
-        if (emberPass && charge > 0.25f) {
-            float a = 0.28f * charge * fx.life();
-            for (int i = 0; i < 3; i++) {
-                double ang = rng.nextDouble() * Math.PI * 2;
-                Vec3 d = new Vec3(Math.cos(ang), 0, Math.sin(ang));
-                Vec3 from = fx.pos.add(0, 0.02, 0);
-                Vec3 to = from.add(d.scale(fx.size * (1.0 + rng.nextDouble())));
-                edge(buf, matrix, from, to, 0.05 + 0.04 * charge, EMBER, a);
-            }
-        }
+        Vec3 c = fx.pos.add(0, 0.015, 0);
+        quad(buf, matrix,
+                c.add(-h, 0, -h), c.add(h, 0, -h), c.add(h, 0, h), c.add(-h, 0, h),
+                SCORCH, a);
     }
 
-    /** Patlamada yanlardan firlayan sivri kaya parcasi. */
-    private static void shard(Matrix4f matrix, BufferBuilder buf,
-                              ClientGroundFxData.Fx fx, boolean emberPass) {
+    /**
+     * Kaplamanin uzerindeki catlaklar. Sarj arttikca merkezden disa dogru
+     * uzar, kalinlasir, parlar ve daha hizli nabiz atar — patlamanin geldigini
+     * anlatan tek gorsel bu; disari tasan geometri yok.
+     */
+    private static void cracks(Matrix4f matrix, BufferBuilder buf,
+                               ClientGroundFxData.Fx fx, float time) {
         Random rng = new Random(fx.seed);
-        float t = 1f - fx.life();
+        float charge = Mth.clamp(fx.charge, 0f, 1f);
+        float life = fx.life();
+        double h = fx.size * 0.5;
 
-        Vec3 dir = fx.dir;
-        Vec3 up = new Vec3(0, 1, 0);
-        Vec3 side = dir.cross(up);
-        if (side.lengthSqr() < 1.0E-4) side = new Vec3(1, 0, 0);
-        side = side.normalize();
+        // Sarj yukseldikce hem parlaklik hem nabiz frekansi artar
+        float pulse = 0.60f + 0.40f * Mth.sin(
+                time * (2.2f + 6.0f * charge) + (float) (fx.seed % 17));
+        float alpha = (0.18f + 0.82f * charge) * pulse * Math.min(1f, life * 4f);
+        double width = 0.020 + 0.045 * charge;
 
-        // Yay cizerek disa dogru firlar
-        Vec3 pos = fx.pos
-                .add(dir.scale(fx.size * 2.2 * t))
-                .add(0, fx.size * (2.0 * t - 2.6 * t * t), 0);
+        // Sarjla birlikte acilan kolla sayisi
+        int branches = 4 + rng.nextInt(3);
+        Vec3 center = fx.pos.add(0, 0.03, 0);
 
-        double w = fx.size * 0.28;
-        double len = fx.size * (0.7 + rng.nextDouble() * 0.5);
+        for (int i = 0; i < branches; i++) {
+            double ang = (i / (double) branches) * Math.PI * 2 + rng.nextDouble() * 0.7;
+            Vec3 dir = new Vec3(Math.cos(ang), 0, Math.sin(ang));
+            Vec3 side = new Vec3(-dir.z, 0, dir.x);
 
-        Vec3 tip = pos.add(dir.scale(len));
-        Vec3 a = pos.add(side.scale(w));
-        Vec3 b = pos.subtract(side.scale(w));
-        Vec3 c = pos.add(0, w * 1.4, 0);
+            // Catlak blogun kenarina kadar buyur; dusuk sarjda kisa kalir
+            double maxReach = h * 0.95 * (0.35 + 0.65 * charge);
 
-        if (emberPass) {
-            float alpha = 0.5f * fx.life();
-            tri(buf, matrix, a, b, tip, EMBER, alpha * 0.5f);
-        } else {
-            float alpha = 0.95f * Math.min(1f, fx.life() * 2f);
-            tri(buf, matrix, a, b, tip, ROCK_DARK, alpha);
-            tri(buf, matrix, a, c, tip, ROCK_MID, alpha);
-            tri(buf, matrix, b, c, tip, ROCK_DARK, alpha);
+            Vec3 prev = center;
+            int segs = 3;
+            for (int s = 1; s <= segs; s++) {
+                double t = s / (double) segs;
+                double jitter = (rng.nextDouble() - 0.5) * h * 0.30;
+                Vec3 next = center.add(dir.scale(maxReach * t)).add(side.scale(jitter));
+
+                // Uca dogru incelir ve soner
+                edge(buf, matrix, prev, next,
+                        width * (1.0 - 0.45 * t), EMBER,
+                        alpha * (float) (1.0 - 0.35 * t));
+                prev = next;
+            }
+        }
+
+        // Sarj sonuna dogru merkezde toplanan kor
+        if (charge > 0.5f) {
+            double g = h * 0.30 * (charge - 0.5) * 2.0;
+            float ga = alpha * 0.55f;
+            quad(buf, matrix,
+                    center.add(-g, 0, -g), center.add(g, 0, -g),
+                    center.add(g, 0, g), center.add(-g, 0, g), EMBER, ga);
         }
     }
 
@@ -289,15 +261,6 @@ public class GroundFxRenderer {
         vert(buf, m, b, col, alpha);
         vert(buf, m, c, col, alpha);
         vert(buf, m, d, col, alpha);
-    }
-
-    /** Ucgen — QUADS modunda son kose tekrarlanir. */
-    private static void tri(BufferBuilder buf, Matrix4f m,
-                            Vec3 a, Vec3 b, Vec3 c, float[] col, float alpha) {
-        vert(buf, m, a, col, alpha);
-        vert(buf, m, b, col, alpha);
-        vert(buf, m, c, col, alpha);
-        vert(buf, m, c, col, alpha);
     }
 
     private static void vert(BufferBuilder buf, Matrix4f m, Vec3 p, float[] col, float alpha) {

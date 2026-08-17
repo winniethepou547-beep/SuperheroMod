@@ -15,19 +15,17 @@ public class ClientGroundFxData {
     public enum Kind {
         /** Ultinin gidecegi alani gosteren yer konisi. */
         CONE,
-        /** Patlamaya hazir volkanik kaya yumrusu. */
-        MAGMA_ROCK,
-        /** Patlamada yanlardan firlayan kaya parcasi. */
-        SHARD
+        /** Blok ustune oturan siyah kaplama + uzerinde catlaklar. */
+        SCORCH
     }
 
     public static final class Fx {
         public final Kind kind;
         public final Vec3 pos;
-        /** CONE icin yon; SHARD icin firlama yonu. */
+        /** CONE icin yon. */
         public final Vec3 dir;
         public final float size;
-        /** 0..1 — kaya icin "patlamaya hazirlik" seviyesi. */
+        /** 0..1 — kaplama icin "patlamaya hazirlik" (catlak) seviyesi. */
         public float charge;
         public int ticksRemaining;
         public final int maxTicks;
@@ -50,8 +48,12 @@ public class ClientGroundFxData {
 
     private static final List<Fx> effects = Collections.synchronizedList(new ArrayList<>());
 
-    /** Ayni anda cizilecek azami efekt — performans siniri. */
-    private static final int MAX_EFFECTS = 220;
+    /**
+     * Ayni anda cizilecek azami efekt — performans siniri.
+     * Kaplama efekti duz quad oldugu icin eski kaya geometrisinden cok daha
+     * ucuz; sinir yukseltilebildi.
+     */
+    private static final int MAX_EFFECTS = 400;
 
     public static void add(Fx fx) {
         synchronized (effects) {

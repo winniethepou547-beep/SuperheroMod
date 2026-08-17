@@ -196,6 +196,24 @@ public class CyclopsUltimateController {
         }
     }
 
+    /**
+     * Isaretli her blogun UST YUZU icin bir kaplama efekti uretir.
+     * Boyut tam 1 blok; yan yana bloklar kesintisiz tek siyah alan olusturur.
+     *
+     * @param charge 0 = catlaksiz duz siyah, 1 = patlamaya hazir catlaklar
+     */
+    private static List<GroundFxPacket.Entry> scorchEntries(UltState st, float charge, int ticks) {
+        List<GroundFxPacket.Entry> out = new ArrayList<>(st.chargedBlocks.size());
+        for (BlockPos pos : st.chargedBlocks) {
+            out.add(new GroundFxPacket.Entry(
+                    GroundFxPacket.KIND_SCORCH,
+                    new Vec3(pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5),
+                    new Vec3(0, 1, 0),
+                    1.0f, charge, ticks));
+        }
+        return out;
+    }
+
     private static void sendGroundFx(ServerPlayer player, List<GroundFxPacket.Entry> entries) {
         if (entries.isEmpty()) return;
         ModNetworking.CHANNEL.send(
@@ -277,6 +295,12 @@ public class CyclopsUltimateController {
 
         markChargedBlocks(level, st, origin, hit);
 
+        // Lazerin degdigi bloklarin ustu aninda siyah kaplanir; catlaklar
+        // henuz yok (charge = 0), sarj fazinda buyuyecekler.
+        if (st.ticks % 2 == 0) {
+            sendGroundFx(player, scorchEntries(st, 0f, 4));
+        }
+
         if (st.ticks >= SWEEP_TICKS) {
             st.phase = Phase.CHARGE;
             st.ticks = 0;
@@ -289,33 +313,24 @@ public class CyclopsUltimateController {
         return false;
     }
 
-    /** Isinan bloklar patlamadan once kizil catlaklarla parlar. */
+    /** Siyah kaplamanin uzerindeki catlaklar buyur, sonra patlar. */
     private static boolean tickCharge(ServerPlayer player, UltState st) {
         ServerLevel level = (ServerLevel) player.level();
 
         float progress = st.ticks / (float) CHARGE_TICKS;
         int every = progress > 0.6f ? 2 : 4;
 
-        // Patlamaya hazir VOLKANIK KAYA — lazer izi degil, kendi kaya geometrisi.
-        // Sarj arttikca kaya yukselir ve aralarindaki kor guclenir.
+        // Kaplama duruyor, sadece catlak seviyesi (charge) yukseliyor.
         if (st.ticks % every == 0) {
-            List<GroundFxPacket.Entry> rocks = new ArrayList<>();
-            for (BlockPos pos : st.chargedBlocks) {
-                rocks.add(new GroundFxPacket.Entry(
-                        GroundFxPacket.KIND_MAGMA_ROCK,
-                        new Vec3(pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5),
-                        new Vec3(0, 1, 0),
-                        0.85f, progress, every + 2));
-            }
-            sendGroundFx(player, rocks);
+            sendGroundFx(player, scorchEntries(st, progress, every + 2));
 
-            // Patlamaya hazir oldugunu belli eden cok minik kabarciklar
+            // Catlaklardan sizan cok minik kor — yanlara tasmaz, yukari cikar
             if (progress > 0.45f) {
                 for (BlockPos pos : st.chargedBlocks) {
-                    if (level.random.nextFloat() > 0.35f) continue;
+                    if (level.random.nextFloat() > 0.25f) continue;
                     level.sendParticles(CHARGE_CRACK,
-                            pos.getX() + 0.5, pos.getY() + 1.15, pos.getZ() + 0.5,
-                            1, 0.18, 0.05, 0.18, 0.01);
+                            pos.getX() + 0.5, pos.getY() + 1.08, pos.getZ() + 0.5,
+                            1, 0.16, 0.02, 0.16, 0.005);
                 }
             }
         }
@@ -356,54 +371,51 @@ public class CyclopsUltimateController {
         level.sendParticles(ParticleTypes.ASH,
                 center.x, center.y + 1.0, center.z, 40, 3.0, 1.2, 3.0, 0.02);
 
-        int launched = 0;
-        int idx = 0;
-        List<GroundFxPacket.Entry> shards = new ArrayList<>();
+        // Patlama isaretli bloklarla sinirli kalmaz; cevrelerindeki bloklari
+        // da sokup ucurur.
+        Set<BlockPos> blast = new LinkedHashSet<>(st.chargedBlocks);
         for (BlockPos pos : st.chargedBlocks) {
-            BlockState state = level.getBlockState(pos);
-            if (state.isAir() || state.getDestroySpeed(level, pos) < 0) continue;
-            idx++;
-
-            level.sendParticles(ParticleTypes.EXPLOSION,
-                    pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5,
-                    1, 0.2, 0.2, 0.2, 0);
-            level.sendParticles(CHARGE_CRACK,
-                    pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5,
-                    6, 0.4, 0.3, 0.4, 0.05);
-
-            // Bloklari havaya firlat (sinirli sayida, performans icin)
-            if (launched < 40) {
-                level.setBlockAndUpdate(pos, Blocks.AIR.defaultBlockState());
-                FallingBlockEntity fb = FallingBlockEntity.fall(level, pos, state);
-                fb.setDeltaMovement(
-                        (level.random.nextDouble() - 0.5) * 0.45,
-                        0.65 + level.random.nextDouble() * 0.5,
-                        (level.random.nextDouble() - 0.5) * 0.45);
-                fb.setHurtsEntities(1.0f, 3);
-                fb.time = 1;
-                launched++;
-            }
-
-            // Yanlardan firlayan kaya parcalari — kendi kaya geometrisi
-            if (idx % 2 == 0 && shards.size() < 60) {
-                Vec3 blockCenter = new Vec3(pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5);
-                Vec3 outward = blockCenter.subtract(center);
-                Vec3 flat = new Vec3(outward.x, 0, outward.z);
-                if (flat.lengthSqr() < 1.0E-4) {
-                    double a = level.random.nextDouble() * Math.PI * 2;
-                    flat = new Vec3(Math.cos(a), 0, Math.sin(a));
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (dx == 0 && dz == 0) continue;
+                    BlockPos n = pos.offset(dx, 0, dz);
+                    if (!level.getBlockState(n).isAir()) blast.add(n);
                 }
-                flat = flat.normalize();
-
-                shards.add(new GroundFxPacket.Entry(
-                        GroundFxPacket.KIND_SHARD,
-                        blockCenter, flat,
-                        0.7f + level.random.nextFloat() * 0.7f,
-                        1.0f, 30));
             }
         }
 
-        sendGroundFx(player, shards);
+        int launched = 0;
+        for (BlockPos pos : blast) {
+            BlockState state = level.getBlockState(pos);
+            if (state.isAir() || state.getDestroySpeed(level, pos) < 0) continue;
+
+            if (st.chargedBlocks.contains(pos)) {
+                level.sendParticles(ParticleTypes.EXPLOSION,
+                        pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5,
+                        1, 0.2, 0.2, 0.2, 0);
+                level.sendParticles(CHARGE_CRACK,
+                        pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5,
+                        6, 0.4, 0.3, 0.4, 0.05);
+            }
+
+            if (launched >= MAX_LAUNCHED_BLOCKS) continue;
+
+            // Merkezden disa dogru savrulup havalanir
+            Vec3 blockCenter = new Vec3(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5);
+            Vec3 outward = blockCenter.subtract(center);
+            Vec3 flat = new Vec3(outward.x, 0, outward.z);
+            flat = flat.lengthSqr() < 1.0E-4 ? Vec3.ZERO : flat.normalize();
+
+            level.setBlockAndUpdate(pos, Blocks.AIR.defaultBlockState());
+            FallingBlockEntity fb = FallingBlockEntity.fall(level, pos, state);
+            fb.setDeltaMovement(
+                    flat.x * (0.25 + level.random.nextDouble() * 0.35),
+                    0.70 + level.random.nextDouble() * 0.55,
+                    flat.z * (0.25 + level.random.nextDouble() * 0.35));
+            fb.setHurtsEntities(1.0f, 3);
+            fb.time = 1;
+            launched++;
+        }
 
         // Patlama hasari: maks canin yuzdesi
         AABB blastBox = new AABB(center, center).inflate(BLAST_RADIUS);
@@ -430,6 +442,8 @@ public class CyclopsUltimateController {
     /** Lazerin gectigi hat boyunca zemindeki bloklari isinmis olarak isaretler. */
     /** Performans siniri: bu sayidan fazla blok isaretlenmez. */
     private static final int MAX_CHARGED_BLOCKS = 70;
+    /** Patlamada azami kac blok fiziksel olarak havaya ucar. */
+    private static final int MAX_LAUNCHED_BLOCKS = 90;
 
     private static void markChargedBlocks(ServerLevel level, UltState st, Vec3 from, Vec3 to) {
         if (st.chargedBlocks.size() >= MAX_CHARGED_BLOCKS) return;
