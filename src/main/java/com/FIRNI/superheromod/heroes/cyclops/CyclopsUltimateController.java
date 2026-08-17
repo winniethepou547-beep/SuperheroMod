@@ -61,13 +61,18 @@ public class CyclopsUltimateController {
     /** Dogrudan lazer isabeti: maks canin yuzdesi. */
     private static final float BEAM_HEALTH_PERCENT = 0.45f;
     /** Patlama: maks canin yuzdesi. */
-    private static final float BLAST_HEALTH_PERCENT = 0.30f;
-    private static final double BLAST_RADIUS = 8.0;
+    private static final float BLAST_HEALTH_PERCENT = 0.38f;
+    private static final double BLAST_RADIUS = 9.0;
 
     /** Isaretli bloklarin cevresinde kac blok yarikap sokulur. */
     private static final int BLAST_SPREAD = 2;
     /** Kac katman asagi kazilir (krater derinligi). */
-    private static final int BLAST_DEPTH = 1;
+    private static final int BLAST_DEPTH = 2;
+
+    /** Patlama sonrasi havada asili kalan toz/duman suresi (7 saniye). */
+    private static final int SMOLDER_TICKS = 140;
+    /** Duman kaynagi olarak kullanilan azami krater noktasi. */
+    private static final int SMOLDER_SOURCES = 20;
 
     /** Sadece patlama aninda kullaniliyor; sarj/yildirim efektleri geometri. */
     private static final DustParticleOptions CHARGE_CRACK =
@@ -94,6 +99,27 @@ public class CyclopsUltimateController {
     }
 
     private static final Map<UUID, UltState> states = new HashMap<>();
+
+    /**
+     * Patlama sonrasi kraterden tuten toz bulutu.
+     *
+     * Oyuncu durumundan AYRI tutuluyor: ulti bitmis sayilir (bekleme suresi
+     * isler, tekrar kullanilabilir), duman kendi basina sonene kadar devam eder.
+     */
+    private static final class Smolder {
+        final ServerLevel level;
+        final List<Vec3> sources;
+        final Vec3 center;
+        int ticks = 0;
+
+        Smolder(ServerLevel level, List<Vec3> sources, Vec3 center) {
+            this.level = level;
+            this.sources = sources;
+            this.center = center;
+        }
+    }
+
+    private static final List<Smolder> smolders = new ArrayList<>();
 
     public static boolean isActive(UUID playerId) {
         return states.containsKey(playerId);
@@ -158,6 +184,9 @@ public class CyclopsUltimateController {
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
+
+        tickSmolders();
+
         if (states.isEmpty()) return;
 
         var server = ServerLifecycleHooks.getCurrentServer();
@@ -433,6 +462,71 @@ public class CyclopsUltimateController {
         return false;
     }
 
+    /**
+     * Patlamadan sonra kraterin uzerinde asili kalan toz/duman bulutu.
+     *
+     * Partikuller hareket hizi neredeyse sifir verilerek gonderiliyor; boylece
+     * hemen dagilmak yerine havada duruyor ve yavasca cokuyor. Yogunluk zamanla
+     * azalir. Paket sayisi dusuk kalsin diye her seferinde sadece birkac
+     * kaynaktan cok sayida partikul cikariliyor.
+     */
+    private static void tickSmolders() {
+        if (smolders.isEmpty()) return;
+
+        Iterator<Smolder> it = smolders.iterator();
+        while (it.hasNext()) {
+            Smolder sm = it.next();
+            sm.ticks++;
+
+            if (sm.ticks >= SMOLDER_TICKS || sm.sources.isEmpty()) {
+                it.remove();
+                continue;
+            }
+
+            // 1 -> 0 arasi sonumleme; basta yogun, sonra ince pus
+            float fade = 1f - sm.ticks / (float) SMOLDER_TICKS;
+            ServerLevel level = sm.level;
+
+            if (sm.ticks % 3 == 0) {
+                int picks = Math.max(1, Math.round(4 * fade));
+                for (int i = 0; i < picks; i++) {
+                    Vec3 src = sm.sources.get(level.random.nextInt(sm.sources.size()));
+
+                    // Kraterden yukselen duman
+                    level.sendParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE,
+                            src.x, src.y + 0.2, src.z,
+                            2, 0.5, 0.15, 0.5, 0.005);
+
+                    // Havada asili kalan toz — hiz ~0, yavasca cokuyor
+                    level.sendParticles(ParticleTypes.ASH,
+                            src.x, src.y + 1.2 + level.random.nextDouble() * 2.2, src.z,
+                            3, 1.1, 0.9, 1.1, 0.0);
+                }
+            }
+
+            // Bulutun govdesi: merkezde genis ve agir, yavas suruklenen kutle
+            if (sm.ticks % 5 == 0) {
+                int count = Math.max(2, Math.round(14 * fade));
+                level.sendParticles(ParticleTypes.LARGE_SMOKE,
+                        sm.center.x, sm.center.y + 1.4, sm.center.z,
+                        count, 3.2, 1.3, 3.2, 0.0);
+            }
+
+            // Ilk saniyelerde yukari dogru kalkan sutun
+            if (sm.ticks < 50 && sm.ticks % 8 == 0) {
+                level.sendParticles(ParticleTypes.CAMPFIRE_SIGNAL_SMOKE,
+                        sm.center.x, sm.center.y + 0.8, sm.center.z,
+                        2, 1.4, 0.2, 1.4, 0.01);
+            }
+
+            // Kor sonme sesi — gittikce seyrelir
+            if (sm.ticks % 25 == 0 && fade > 0.3f) {
+                level.playSound(null, BlockPos.containing(sm.center),
+                        SoundEvents.LAVA_POP, SoundSource.BLOCKS, 0.5f * fade, 0.6f);
+            }
+        }
+    }
+
     /** Patlama: bloklar havaya firlar, cevredekiler can yuzdesiyle hasar alir. */
     private static void doExplode(ServerPlayer player, UltState st) {
         ServerLevel level = (ServerLevel) player.level();
@@ -444,18 +538,31 @@ public class CyclopsUltimateController {
         }
         center = center.scale(1.0 / st.chargedBlocks.size());
 
+        // Ust uste iki patlama sesi — biri tok, biri gecikmeli yanki
         level.playSound(null, BlockPos.containing(center),
-                SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 2.0f, 0.55f);
+                SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 2.6f, 0.42f);
+        level.playSound(null, BlockPos.containing(center),
+                SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.PLAYERS, 1.8f, 0.7f);
 
         // Patlama + duman bulutu
         level.sendParticles(ParticleTypes.EXPLOSION_EMITTER,
-                center.x, center.y + 0.5, center.z, 2, 1.5, 0.5, 1.5, 0);
+                center.x, center.y + 0.5, center.z, 4, 2.4, 0.8, 2.4, 0);
         level.sendParticles(ParticleTypes.LARGE_SMOKE,
-                center.x, center.y + 0.6, center.z, 60, 2.6, 1.0, 2.6, 0.06);
+                center.x, center.y + 0.6, center.z, 110, 3.4, 1.4, 3.4, 0.08);
         level.sendParticles(ParticleTypes.CAMPFIRE_COSY_SMOKE,
-                center.x, center.y + 0.4, center.z, 25, 2.2, 0.4, 2.2, 0.03);
+                center.x, center.y + 0.4, center.z, 45, 3.0, 0.6, 3.0, 0.04);
         level.sendParticles(ParticleTypes.ASH,
-                center.x, center.y + 1.0, center.z, 40, 3.0, 1.2, 3.0, 0.02);
+                center.x, center.y + 1.0, center.z, 70, 3.8, 1.6, 3.8, 0.03);
+
+        // Yerde disa dogru kosan sok dalgasi halkasi
+        for (int i = 0; i < 36; i++) {
+            double a = i / 36.0 * Math.PI * 2;
+            double dx = Math.cos(a);
+            double dz = Math.sin(a);
+            level.sendParticles(ParticleTypes.EXPLOSION,
+                    center.x + dx * 3.0, center.y + 0.4, center.z + dz * 3.0,
+                    1, dx * 0.3, 0.05, dz * 0.3, 0.12);
+        }
 
         // Patlama isaretli bloklarla sinirli kalmaz: cevrede 2 blok yaricap,
         // ayrica bir alt katman da sokulur — krater acilsin.
@@ -504,10 +611,10 @@ public class CyclopsUltimateController {
             level.setBlockAndUpdate(pos, Blocks.AIR.defaultBlockState());
             FallingBlockEntity fb = FallingBlockEntity.fall(level, pos, state);
             fb.setDeltaMovement(
-                    flat.x * (0.25 + level.random.nextDouble() * 0.35),
-                    0.70 + level.random.nextDouble() * 0.55,
-                    flat.z * (0.25 + level.random.nextDouble() * 0.35));
-            fb.setHurtsEntities(1.0f, 3);
+                    flat.x * (0.35 + level.random.nextDouble() * 0.50),
+                    0.90 + level.random.nextDouble() * 0.70,
+                    flat.z * (0.35 + level.random.nextDouble() * 0.50));
+            fb.setHurtsEntities(1.5f, 4);
             fb.time = 1;
             launched++;
         }
@@ -525,9 +632,30 @@ public class CyclopsUltimateController {
             target.hurt(player.damageSources().playerAttack(player), dmg);
 
             Vec3 push = target.position().subtract(center).normalize();
-            target.setDeltaMovement(push.x * 1.1, 0.85, push.z * 1.1);
+            target.setDeltaMovement(push.x * 1.35, 1.0, push.z * 1.35);
             target.hurtMarked = true;
         }
+
+        registerSmolder(level, st, center);
+    }
+
+    /**
+     * Patlama sonrasi toz bulutunu baslatir. Krater noktalari seyreltilerek
+     * kaynak listesine alinir — hepsinden partikul cikarmak paket yagmuru
+     * yaratiyordu.
+     */
+    private static void registerSmolder(ServerLevel level, UltState st, Vec3 center) {
+        List<BlockPos> all = new ArrayList<>(st.chargedBlocks);
+        if (all.isEmpty()) return;
+
+        int step = Math.max(1, all.size() / SMOLDER_SOURCES);
+        List<Vec3> sources = new ArrayList<>();
+        for (int i = 0; i < all.size() && sources.size() < SMOLDER_SOURCES; i += step) {
+            BlockPos p = all.get(i);
+            sources.add(new Vec3(p.getX() + 0.5, p.getY() + 1.0, p.getZ() + 0.5));
+        }
+
+        smolders.add(new Smolder(level, sources, center));
     }
 
     // ------------------------------------------------------------------
