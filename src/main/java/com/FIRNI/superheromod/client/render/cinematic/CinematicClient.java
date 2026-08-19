@@ -4,9 +4,13 @@ import com.FIRNI.superheromod.SuperheroMod;
 import com.FIRNI.superheromod.core.cinematic.CinematicDefinition;
 import com.FIRNI.superheromod.core.cinematic.CinematicRegistry;
 import com.FIRNI.superheromod.core.cinematic.Shot;
+import com.FIRNI.superheromod.client.render.puppet.CinematicPuppet;
+import com.FIRNI.superheromod.client.render.puppet.PuppetPose;
+import com.FIRNI.superheromod.client.render.puppet.PuppetRenderer;
 import com.FIRNI.superheromod.core.cinematic.StageFrame;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
@@ -97,7 +101,10 @@ public final class CinematicClient {
         serverTickMs = System.currentTimeMillis();
         lastPacketMs = serverTickMs;
 
-        if (fresh) reset();
+        if (fresh) {
+            reset();
+            setupPuppets();
+        }
 
         // Renk katmani sadece sinematiği IZLEYENDE acilir
         if (shouldDrive()) CinematicPostFx.enable();
@@ -107,7 +114,88 @@ public final class CinematicClient {
         active = false;
         def = null;
         CinematicPostFx.disable();
+        PuppetRenderer.clear();
         reset();
+    }
+
+    /**
+     * Gercek oyunculari sahne aktorleriyle degistirir.
+     *
+     * Aktorler oyuncunun kendi skinini kullanir; gercek bedenler cizimden
+     * cikarilir. Boylece sahnedeki figurler Minecraft'in poz kisitlarina
+     * bagli olmaktan cikar.
+     */
+    private static void setupPuppets() {
+        PuppetRenderer.clear();
+        if (!shouldDrive()) return;
+
+        addPuppet(attackerId);
+        addPuppet(targetId);
+    }
+
+    private static void addPuppet(int entityId) {
+        Entity entity = resolve(entityId);
+        if (!(entity instanceof AbstractClientPlayer player)) return;
+
+        PuppetRenderer.add(new CinematicPuppet(
+                player.getUUID(),
+                player.getSkinTextureLocation(),
+                "slim".equals(player.getModelName())));
+    }
+
+    /**
+     * Aktorleri her karede gercek bedenlerinin bulundugu yere tasir.
+     *
+     * Su an konum hala sunucunun surdugu gercek entity'den geliyor; poz
+     * olaylari baglanana kadar aktor "gorunur ikiz" olarak calisiyor. Asil
+     * kazanim koreografinin buradan devralinmasiyla gelecek.
+     */
+    private static void updatePuppets(float partial, float timeline) {
+        if (PuppetRenderer.all().isEmpty()) return;
+
+        synchronized (PuppetRenderer.all()) {
+            for (CinematicPuppet puppet : PuppetRenderer.all()) {
+                Entity source = findByUuid(puppet.sourcePlayer);
+                if (source == null) continue;
+
+                puppet.position = source.getPosition(partial);
+                puppet.yaw = source.getViewYRot(partial);
+
+                idleBreath(puppet, timeline);
+            }
+        }
+    }
+
+    /**
+     * Nefes — aktorun donmus gorunmemesi icin.
+     *
+     * Senaryonun 1. sahnesi "gogus cok hafif yukselip iner, omuzlar simetrik
+     * degil" diyor; bu onun en sade hali. Poz olaylari geldiginde bunun
+     * uzerine gercek koreografi binecek.
+     */
+    private static void idleBreath(CinematicPuppet puppet, float timeline) {
+        float t = timeline * 0.08f;
+        PuppetPose pose = puppet.pose;
+
+        pose.rot[PuppetPose.CHEST][0] = Mth.sin(t) * 0.025f;
+        pose.rot[PuppetPose.HEAD][0] = Mth.sin(t * 0.7f) * 0.02f;
+
+        // Omuzlar bilerek simetrik degil
+        pose.rot[PuppetPose.RIGHT_UPPER_ARM][2] = 0.06f + Mth.sin(t) * 0.015f;
+        pose.rot[PuppetPose.LEFT_UPPER_ARM][2] = -0.09f + Mth.sin(t * 0.9f) * 0.015f;
+
+        // Dirsekler tam duz durmaz
+        pose.rot[PuppetPose.RIGHT_LOWER_ARM][0] = -0.14f;
+        pose.rot[PuppetPose.LEFT_LOWER_ARM][0] = -0.10f;
+    }
+
+    private static Entity findByUuid(java.util.UUID id) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return null;
+        for (Entity e : mc.level.entitiesForRendering()) {
+            if (e.getUUID().equals(id)) return e;
+        }
+        return null;
     }
 
     public static boolean isRunning() {
@@ -153,7 +241,10 @@ public final class CinematicClient {
         // Boylece koreografi dunya konumundan bagimsiz.
         StageFrame stage = stageFrom(aPos);
 
-        CinematicDefinition.Cursor cursor = def.cursorAt(timelineTick());
+        float timeline = timelineTick();
+        updatePuppets(partial, timeline);
+
+        CinematicDefinition.Cursor cursor = def.cursorAt(timeline);
         Shot shot = cursor.shot();
         float p = shot.easing.apply(cursor.progress());
 
