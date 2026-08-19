@@ -24,12 +24,26 @@ public final class CinematicDefinition {
     /** Sahne kurulurken hedefin sabitlenecegi yerel konum (null = oldugu yer). */
     public final Vec3 targetAnchor;
 
+    /**
+     * TABAN ATMOSFER — cekim kendi sisini yazmadiysa bu kullanilir.
+     *
+     * Her cekime tek tek sis yazmak zorunda kalinsaydi pratikte hicbir cekimde
+     * yazilmazdi. Sinematigin geneli buradan gelir, cekimler sadece SAPMA
+     * yaptiginda kendi degerini verir.
+     */
+    public final float baseFogNear;
+    public final float baseFogFar;
+    public final int baseFogColor;
+
     private CinematicDefinition(Builder b) {
         this.id = b.id;
         this.shots = Collections.unmodifiableList(b.shots);
         this.beats = Collections.unmodifiableList(sorted(b.beats));
         this.letterbox = b.letterbox;
         this.targetAnchor = b.targetAnchor;
+        this.baseFogNear = b.baseFogNear;
+        this.baseFogFar = b.baseFogFar;
+        this.baseFogColor = b.baseFogColor;
 
         int sum = 0;
         for (Shot s : b.shots) sum += s.durationTicks;
@@ -72,6 +86,9 @@ public final class CinematicDefinition {
         private final List<Beat> beats = new ArrayList<>();
         private boolean letterbox = true;
         private Vec3 targetAnchor;
+        private float baseFogNear = Shot.NO_FOG;
+        private float baseFogFar = Shot.NO_FOG;
+        private int baseFogColor = Shot.NO_COLOR;
 
         private Builder(String id) {
             this.id = id;
@@ -100,6 +117,20 @@ public final class CinematicDefinition {
         /** Hedefi sahne kurulurken bu yerel konuma yerlestir. */
         public Builder anchorTarget(Vec3 local) {
             this.targetAnchor = local;
+            return this;
+        }
+
+        /**
+         * Sinematigin geneline sinen atmosfer.
+         *
+         * @param near sisin basladigi mesafe (blok) — kuculdukce sahne kapanir
+         * @param far  gorusun tamamen kapandigi mesafe (blok)
+         * @param rgb  sis rengi 0xRRGGBB — sahnenin tonu
+         */
+        public Builder atmosphere(float near, float far, int rgb) {
+            this.baseFogNear = near;
+            this.baseFogFar = far;
+            this.baseFogColor = rgb;
             return this;
         }
 

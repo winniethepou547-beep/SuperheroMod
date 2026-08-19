@@ -42,6 +42,11 @@ public final class MaximumPowerCinematic {
                 .letterbox(true)
                 .anchorTarget(TARGET_ANCHOR)
 
+                // Sahnenin tabani: sis yakina cekilir, arka plan erir ve
+                // sadece iki figur kalir. Ton hafif kizil — Cyclops'un isini
+                // sahnenin havasina tasiyor.
+                .atmosphere(4.0f, 34.0f, 0x2A1418)
+
                 // ==========================================================
                 // BOLUM 1 — KARANLIK VE YALNIZLIK
                 // ==========================================================
@@ -66,6 +71,8 @@ public final class MaximumPowerCinematic {
                         .at(0.75, 1.72, 1.42)
                         .lookAtFixed(new Vec3(0, 1.5, 0.15))
                         .fov(58f)
+                        .pushIn(0.10)
+                        .roll(-3f, -5f)
                         .build())
 
                 // ==========================================================
@@ -80,10 +87,15 @@ public final class MaximumPowerCinematic {
                         .build())
 
                 // 05 OPTIK ASIRI YAKIN PLAN — kadraj neredeyse tamamen siyah
+                // Gozun asiri yakin plani: kadraj yatik, kamera surunerek
+                // yaklasiyor ve sis burada iyice kapaniyor — sadece goz kaliyor
                 .shot(Shot.of(3).cut()
                         .at(0.0, 1.66, 0.34)
                         .lookAtAttacker(1.66)
                         .fov(34f)
+                        .pushIn(0.14)
+                        .roll(6f, 9f)
+                        .fog(1.5f, 12.0f, 1.2f, 9.0f)
                         .build())
 
                 // ==========================================================
@@ -91,11 +103,16 @@ public final class MaximumPowerCinematic {
                 // ==========================================================
 
                 // 06 ILK ISIN — genis yan profil, ucu de kadrajda. BANG.
+                // Isin patlar: sis aniden acilir (isik sahneyi doldurdu),
+                // kadraj yatar ve FOV genisler — darbe hissi
                 .shot(Shot.of(3).cut()
                         .at(5.2, 1.9, 0.5)
                         .lookAtMidpoint(1.15)
                         .fov(76f)
                         .shake(0.55f, 0.2f)
+                        .roll(-8f, -2f)
+                        .fog(2.0f, 55.0f, 4.0f, 40.0f)
+                        .fogColor(0x4A1C18)
                         .build())
 
                 // 07 ISIN CARPMASI — kamera hedefe dogru bastirir, hedef kayar

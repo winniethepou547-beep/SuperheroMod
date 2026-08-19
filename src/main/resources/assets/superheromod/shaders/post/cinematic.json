@@ -1,0 +1,51 @@
+{
+    "targets": [
+        "swap",
+        "glow"
+    ],
+    "passes": [
+        {
+            "name": "blur",
+            "intarget": "minecraft:main",
+            "outtarget": "glow",
+            "uniforms": [
+                { "name": "BlurDir", "values": [ 1.0, 0.0 ] },
+                { "name": "Radius", "values": [ 8.0 ] }
+            ]
+        },
+        {
+            "name": "blur",
+            "intarget": "glow",
+            "outtarget": "swap",
+            "uniforms": [
+                { "name": "BlurDir", "values": [ 0.0, 1.0 ] },
+                { "name": "Radius", "values": [ 8.0 ] }
+            ]
+        },
+        {
+            "name": "superheromod:cinematic_grade",
+            "intarget": "minecraft:main",
+            "outtarget": "swap",
+            "auxtargets": [
+                {
+                    "name": "GlowSampler",
+                    "id": "swap"
+                }
+            ],
+            "uniforms": [
+                { "name": "GlowStrength", "values": [ 0.55 ] },
+                { "name": "Saturation", "values": [ 0.78 ] },
+                { "name": "Contrast", "values": [ 1.12 ] },
+                { "name": "Tint", "values": [ 1.03, 1.0, 0.94 ] }
+            ]
+        },
+        {
+            "name": "blit",
+            "intarget": "swap",
+            "outtarget": "minecraft:main",
+            "uniforms": [
+                { "name": "ColorModulate", "values": [ 1.0, 1.0, 1.0, 1.0 ] }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,27 @@
+{
+    "blend": {
+        "func": "add",
+        "srcrgb": "one",
+        "dstrgb": "zero"
+    },
+    "vertex": "sobel",
+    "fragment": "superheromod:cinematic_grade",
+    "attributes": [ "Position" ],
+    "samplers": [
+        { "name": "DiffuseSampler" },
+        { "name": "GlowSampler" }
+    ],
+    "uniforms": [
+        { "name": "ProjMat", "type": "matrix4x4", "count": 16,
+          "values": [ 1.0, 0.0, 0.0, 0.0,
+                      0.0, 1.0, 0.0, 0.0,
+                      0.0, 0.0, 1.0, 0.0,
+                      0.0, 0.0, 0.0, 1.0 ] },
+        { "name": "InSize", "type": "float", "count": 2, "values": [ 1.0, 1.0 ] },
+        { "name": "OutSize", "type": "float", "count": 2, "values": [ 1.0, 1.0 ] },
+        { "name": "GlowStrength", "type": "float", "count": 1, "values": [ 0.55 ] },
+        { "name": "Saturation", "type": "float", "count": 1, "values": [ 0.78 ] },
+        { "name": "Contrast", "type": "float", "count": 1, "values": [ 1.12 ] },
+        { "name": "Tint", "type": "float", "count": 3, "values": [ 1.0, 1.0, 1.0 ] }
+    ]
+}

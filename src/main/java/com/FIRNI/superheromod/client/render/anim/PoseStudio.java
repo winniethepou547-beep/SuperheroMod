@@ -208,11 +208,20 @@ public final class PoseStudio {
         if (playhead >= totalTicks()) playhead = 0f;
     }
 
-    /** Oynatiliyorsa ara poz, degilse kaydiraklardaki poz. */
+    /**
+     * Oynatiliyorsa ara poz, degilse kaydiraklardaki poz.
+     *
+     * AKICILIK: playhead tick basina 1 artiyor, yani 20 Hz. Sadece ona
+     * bakilsaydi animasyon ekran 144 fps cizerken bile 20 fps ilerler ve
+     * kesik kesik gorunurdu. Kare arasi kesir (frameTime) eklenerek poz
+     * EKRAN HIZINDA hesaplaniyor.
+     */
     private static StudioPose effectivePose() {
         if (!playing || clip.size() < 2) return current;
 
-        float t = playhead;
+        float t = playhead + Minecraft.getInstance().getFrameTime();
+        float total = totalTicks();
+        if (t >= total) t -= total;
         for (int i = 0; i < clip.size() - 1; i++) {
             Keyframe k = clip.get(i);
             if (t < k.hold) {

@@ -54,6 +54,17 @@ public final class CinematicClient {
     private static int lastShotIndex = -1;
     private static float blend = 1f;
     private static float fov = 70f;
+    private static float roll = 0f;
+
+    /**
+     * Atmosfer degerleri cekimler arasi YUMUSAK gecer. Aniden degisirse sis
+     * "pat" diye acilip kapanir ve sahte durur; buradaki takip degerleri
+     * hedefe dogru her karede biraz yaklasiyor.
+     */
+    private static float fogNear = -1f;
+    private static float fogFar = -1f;
+    private static float fogR = -1f, fogG = -1f, fogB = -1f;
+    private static boolean fogActive = false;
 
     private static final Random SHAKE = new Random();
 
@@ -87,11 +98,15 @@ public final class CinematicClient {
         lastPacketMs = serverTickMs;
 
         if (fresh) reset();
+
+        // Renk katmani sadece sinematiği IZLEYENDE acilir
+        if (shouldDrive()) CinematicPostFx.enable();
     }
 
     public static void stop() {
         active = false;
         def = null;
+        CinematicPostFx.disable();
         reset();
     }
 
@@ -109,6 +124,11 @@ public final class CinematicClient {
         lastShotIndex = -1;
         blend = 1f;
         fov = 70f;
+        roll = 0f;
+        fogNear = -1f;
+        fogFar = -1f;
+        fogR = fogG = fogB = -1f;
+        fogActive = false;
     }
 
     // ------------------------------------------------------------------
@@ -141,7 +161,7 @@ public final class CinematicClient {
         Vec3 camPos = stage.toWorldSpan(localCam);
         Vec3 lookAt = resolveLook(shot, stage, aPos, tPos);
 
-        // Sarsinti
+        // Sarsinti — darbe icin: sert, hizli, rastgele
         float shake = Mth.lerp(p, shot.shakeStart, shot.shakeEnd);
         if (shake > 0.001f) {
             double s = shake * 0.09;
@@ -149,6 +169,18 @@ public final class CinematicClient {
                     (SHAKE.nextDouble() - 0.5) * s,
                     (SHAKE.nextDouble() - 0.5) * s,
                     (SHAKE.nextDouble() - 0.5) * s);
+        }
+
+        // Nefes — sarsintidan farkli: cok yavas, cok kucuk, SUREKLI.
+        // Rastgele degil sinus toplami; rastgelelik titreme yapar, sinus
+        // toplami ise elde tutulmus kamera gibi organik salinir.
+        if (shot.breath > 0.001f) {
+            float ms = System.currentTimeMillis() % 100000L;
+            double b = shot.breath * 0.022;
+            camPos = camPos.add(
+                    (Math.sin(ms * 0.00071) + Math.sin(ms * 0.00033)) * b,
+                    (Math.sin(ms * 0.00053) + Math.sin(ms * 0.00097)) * b * 0.8,
+                    (Math.sin(ms * 0.00041) + Math.sin(ms * 0.00087)) * b);
         }
 
         // Gecis: CUT aninda otur, SMOOTH kisa surede harmanla
@@ -175,6 +207,11 @@ public final class CinematicClient {
         float wantFov = Mth.lerp(p, shot.fovStart, shot.fovEnd);
         fov += (wantFov - fov) * 0.3f;
 
+        float wantRoll = Mth.lerp(p, shot.rollStart, shot.rollEnd);
+        roll += (wantRoll - roll) * 0.2f;
+
+        updateAtmosphere(shot, p);
+
         setCameraPosition(event.getCamera(), heldCam);
 
         Vec3 dir = heldLook.subtract(heldCam);
@@ -183,6 +220,84 @@ public final class CinematicClient {
 
         event.setYaw((float) Math.toDegrees(Math.atan2(-dir.x, dir.z)));
         event.setPitch((float) Math.toDegrees(-Math.asin(Mth.clamp(dir.y, -1.0, 1.0))));
+        // Yatirma: oyun kamerasi asla yatmaz, bu yuzden beyin yatik kadraji
+        // aninda "bu oynanis degil, bu cekim" diye okur
+        event.setRoll(roll);
+    }
+
+    /**
+     * Cekimin istedigi sis degerlerine yumusakca kayar.
+     *
+     * Cekim kendi sisini yazmadiysa sinematigin TABAN atmosferi kullanilir;
+     * boylece her cekime tek tek sis yazmak gerekmiyor.
+     */
+    private static void updateAtmosphere(Shot shot, float p) {
+        float wantNear, wantFar;
+        int wantColor;
+
+        if (shot.hasFog()) {
+            wantNear = Mth.lerp(p, shot.fogNearStart, shot.fogNearEnd);
+            wantFar = Mth.lerp(p, shot.fogFarStart, shot.fogFarEnd);
+            wantColor = shot.fogColor != Shot.NO_COLOR ? shot.fogColor : def.baseFogColor;
+        } else if (!Float.isNaN(def.baseFogNear)) {
+            wantNear = def.baseFogNear;
+            wantFar = def.baseFogFar;
+            wantColor = def.baseFogColor;
+        } else {
+            fogActive = false;
+            return;
+        }
+
+        if (!fogActive) {
+            // Ilk kez devreye giriyor — mevcut degerden degil, hedeften basla
+            fogNear = wantNear;
+            fogFar = wantFar;
+            fogActive = true;
+        } else {
+            fogNear += (wantNear - fogNear) * 0.12f;
+            fogFar += (wantFar - fogFar) * 0.12f;
+        }
+
+        if (wantColor != Shot.NO_COLOR) {
+            float r = ((wantColor >> 16) & 0xFF) / 255f;
+            float g = ((wantColor >> 8) & 0xFF) / 255f;
+            float b = (wantColor & 0xFF) / 255f;
+
+            if (fogR < 0f) {
+                fogR = r; fogG = g; fogB = b;
+            } else {
+                fogR += (r - fogR) * 0.12f;
+                fogG += (g - fogG) * 0.12f;
+                fogB += (b - fogB) * 0.12f;
+            }
+        }
+    }
+
+    /**
+     * Sis mesafesi.
+     *
+     * Sisi yakina cekmek arka plani eritir ve ozneyi one cikarir — ekrani
+     * siyahla ortmeden odak kurmanin yolu bu. Vanilla sisi duz bir mesafe
+     * solmasi oldugu icin shader kalitesinde olmuyor; asil derinlik hissi
+     * post-processing katmaniyla geliyor.
+     */
+    @SubscribeEvent
+    public static void onRenderFog(ViewportEvent.RenderFog event) {
+        if (!shouldDrive() || !fogActive) return;
+
+        event.setNearPlaneDistance(fogNear);
+        event.setFarPlaneDistance(fogFar);
+        event.setCanceled(true);
+    }
+
+    /** Sis rengi sahnenin tonunu belirler. */
+    @SubscribeEvent
+    public static void onFogColor(ViewportEvent.ComputeFogColor event) {
+        if (!shouldDrive() || !fogActive || fogR < 0f) return;
+
+        event.setRed(fogR);
+        event.setGreen(fogG);
+        event.setBlue(fogB);
     }
 
     @SubscribeEvent
