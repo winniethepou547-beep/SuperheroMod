@@ -68,17 +68,26 @@ public final class PuppetModel {
         float armX = slim ? -2f : -3f;
         float leftArmX = slim ? -1f : -1f;
 
-        // --- Kalca: govdenin alt yarisi, tum hiyerarsinin koku ---
+        // ÖLÇÜ REFERANSI (vanilla ile birebir ayni olmali):
+        //   kafa    y = -8 .. 0
+        //   govde   y =  0 .. 12   (gogus 0..6, kalca 6..12)
+        //   bacak   y = 12 .. 24   (ust 12..18, alt 18..24)
+        // Ayak y=24'te olmazsa model yere gomulur ve kafa gercek oyuncunun
+        // kafasindan alcakta kalir — isin de kafanin ustunden cikiyormus gibi
+        // gorunur.
+
+        // --- Kalca: govdenin ALT yarisi. Pivot kalca ekleminde (y=12). ---
         PartDefinition hips = root.addOrReplaceChild("hips",
                 CubeListBuilder.create().texOffs(16, 22)
-                        .addBox(-4.0f, 0.0f, -2.0f, 8, 6, 4),
+                        .addBox(-4.0f, -6.0f, -2.0f, 8, 6, 4),
                 PartPose.offset(0.0f, 12.0f, 0.0f));
 
-        // --- Gogus: govdenin ust yarisi, kalcadan doner (BEL) ---
+        // --- Gogus: govdenin UST yarisi. Pivot BELDE (y=6), boylece
+        //     govde belden bukuluyor. ---
         PartDefinition chest = hips.addOrReplaceChild("chest",
                 CubeListBuilder.create().texOffs(16, 16)
                         .addBox(-4.0f, -6.0f, -2.0f, 8, 6, 4),
-                PartPose.offset(0.0f, 0.0f, 0.0f));
+                PartPose.offset(0.0f, -6.0f, 0.0f));
 
         chest.addOrReplaceChild("head",
                 CubeListBuilder.create().texOffs(0, 0)
