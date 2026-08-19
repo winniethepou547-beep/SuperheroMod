@@ -1,6 +1,7 @@
 package com.FIRNI.superheromod.client.render.puppet;
 
 import com.FIRNI.superheromod.SuperheroMod;
+import com.FIRNI.superheromod.core.cinematic.ActorPose;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.model.geom.ModelLayerLocation;
@@ -138,25 +139,25 @@ public final class PuppetModel {
     // ------------------------------------------------------------------
 
     /** Pozu modele yazar. */
-    public void apply(PuppetPose pose) {
-        set(head, pose, PuppetPose.HEAD);
-        set(chest, pose, PuppetPose.CHEST);
-        set(hips, pose, PuppetPose.HIPS);
-        set(rightUpperArm, pose, PuppetPose.RIGHT_UPPER_ARM);
-        set(rightLowerArm, pose, PuppetPose.RIGHT_LOWER_ARM);
-        set(leftUpperArm, pose, PuppetPose.LEFT_UPPER_ARM);
-        set(leftLowerArm, pose, PuppetPose.LEFT_LOWER_ARM);
-        set(rightUpperLeg, pose, PuppetPose.RIGHT_UPPER_LEG);
-        set(rightLowerLeg, pose, PuppetPose.RIGHT_LOWER_LEG);
-        set(leftUpperLeg, pose, PuppetPose.LEFT_UPPER_LEG);
-        set(leftLowerLeg, pose, PuppetPose.LEFT_LOWER_LEG);
+    public void apply(ActorPose pose) {
+        set(head, pose, ActorPose.HEAD);
+        set(chest, pose, ActorPose.CHEST);
+        set(hips, pose, ActorPose.HIPS);
+        set(rightUpperArm, pose, ActorPose.RIGHT_UPPER_ARM);
+        set(rightLowerArm, pose, ActorPose.RIGHT_LOWER_ARM);
+        set(leftUpperArm, pose, ActorPose.LEFT_UPPER_ARM);
+        set(leftLowerArm, pose, ActorPose.LEFT_LOWER_ARM);
+        set(rightUpperLeg, pose, ActorPose.RIGHT_UPPER_LEG);
+        set(rightLowerLeg, pose, ActorPose.RIGHT_LOWER_LEG);
+        set(leftUpperLeg, pose, ActorPose.LEFT_UPPER_LEG);
+        set(leftLowerLeg, pose, ActorPose.LEFT_LOWER_LEG);
 
         // Comelme: kalca asagi iner, model piksel biriminde oldugu icin
         // blok cinsinden gelen deger 16 ile carpiliyor
         hips.y = 12.0f + pose.crouch * 16.0f;
     }
 
-    private static void set(ModelPart part, PuppetPose pose, int joint) {
+    private static void set(ModelPart part, ActorPose pose, int joint) {
         part.xRot = pose.rot[joint][0];
         part.yRot = pose.rot[joint][1];
         part.zRot = pose.rot[joint][2];
@@ -167,3 +168,4 @@ public final class PuppetModel {
         root.render(poseStack, buffer, packedLight, packedOverlay, 1f, 1f, 1f, 1f);
     }
 }
+

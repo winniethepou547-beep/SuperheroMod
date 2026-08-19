@@ -35,6 +35,20 @@ public final class CinematicDefinition {
     public final float baseFogFar;
     public final int baseFogColor;
 
+    /** Aktorlerin poz anahtarlari — sirali. */
+    public final List<PoseKey> poseKeys;
+
+    /** Sahnedeki iki aktor. */
+    public enum Actor { ATTACKER, TARGET }
+
+    /**
+     * Bir aktorun belirli bir tick'teki pozu.
+     *
+     * @param chain eklem basina gecikme — kuvvetin vucuttan gecmesini saglar.
+     *              null ise tum eklemler ayni anda hareket eder (mekanik durur).
+     */
+    public record PoseKey(int tick, Actor actor, ActorPose pose, float[] chain) {}
+
     private CinematicDefinition(Builder b) {
         this.id = b.id;
         this.shots = Collections.unmodifiableList(b.shots);
@@ -44,6 +58,10 @@ public final class CinematicDefinition {
         this.baseFogNear = b.baseFogNear;
         this.baseFogFar = b.baseFogFar;
         this.baseFogColor = b.baseFogColor;
+
+        List<PoseKey> keys = new ArrayList<>(b.poseKeys);
+        keys.sort((x, y) -> Integer.compare(x.tick, y.tick));
+        this.poseKeys = Collections.unmodifiableList(keys);
 
         int sum = 0;
         for (Shot s : b.shots) sum += s.durationTicks;
@@ -89,6 +107,7 @@ public final class CinematicDefinition {
         private float baseFogNear = Shot.NO_FOG;
         private float baseFogFar = Shot.NO_FOG;
         private int baseFogColor = Shot.NO_COLOR;
+        private final List<PoseKey> poseKeys = new ArrayList<>();
 
         private Builder(String id) {
             this.id = id;
@@ -127,6 +146,21 @@ public final class CinematicDefinition {
          * @param far  gorusun tamamen kapandigi mesafe (blok)
          * @param rgb  sis rengi 0xRRGGBB — sahnenin tonu
          */
+        /**
+         * Aktorun bu tick'te alacagi poz.
+         *
+         * Gecis, bir onceki ayni aktor anahtarindan buraya kadar surer;
+         * zincir verilirse eklemler sirayla hareket eder.
+         */
+        public Builder pose(int tick, Actor actor, ActorPose pose, float[] chain) {
+            poseKeys.add(new PoseKey(tick, actor, pose, chain));
+            return this;
+        }
+
+        public Builder pose(int tick, Actor actor, ActorPose pose) {
+            return pose(tick, actor, pose, null);
+        }
+
         public Builder atmosphere(float near, float far, int rgb) {
             this.baseFogNear = near;
             this.baseFogFar = far;

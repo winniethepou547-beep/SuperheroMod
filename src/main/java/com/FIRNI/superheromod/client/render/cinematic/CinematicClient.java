@@ -5,8 +5,8 @@ import com.FIRNI.superheromod.core.cinematic.CinematicDefinition;
 import com.FIRNI.superheromod.core.cinematic.CinematicRegistry;
 import com.FIRNI.superheromod.core.cinematic.Shot;
 import com.FIRNI.superheromod.client.render.puppet.CinematicPuppet;
-import com.FIRNI.superheromod.client.render.puppet.PuppetPose;
 import com.FIRNI.superheromod.client.render.puppet.PuppetRenderer;
+import com.FIRNI.superheromod.core.cinematic.ActorPose;
 import com.FIRNI.superheromod.core.cinematic.StageFrame;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
@@ -161,9 +161,71 @@ public final class CinematicClient {
                 puppet.position = source.getPosition(partial);
                 puppet.yaw = source.getViewYRot(partial);
 
-                idleBreath(puppet, timeline);
+                CinematicDefinition.Actor actor =
+                        source.getId() == attackerId
+                                ? CinematicDefinition.Actor.ATTACKER
+                                : CinematicDefinition.Actor.TARGET;
+
+                if (!applyPoseTrack(puppet, actor, timeline)) {
+                    idleBreath(puppet, timeline);
+                }
             }
         }
+    }
+
+    /**
+     * Poz izini uygular: zaman cizgisinde aktorun onceki ve sonraki
+     * anahtarlarini bulup arasini doldurur.
+     *
+     * Gecis sirasinda anahtarin ZINCIRI kullanilir; boylece butun eklemler
+     * ayni anda degil, kuvvet vucuttan gecerek hareket eder.
+     *
+     * @return poz izi bu aktoru surduyse true
+     */
+    private static boolean applyPoseTrack(CinematicPuppet puppet,
+                                          CinematicDefinition.Actor actor,
+                                          float timeline) {
+        CinematicDefinition.PoseKey before = null;
+        CinematicDefinition.PoseKey after = null;
+
+        for (CinematicDefinition.PoseKey key : def.poseKeys) {
+            if (key.actor() != actor) continue;
+            if (key.tick() <= timeline) {
+                before = key;
+            } else {
+                after = key;
+                break;
+            }
+        }
+
+        if (before == null && after == null) return false;
+
+        if (before == null) {
+            // Ilk anahtardan once: notr duruştan ilk poza dogru gel
+            float span = Math.max(1f, after.tick());
+            ActorPose.lerp(NEUTRAL, after.pose(), timeline / span,
+                    after.chain(), puppet.pose);
+            return true;
+        }
+
+        if (after == null) {
+            puppet.pose.set(before.pose());
+            breathOver(puppet, timeline);
+            return true;
+        }
+
+        float span = Math.max(1f, after.tick() - before.tick());
+        float t = Mth.clamp((timeline - before.tick()) / span, 0f, 1f);
+
+        ActorPose.lerp(before.pose(), after.pose(), t, after.chain(), puppet.pose);
+        return true;
+    }
+
+    /** Sabit pozda beklerken bile govde tamamen donmus gorunmesin. */
+    private static void breathOver(CinematicPuppet puppet, float timeline) {
+        float t = timeline * 0.08f;
+        puppet.pose.rot[ActorPose.CHEST][0] += Mth.sin(t) * 0.018f;
+        puppet.pose.rot[ActorPose.HEAD][0] += Mth.sin(t * 0.7f) * 0.014f;
     }
 
     /**
@@ -175,19 +237,22 @@ public final class CinematicClient {
      */
     private static void idleBreath(CinematicPuppet puppet, float timeline) {
         float t = timeline * 0.08f;
-        PuppetPose pose = puppet.pose;
+        ActorPose pose = puppet.pose;
 
-        pose.rot[PuppetPose.CHEST][0] = Mth.sin(t) * 0.025f;
-        pose.rot[PuppetPose.HEAD][0] = Mth.sin(t * 0.7f) * 0.02f;
+        pose.rot[ActorPose.CHEST][0] = Mth.sin(t) * 0.025f;
+        pose.rot[ActorPose.HEAD][0] = Mth.sin(t * 0.7f) * 0.02f;
 
         // Omuzlar bilerek simetrik degil
-        pose.rot[PuppetPose.RIGHT_UPPER_ARM][2] = 0.06f + Mth.sin(t) * 0.015f;
-        pose.rot[PuppetPose.LEFT_UPPER_ARM][2] = -0.09f + Mth.sin(t * 0.9f) * 0.015f;
+        pose.rot[ActorPose.RIGHT_UPPER_ARM][2] = 0.06f + Mth.sin(t) * 0.015f;
+        pose.rot[ActorPose.LEFT_UPPER_ARM][2] = -0.09f + Mth.sin(t * 0.9f) * 0.015f;
 
         // Dirsekler tam duz durmaz
-        pose.rot[PuppetPose.RIGHT_LOWER_ARM][0] = -0.14f;
-        pose.rot[PuppetPose.LEFT_LOWER_ARM][0] = -0.10f;
+        pose.rot[ActorPose.RIGHT_LOWER_ARM][0] = -0.14f;
+        pose.rot[ActorPose.LEFT_LOWER_ARM][0] = -0.10f;
     }
+
+    /** Ilk poz anahtarindan once kullanilan notr durus. */
+    private static final ActorPose NEUTRAL = new ActorPose();
 
     private static Entity findByUuid(java.util.UUID id) {
         Minecraft mc = Minecraft.getInstance();

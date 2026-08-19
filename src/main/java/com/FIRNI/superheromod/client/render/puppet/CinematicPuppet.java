@@ -1,5 +1,6 @@
 package com.FIRNI.superheromod.client.render.puppet;
 
+import com.FIRNI.superheromod.core.cinematic.ActorPose;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
 
@@ -28,7 +29,7 @@ public final class CinematicPuppet {
     public float yaw;
 
     /** O anki tam poz. */
-    public final PuppetPose pose = new PuppetPose();
+    public final ActorPose pose = new ActorPose();
 
     /**
      * Isik seviyesi 0..15. Kuklayi biz cizdigimiz icin isigi da biz veriyoruz:
@@ -46,3 +47,4 @@ public final class CinematicPuppet {
         this.slim = slim;
     }
 }
+

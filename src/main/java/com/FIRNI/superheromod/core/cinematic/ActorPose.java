@@ -1,4 +1,4 @@
-package com.FIRNI.superheromod.client.render.puppet;
+package com.FIRNI.superheromod.core.cinematic;
 
 /**
  * Sahne aktorunun tam pozu.
@@ -10,7 +10,7 @@ package com.FIRNI.superheromod.client.render.puppet;
  *
  * Aci birimi RADYAN.
  */
-public final class PuppetPose {
+public final class ActorPose {
 
     public static final int HEAD = 0;
     public static final int CHEST = 1;
@@ -47,13 +47,41 @@ public final class PuppetPose {
     public float bodyRoll;
     public float bodyPitch;
 
-    public PuppetPose copy() {
-        PuppetPose out = new PuppetPose();
+    public ActorPose copy() {
+        ActorPose out = new ActorPose();
         out.set(this);
         return out;
     }
 
-    public void set(PuppetPose other) {
+    // ------------------------------------------------------------------
+    // Poz yazimi — sinematik tanimlarinda okunabilir olsun diye zincirlenebilir
+    // ------------------------------------------------------------------
+
+    public static ActorPose of() {
+        return new ActorPose();
+    }
+
+    /** Aci DERECE cinsinden verilir; ic temsil radyan. */
+    public ActorPose j(int joint, float xDeg, float yDeg, float zDeg) {
+        rot[joint][0] = (float) Math.toRadians(xDeg);
+        rot[joint][1] = (float) Math.toRadians(yDeg);
+        rot[joint][2] = (float) Math.toRadians(zDeg);
+        return this;
+    }
+
+    /** Govde tamamen yere yaklassin (blok cinsinden dusus). */
+    public ActorPose crouch(float blocks) {
+        this.crouch = blocks;
+        return this;
+    }
+
+    public ActorPose body(float rollDeg, float pitchDeg) {
+        this.bodyRoll = rollDeg;
+        this.bodyPitch = pitchDeg;
+        return this;
+    }
+
+    public void set(ActorPose other) {
         for (int j = 0; j < JOINTS; j++) {
             System.arraycopy(other.rot[j], 0, this.rot[j], 0, 3);
         }
@@ -81,8 +109,8 @@ public final class PuppetPose {
      *
      * @param delays eklem basina 0..1 gecikme; 0 = hemen, 0.5 = yarida basla
      */
-    public static void lerp(PuppetPose a, PuppetPose b, float t,
-                            float[] delays, PuppetPose out) {
+    public static void lerp(ActorPose a, ActorPose b, float t,
+                            float[] delays, ActorPose out) {
         for (int j = 0; j < JOINTS; j++) {
             float local = t;
 
