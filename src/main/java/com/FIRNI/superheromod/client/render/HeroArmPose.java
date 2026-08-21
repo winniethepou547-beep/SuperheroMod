@@ -180,6 +180,12 @@ public final class HeroArmPose {
      * Eski yollar (yerel bayrak / aktif isin) yedek olarak duruyor ki kimlik
      * paketi henuz gelmemisken poz kaybolmasin.
      */
+    /** Sandman kendi kol pozunu yonetiyor; lazer pozlari ona uygulanmaz. */
+    private static boolean isSandman(Player player) {
+        return com.FIRNI.superheromod.heroes.sandman.SandmanCharacter.ID
+                .equals(ClientHeroRegistry.get(player.getUUID()));
+    }
+
     private static boolean isHero(Player player) {
         if (ClientHeroRegistry.isHero(player)) return true;
 
@@ -190,7 +196,17 @@ public final class HeroArmPose {
         return ClientBeamData.getChannelBeams().containsKey(player.getUUID());
     }
 
+    /**
+     * Kolun LAZER POZUNA gecmesi gerekiyor mu.
+     *
+     * SANDMAN HARIC: onun kol pozunu kendi yetenegi yonetiyor (uzayan
+     * kol). Sandman icin de bu poz uygulaninca sol tika basildigi anda
+     * kol Cyclops gibi kalkiyor ve birakildiktan sonra da o pozda
+     * kaliyordu -- iki sistem ayni kolu cekistiriyordu.
+     */
     private static boolean isFiring(Player player) {
+        if (isSandman(player)) return false;
+
         var channel = ClientBeamData.getChannelBeams().get(player.getUUID());
         if (channel != null && channel.fadeAlpha > 0) return true;
 

@@ -139,7 +139,7 @@ public final class SandWallRenderer {
         // YUZEY CIKINTILARI — duvar dumduz bir levha gibi duruyordu.
         // Cikintilar duvarin KENDI eksenlerine gore yerlestiriliyor,
         // yani duvar hareket edince onlar da birlikte gidiyor: tek parca.
-        addBumps(buf, m, sprite, light, wall, facing, side, up, body, alpha);
+        addBumps(buf, m, sprite, light, wall, facing, side, up, body, alpha, shrink);
 
         float spike = wall.spike();
         if (spike > 0.01f) {
@@ -162,31 +162,38 @@ public final class SandWallRenderer {
     private static void addBumps(VertexConsumer buf, Matrix4f m, TextureAtlasSprite sprite,
                                  int light, SandWallSyncPacket.Entry wall,
                                  Vec3 facing, Vec3 side, Vec3 up,
-                                 float[] tint, float alpha) {
+                                 float[] tint, float alpha, float shrink) {
         Random rng = new Random(Double.doubleToLongBits(wall.halfWidth()) ^ 0x9E3779B9L);
 
-        int count = 22;
+        // COK SAYIDA: duvar tek bir levha degil, ust uste yigilmis kucuk
+        // parcalardan olusuyormus gibi gorunmeli. Az sayida cikinti
+        // "puruzlu duvar" veriyordu; istenen "parcalardan olusan duvar".
+        int count = 190;
         for (int i = 0; i < count; i++) {
             double u = rng.nextDouble() * 2 - 1;
             double v = rng.nextDouble() * 2 - 1;
 
             // Hangi yuzden ciksin: on, arka veya ust
-            int face = rng.nextInt(5);
-            double size = 0.12 + rng.nextDouble() * 0.16;
+            // Kenarlar da parcalansin: sadece on/arka yuz kaplanirsa duvar
+            // yandan bakinca yine dumduz gorunuyor
+            int face = rng.nextInt(7);
+            // Boyutlar genis bir aralikta: hepsi ayni olsaydi duzenli bir
+            // desen cikardi, oysa kum yigini duzensizdir
+            double size = (0.14 + rng.nextDouble() * 0.30) * shrink;
 
             Vec3 base;
-            if (face == 4) {
+            if (face >= 4) {
                 // Ust kenar — cizimdeki gibi tepede de kirikli olmali
                 base = wall.center()
-                        .add(side.scale(u * wall.halfWidth() * 0.92))
-                        .add(up.scale(wall.halfHeight()))
-                        .add(facing.scale(v * wall.halfDepth() * 0.8));
+                        .add(side.scale(u * wall.halfWidth() * 0.96 * shrink))
+                        .add(up.scale(wall.halfHeight() * shrink))
+                        .add(facing.scale(v * wall.halfDepth() * 0.85 * shrink));
             } else {
                 double dir = face < 2 ? 1.0 : -1.0;
                 base = wall.center()
-                        .add(side.scale(u * wall.halfWidth() * 0.92))
-                        .add(up.scale(v * wall.halfHeight() * 0.9))
-                        .add(facing.scale(wall.halfDepth() * dir));
+                        .add(side.scale(u * wall.halfWidth() * 0.96 * shrink))
+                        .add(up.scale(v * wall.halfHeight() * 0.94 * shrink))
+                        .add(facing.scale(wall.halfDepth() * dir * shrink));
             }
 
             // Cikinti govdeye YARISI GOMULU: tamamen disarida olsaydi

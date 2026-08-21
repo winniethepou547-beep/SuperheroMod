@@ -20,10 +20,8 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -67,6 +65,9 @@ public final class SandFistController {
     /** Geri toplanma hizi — uzamadan biraz yavas, agirlik hissi icin. */
     private static final double RETRACT_SPEED = 0.85;
 
+    /** Ayni hedefe iki vurus arasi en az bu kadar tick. */
+    private static final int HIT_INTERVAL = 12;
+
     /** Balyozun tam boyuna ulasmasi (tick). */
     private static final int HAMMER_TICKS = 12;
 
@@ -81,7 +82,8 @@ public final class SandFistController {
         final AbilityConfig cfg;
         int ticks = 0;
         /** Bu vuruşta hasar alanlar — her hedef bir kez. */
-        final Set<UUID> hit = new HashSet<>();
+        /** Hedef -> son vurus tick'i. Ayni hedefe surekli vurmayi sinirlar. */
+        final Map<UUID, Integer> hit = new HashMap<>();
         /** Kolun o anki uzunlugu; cizim ve carpisma ayni degeri kullaniyor. */
         double length = 0;
         /** Balyozun olusma orani 0..1 (sadece tam uzunlukta buyur). */
@@ -286,39 +288,60 @@ public final class SandFistController {
     }
 
     /**
-     * Kolun ucunun o an degdigi hedefler.
+     * KOLUN TAMAMI vurur, sadece ucu degil.
      *
-     * Sadece UC kontrol ediliyor, kolun tamami degil: kol geri cekilirken
-     * uzerinden gectigi herkese tekrar vurmasi gerekmiyor ve "her hedef
-     * bir kez" kurali zaten bunu engelliyor.
+     * Once yalnizca uc kontrol ediliyordu ve kolu bir hedefin uzerinden
+     * gecirmek hicbir sey yapmiyordu. Artik omuzdan uca kadar tum hat
+     * taraniyor: kolu sagdan sola savurup degdirmek isabet sayiliyor.
+     *
+     * "Her hedef bir kez" kurali KALKTI, yerine hedef basina kisa bir
+     * bekleme geldi. Tek seferlik olsaydi kol uzamis dururken tekrar
+     * vurmak imkansiz olurdu; beklemesiz olsaydi tick basina hasar
+     * verip aninda oldururdu.
      */
     private static void checkHit(ServerPlayer player, Strike strike, ServerLevel level) {
-        Vec3 fist = armOrigin(player).add(player.getLookAngle().scale(strike.length));
-        // Balyoz olustukca vurus alani buyur: buyuk bir kutle ince bir
-        // yumrukla ayni menzile sahip olsaydi gorsel yalan olurdu
-        double radius = strike.cfg.getDouble("radius", 0.9) * (1.0 + strike.hammer * 0.9);
+        Vec3 origin = armOrigin(player);
+        Vec3 dir = player.getLookAngle();
 
-        AABB box = new AABB(fist, fist).inflate(radius);
+        int steps = Math.max(2, (int) (strike.length * 1.5));
+        double baseRadius = strike.cfg.getDouble("radius", 0.9);
+
+        for (int i = 1; i <= steps; i++) {
+            double t = i / (double) steps;
+            Vec3 at = origin.add(dir.scale(strike.length * t));
+
+            // Uca dogru kalinlasan kol, uca dogru genisleyen vurus alani
+            double radius = baseRadius * (0.7 + t * 0.5)
+                    + (t > 0.85 ? strike.hammer * 0.9 : 0);
+
+            hitAround(player, strike, level, at, radius, dir);
+        }
+    }
+
+    private static void hitAround(ServerPlayer player, Strike strike, ServerLevel level,
+                                  Vec3 at, double radius, Vec3 dir) {
+        AABB box = new AABB(at, at).inflate(radius);
 
         for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, box)) {
             if (target == player) continue;
             if (target instanceof SandSoldierEntity soldier
                     && player.getUUID().equals(soldier.getOwnerId())) continue;
-            if (!strike.hit.add(target.getUUID())) continue;
 
-            // Balyoz hasari da artiriyor -- elini cekmeyen oyuncunun odulu
+            Integer last = strike.hit.get(target.getUUID());
+            if (last != null && strike.ticks - last < HIT_INTERVAL) continue;
+            strike.hit.put(target.getUUID(), strike.ticks);
+
             target.hurt(level.damageSources().playerAttack(player),
                     strike.cfg.getFloat("damage", 6.0f) * (1f + strike.hammer * 0.6f));
 
-            Vec3 push = player.getLookAngle();
+            // SAVURMA: kolun bakis yonunde. Balyoz varken daha sert.
+            double kb = strike.cfg.getDouble("knockback", 0.9) * (1.0 + strike.hammer * 0.8);
             target.setDeltaMovement(
-                    push.x * strike.cfg.getDouble("knockback", 0.9),
-                    strike.cfg.getDouble("knockbackVertical", 0.35),
-                    push.z * strike.cfg.getDouble("knockback", 0.9));
+                    dir.x * kb,
+                    strike.cfg.getDouble("knockbackVertical", 0.35) * (1.0 + strike.hammer * 0.5),
+                    dir.z * kb);
             target.hurtMarked = true;
-            // Darbe geri bildirimi SADECE isabet aninda. Cevredeki
-            // surekli kum partikulleri kaldirildi: kol artik model
-            // oldugu icin partikuller onu gizliyor ve dagitiyordu.
+
             level.playSound(null, target.blockPosition(),
                     SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 1.4f, 0.55f);
             level.sendParticles(SAND_BLOCK,

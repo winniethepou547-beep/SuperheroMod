@@ -56,7 +56,14 @@ public class SandArmLayer
     private static final float SWELL_PX = 2.0f;
 
     /** Ucta eklenen fazladan kalinlik — kol uca dogru konik acilir. */
-    private static final float TIP_SWELL_PX = 2.6f;
+    /**
+     * Ucta eklenen fazladan kalinlik.
+     *
+     * Kucuk tutuluyor: kol zaten kalin, uc de belirgin sekilde sismis
+     * olsaydi konik degil huni gibi duruyordu. Istenen sey ucun SADECE
+     * HAFIF daha kalin olmasi.
+     */
+    private static final float TIP_SWELL_PX = 0.7f;
 
     public SandArmLayer(
             RenderLayerParent<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> parent) {

@@ -115,6 +115,9 @@ public final class SandWallController {
 
     private static final Map<UUID, Wall> walls = new HashMap<>();
 
+    /** Gecen tick duvar var miydi — bos paket israfini onler. */
+    private static boolean hadWalls = false;
+
     private SandWallController() {}
 
     // ------------------------------------------------------------------
@@ -455,7 +458,20 @@ public final class SandWallController {
 
     /** Tum aktif duvarlari yakindaki oyunculara gonderir. */
     private static void sync(net.minecraft.server.MinecraftServer server) {
-        if (walls.isEmpty()) return;
+        // BOS LISTE DE GONDERILIYOR.
+        //
+        // Onceden duvar kalmayinca hicbir paket gitmiyordu ve istemci son
+        // kareyi zaman asimina kadar (1.5 sn) ekranda tutuyordu: duvar
+        // dagilip yok olduktan sonra yuzey cikintilari havada asili
+        // kaliyordu. Son bir bos paket istemciye "artik yok" diyor.
+        if (walls.isEmpty()) {
+            if (!hadWalls) return;
+            hadWalls = false;
+            ModNetworking.CHANNEL.send(PacketDistributor.ALL.noArg(),
+                    new SandWallSyncPacket(new ArrayList<>()));
+            return;
+        }
+        hadWalls = true;
 
         for (ServerPlayer viewer : server.getPlayerList().getPlayers()) {
             List<SandWallSyncPacket.Entry> visible = new ArrayList<>();
