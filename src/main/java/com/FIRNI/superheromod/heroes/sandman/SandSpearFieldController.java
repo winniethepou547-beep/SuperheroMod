@@ -4,6 +4,7 @@ import com.FIRNI.superheromod.SuperheroMod;
 import com.FIRNI.superheromod.core.ability.AbilityConfig;
 import com.FIRNI.superheromod.network.packet.SandShapeSyncPacket;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
@@ -15,6 +16,8 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.PointedDripstoneBlock;
+import net.minecraft.world.level.block.state.properties.DripstoneThickness;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.TickEvent;
@@ -32,28 +35,56 @@ import java.util.UUID;
 /**
  * SAND SPEARS — R.
  *
- * Onunde dikdortgen bir alan isaretlenir. Alan aninda kuma doner ve
- * icindekiler yavaslar; BIR SANIYE SONRA yerden sarkitlar firlayip hasar
- * verir.
+ * HER ASAMA KADEMELI. Onceki surumde alan isaretleniyor, sonra tek bir
+ * karede hem zemin kuma donuyor hem butun sarkitlar beliriyordu; sonuc
+ * "pat diye olan" ve okunamayan bir yetenekti.
  *
- * Gecikme bilerek var: alan once "burasi tehlikeli" diyor, dusman
- * kacacak zamani buluyor. Aninda vursaydi kacinilmaz bir alan hasari
- * olurdu; simdi yavaslatma ile kacisi zorlastirmak yetenegin asil isi.
+ * Akis:
+ *   DOSEME   zemin ONDEN ARKAYA sira sira kuma doner
+ *   YUKSELIS sarkitlar dalga halinde yerden cikar, tepeleri onde
+ *   BEKLEME  kisa duraklama
+ *   INIS     kutle kisalir, en son kalan sey TEPE
  *
- * Sarkitlar oyunun kendi sivri damla tasini (pointed dripstone)
- * kullaniyor: kendi modelimizi cizmek yerine oyunun varligi
- * kullanildigi icin arazi ile ayni dilde duruyor.
+ * Sarkit yukselirken tepesi onde gidiyor: gercek bir kazik topraktan
+ * once ucuyla cikar. Inerken sira bozulmuyor, sutun kisaliyor ve tepe
+ * en sona kaliyor.
  */
 @Mod.EventBusSubscriber(modid = SuperheroMod.MODID)
 public final class SandSpearFieldController {
 
-    /** Isaretten sarkitlarin cikmasina kadar gecen sure. */
-    private static final int WARN_TICKS = 20;
-    /** Sarkitlarin ayakta kalma suresi. */
-    private static final int SPEAR_TICKS = 40;
+    /** Cerceve gorunup zemin dosenirken gecen sure. */
+    private static final int PAVE_TICKS = 16;
+    /** Tek sarkitin tam boya ulasmasi. */
+    private static final int RISE_TICKS = 6;
+    /** Tam boyda bekleme. */
+    private static final int HOLD_TICKS = 20;
+    /** Geri gomulme suresi. */
+    private static final int SINK_TICKS = 8;
+
+    /** Sarkit dalgasinin alan boyunca yayilma suresi. */
+    private static final int WAVE_SPREAD = 12;
+
+    private static final int MAX_SPEAR_HEIGHT = 4;
 
     private static final int SLOW_DURATION = 30;
     private static final int SLOW_AMPLIFIER = 1;
+
+    /** Tek bir sarkit sutunu. */
+    private static final class Spear {
+        final BlockPos base;
+        /** Dalga icindeki gecikmesi — alan boyunca yayilmayi saglar. */
+        final int delay;
+        final int height;
+        /** Su an yerde duran blok sayisi. */
+        int drawn = 0;
+        boolean damaged = false;
+
+        Spear(BlockPos base, int delay, int height) {
+            this.base = base;
+            this.delay = delay;
+            this.height = height;
+        }
+    }
 
     private static final class Field {
         final UUID ownerId;
@@ -65,11 +96,13 @@ public final class SandSpearFieldController {
         final Vec3 forward;
         final Vec3 side;
 
-        int ticks = 0;
-        boolean erupted = false;
+        final List<Spear> spears = new ArrayList<>();
         final Set<UUID> struck = new HashSet<>();
-        /** Yerlestirilen sarkitlar — yetenek bitince geri alinacak. */
-        final List<BlockPos> spears = new ArrayList<>();
+
+        int ticks = 0;
+        /** Doseme ne kadar ilerledi (0..1). */
+        float paved = 0f;
+        boolean spearsBuilt = false;
 
         Field(UUID ownerId, ServerLevel level, AbilityConfig cfg,
               Vec3 near, Vec3 far, Vec3 forward, Vec3 side) {
@@ -80,6 +113,26 @@ public final class SandSpearFieldController {
             this.far = far;
             this.forward = forward;
             this.side = side;
+        }
+
+        double length() {
+            return near.distanceTo(far);
+        }
+
+        double halfWidth() {
+            return cfg.getDouble("width", 5.0) * 0.5;
+        }
+
+        int riseStart() {
+            return PAVE_TICKS;
+        }
+
+        int sinkStart() {
+            return riseStart() + WAVE_SPREAD + RISE_TICKS + HOLD_TICKS;
+        }
+
+        int endTick() {
+            return sinkStart() + WAVE_SPREAD + SINK_TICKS + 2;
         }
     }
 
@@ -106,39 +159,8 @@ public final class SandSpearFieldController {
 
         fields.add(new Field(player.getUUID(), level, cfg, near, far, forward, side));
 
-        // Alan ANINDA kuma doner — isaret sadece sarkitlar icin
-        paveField(player, level, cfg, near, far, forward, side);
-
         level.playSound(null, player.blockPosition(),
-                SoundEvents.SAND_PLACE, SoundSource.PLAYERS, 1.4f, 0.8f);
-    }
-
-    /** Alani gercek kumla kaplar; kum izi kalici. */
-    private static void paveField(ServerPlayer owner, ServerLevel level, AbilityConfig cfg,
-                                  Vec3 near, Vec3 far, Vec3 forward, Vec3 side) {
-        double halfWidth = cfg.getDouble("width", 5.0) * 0.5;
-        double length = near.distanceTo(far);
-
-        int along = (int) Math.ceil(length);
-        int across = (int) Math.ceil(halfWidth * 2);
-
-        for (int i = 0; i <= along; i++) {
-            for (int k = 0; k <= across; k++) {
-                double t = i / (double) along;
-                double u = k / (double) across - 0.5;
-
-                Vec3 spot = near.add(forward.scale(length * t))
-                        .add(side.scale(u * halfWidth * 2));
-
-                Vec3 ground = SandSpikeController.groundUnder(level, spot.add(0, 1.5, 0));
-                if (ground == null) continue;
-
-                // Kum alanlari zaten yavaslatmayi ve kaplamayi yonetiyor;
-                // burada ayri bir sistem kurmuyoruz
-                SandPatchController.drop(owner, ground, 1.2,
-                        cfg.getInt("patchTicks", 220));
-            }
-        }
+                SoundEvents.SAND_PLACE, SoundSource.PLAYERS, 1.2f, 1.1f);
     }
 
     @SubscribeEvent
@@ -155,125 +177,267 @@ public final class SandSpearFieldController {
 
             field.ticks++;
 
+            tickPaving(field, owner);
+            tickSpears(field, owner);
             applySlow(field, owner);
 
-            if (!field.erupted && field.ticks >= WARN_TICKS) {
-                field.erupted = true;
-                erupt(field, owner);
-            }
-
-            if (field.ticks >= WARN_TICKS + SPEAR_TICKS) {
-                removeSpears(field);
+            if (field.ticks >= field.endTick()) {
+                clearSpears(field);
                 it.remove();
             }
         }
     }
 
-    /** Alandaki herkes yavaslar — sarkitlardan kacmayi zorlastirir. */
-    private static void applySlow(Field field, ServerPlayer owner) {
-        for (LivingEntity target : targetsIn(field, owner)) {
-            target.addEffect(new MobEffectInstance(
-                    MobEffects.MOVEMENT_SLOWDOWN, SLOW_DURATION, SLOW_AMPLIFIER,
-                    false, false, true));
+    // ------------------------------------------------------------------
+    // DOSEME
+    // ------------------------------------------------------------------
+
+    /**
+     * Kum ONDEN ARKAYA ilerleyerek doseniyor.
+     *
+     * Tek karede tum alani kaplamak "pat diye oldu" hissi veriyordu.
+     * Ilerleme yonu oyuncudan uzaga: kum onun elinden cikip yayiliyormus
+     * gibi okunuyor.
+     */
+    private static void tickPaving(Field field, ServerPlayer owner) {
+        if (owner == null) return;
+        if (field.paved >= 1f) return;
+
+        float target = Math.min(1f, field.ticks / (float) PAVE_TICKS);
+        double length = field.length();
+        double halfWidth = field.halfWidth();
+
+        int across = Math.max(2, (int) Math.ceil(halfWidth * 2));
+
+        double from = field.paved * length;
+        double to = target * length;
+
+        for (double d = from; d < to; d += 0.9) {
+            for (int k = 0; k <= across; k++) {
+                double u = k / (double) across - 0.5;
+
+                Vec3 spot = field.near.add(field.forward.scale(d))
+                        .add(field.side.scale(u * halfWidth * 2));
+
+                Vec3 ground = SandSpikeController.groundUnder(
+                        field.level, spot.add(0, 1.5, 0));
+                if (ground == null) continue;
+
+                SandPatchController.drop(owner, ground, 1.1,
+                        field.cfg.getInt("patchTicks", 220));
+
+                // Doseme cephesinde kum firliyor — ilerleme gorulebilmeli
+                field.level.sendParticles(sand(),
+                        ground.x, ground.y + 0.25, ground.z,
+                        3, 0.3, 0.1, 0.3, 0.04);
+            }
         }
+
+        field.paved = target;
     }
 
-    /** Sarkitlar firlar ve alanda kalanlara vurur. */
-    private static void erupt(Field field, ServerPlayer owner) {
-        double halfWidth = field.cfg.getDouble("width", 5.0) * 0.5;
-        double length = field.near.distanceTo(field.far);
-        float damage = field.cfg.getFloat("damage", 8.0f);
+    // ------------------------------------------------------------------
+    // SARKITLAR
+    // ------------------------------------------------------------------
 
-        for (LivingEntity target : targetsIn(field, owner)) {
-            if (!field.struck.add(target.getUUID())) continue;
+    /**
+     * Sarkitlar dalga halinde cikar, bekler ve geri gomulur.
+     *
+     * Her sutunun kendi gecikmesi var ve gecikme oyuncuya olan mesafeden
+     * turetiliyor: dalga onden arkaya ilerliyor, hepsi ayni anda
+     * firlamiyor.
+     */
+    private static void tickSpears(Field field, ServerPlayer owner) {
+        if (field.ticks < field.riseStart()) return;
 
-            target.hurt(field.level.damageSources().playerAttack(owner), damage);
+        if (!field.spearsBuilt) {
+            buildSpearList(field);
+            field.spearsBuilt = true;
 
-            // Yukari savurma: sarkit hedefi yerden kaldiriyor
-            target.setDeltaMovement(target.getDeltaMovement().x, 0.55,
-                    target.getDeltaMovement().z);
-            target.hurtMarked = true;
+            field.level.playSound(null, BlockPos.containing(field.near),
+                    SoundEvents.POINTED_DRIPSTONE_LAND, SoundSource.PLAYERS, 1.5f, 0.8f);
         }
 
-        // GERCEK SARKITLAR: oyunun sivri damla tasi kullaniliyor.
-        // Kendi modelimizi cizmek yerine oyunun varligi kullanildigi icin
-        // arazi ile ayni dilde duruyor ve isik/golge otomatik dogru.
-        placeSpears(field, length, halfWidth);
+        boolean sinking = field.ticks >= field.sinkStart();
 
-        field.level.playSound(null, BlockPos.containing(field.near),
-                SoundEvents.POINTED_DRIPSTONE_LAND, SoundSource.PLAYERS, 1.6f, 0.7f);
+        for (Spear spear : field.spears) {
+            int wanted;
+
+            if (!sinking) {
+                int elapsed = field.ticks - field.riseStart() - spear.delay;
+                wanted = elapsed <= 0 ? 0
+                        : Math.min(spear.height,
+                                1 + (elapsed * spear.height) / RISE_TICKS);
+            } else {
+                // INIS: sutun kisaliyor, en son kalan sey TEPE
+                int elapsed = field.ticks - field.sinkStart() - spear.delay;
+                wanted = elapsed <= 0 ? spear.height
+                        : Math.max(0, spear.height
+                                - (elapsed * spear.height) / SINK_TICKS);
+            }
+
+            if (wanted == spear.drawn) continue;
+
+            drawSpear(field, spear, wanted);
+            spear.drawn = wanted;
+
+            if (!sinking && wanted >= spear.height && !spear.damaged) {
+                spear.damaged = true;
+                damageAt(field, owner, spear);
+            }
+        }
     }
 
     /**
-     * Sarkitlari yerlestirir ve ne koyduklarini kaydeder.
+     * Alani izgaraya bolup sarkit konumlarini secer.
      *
-     * Sarkitlar GECICI: yetenek bitince yerlestirilenler geri aliniyor,
-     * yoksa arena birkac kullanimdan sonra diken tarlasina donerdi.
-     * Sadece BOS yerlere konuyor -- mevcut bloklarin uzerine yazsaydi
-     * yetenek arazi tahrip ederdi.
+     * SIKI IZGARA: onceki surumde rastgele serpilmis az sayida sutun
+     * vardi ve alanin cogu bos kaliyordu.
      */
-    private static void placeSpears(Field field, double length, double halfWidth) {
+    private static void buildSpearList(Field field) {
+        double length = field.length();
+        double halfWidth = field.halfWidth();
         var rnd = field.level.random;
-        int count = (int) (length * halfWidth * 0.9);
 
-        for (int i = 0; i < count; i++) {
-            double t = rnd.nextDouble();
-            double u = rnd.nextDouble() * 2 - 1;
+        double stepAlong = 1.25;
+        double stepAcross = 1.25;
 
-            Vec3 spot = field.near.add(field.forward.scale(length * t))
-                    .add(field.side.scale(u * halfWidth));
+        int rows = Math.max(2, (int) (length / stepAlong));
+        int cols = Math.max(2, (int) (halfWidth * 2 / stepAcross));
 
-            Vec3 ground = SandSpikeController.groundUnder(field.level, spot.add(0, 1.5, 0));
-            if (ground == null) continue;
+        for (int r = 0; r <= rows; r++) {
+            for (int c = 0; c <= cols; c++) {
+                double t = r / (double) rows;
+                double u = c / (double) cols - 0.5;
 
-            BlockPos pos = BlockPos.containing(ground);
-            var state = field.level.getBlockState(pos);
-            if (!state.isAir() && !state.canBeReplaced()) continue;
+                // Kucuk kayma: tam izgara yapay duruyor, kaydirinca dogal
+                // dagilim cikiyor ama bosluk olusmuyor
+                double jitterA = (rnd.nextDouble() - 0.5) * stepAlong * 0.35;
+                double jitterC = (rnd.nextDouble() - 0.5) * stepAcross * 0.35;
 
-            field.level.setBlockAndUpdate(pos,
-                    Blocks.POINTED_DRIPSTONE.defaultBlockState()
-                            .setValue(net.minecraft.world.level.block.PointedDripstoneBlock
-                                    .TIP_DIRECTION, net.minecraft.core.Direction.UP)
-                            .setValue(net.minecraft.world.level.block.PointedDripstoneBlock
-                                    .THICKNESS,
-                                    net.minecraft.world.level.block.state.properties
-                                            .DripstoneThickness.TIP));
+                Vec3 spot = field.near
+                        .add(field.forward.scale(length * t + jitterA))
+                        .add(field.side.scale(u * halfWidth * 2 + jitterC));
 
-            field.spears.add(pos);
+                Vec3 ground = SandSpikeController.groundUnder(
+                        field.level, spot.add(0, 1.5, 0));
+                if (ground == null) continue;
 
-            field.level.sendParticles(sand(), ground.x, ground.y + 0.6, ground.z,
-                    8, 0.2, 0.4, 0.2, 0.06);
+                BlockPos base = BlockPos.containing(ground);
+                if (!isFree(field.level, base)) continue;
+
+                // Gecikme mesafeye bagli: dalga onden arkaya ilerliyor
+                int delay = (int) (t * WAVE_SPREAD);
+                int height = 2 + rnd.nextInt(MAX_SPEAR_HEIGHT - 1);
+
+                field.spears.add(new Spear(base, delay, height));
+            }
         }
     }
 
-    /** Sarkitlari kaldirir — arazi eski haline doner. */
-    private static void removeSpears(Field field) {
-        for (BlockPos pos : field.spears) {
+    /**
+     * Sutunu istenen yukseklige gore yeniden yazar.
+     *
+     * Kalinlik yukaridan asagi INCELIYOR: en ustte TIP, altinda FRUSTUM,
+     * sonra MIDDLE/BASE. Boylece sutun buyurken tepesi onde gidiyor ve
+     * her boyda sivri uclu duruyor -- duz bir kutu yigini gibi degil.
+     */
+    private static void drawSpear(Field field, Spear spear, int height) {
+        // Once eskisini temizle; sutun kisaliyorsa artan bloklar kalmasin
+        for (int y = 0; y < spear.height; y++) {
+            BlockPos pos = spear.base.above(y);
             if (field.level.getBlockState(pos).is(Blocks.POINTED_DRIPSTONE)) {
-                field.level.setBlockAndUpdate(pos,
-                        net.minecraft.world.level.block.Blocks.AIR.defaultBlockState());
+                field.level.setBlock(pos, Blocks.AIR.defaultBlockState(), 2);
+            }
+        }
+
+        for (int y = 0; y < height; y++) {
+            BlockPos pos = spear.base.above(y);
+            if (!isFree(field.level, pos)) continue;
+
+            int fromTop = height - 1 - y;
+            DripstoneThickness thickness = switch (fromTop) {
+                case 0 -> DripstoneThickness.TIP;
+                case 1 -> DripstoneThickness.FRUSTUM;
+                case 2 -> DripstoneThickness.MIDDLE;
+                default -> DripstoneThickness.BASE;
+            };
+
+            field.level.setBlock(pos, Blocks.POINTED_DRIPSTONE.defaultBlockState()
+                    .setValue(PointedDripstoneBlock.TIP_DIRECTION, Direction.UP)
+                    .setValue(PointedDripstoneBlock.THICKNESS, thickness), 2);
+        }
+
+        if (height > 0) {
+            field.level.sendParticles(sand(),
+                    spear.base.getX() + 0.5, spear.base.getY() + 0.2, spear.base.getZ() + 0.5,
+                    4, 0.25, 0.1, 0.25, 0.05);
+        }
+    }
+
+    /** Sutun tam boya ulasinca cevresindekilere vurur. */
+    private static void damageAt(Field field, ServerPlayer owner, Spear spear) {
+        if (owner == null) return;
+
+        Vec3 center = new Vec3(spear.base.getX() + 0.5,
+                spear.base.getY() + spear.height * 0.5, spear.base.getZ() + 0.5);
+        AABB box = new AABB(center, center).inflate(1.0, spear.height, 1.0);
+
+        float damage = field.cfg.getFloat("damage", 8.0f);
+
+        for (LivingEntity target : field.level.getEntitiesOfClass(LivingEntity.class, box)) {
+            if (target == owner) continue;
+            if (target instanceof SandSoldierEntity soldier
+                    && field.ownerId.equals(soldier.getOwnerId())) continue;
+
+            // HEDEF basina tek hasar: hedef birden cok sutunun menzilinde
+            // olabilir ve her biri ayri vursaydi aninda olurdu
+            if (!field.struck.add(target.getUUID())) continue;
+
+            target.hurt(field.level.damageSources().playerAttack(owner), damage);
+            target.setDeltaMovement(target.getDeltaMovement().x, 0.5,
+                    target.getDeltaMovement().z);
+            target.hurtMarked = true;
+        }
+    }
+
+    /** Kalan sarkitlari temizler — arazi eski haline doner. */
+    private static void clearSpears(Field field) {
+        for (Spear spear : field.spears) {
+            for (int y = 0; y < spear.height; y++) {
+                BlockPos pos = spear.base.above(y);
+                if (field.level.getBlockState(pos).is(Blocks.POINTED_DRIPSTONE)) {
+                    field.level.setBlock(pos, Blocks.AIR.defaultBlockState(), 2);
+                }
             }
         }
         field.spears.clear();
     }
 
-    private static List<LivingEntity> targetsIn(Field field, ServerPlayer owner) {
-        double halfWidth = field.cfg.getDouble("width", 5.0) * 0.5;
-        double length = field.near.distanceTo(field.far);
+    private static boolean isFree(ServerLevel level, BlockPos pos) {
+        var state = level.getBlockState(pos);
+        return state.isAir() || state.canBeReplaced()
+                || state.is(Blocks.POINTED_DRIPSTONE);
+    }
+
+    // ------------------------------------------------------------------
+    // Yavaslatma ve gosterge
+    // ------------------------------------------------------------------
+
+    private static void applySlow(Field field, ServerPlayer owner) {
+        double halfWidth = field.halfWidth();
+        double length = field.length();
 
         Vec3 center = field.near.add(field.forward.scale(length * 0.5));
         double reach = Math.max(halfWidth, length * 0.5) + 1.0;
-
         AABB box = new AABB(center, center).inflate(reach, 2.5, reach);
 
-        List<LivingEntity> out = new ArrayList<>();
         for (LivingEntity target : field.level.getEntitiesOfClass(LivingEntity.class, box)) {
             if (owner != null && target == owner) continue;
             if (target instanceof SandSoldierEntity soldier
                     && field.ownerId.equals(soldier.getOwnerId())) continue;
 
-            // Kaba kutu ile arandi, DIKDORTGEN ile dogrulaniyor: kosede
-            // kalanlar alanin disinda oldugu halde vuruluyordu
+            // Kaba kutu ile arandi, DIKDORTGEN ile dogrulaniyor
             Vec3 rel = target.position().subtract(field.near);
             double alongDist = rel.dot(field.forward);
             double acrossDist = rel.dot(field.side);
@@ -281,36 +445,34 @@ public final class SandSpearFieldController {
             if (alongDist < -0.5 || alongDist > length + 0.5) continue;
             if (Math.abs(acrossDist) > halfWidth) continue;
 
-            out.add(target);
+            target.addEffect(new MobEffectInstance(
+                    MobEffects.MOVEMENT_SLOWDOWN, SLOW_DURATION, SLOW_AMPLIFIER,
+                    false, false, true));
         }
-        return out;
     }
 
     /**
      * Alan gostergesi — INCE KIRMIZI CIZGILERDEN DIKDORTGEN.
      *
-     * Once oklar kullaniliyordu ama ok bir YON anlatir; burada yon yok,
-     * onemli olan alanin SINIRI. Dikdortgen cerceve tam olarak "burasi
-     * vurulacak" diyor ve oyuncu kenarina gore konum alabiliyor.
+     * Cerceve tek uzun cizgi degil parcalardan olusuyor: tek parca
+     * egimli arazide havada asili kalirdi, parcalar tek tek zemine
+     * oturuyor.
      */
     static void collectShapes(List<SandShapeSyncPacket.Shape> out) {
         int id = 900_000;
 
         for (Field field : fields) {
-            double halfWidth = field.cfg.getDouble("width", 5.0) * 0.5;
-            double length = field.near.distanceTo(field.far);
+            double halfWidth = field.halfWidth();
+            double length = field.length();
 
             float yaw = (float) Math.toDegrees(
                     Math.atan2(-field.forward.x, field.forward.z));
 
             // Sarkitlar ciktiktan sonra gosterge sonuyor: gosterge
             // "olacak" demek, "oluyor" demek degil
-            float pulse = field.erupted ? 0.2f
+            float pulse = field.ticks >= field.riseStart() ? 0.2f
                     : 0.55f + 0.45f * Mth.sin(field.ticks * 0.45f);
 
-            // Cerceve, kenar boyunca dizilmis kisa cizgi parcalarindan
-            // olusuyor. Tek uzun cizgi egimli arazide havada asili
-            // kalirdi; parcalar tek tek zemine oturuyor.
             int along = Math.max(4, (int) (length / 1.2));
             int across = Math.max(2, (int) (halfWidth * 2 / 1.2));
 
@@ -334,7 +496,6 @@ public final class SandSpearFieldController {
         }
     }
 
-    /** Tek cizgi parcasini zemine oturtup listeye ekler. */
     private static void addMark(Field field, List<SandShapeSyncPacket.Shape> out,
                                 int id, Vec3 point, float yaw, float pulse, float len) {
         Vec3 ground = SandSpikeController.groundUnder(field.level, point.add(0, 1.5, 0));
