@@ -197,6 +197,17 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
         // Yon her vurusta rastgele — hep ayni yon robotik duruyordu
         setSwingDirection((byte) (random.nextBoolean() ? 1 : 2));
         this.entityData.set(SWING, 0.001f);
+
+        // TESPIT ISARETI: animasyon uc kez gorunmedi ve sorunun sunucu
+        // tarafinda mi (vurus hic tetiklenmiyor) yoksa model tarafinda mi
+        // (tetikleniyor ama cizilmiyor) oldugu ayirt edilemedi. Bu ses+efekt
+        // sadece vurus GERCEKTEN tetiklendiginde cikiyor.
+        if (level() instanceof ServerLevel server) {
+            server.playSound(null, blockPosition(),
+                    SoundEvents.SAND_BREAK, SoundSource.HOSTILE, 1.4f, 1.8f);
+            server.sendParticles(sandParticle(),
+                    getX(), getY() + 1.3, getZ(), 18, 0.35, 0.25, 0.35, 0.12);
+        }
     }
 
     /** Dev askerin agir vurus ilerlemesi. */
@@ -410,6 +421,8 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
     private void tickHammer() {
         if (getVariant() == Variant.RANGED) return;
 
+        // Artik cekic degil, ELIN KALINLASMA hazirligi. Hedef yaklastikca
+        // eller kumla sertlesiyor, uzaklasinca cozuluyor.
         LivingEntity target = getTarget();
         boolean close = target != null && target.isAlive()
                 && distanceToSqr(target) <= HAMMER_RANGE * HAMMER_RANGE;

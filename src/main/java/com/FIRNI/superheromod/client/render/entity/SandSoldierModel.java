@@ -38,8 +38,8 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
     /** Olusmanin ilk asamasindaki yer kum yigini. */
     private final ModelPart mound;
 
-    private final ModelPart rightHammer;
-    private final ModelPart leftHammer;
+    private final ModelPart rightHand;
+    private final ModelPart leftHand;
     private final ModelPart rightSpikes;
     private final ModelPart leftSpikes;
     /** Dev vurusunda ellerin arasinda olusan dikenli kum kutlesi. */
@@ -55,8 +55,8 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
         this.leftLeg = root.getChild("left_leg");
         this.mound = root.getChild("mound");
 
-        this.rightHammer = rightArm.getChild("right_hammer");
-        this.leftHammer = leftArm.getChild("left_hammer");
+        this.rightHand = rightArm.getChild("right_hand");
+        this.leftHand = leftArm.getChild("left_hand");
         this.rightSpikes = rightArm.getChild("right_spikes");
         this.leftSpikes = leftArm.getChild("left_spikes");
         this.slamMass = root.getChild("slam_mass");
@@ -114,32 +114,21 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
                         .addBox(-2.0f, -3.5f, -3.5f, 7, 4, 7),
                 PartPose.ZERO);
 
-        // --- CEKIC ELLERI ---
-        // Sorun genislikte degil BICIMDE idi: kolun ucundaki genis kutu
-        // "sismis yumruk" gibi duruyordu. Cekic silueti UZUN BIR SAP ve
-        // sapa DIK duran bir bastan olusur — bas kolun devami degil, kola
-        // capraz duran ayri bir kutle olmali.
-        //
-        // Bas kol ekseninde 22 piksel UZUN, derinlikte 10 dar: yandan
-        // bakinca cekic, onden bakinca ince. Kolun ucundan asagi tasiyor.
-        rightArm.addOrReplaceChild("right_hammer",
-                CubeListBuilder.create()
-                        // sap: elden asagi uzanan ince kol
-                        .texOffs(0, 0).addBox(-2.5f, 8.0f, -2.5f, 4, 9, 4)
-                        // BAS: sapa DIK, uzun eksen yanlara degil ILERI-GERI
-                        .texOffs(0, 0).addBox(-4.5f, 15.0f, -11.0f, 8, 10, 22)
-                        // basin uc yuzeyleri — vurus yuzu belirgin olsun
-                        .texOffs(0, 0).addBox(-5.5f, 16.5f, -13.5f, 10, 7, 3)
-                        .texOffs(0, 0).addBox(-5.5f, 16.5f, 10.5f, 10, 7, 3),
-                PartPose.ZERO);
+        // --- ELLER ---
+        // Cekic KALDIRILDI: hangi bicimi denesem kolun ucuna takilmis yabanci
+        // bir kutle gibi duruyordu. Yerine askerin KENDI ELI var; vuracagi
+        // el vurus aninda kumla kalinlasip topuzlasiyor, sonra geri iniyor.
+        // Kumdan bir yaratigin kendi elini sertlestirmesi, elinde alet
+        // tutmasindan daha dogru duruyor.
+        rightArm.addOrReplaceChild("right_hand",
+                CubeListBuilder.create().texOffs(0, 0)
+                        .addBox(-4.5f, 9.0f, -3.0f, 6, 6, 6),
+                PartPose.offset(0.0f, 0.0f, 0.0f));
 
-        leftArm.addOrReplaceChild("left_hammer",
-                CubeListBuilder.create()
-                        .texOffs(0, 0).addBox(-1.5f, 8.0f, -2.5f, 4, 9, 4)
-                        .texOffs(0, 0).addBox(-3.5f, 15.0f, -11.0f, 8, 10, 22)
-                        .texOffs(0, 0).addBox(-4.5f, 16.5f, -13.5f, 10, 7, 3)
-                        .texOffs(0, 0).addBox(-4.5f, 16.5f, 10.5f, 10, 7, 3),
-                PartPose.ZERO);
+        leftArm.addOrReplaceChild("left_hand",
+                CubeListBuilder.create().texOffs(0, 0)
+                        .addBox(-1.5f, 9.0f, -3.0f, 6, 6, 6),
+                PartPose.offset(0.0f, 0.0f, 0.0f));
 
         // --- MENZILLI TURUN OMUZ DIKENLERI: yukari dogru dik cikintilar ---
         // Mermi bunlarin arasindan cikiyor; siluetten tur aninda anlasilmali
@@ -354,29 +343,30 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
         leftSpikes.visible = ranged;
 
         if (ranged) {
-            rightHammer.visible = false;
-            leftHammer.visible = false;
-
             // Nisan alirken dikenler geriye yatip yuklenir
             float aim = entity.getAimProgress();
             rightSpikes.xRot = 0.10f - aim * 0.45f;
             leftSpikes.xRot = 0.10f - aim * 0.45f;
-            return;
         }
 
-        float hammer = entity.getHammerProgress();
-        boolean show = hammer > 0.01f;
+        // Eller her zaman gorunur; sadece VURACAK olan kalinlasir.
+        // Kalinlik hem yaklasmayla (hazirlik) hem salinimla (darbe ani)
+        // artiyor — vurus aninda en sisman haline ulasiyor.
+        float ready = entity.getHammerProgress();
+        float swing = entity.getSwingProgress();
+        float punch = swing > 0f ? Mth.sin(swing * (float) Math.PI) : 0f;
 
-        rightHammer.visible = show;
-        leftHammer.visible = show;
-        if (!show) return;
+        float thick = 1.0f + ready * 0.35f + punch * 0.55f;
+        boolean rightSwings = entity.getSwingDirection() != 2;
 
-        rightHammer.xScale = hammer;
-        rightHammer.yScale = hammer;
-        rightHammer.zScale = hammer;
-        leftHammer.xScale = hammer;
-        leftHammer.yScale = hammer;
-        leftHammer.zScale = hammer;
+        setHandThickness(rightHand, rightSwings ? thick : 1.0f + ready * 0.12f);
+        setHandThickness(leftHand, rightSwings ? 1.0f + ready * 0.12f : thick);
+    }
+
+    private static void setHandThickness(ModelPart hand, float scale) {
+        hand.xScale = scale;
+        hand.yScale = scale;
+        hand.zScale = scale;
     }
 
     /**
