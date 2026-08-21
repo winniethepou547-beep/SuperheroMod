@@ -122,9 +122,12 @@ public final class SandShapeRenderer {
         // --- AVUC ---
         // Genis, yassi ve hafif egimli. Cizimdeki gibi one dogru incelmiyor;
         // kutle hissi genislikten geliyor.
-        double palmHalfWidth = 1.35;
-        double palmHalfLen = 1.05;
-        double palmThick = 0.22;
+        // BOYUTLAR BUYUTULDU: onceki el "daha yuksek ve belirgin olsun"
+        // diye geri geldi. Avuc genisledi, parmaklar iki katina yakin
+        // uzadi -- alcak bir el, uzerinden gecerken fark edilmiyordu.
+        double palmHalfWidth = 1.9;
+        double palmHalfLen = 1.5;
+        double palmThick = 0.34;
 
         Vec3 palmCenter = base.add(up.scale(0.18 * grow));
         box(buf, m, palmCenter,
@@ -152,9 +155,9 @@ public final class SandShapeRenderer {
         // --- BILEK ---
         // Elin yerden CIKTIGINI anlatan govde; olmayinca el havada
         // yuzuyormus gibi duruyor.
-        box(buf, m, base.subtract(up.scale(0.45)).subtract(fwd.scale(palmHalfLen * 0.4)),
-                side.scale(palmHalfWidth * 0.55),
-                up.scale(0.5),
+        box(buf, m, base.subtract(up.scale(0.5)).subtract(fwd.scale(palmHalfLen * 0.4)),
+                side.scale(palmHalfWidth * 0.6),
+                up.scale(0.75),
                 fwd.scale(palmHalfLen * 0.5),
                 ROCK, alpha);
     }
@@ -168,9 +171,9 @@ public final class SandShapeRenderer {
                                    Vec3 fwd, Vec3 side, Vec3 up,
                                    float grow, float curl, double lengthScale,
                                    float alpha) {
-        double thick = 0.22;
-        double lower = 0.85 * lengthScale * grow;
-        double upper = 0.65 * lengthScale * grow;
+        double thick = 0.34;
+        double lower = 1.65 * lengthScale * grow;
+        double upper = 1.25 * lengthScale * grow;
 
         // Alt bogum: yukari, kapanirken one yatiyor
         double lowerLean = 0.25 + curl * 0.85;

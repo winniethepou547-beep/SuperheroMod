@@ -54,7 +54,16 @@ public final class SandGraspController {
     private static final int PREVIEW_TIMEOUT = 100;
 
     /** El uzak uctan cikip Sandman'a dogru sureklenirken gecen sure. */
-    private static final int ERUPT_TICKS = 12;
+    private static final int ERUPT_TICKS = 30;
+
+    /**
+     * Elin yerden cikip tam boyuna ulasmasi.
+     *
+     * Ayri bir asama: onceki surumde el ayni anda hem cikiyor hem
+     * surukleniyordu, animasyon "cok hizli, belli olmuyor" olarak geri
+     * geldi. Once cikar, SONRA ceker.
+     */
+    private static final int RISE_TICKS = 10;
 
     private enum State { PREVIEW, ERUPTING }
 
@@ -196,7 +205,7 @@ public final class SandGraspController {
 
             tickErupt(grasp, owner);
 
-            if (grasp.ticks > ERUPT_TICKS + 6) {
+            if (grasp.ticks > RISE_TICKS + ERUPT_TICKS + 8) {
                 it.remove();
             }
         }
@@ -215,11 +224,25 @@ public final class SandGraspController {
      * dusmanlar dagilma yonunde itilirdi.
      */
     private static void tickErupt(Grasp grasp, ServerPlayer owner) {
-        float progress = Math.min(1f, grasp.ticks / (float) ERUPT_TICKS);
+        // IKI ASAMA: once el yerden cikar, sonra ceker.
+        //
+        // Onceki surumde ikisi ayni anda oluyordu ve toplam 12 tick
+        // suruyordu; animasyon "cok hizli, belli olmuyor" diye geri geldi.
+        // Cikis ayrilinca elin bicimi gorulebiliyor, cekis de yavasladi.
+        if (grasp.ticks <= RISE_TICKS) {
+            drawHand(grasp, grasp.far, 0f);
+            return;
+        }
 
-        // Elin o anki konumu: uzak uctan yakin uca
+        float progress = Math.min(1f,
+                (grasp.ticks - RISE_TICKS) / (float) ERUPT_TICKS);
+
+        // Elin o anki konumu: uzak uctan yakin uca.
+        // Hizlanma egrisi: el once agir kalkar, sonra hizlanir. Duz
+        // dogrusal hareket makine gibi duruyordu.
+        float eased = progress * progress * (3f - 2f * progress);
         Vec3 hand = grasp.far.add(
-                grasp.near.subtract(grasp.far).scale(progress));
+                grasp.near.subtract(grasp.far).scale(eased));
 
         drawHand(grasp, hand, progress);
 
@@ -227,7 +250,7 @@ public final class SandGraspController {
         double reach = grasp.cfg.getDouble("width", 3.0) * 0.5 + 0.6;
         AABB box = new AABB(
                 hand.x - reach, hand.y - 1.0, hand.z - reach,
-                hand.x + reach, hand.y + 2.6, hand.z + reach);
+                hand.x + reach, hand.y + 3.4, hand.z + reach);
 
         for (LivingEntity target : grasp.level.getEntitiesOfClass(LivingEntity.class, box)) {
             if (target == owner) continue;
@@ -238,8 +261,13 @@ public final class SandGraspController {
             strike(grasp, owner, target);
         }
 
-        // Elin gectigi zemine kum kalir
-        if (grasp.ticks % 3 == 0) {
+        // ELIN GECTIGI KIRMIZI ALAN KUMA DONUSUR.
+        //
+        // Gosterge tehlikeyi ONCEDEN gosteriyor; el gectikce o alan
+        // gercekten Sandman'in arazisi oluyor. Alan tek parca degil
+        // parca parca birakiliyor, boylece donusum ilerledikce
+        // izlenebiliyor.
+        if (grasp.ticks % 2 == 0) {
             Vec3 ground = SandSpikeController.groundUnder(
                     grasp.level, hand.add(0, 1.0, 0));
             if (ground != null) {
@@ -279,26 +307,41 @@ public final class SandGraspController {
     // ------------------------------------------------------------------
 
     /** Dikdortgen zemin gostergesi — dort kenar partikulle ciziliyor. */
+    /**
+     * KIRMIZI OK GOSTERGESI.
+     *
+     * Kum renginde dikdortgen cerceve zeminde kayboluyordu -- kum uzerine
+     * kum ciziyordu. Kirmizi hem zeminden ayrisiyor hem de "tehlike alani"
+     * olarak okunuyor.
+     *
+     * Sekil cerceve degil ARDISIK OKLAR: cerceve alanin sinirini
+     * gosteriyordu ama cekisin HANGI YONE oldugunu anlatmiyordu. Oklarin
+     * ucu Sandman'a bakiyor, yani gosterge dogrudan "buradakiler sana
+     * gelecek" diyor.
+     */
     private static void drawOutline(Grasp grasp, float intensity) {
         double halfWidth = grasp.cfg.getDouble("width", 3.0) * 0.5;
         double length = grasp.near.distanceTo(grasp.far);
 
-        int alongSteps = Math.max(4, (int) (length * 1.6));
-        int acrossSteps = Math.max(3, (int) (halfWidth * 2 * 1.6));
+        int chevrons = Math.max(3, (int) (length / 2.2));
 
-        // Uzun kenarlar
-        for (int i = 0; i <= alongSteps; i++) {
-            double t = i / (double) alongSteps;
-            Vec3 spine = grasp.near.add(grasp.forward.scale(length * t));
-            markGround(grasp, spine.add(grasp.side.scale(halfWidth)), intensity);
-            markGround(grasp, spine.subtract(grasp.side.scale(halfWidth)), intensity);
-        }
+        for (int c = 0; c < chevrons; c++) {
+            // Oklar uzak uctan yakina siralanir
+            double t = (c + 0.5) / chevrons;
+            Vec3 tip = grasp.far.add(
+                    grasp.near.subtract(grasp.far).scale(t));
 
-        // Kisa kenarlar
-        for (int i = 0; i <= acrossSteps; i++) {
-            double t = i / (double) acrossSteps - 0.5;
-            markGround(grasp, grasp.near.add(grasp.side.scale(halfWidth * 2 * t)), intensity);
-            markGround(grasp, grasp.far.add(grasp.side.scale(halfWidth * 2 * t)), intensity);
+            // Ok ucu Sandman'a bakar; kanatlar geriye acilir
+            for (int arm = -1; arm <= 1; arm += 2) {
+                int steps = 6;
+                for (int i = 0; i <= steps; i++) {
+                    double f = i / (double) steps;
+                    Vec3 p = tip
+                            .add(grasp.side.scale(halfWidth * f * arm))
+                            .add(grasp.forward.scale(halfWidth * f * 0.9));
+                    markGround(grasp, p, intensity);
+                }
+            }
         }
     }
 
@@ -312,9 +355,14 @@ public final class SandGraspController {
         Vec3 ground = SandSpikeController.groundUnder(grasp.level, point.add(0, 1.5, 0));
         if (ground == null) ground = point;
 
-        grasp.level.sendParticles(sand(),
-                ground.x, ground.y + 0.06, ground.z,
-                intensity > 0.75f ? 2 : 1, 0.04, 0.0, 0.04, 0.0);
+        // DUST partikulu tek renk verebiliyor; kirmizi gosterge icin
+        // kum blogu partikulu kullanilamaz.
+        grasp.level.sendParticles(
+                new net.minecraft.core.particles.DustParticleOptions(
+                        new org.joml.Vector3f(0.95f, 0.12f, 0.12f),
+                        0.9f + intensity * 0.5f),
+                ground.x, ground.y + 0.08, ground.z,
+                1, 0.02, 0.0, 0.02, 0.0);
     }
 
     /**
@@ -365,8 +413,21 @@ public final class SandGraspController {
         for (Grasp grasp : grasps.values()) {
             if (grasp.state != State.ERUPTING) continue;
 
-            float progress = Math.min(1f, grasp.ticks / (float) ERUPT_TICKS);
-            Vec3 hand = grasp.far.add(grasp.near.subtract(grasp.far).scale(progress));
+            float grow;
+            float progress;
+
+            if (grasp.ticks <= RISE_TICKS) {
+                // CIKIS asamasi: el yerinde durur ve yukselir
+                grow = grasp.ticks / (float) RISE_TICKS;
+                progress = 0f;
+            } else {
+                grow = 1f;
+                progress = Math.min(1f,
+                        (grasp.ticks - RISE_TICKS) / (float) ERUPT_TICKS);
+            }
+
+            float eased = progress * progress * (3f - 2f * progress);
+            Vec3 hand = grasp.far.add(grasp.near.subtract(grasp.far).scale(eased));
 
             Vec3 base = SandSpikeController.groundUnder(grasp.level, hand.add(0, 1.5, 0));
             if (base == null) base = hand;
@@ -376,15 +437,12 @@ public final class SandGraspController {
             Vec3 dir = grasp.near.subtract(grasp.far);
             float yaw = (float) Math.toDegrees(Math.atan2(-dir.x, dir.z));
 
-            // Yerden cikma: ilk ucte biri. Sonra surukleme boyunca ayakta.
-            float grow = Math.min(1f, progress * 3f);
-
-            // Parmaklar surukleme boyunca yavasca kapanir
+            // Parmaklar cekis boyunca yumruk sikar gibi kapanir
             float curl = progress;
 
-            // Son ceyrekte el yuzeye gomulur — cekis bitince ortada asili
-            // bir el kalmamali
-            float sink = progress > 0.75f ? (progress - 0.75f) / 0.25f : 0f;
+            // Son ceyrekte el yuzeye gomulur -- cekis bitince ortada
+            // asili bir el kalmamali
+            float sink = progress > 0.78f ? (progress - 0.78f) / 0.22f : 0f;
 
             out.add(new com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.Shape(
                     com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.TYPE_HAND,

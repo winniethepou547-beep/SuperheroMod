@@ -9,7 +9,9 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * SAND SPIKE — nisan alinan zeminden yukselen dev kum dikeni.
+ * SAND SPIKE — V tusu. Nisan alinan zeminden yukselen dev kum dikeni.
+ *
+ * Sag tik Sand Grasp'e verilince yetenek slotsuz kalmisti; V'ye tasindi.
  *
  * Etkiler: hasar, yukari firlatma, geri itme ve kisa sureli alan reddi.
  *
@@ -19,7 +21,7 @@ import net.minecraft.world.phys.Vec3;
 public class SandSpikeAbility extends Ability {
 
     public SandSpikeAbility() {
-        super("sandman_sand_spike", AbilityType.INSTANT, AbilitySlot.RMB);
+        super("sandman_sand_spike", AbilityType.INSTANT, AbilitySlot.SKILL_V);
     }
 
     @Override
@@ -37,23 +39,14 @@ public class SandSpikeAbility extends Ability {
     public boolean canActivate(ServerPlayer player) {
         if (!super.canActivate(player)) return false;
 
-        // Colossus formunda sag tik KAYA FIRLATMADIR
-        if (SandColossusController.isColossus(player.getUUID())) {
-            return !ColossusRockController.isThrowing(player.getUUID())
-                    && !SandColossusController.isStaggered(player.getUUID());
-        }
-
+        // Colossus dali KALDIRILDI: yetenek artik sag tikta degil V'de.
+        // Colossus'un kaya firlatmasi sag tikta kaliyor ve orayi
+        // SandGraspAbility yonetiyor.
         return findGround(player) != null;
     }
 
     @Override
     protected void onActivate(ServerPlayer player) {
-        // Dev formunda diken yerine govdeden kopan kaya firlatilir
-        if (SandColossusController.isColossus(player.getUUID())) {
-            ColossusRockController.throwRock(player);
-            return;
-        }
-
         Vec3 ground = findGround(player);
         if (ground == null) return;
         SandSpikeController.spawn(player, ground, getConfig());
@@ -87,7 +80,7 @@ public class SandSpikeAbility extends Ability {
 
     /** Yetenek ornegi elimizde olmadigi icin menzil sabit okunuyor. */
     private static double getConfigRange(ServerPlayer player) {
-        Ability ability = AbilityManager.getAbility(player.getUUID(), AbilitySlot.RMB);
+        Ability ability = AbilityManager.getAbility(player.getUUID(), AbilitySlot.SKILL_V);
         return ability == null ? 18.0 : ability.getConfig().getDouble("range", 18.0);
     }
 }

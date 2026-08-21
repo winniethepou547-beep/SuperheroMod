@@ -357,6 +357,11 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
     }
 
     @Nullable
+
+    /** Dev asker kendi agir saldirisini kullanir; yandan savurmaz. */
+    public boolean isGiant() {
+        return this instanceof GiantSandSoldierEntity;
+    }
     public UUID getOwnerId() {
         return ownerId;
     }
@@ -464,7 +469,10 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
         // ayni onceliktekI goal'larin birbirini bloklamasi). Vurus artik
         // dogrudan MESAFEYE bakarak baslatiliyor: asker hedefin yanindaysa
         // savurur. Hasari yine goal veriyor; burasi sadece GORSEL.
-        if (swingTicks <= 0 && getVariant() != Variant.RANGED) {
+        // DEV ASKER bu savurmayi KULLANMAZ. Onun saldirisi GiantSlamGoal:
+        // iki elini kaldirip tepede kum kutlesi olusturup yere indirmesi.
+        // Yandan savurma ustune binince agir darbe hissi bozuluyordu.
+        if (swingTicks <= 0 && getVariant() != Variant.RANGED && !isGiant()) {
             LivingEntity target = getTarget();
             if (target != null && target.isAlive()
                     && distanceToSqr(target) <= SWING_TRIGGER_RANGE * SWING_TRIGGER_RANGE

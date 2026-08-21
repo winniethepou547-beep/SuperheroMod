@@ -9,5 +9,6 @@ public enum AbilitySlot {
     SKILL_X,
     SKILL_C,
     SKILL_G,
+    SKILL_V,
     ULTIMATE
 }

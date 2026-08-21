@@ -205,7 +205,8 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
         applySpawnStages(progress);
         applyBulk(entity);
         applyHammers(entity);
-        applySwing(entity, entity.getSwingProgress());
+        // Dev asker savurmaz; onun animasyonu applySlam
+        if (!entity.isGiant()) applySwing(entity, entity.getSwingProgress());
         applySlam(entity);
         applyAimBlock(entity);
     }
