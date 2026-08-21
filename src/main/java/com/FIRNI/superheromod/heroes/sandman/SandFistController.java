@@ -2,7 +2,7 @@ package com.FIRNI.superheromod.heroes.sandman;
 
 import com.FIRNI.superheromod.SuperheroMod;
 import com.FIRNI.superheromod.core.ability.AbilityConfig;
-import com.FIRNI.superheromod.network.packet.SandShapeSyncPacket;
+import com.FIRNI.superheromod.network.packet.SandArmSyncPacket;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
@@ -134,7 +134,6 @@ public final class SandFistController {
         switch (strike.phase()) {
             case CHARGE -> {
                 strike.length = 0;
-                gatherSand(level, player, strike.ticks / (float) CHARGE_END);
 
                 // Sarjin bittigi an duyulur olmali: rakip bu sesi duyup
                 // kacabilmeli, yoksa yetenek okunamaz olur
@@ -150,7 +149,6 @@ public final class SandFistController {
                 // Dogrusal uzama mekanik duruyordu.
                 strike.length = maxLength * (t * t);
                 checkHit(player, strike, level);
-                trailSand(level, player, strike);
             }
             case HOLD -> {
                 strike.length = maxLength;
@@ -191,7 +189,9 @@ public final class SandFistController {
                     strike.cfg.getDouble("knockbackVertical", 0.35),
                     push.z * strike.cfg.getDouble("knockback", 0.9));
             target.hurtMarked = true;
-
+            // Darbe geri bildirimi SADECE isabet aninda. Cevredeki
+            // surekli kum partikulleri kaldirildi: kol artik model
+            // oldugu icin partikuller onu gizliyor ve dagitiyordu.
             level.playSound(null, target.blockPosition(),
                     SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 1.4f, 0.55f);
             level.sendParticles(SAND_BLOCK,
@@ -199,46 +199,6 @@ public final class SandFistController {
                     22, 0.35, 0.4, 0.35, 0.16);
         }
     }
-
-    /**
-     * Sarj sirasinda kola cekilen kum.
-     *
-     * Parcalar disaridan kolun uzerine akiyor; hiz vektoru ICE dogru
-     * veriliyor, boylece "toplaniyor" izlenimi olusuyor. Sarj ilerledikce
-     * yogunlasiyor -- oyuncu ne kadar hazir oldugunu gorebilmeli.
-     */
-    private static void gatherSand(ServerLevel level, ServerPlayer player, float progress) {
-        Vec3 arm = armOrigin(player);
-        int count = 2 + (int) (progress * 5);
-
-        for (int i = 0; i < count; i++) {
-            double a = level.random.nextDouble() * Math.PI * 2;
-            double r = 1.2 - progress * 0.7 + level.random.nextDouble() * 0.4;
-
-            double px = arm.x + Math.cos(a) * r;
-            double py = arm.y + (level.random.nextDouble() - 0.4) * 0.7;
-            double pz = arm.z + Math.sin(a) * r;
-
-            // Hedefe dogru hiz: parcacik kola cekiliyor
-            Vec3 pull = arm.subtract(new Vec3(px, py, pz)).normalize().scale(0.12);
-
-            level.sendParticles(SAND_BLOCK, px, py, pz, 0,
-                    pull.x, pull.y, pull.z, 1.0);
-        }
-    }
-
-    /** Uzayan kolun kenarindan dokulen kum. */
-    private static void trailSand(ServerLevel level, ServerPlayer player, Strike strike) {
-        Vec3 origin = armOrigin(player);
-        Vec3 dir = player.getLookAngle();
-
-        int steps = Math.max(2, (int) strike.length);
-        for (int i = 1; i <= steps; i++) {
-            Vec3 p = origin.add(dir.scale(strike.length * (i / (double) steps)));
-            level.sendParticles(SAND_BLOCK, p.x, p.y, p.z, 1, 0.12, 0.12, 0.12, 0.02);
-        }
-    }
-
     /**
      * Kolun cikis noktasi — omuz/el hizasi.
      *
@@ -259,34 +219,25 @@ public final class SandFistController {
     }
 
     /**
-     * Kolu cizim listesine ekler.
+     * Kolun uzunlugunu istemcilere bildirir.
      *
-     * Kol MODEL olarak ciziliyor; kullanici partikulle yapilmamasini
-     * acikca istedi. Konum ve yon her tick gonderiliyor, aradaki kareler
-     * istemcide yumusatiliyor.
+     * Sadece UZUNLUK gonderiliyor, konum degil: kol dunya uzayinda degil
+     * oyuncu modelinin katmani olarak ciziliyor, konumu kolun kendisi
+     * belirliyor. Onceki surum dunya koordinati gonderiyordu ve kol
+     * govdeden kopuk duruyordu.
      */
-    static void collectShapes(java.util.List<SandShapeSyncPacket.Shape> out) {
+    static void collectArms(java.util.List<SandArmSyncPacket.Entry> out) {
         var server = ServerLifecycleHooks.getCurrentServer();
         if (server == null) return;
 
         for (Strike strike : strikes.values()) {
-            if (strike.length <= 0.05) continue;
-
             ServerPlayer player = server.getPlayerList().getPlayer(strike.player);
             if (player == null) continue;
 
-            Vec3 origin = armOrigin(player);
-
-            // Kalinlik geri cekilirken azaliyor: kol sabit kalinlikta
-            // toplanirsa emilmiyor, siliniyormus gibi duruyor
-            float thickness = strike.phase() == Phase.RETRACT ? 0.85f : 1.0f;
-
-            out.add(new SandShapeSyncPacket.Shape(
-                    strike.player.hashCode() ^ 0x5A17,
-                    SandShapeSyncPacket.TYPE_ARM,
-                    origin.x, origin.y, origin.z,
-                    player.getYRot(), player.getXRot(),
-                    (float) strike.length, thickness, 0f));
+            // active bayragi uzunluktan AYRI: sarj sirasinda kol henuz
+            // uzamamis oluyor ama poz zaten ileri bakmali
+            out.add(new SandArmSyncPacket.Entry(
+                    player.getId(), (float) strike.length, true));
         }
     }
 

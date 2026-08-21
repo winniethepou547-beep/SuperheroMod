@@ -19,6 +19,7 @@ public final class BendableArmRegistration {
         for (String skin : event.getSkins()) {
             if (event.getSkin(skin) instanceof PlayerRenderer renderer) {
                 renderer.addLayer(new BendableArmLayer(renderer));
+                renderer.addLayer(new SandArmLayer(renderer));
                 renderer.addLayer(new SandArmorLayer(renderer,
                         event.getEntityModels().bakeLayer(SandArmorLayer.LAYER)));
             }

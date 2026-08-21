@@ -2,6 +2,7 @@ package com.FIRNI.superheromod.heroes.sandman;
 
 import com.FIRNI.superheromod.SuperheroMod;
 import com.FIRNI.superheromod.network.ModNetworking;
+import com.FIRNI.superheromod.network.packet.SandArmSyncPacket;
 import com.FIRNI.superheromod.network.packet.SandShapeSyncPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -30,6 +31,9 @@ public final class SandShapeBroadcaster {
     private static final double VIEW_RANGE = 80.0;
     private static final double VIEW_RANGE_SQR = VIEW_RANGE * VIEW_RANGE;
 
+    /** Gecen tick kol paketi gonderildi mi -- bos paket israfini onler. */
+    private static boolean armsWereSent = false;
+
     private SandShapeBroadcaster() {}
 
     @SubscribeEvent
@@ -39,7 +43,18 @@ public final class SandShapeBroadcaster {
 
         List<SandShapeSyncPacket.Shape> all = new ArrayList<>();
         SandGraspController.collectShapes(all);
-        SandFistController.collectShapes(all);
+
+        // KOLLAR AYRI PAKETLE gidiyor: kol dunya sekli degil, oyuncu
+        // modelinin bir katmani. Ayni listede tasinsaydi konum alanlari
+        // bos kalir ve mesafe suzgeci anlamsizlasirdi.
+        List<SandArmSyncPacket.Entry> arms = new ArrayList<>();
+        SandFistController.collectArms(arms);
+
+        if (!arms.isEmpty() || armsWereSent) {
+            ModNetworking.CHANNEL.send(PacketDistributor.ALL.noArg(),
+                    new SandArmSyncPacket(arms));
+        }
+        armsWereSent = !arms.isEmpty();
 
         for (ServerLevel level : ServerLifecycleHooks.getCurrentServer().getAllLevels()) {
             for (ServerPlayer player : level.players()) {

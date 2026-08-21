@@ -3,6 +3,7 @@ package com.FIRNI.superheromod.client.render;
 import com.FIRNI.superheromod.client.ClientHeroRegistry;
 import com.FIRNI.superheromod.client.ClientHeroState;
 import com.FIRNI.superheromod.client.hud.ClientUltimateState;
+import com.FIRNI.superheromod.client.render.ClientSandArmData;
 import com.FIRNI.superheromod.client.render.anim.PoseStudio;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.PlayerModel;
@@ -74,6 +75,27 @@ public final class HeroArmPose {
             return;
         }
 
+
+        // --- UZAYAN KUM KOLU: kol duz ILERI bakar ---
+        //
+        // Yetenek boyunca sabit: sarj sirasinda kol henuz uzamamis olsa
+        // bile ileri bakiyor, ve geri toplanma bitene kadar boyle
+        // kaliyor. Aksi halde kol uzarken bir yandan sallaniyor ve
+        // uzayan parca kolun ucuyla ortusmuyordu.
+        //
+        // Dirsek DUZ (bend = 0): kirik bir kol uzayamaz, ek parcalar
+        // on kolun acisinda degil omuzun acisinda cikardi.
+        if (ClientSandArmData.isActive(player.getId())) {
+            model.rightArm.xRot = -((float) Math.PI / 2f);
+            model.rightArm.yRot = 0f;
+            model.rightArm.zRot = 0f;
+
+            copySleeves(model);
+            raise.put(id, 0f);
+            elbow.put(id, 0f);
+            applySkipDraw(model, false);
+            return;
+        }
         // --- Ulti hazirligi: kollar gogus onunde capraz ---
         if (ClientUltimateState.isWindup(id)) {
             model.rightArm.xRot = -1.35f;
