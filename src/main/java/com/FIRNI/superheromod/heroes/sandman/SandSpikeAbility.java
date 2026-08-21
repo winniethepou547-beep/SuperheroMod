@@ -36,11 +36,24 @@ public class SandSpikeAbility extends Ability {
     @Override
     public boolean canActivate(ServerPlayer player) {
         if (!super.canActivate(player)) return false;
+
+        // Colossus formunda sag tik KAYA FIRLATMADIR
+        if (SandColossusController.isColossus(player.getUUID())) {
+            return !ColossusRockController.isThrowing(player.getUUID())
+                    && !SandColossusController.isStaggered(player.getUUID());
+        }
+
         return findGround(player) != null;
     }
 
     @Override
     protected void onActivate(ServerPlayer player) {
+        // Dev formunda diken yerine govdeden kopan kaya firlatilir
+        if (SandColossusController.isColossus(player.getUUID())) {
+            ColossusRockController.throwRock(player);
+            return;
+        }
+
         Vec3 ground = findGround(player);
         if (ground == null) return;
         SandSpikeController.spawn(player, ground, getConfig());

@@ -52,6 +52,14 @@ public final class ColossusMaceController {
     /** Zayiflamis kolda hasar ve menzil bu oranla carpilir. */
     private static final float WEAK_ARM_FACTOR = 0.55f;
 
+    /**
+     * Topuzun ONE UZANDIGI mesafe.
+     *
+     * Dev 10 blok boyunda ve kollari uzun; vurus noktasi ayak dibinde
+     * kalirsa topuzun uzunlugu hic hissedilmiyordu.
+     */
+    private static final double MACE_REACH = 9.0;
+
     /** Havaya kalkacak azami blok — sunucu bogulmasin. */
     private static final int MAX_LIFTED_BLOCKS = 90;
     /** Bloklarin sokulecegi yaricap (carpma noktasi cevresinde). */
@@ -174,11 +182,13 @@ public final class ColossusMaceController {
         float damage = weak ? BASE_DAMAGE * WEAK_ARM_FACTOR : BASE_DAMAGE;
         double radius = weak ? SHOCKWAVE_RADIUS * WEAK_ARM_FACTOR : SHOCKWAVE_RADIUS;
 
-        // Vurus noktasi: devin onunde
+        // Vurus noktasi: devin ONUNDE, kol boyu kadar uzakta
         Vec3 look = player.getLookAngle();
         Vec3 flat = new Vec3(look.x, 0, look.z);
         flat = flat.lengthSqr() < 1.0E-4 ? new Vec3(0, 0, 1) : flat.normalize();
-        Vec3 center = player.position().add(flat.scale(3.0));
+
+        double reach = weak ? MACE_REACH * 0.7 : MACE_REACH;
+        Vec3 center = groundUnder(level, player.position().add(flat.scale(reach)));
 
         level.playSound(null, BlockPos.containing(center),
                 SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 2.4f, 0.28f);
@@ -253,6 +263,23 @@ public final class ColossusMaceController {
                 lifted++;
             }
         }
+    }
+
+    /**
+     * Vurus noktasini ZEMINE oturtur.
+     *
+     * Uzaga uzanan topuz egimli arazide havada patliyordu; carpma noktasinin
+     * zemini bulmasi gerekiyor.
+     */
+    private static Vec3 groundUnder(ServerLevel level, Vec3 point) {
+        BlockPos pos = BlockPos.containing(point.add(0, 2, 0));
+        for (int i = 0; i < 10; i++) {
+            if (!level.getBlockState(pos.below()).isAir()) {
+                return new Vec3(point.x, pos.getY(), point.z);
+            }
+            pos = pos.below();
+        }
+        return point;
     }
 
     /** Verilen noktadan asagi inip ilk kati blogu bulur. */

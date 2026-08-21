@@ -46,8 +46,15 @@ public final class ColossusRenderer {
     private static final ResourceLocation CRYSTAL =
             new ResourceLocation("minecraft", "textures/block/amethyst_block.png");
 
-    /** Model 160 piksel = 10 blok olarak kuruldu. */
-    private static final float MODEL_SCALE = 1.0f / 16.0f;
+    /**
+     * Modelin ayak hizasi (blok).
+     *
+     * DIKKAT: ModelPart kup koordinatlarini KENDI ICINDE 16'ya boluyor, yani
+     * burada ayrica 1/16 uygulanmamali. Onceki surumde ikinci kez bolundugu
+     * icin model hem 16 kat kucuk kaliyor hem de yerin 10 blok altina
+     * gomuluyordu — bu yuzden hic gorunmuyordu.
+     */
+    private static final float FOOT_OFFSET = ColossusCrystal.COLOSSUS_HEIGHT;
 
     private static ColossusModel model;
     private static ColossusCrystalModel crystalModel;
@@ -146,7 +153,11 @@ public final class ColossusRenderer {
         pose.scale(growth, growth, growth);
 
         pose.mulPose(Axis.YP.rotationDegrees(180.0f - yaw));
-        pose.scale(-MODEL_SCALE, -MODEL_SCALE, MODEL_SCALE);
+
+        // Entity modelleri bas asagi cizilir; cevirdikten sonra ayak hizasini
+        // oyuncunun konumuna oturtuyoruz
+        pose.scale(-1.0f, -1.0f, 1.0f);
+        pose.translate(0.0f, -FOOT_OFFSET, 0.0f);
 
         int light = LightTexture.pack(14, 14);
 
@@ -209,9 +220,9 @@ public final class ColossusRenderer {
 
             // Kristal boyutu ISABET YARICAPIYLA orantili: gorulen sey ile
             // vurulabilen alan tutmali, yoksa oyuncu nisan alamaz.
-            // Model 16 piksel yuksekliginde; radius*2 blok olmasi icin
-            // olcek = (radius * 2) / 16
-            float scale = (float) (type.radius * growth) / 8f;
+            // ModelPart zaten 16'ya boluyor, yani model ~1 blok yuksekliginde;
+            // radius*2 blok olmasi icin olcek dogrudan radius*2.
+            float scale = (float) (type.radius * 2.0) * growth;
             pose.scale(-scale, -scale, scale);
 
             cm.root().render(pose, crystal, light, OverlayTexture.NO_OVERLAY,
