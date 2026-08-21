@@ -3,12 +3,12 @@ package com.FIRNI.superheromod.core.world;
 import com.FIRNI.superheromod.SuperheroMod;
 import com.FIRNI.superheromod.core.entity.PlayerSummoned;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.MobSpawnType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
-import net.minecraftforge.event.entity.EntityJoinLevelEvent;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
+import net.minecraftforge.event.entity.living.MobSpawnEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -30,23 +30,42 @@ public class HubProtectionHandler {
     }
 
     /**
-     * Hub'da dogal mob dogusunu engeller.
+     * Hub'da SADECE DOGAL mob dogusunu engeller.
      *
-     * Oyuncunun CAGIRDIGI varliklar muaf: bu koruma dogal dogus icin
-     * yazilmisti ama Sand Soldier'lar da Mob oldugu icin onlar da sessizce
-     * engelleniyordu — hata vermeden iptal edildigi icin sebebi hic
-     * gorunmuyordu.
+     * Onceki surum EntityJoinLevelEvent uzerinden her Mob'u kesiyordu ve
+     * dogus SEBEBINI bilmedigi icin oyuncunun bilerek koydugu her seyi de
+     * engelliyordu: dogus yumurtalari, komutla cagrilanlar, mod'un kendi
+     * summonlari. Ustelik iptal edilen olay hicbir uyari yazmadigi icin
+     * "hicbir sey olmuyor" gibi gorunuyordu.
+     *
+     * FinalizeSpawn dogus SEBEBINI tasiyor; artik sadece kendiliginden
+     * olusan dogus turleri engelleniyor.
      */
     @SubscribeEvent
-    public static void onEntitySpawn(EntityJoinLevelEvent event) {
-        Entity entity = event.getEntity();
-        if (entity.level().isClientSide()) return;
-        if (!(entity instanceof Mob)) return;
-        if (entity instanceof PlayerSummoned) return;
+    public static void onFinalizeSpawn(MobSpawnEvent.FinalizeSpawn event) {
+        if (!isNaturalSpawn(event.getSpawnType())) return;
 
-        if (isInHub(entity.blockPosition(), entity.level())) {
-            event.setCanceled(true);
+        Mob mob = event.getEntity();
+        if (mob instanceof PlayerSummoned) return;
+
+        if (isInHub(mob.blockPosition(), mob.level())) {
+            event.setSpawnCancelled(true);
         }
+    }
+
+    /**
+     * Kendiliginden olusan dogus turleri.
+     *
+     * Bunlarin disindaki her sey (SPAWN_EGG, COMMAND, MOB_SUMMONED,
+     * DISPENSER, BUCKET, BREEDING...) oyuncunun BILEREK yaptigi bir islem —
+     * hub'da da calismali.
+     */
+    private static boolean isNaturalSpawn(MobSpawnType type) {
+        return type == MobSpawnType.NATURAL
+                || type == MobSpawnType.CHUNK_GENERATION
+                || type == MobSpawnType.SPAWNER
+                || type == MobSpawnType.PATROL
+                || type == MobSpawnType.REINFORCEMENT;
     }
 
     private static boolean isInHub(BlockPos pos, Level level) {
