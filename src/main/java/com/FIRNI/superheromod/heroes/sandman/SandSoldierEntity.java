@@ -20,6 +20,7 @@ import net.minecraft.world.entity.ai.goal.*;
 import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
@@ -57,6 +58,28 @@ public class SandSoldierEntity extends PathfinderMob {
             SynchedEntityData.defineId(SandSoldierEntity.class, EntityDataSerializers.BYTE);
 
     /**
+     * Ellerin CEKICE donusme orani 0..1.
+     *
+     * Hedefe yaklasinca eller kumdan cekice donusuyor, uzaklasinca geri
+     * cozuluyor. Ani degisim yerine oran tutuluyor cunku donusum de
+     * olusma animasyonu gibi kademeli olmali.
+     */
+    private static final EntityDataAccessor<Float> HAMMER =
+            SynchedEntityData.defineId(SandSoldierEntity.class, EntityDataSerializers.FLOAT);
+
+    /** Salinim yonu: 0 yok, 1 saga, 2 sola. Cesitlilik icin rastgele secilir. */
+    private static final EntityDataAccessor<Byte> SWING_DIR =
+            SynchedEntityData.defineId(SandSoldierEntity.class, EntityDataSerializers.BYTE);
+
+    /** Menzilli turde nisan alma orani 0..1. */
+    private static final EntityDataAccessor<Float> AIM =
+            SynchedEntityData.defineId(SandSoldierEntity.class, EntityDataSerializers.FLOAT);
+
+    /** Ellerin cekice donmesi icin gereken mesafe. */
+    private static final double HAMMER_RANGE = 2.0;
+    private static final float HAMMER_SPEED = 0.12f;
+
+    /**
      * Asker turleri. Ikisi de ayni iskeleti kullanir; fark kollarda,
      * dayaniklilikta ve SALDIRI DESENINDE.
      */
@@ -64,7 +87,9 @@ public class SandSoldierEntity extends PathfinderMob {
         /** Ince kollar, kum bicaklari. Hizli, seri cift vurus, dusuk hasar. */
         BLADE,
         /** Iri kollar, dev yumruklar. Yavas, agir tek darbe, alan savurmasi. */
-        BREAKER;
+        BREAKER,
+        /** Omuzlarinda dik cikintilar. Mesafeyi korur, kum mermisi atar. */
+        RANGED;
 
         public static Variant byId(byte id) {
             Variant[] all = values();
@@ -109,6 +134,32 @@ public class SandSoldierEntity extends PathfinderMob {
         this.entityData.define(SPAWN_PROGRESS, 0f);
         this.entityData.define(CRUMBLE_PROGRESS, 0f);
         this.entityData.define(VARIANT, (byte) 0);
+        this.entityData.define(HAMMER, 0f);
+        this.entityData.define(SWING_DIR, (byte) 0);
+        this.entityData.define(AIM, 0f);
+    }
+
+    /** Ellerin cekice donusme orani — model bunu okuyup elleri buyutuyor. */
+    public float getHammerProgress() {
+        return this.entityData.get(HAMMER);
+    }
+
+    /** 0 yok, 1 saga savuruyor, 2 sola savuruyor. */
+    public byte getSwingDirection() {
+        return this.entityData.get(SWING_DIR);
+    }
+
+    public void setSwingDirection(byte dir) {
+        this.entityData.set(SWING_DIR, dir);
+    }
+
+    /** Menzilli turde nisan alma orani. */
+    public float getAimProgress() {
+        return this.entityData.get(AIM);
+    }
+
+    public void setAimProgress(float value) {
+        this.entityData.set(AIM, value);
     }
 
     public Variant getVariant() {
@@ -138,6 +189,14 @@ public class SandSoldierEntity extends PathfinderMob {
                 setAttr(Attributes.ATTACK_DAMAGE, 5.0);
                 setAttr(Attributes.KNOCKBACK_RESISTANCE, 0.55);
             }
+            case RANGED -> {
+                // Mesafeyi koruyan tur: kirilgan ama uzaktan vuruyor
+                setAttr(Attributes.MAX_HEALTH, 14.0);
+                setAttr(Attributes.MOVEMENT_SPEED, 0.30);
+                setAttr(Attributes.ATTACK_DAMAGE, 1.0);
+                setAttr(Attributes.KNOCKBACK_RESISTANCE, 0.10);
+                setAttr(Attributes.FOLLOW_RANGE, 32.0);
+            }
         }
 
         setHealth(getMaxHealth());
@@ -156,6 +215,10 @@ public class SandSoldierEntity extends PathfinderMob {
     @Override
     protected void registerGoals() {
         this.goalSelector.addGoal(0, new FloatGoal(this));
+        // Iki saldiri hedefi de eklenir; hangisinin calisacagina TUR karar
+        // verir. registerGoals kurucudan cagriliyor ve tur henuz atanmamis
+        // oluyor, bu yuzden secim canUse icinde yapiliyor.
+        this.goalSelector.addGoal(1, new RangedSandGoal(this));
         this.goalSelector.addGoal(1, new PatternAttackGoal(this));
         this.goalSelector.addGoal(2, new FollowOwnerGoal(this));
         this.goalSelector.addGoal(3, new WaterAvoidingRandomStrollGoal(this, 0.8));
@@ -245,9 +308,65 @@ public class SandSoldierEntity extends PathfinderMob {
             return;
         }
 
+        tickHammer();
+        tickMovementDust();
+
         if (--lifetime <= 0 || getOwner() == null) {
             beginCrumble();
         }
+    }
+
+    /**
+     * Eller hedefe yaklasinca CEKICE donusur, uzaklasinca cozulur.
+     *
+     * Menzilli turde cekic yok — o omuz cikintilariyla ates ediyor.
+     */
+    private void tickHammer() {
+        if (getVariant() == Variant.RANGED) return;
+
+        LivingEntity target = getTarget();
+        boolean close = target != null && target.isAlive()
+                && distanceToSqr(target) <= HAMMER_RANGE * HAMMER_RANGE;
+
+        float current = getHammerProgress();
+        float next = close
+                ? Math.min(1f, current + HAMMER_SPEED)
+                : Math.max(0f, current - HAMMER_SPEED);
+
+        if (next != current) {
+            this.entityData.set(HAMMER, next);
+
+            // Donusum sirasinda ellerde kum toplanir
+            if (level() instanceof ServerLevel server && tickCount % 2 == 0
+                    && next > 0.05f && next < 0.95f) {
+                Vec3 hand = position().add(0, 1.0, 0);
+                server.sendParticles(sandParticle(),
+                        hand.x, hand.y, hand.z, 3, 0.5, 0.3, 0.5, 0.02);
+            }
+        }
+    }
+
+    /**
+     * Yururken arkalarindan dokulen kum.
+     *
+     * Askerler kumdan yapildigi icin hareket ederken dagilmalari gerekiyor;
+     * bu olmadan yuruyus "kayan bir heykel" gibi duruyordu.
+     */
+    private void tickMovementDust() {
+        if (!(level() instanceof ServerLevel server)) return;
+
+        Vec3 velocity = getDeltaMovement();
+        double speed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
+        if (speed < 0.02 || tickCount % 2 != 0) return;
+
+        // Arkaya dogru dokulur
+        double back = -1.0 / Math.max(0.01, speed);
+        double bx = velocity.x * back * 0.35;
+        double bz = velocity.z * back * 0.35;
+
+        server.sendParticles(sandParticle(),
+                getX() + bx, getY() + 0.35, getZ() + bz,
+                2, 0.18, 0.25, 0.18, 0.01);
     }
 
     /**
@@ -289,9 +408,11 @@ public class SandSoldierEntity extends PathfinderMob {
         getNavigation().stop();
 
         if (level() instanceof ServerLevel server) {
+            // Govde yukaridan asagi dogru dagilir — once omuzlar, sonra taban
+            double height = 1.9 * (1.0 - progress);
             server.sendParticles(sandParticle(),
-                    getX(), getY() + 0.9, getZ(),
-                    6, 0.3, 0.5, 0.3, 0.06);
+                    getX(), getY() + height, getZ(),
+                    14, 0.35, 0.15, 0.35, 0.08);
         }
 
         if (progress >= 1.0f) discard();
@@ -303,6 +424,40 @@ public class SandSoldierEntity extends PathfinderMob {
 
         level().playSound(null, blockPosition(),
                 SoundEvents.SAND_BREAK, SoundSource.HOSTILE, 1.0f, 0.7f);
+
+        scatterDebris();
+    }
+
+    /**
+     * OLUM: govde parcalanir, kum bloklari savrulup yere dokulur.
+     *
+     * Gercek dusen blok kullaniliyor cunku partikul havada kayboluyor;
+     * yere inip biriken parcalar "kum dagildi" hissini veriyor. Sayi
+     * bilerek dusuk: her asker olurken 20 entity dogurmak kalabalik
+     * dovuslerde sunucuyu bogar.
+     */
+    private void scatterDebris() {
+        if (!(level() instanceof ServerLevel server)) return;
+
+        int count = getVariant() == Variant.BREAKER ? 7 : 5;
+
+        for (int i = 0; i < count; i++) {
+            double angle = random.nextDouble() * Math.PI * 2;
+            double speed = 0.14 + random.nextDouble() * 0.22;
+
+            FallingBlockEntity block = FallingBlockEntity.fall(server,
+                    blockPosition().above(random.nextInt(2)),
+                    Blocks.SAND.defaultBlockState());
+
+            block.setDeltaMovement(
+                    Math.cos(angle) * speed,
+                    0.24 + random.nextDouble() * 0.26,
+                    Math.sin(angle) * speed);
+            block.time = 1;
+        }
+
+        server.sendParticles(sandParticle(),
+                getX(), getY() + 1.0, getZ(), 45, 0.5, 0.9, 0.5, 0.16);
     }
 
     /** Askerin uzerinden surekli dokulen ince kum. */
@@ -437,6 +592,8 @@ public class SandSoldierEntity extends PathfinderMob {
 
         @Override
         public boolean canUse() {
+            // Menzilli tur yakin dovuse girmez
+            if (soldier.getVariant() == Variant.RANGED) return false;
             return !soldier.isForming() && super.canUse();
         }
 
@@ -462,6 +619,11 @@ public class SandSoldierEntity extends PathfinderMob {
             if (distSqr > getAttackReachSqr(target)) return;
 
             soldier.swing(InteractionHand.MAIN_HAND);
+
+            // Salinim yonu her vurusta RASTGELE — hep ayni yon tekrar
+            // izlenince robotik duruyordu
+            soldier.setSwingDirection((byte) (soldier.getRandom().nextBoolean() ? 1 : 2));
+            soldier.emitSwingTrail();
 
             if (soldier.getVariant() == Variant.BLADE) {
                 cooldown = BLADE_COOLDOWN;
@@ -498,6 +660,152 @@ public class SandSoldierEntity extends PathfinderMob {
 
             soldier.level().playSound(null, soldier.blockPosition(),
                     SoundEvents.SAND_BREAK, SoundSource.HOSTILE, 1.1f, 0.55f);
+        }
+    }
+
+    /**
+     * Vurusun arkasinda kalan ince kum izi.
+     *
+     * Cekicin gectigi yay boyunca cizilir; darbenin yonunu ve hizini
+     * gorunur kilan sey bu.
+     */
+    void emitSwingTrail() {
+        if (!(level() instanceof ServerLevel server)) return;
+
+        Vec3 look = getLookAngle();
+        Vec3 flat = new Vec3(look.x, 0, look.z);
+        if (flat.lengthSqr() < 1.0E-4) return;
+        flat = flat.normalize();
+
+        Vec3 side = new Vec3(-flat.z, 0, flat.x);
+        boolean toRight = getSwingDirection() == 1;
+
+        // Yay: bir yandan diger yana
+        for (int i = 0; i <= 8; i++) {
+            double t = i / 8.0;
+            double angle = (toRight ? -1 : 1) * (t - 0.5) * Math.PI * 0.9;
+
+            double cos = Math.cos(angle);
+            double sin = Math.sin(angle);
+
+            Vec3 dir = flat.scale(cos).add(side.scale(sin));
+            Vec3 p = position()
+                    .add(0, 1.15, 0)
+                    .add(dir.scale(1.15));
+
+            server.sendParticles(sandParticle(), p.x, p.y, p.z, 1, 0.05, 0.05, 0.05, 0.01);
+        }
+    }
+
+    /**
+     * MENZILLI TUR — mesafeyi korur, nisan alir, kum mermisi atar.
+     *
+     * Nisan alma asamasi bilerek gorunur: hedefe dogru bir cizgi ciziliyor,
+     * boylece rakip kacacak zamani oluyor. Uyarisiz menzilli saldiri adil
+     * hissettirmiyordu.
+     */
+    private static class RangedSandGoal extends Goal {
+
+        private static final double IDEAL_MIN = 7.0;
+        private static final double IDEAL_MAX = 15.0;
+        private static final int AIM_TICKS = 22;
+        private static final int RELOAD_TICKS = 26;
+
+        private final SandSoldierEntity soldier;
+        private LivingEntity target;
+        private int aimTicks;
+        private int cooldown;
+
+        RangedSandGoal(SandSoldierEntity soldier) {
+            this.soldier = soldier;
+            setFlags(java.util.EnumSet.of(Flag.MOVE, Flag.LOOK));
+        }
+
+        @Override
+        public boolean canUse() {
+            if (soldier.getVariant() != Variant.RANGED) return false;
+            if (soldier.isForming()) return false;
+
+            LivingEntity candidate = soldier.getTarget();
+            if (candidate == null || !candidate.isAlive()) return false;
+
+            this.target = candidate;
+            return true;
+        }
+
+        @Override
+        public boolean canContinueToUse() {
+            return target != null && target.isAlive()
+                    && soldier.getVariant() == Variant.RANGED;
+        }
+
+        @Override
+        public void stop() {
+            target = null;
+            aimTicks = 0;
+            soldier.setAimProgress(0f);
+            soldier.getNavigation().stop();
+        }
+
+        @Override
+        public void tick() {
+            if (target == null) return;
+
+            soldier.getLookControl().setLookAt(target, 30f, 30f);
+
+            double dist = soldier.distanceTo(target);
+
+            // Mesafeyi koru: cok yakinsa geri cekil, cok uzaksa yaklas
+            if (dist < IDEAL_MIN) {
+                Vec3 away = soldier.position().subtract(target.position()).normalize();
+                Vec3 to = soldier.position().add(away.scale(4.0));
+                soldier.getNavigation().moveTo(to.x, to.y, to.z, 1.1);
+            } else if (dist > IDEAL_MAX) {
+                soldier.getNavigation().moveTo(target, 1.0);
+            } else {
+                soldier.getNavigation().stop();
+            }
+
+            if (cooldown > 0) {
+                cooldown--;
+                soldier.setAimProgress(0f);
+                return;
+            }
+
+            // Gorus hatti yoksa nisan alma
+            if (!soldier.getSensing().hasLineOfSight(target)) {
+                aimTicks = 0;
+                soldier.setAimProgress(0f);
+                return;
+            }
+
+            aimTicks++;
+            float progress = Math.min(1f, aimTicks / (float) AIM_TICKS);
+            soldier.setAimProgress(progress);
+
+            // Nisan cizgisi son yarida belirginlesir
+            if (soldier.level() instanceof ServerLevel server && progress > 0.45f) {
+                SandBoltController.drawAimLine(server,
+                        muzzle(), target.getEyePosition(), (progress - 0.45f) / 0.55f);
+            }
+
+            if (aimTicks >= AIM_TICKS) {
+                fire();
+                aimTicks = 0;
+                cooldown = RELOAD_TICKS;
+                soldier.setAimProgress(0f);
+            }
+        }
+
+        private void fire() {
+            Vec3 from = muzzle();
+            Vec3 dir = target.getEyePosition().subtract(from);
+            SandBoltController.fire(soldier, from, dir);
+        }
+
+        /** Mermi OMUZ cikintilarindan cikar. */
+        private Vec3 muzzle() {
+            return soldier.position().add(0, soldier.getBbHeight() * 0.85, 0);
         }
     }
 

@@ -24,6 +24,20 @@ import java.util.List;
  */
 public class SandSoldiersAbility extends Ability {
 
+    /**
+     * Cagirma sirasi: dortlu bir takimda iki yakin dovus, iki menzilli.
+     *
+     * Sabit sira, rastgele secime tercih edildi — rastgelede bazen dort
+     * menzilli veya dort yakin dovusçu cikiyor ve takimin karakteri her
+     * seferinde degisiyordu.
+     */
+    private static final SandSoldierEntity.Variant[] VARIANT_ORDER = {
+            SandSoldierEntity.Variant.BLADE,
+            SandSoldierEntity.Variant.RANGED,
+            SandSoldierEntity.Variant.BREAKER,
+            SandSoldierEntity.Variant.RANGED
+    };
+
     public SandSoldiersAbility() {
         super("sandman_sand_soldiers", AbilityType.INSTANT, AbilitySlot.SKILL_C);
     }
@@ -71,11 +85,10 @@ public class SandSoldiersAbility extends Ability {
                     SandSoldierEntity.create(level, player, ground.x, ground.y, ground.z);
             if (soldier == null) continue;
 
-            // Turler donusumlu veriliyor — rastgele birakinca bazen hepsi ayni
-            // turden cikiyor ve iki saldiri deseninin farki hic gorulmuyordu
-            soldier.setVariant(i % 2 == 0
-                    ? SandSoldierEntity.Variant.BLADE
-                    : SandSoldierEntity.Variant.BREAKER);
+            // Dort askerin ikisi MENZILLI, ikisi yakin dovus. Turler sirayla
+            // veriliyor: rastgele birakinca bazen hepsi ayni turden cikiyor
+            // ve takimin dengesi her seferinde degisiyordu.
+            soldier.setVariant(VARIANT_ORDER[i % VARIANT_ORDER.length]);
 
             soldier.setLifetime(lifetime);
             level.addFreshEntity(soldier);

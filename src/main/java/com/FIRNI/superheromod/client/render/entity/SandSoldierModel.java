@@ -38,6 +38,11 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
     /** Olusmanin ilk asamasindaki yer kum yigini. */
     private final ModelPart mound;
 
+    private final ModelPart rightHammer;
+    private final ModelPart leftHammer;
+    private final ModelPart rightSpikes;
+    private final ModelPart leftSpikes;
+
     public SandSoldierModel(ModelPart root) {
         this.root = root;
         this.head = root.getChild("head");
@@ -47,6 +52,11 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
         this.rightLeg = root.getChild("right_leg");
         this.leftLeg = root.getChild("left_leg");
         this.mound = root.getChild("mound");
+
+        this.rightHammer = rightArm.getChild("right_hammer");
+        this.leftHammer = leftArm.getChild("left_hammer");
+        this.rightSpikes = rightArm.getChild("right_spikes");
+        this.leftSpikes = leftArm.getChild("left_spikes");
     }
 
     public static LayerDefinition createBodyLayer() {
@@ -101,6 +111,32 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
                         .addBox(-2.0f, -3.5f, -3.5f, 7, 4, 7),
                 PartPose.ZERO);
 
+        // --- CEKIC ELLERI: yakin dovus turlerinde hedefe yaklasinca acilir ---
+        rightArm.addOrReplaceChild("right_hammer",
+                CubeListBuilder.create().texOffs(0, 0)
+                        .addBox(-6.0f, 8.0f, -4.5f, 9, 8, 9),
+                PartPose.ZERO);
+        leftArm.addOrReplaceChild("left_hammer",
+                CubeListBuilder.create().texOffs(0, 0)
+                        .addBox(-3.0f, 8.0f, -4.5f, 9, 8, 9),
+                PartPose.ZERO);
+
+        // --- MENZILLI TURUN OMUZ DIKENLERI: yukari dogru dik cikintilar ---
+        // Mermi bunlarin arasindan cikiyor; siluetten tur aninda anlasilmali
+        rightArm.addOrReplaceChild("right_spikes",
+                CubeListBuilder.create()
+                        .texOffs(0, 0).addBox(-4.5f, -12.0f, -2.0f, 3, 10, 3)
+                        .texOffs(0, 0).addBox(-2.0f, -16.0f, -1.5f, 2, 13, 2)
+                        .texOffs(0, 0).addBox(-6.0f, -9.0f, 0.5f, 2, 8, 2),
+                PartPose.rotation(0.10f, 0f, -0.22f));
+
+        leftArm.addOrReplaceChild("left_spikes",
+                CubeListBuilder.create()
+                        .texOffs(0, 0).addBox(1.5f, -12.0f, -2.0f, 3, 10, 3)
+                        .texOffs(0, 0).addBox(0.0f, -16.0f, -1.5f, 2, 13, 2)
+                        .texOffs(0, 0).addBox(4.0f, -9.0f, 0.5f, 2, 8, 2),
+                PartPose.rotation(0.10f, 0f, 0.22f));
+
         // --- Bacaklar ---
         root.addOrReplaceChild("right_leg",
                 CubeListBuilder.create().texOffs(0, 0)
@@ -146,16 +182,84 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
         float breathe = Mth.sin(ageInTicks * 0.06f) * 0.02f;
         body.y = breathe;
 
-        // --- Saldiri savurmasi ---
         float attack = entity.getAttackAnim(0f);
-        if (attack > 0f) {
-            float swing = Mth.sin(attack * (float) Math.PI);
-            rightArm.xRot = -1.9f * swing;
-            rightArm.yRot = -0.35f * swing;
-        }
 
         applySpawnStages(progress);
         applyBulk(entity);
+        applyHammers(entity);
+        applySwing(entity, attack);
+    }
+
+    /**
+     * CEKIC ELLERI — hedefe yaklasinca acilir, uzaklasinca cozulur.
+     *
+     * Aniden belirmiyor: olusma animasyonundaki gibi olcekle buyuyor.
+     * Menzilli turde cekic yerine omuz dikenleri gorunur.
+     */
+    private void applyHammers(T entity) {
+        boolean ranged = entity.getVariant() == SandSoldierEntity.Variant.RANGED;
+
+        rightSpikes.visible = ranged;
+        leftSpikes.visible = ranged;
+
+        if (ranged) {
+            rightHammer.visible = false;
+            leftHammer.visible = false;
+
+            // Nisan alirken dikenler geriye yatip yuklenir
+            float aim = entity.getAimProgress();
+            rightSpikes.xRot = 0.10f - aim * 0.45f;
+            leftSpikes.xRot = 0.10f - aim * 0.45f;
+            return;
+        }
+
+        float hammer = entity.getHammerProgress();
+        boolean show = hammer > 0.01f;
+
+        rightHammer.visible = show;
+        leftHammer.visible = show;
+        if (!show) return;
+
+        rightHammer.xScale = hammer;
+        rightHammer.yScale = hammer;
+        rightHammer.zScale = hammer;
+        leftHammer.xScale = hammer;
+        leftHammer.yScale = hammer;
+        leftHammer.zScale = hammer;
+    }
+
+    /**
+     * SALDIRI SALINIMI — cekic saldan sola veya soldan saga savrulur.
+     *
+     * Yon askerin kendi rastgele secimi; hep ayni yon robotik duruyordu.
+     * Bel de salinimla birlikte doner, yoksa sadece kol oynamis gibi
+     * gorunuyor ve vurusta agirlik hissi olusmuyor.
+     */
+    private void applySwing(T entity, float attack) {
+        if (attack <= 0f) {
+            body.yRot = 0f;
+            return;
+        }
+
+        byte dir = entity.getSwingDirection();
+        if (dir == 0) return;
+
+        float side = dir == 1 ? 1f : -1f;
+        // Yay: bir uctan diger uca gecis
+        float phase = Mth.sin(attack * (float) Math.PI);
+        float sweep = (attack - 0.5f) * 2f;
+
+        // Bel donusu — govde salinimi takip eder
+        body.yRot = -sweep * 0.55f * side;
+        head.yRot += sweep * 0.25f * side;
+
+        // Kollar yatay duzlemde savrulur
+        rightArm.xRot = -1.15f * phase;
+        leftArm.xRot = -0.95f * phase;
+        rightArm.yRot = sweep * 0.9f * side;
+        leftArm.yRot = sweep * 0.7f * side;
+        rightArm.zRot = 0.08f + phase * 0.35f * side;
+        leftArm.zRot = -0.08f + phase * 0.30f * side;
     }
 
     /**
