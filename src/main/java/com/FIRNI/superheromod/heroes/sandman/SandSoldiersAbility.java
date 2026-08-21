@@ -1,7 +1,9 @@
 package com.FIRNI.superheromod.heroes.sandman;
 
 import com.FIRNI.superheromod.core.ability.*;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
 import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
@@ -63,10 +65,15 @@ public class SandSoldiersAbility extends Ability {
         // Sunucuyu bogmamak icin ayni anda ayakta kalabilecek asker sinirli
         int alive = countAlive(level, player);
         int allowed = Math.max(0, maxAlive - alive);
-        if (allowed <= 0) return;
+        if (allowed <= 0) {
+            // Sessizce basarisiz olmasin: neden cagrilmadigini oyuncu bilmeli
+            report(player, "Zaten " + alive + " asker ayakta (sinir " + maxAlive + ")");
+            return;
+        }
 
         int toSpawn = Math.min(count, allowed);
         int spawned = 0;
+        int noGround = 0;
 
         for (int i = 0; i < toSpawn; i++) {
             // Oyuncunun cevresine esit acilarla dagit
@@ -79,11 +86,20 @@ public class SandSoldiersAbility extends Ability {
                     player.getZ() + Math.sin(angle) * dist);
 
             Vec3 ground = SandSpikeController.groundUnder(level, spot.add(0, 1.0, 0));
-            if (ground == null) continue;
+            if (ground == null) {
+                // Zemin bulunamadi — oyuncunun kendi hizasina dus.
+                // Eskiden burada sessizce vazgeciliyordu ve asker hic
+                // cikmiyordu; oyuncu neden olmadigini anlayamiyordu.
+                ground = new Vec3(spot.x, player.getY(), spot.z);
+                noGround++;
+            }
 
             SandSoldierEntity soldier =
                     SandSoldierEntity.create(level, player, ground.x, ground.y, ground.z);
-            if (soldier == null) continue;
+            if (soldier == null) {
+                report(player, "HATA: asker olusturulamadi (entity turu kayitli mi?)");
+                return;
+            }
 
             // Dort askerin ikisi MENZILLI, ikisi yakin dovus. Turler sirayla
             // veriliyor: rastgele birakinca bazen hepsi ayni turden cikiyor
@@ -91,7 +107,11 @@ public class SandSoldiersAbility extends Ability {
             soldier.setVariant(VARIANT_ORDER[i % VARIANT_ORDER.length]);
 
             soldier.setLifetime(lifetime);
-            level.addFreshEntity(soldier);
+
+            if (!level.addFreshEntity(soldier)) {
+                report(player, "HATA: asker dunyaya eklenemedi");
+                return;
+            }
             spawned++;
 
             // Yerden yukselirken taban kumu savrulur
@@ -100,6 +120,9 @@ public class SandSoldiersAbility extends Ability {
                     ground.x, ground.y + 0.1, ground.z,
                     22, 0.4, 0.15, 0.4, 0.08);
         }
+
+        report(player, spawned + " asker cagrildi"
+                + (noGround > 0 ? " (" + noGround + " tanesi zemin bulamadi)" : ""));
 
         if (spawned == 0) return;
 
@@ -113,6 +136,18 @@ public class SandSoldiersAbility extends Ability {
                 new BlockParticleOption(ParticleTypes.BLOCK, Blocks.SAND.defaultBlockState()),
                 player.getX(), player.getY() + 0.1, player.getZ(),
                 30, 0.6, 0.1, 0.6, 0.1);
+    }
+
+    /**
+     * Oyuncuya durum bildirir.
+     *
+     * Cagirma sessizce basarisiz olabildigi icin (sinir dolu, zemin yok,
+     * entity olusmadi) bunlarin gorunur olmasi sart — aksi halde "hicbir sey
+     * olmuyor" deneyimi cikiyor ve sebebi anlasilmiyor.
+     */
+    private static void report(ServerPlayer player, String message) {
+        player.displayClientMessage(
+                Component.literal("[Sandman] " + message).withStyle(ChatFormatting.GOLD), true);
     }
 
     private static int countAlive(ServerLevel level, ServerPlayer owner) {
