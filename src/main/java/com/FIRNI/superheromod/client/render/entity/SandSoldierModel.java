@@ -38,8 +38,6 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
     /** Olusmanin ilk asamasindaki yer kum yigini. */
     private final ModelPart mound;
 
-    private final ModelPart rightHand;
-    private final ModelPart leftHand;
     private final ModelPart rightSpikes;
     private final ModelPart leftSpikes;
     /** Dev vurusunda ellerin arasinda olusan dikenli kum kutlesi. */
@@ -55,8 +53,6 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
         this.leftLeg = root.getChild("left_leg");
         this.mound = root.getChild("mound");
 
-        this.rightHand = rightArm.getChild("right_hand");
-        this.leftHand = leftArm.getChild("left_hand");
         this.rightSpikes = rightArm.getChild("right_spikes");
         this.leftSpikes = leftArm.getChild("left_spikes");
         this.slamMass = root.getChild("slam_mass");
@@ -114,21 +110,14 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
                         .addBox(-2.0f, -3.5f, -3.5f, 7, 4, 7),
                 PartPose.ZERO);
 
-        // --- ELLER ---
-        // Cekic KALDIRILDI: hangi bicimi denesem kolun ucuna takilmis yabanci
-        // bir kutle gibi duruyordu. Yerine askerin KENDI ELI var; vuracagi
-        // el vurus aninda kumla kalinlasip topuzlasiyor, sonra geri iniyor.
-        // Kumdan bir yaratigin kendi elini sertlestirmesi, elinde alet
-        // tutmasindan daha dogru duruyor.
-        rightArm.addOrReplaceChild("right_hand",
-                CubeListBuilder.create().texOffs(0, 0)
-                        .addBox(-4.5f, 9.0f, -3.0f, 6, 6, 6),
-                PartPose.offset(0.0f, 0.0f, 0.0f));
-
-        leftArm.addOrReplaceChild("left_hand",
-                CubeListBuilder.create().texOffs(0, 0)
-                        .addBox(-1.5f, 9.0f, -3.0f, 6, 6, 6),
-                PartPose.offset(0.0f, 0.0f, 0.0f));
+        // AYRI EL PARCASI YOK.
+        //
+        // Once cekic, sonra ayri bir el kutusu denendi; ikisi de kolun ucuna
+        // yapistirilmis yabanci bir kutle gibi durdu ve dev askerde kolla
+        // el arasinda gorunur bir BOSLUK biraktı (kol ile elin kalinliklari
+        // ayri olceklendigi icin). Kol duz kaliyor; vurus aninda KOLUN
+        // TAMAMI hafifce kalinlasiyor. Tek parca oldugu icin bosluk da
+        // olusamiyor.
 
         // --- MENZILLI TURUN OMUZ DIKENLERI: yukari dogru dik cikintilar ---
         // Mermi bunlarin arasindan cikiyor; siluetten tur aninda anlasilmali
@@ -205,8 +194,14 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
         float breathe = Mth.sin(ageInTicks * 0.06f) * 0.02f;
         body.y = breathe;
 
-        // Vanilla attackAnim yerine kendi senkronize ilerlememiz kullaniliyor;
-        // o sayac 6 tick suruyor ve istemciye guvenilir ulasmiyordu
+        // Kol olcegi HER KAREDE sifirlanmali: applyHammers taban kalinligi
+        // korumak icin CARPIYOR, sifirlanmazsa her karede birikip sonsuza
+        // buyurdu. applyBulk kendi mutlak degerlerini bunun ustune yaziyor.
+        rightArm.xScale = 1.0f;
+        rightArm.zScale = 1.0f;
+        leftArm.xScale = 1.0f;
+        leftArm.zScale = 1.0f;
+
         applySpawnStages(progress);
         applyBulk(entity);
         applyHammers(entity);
@@ -349,24 +344,31 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
             leftSpikes.xRot = 0.10f - aim * 0.45f;
         }
 
-        // Eller her zaman gorunur; sadece VURACAK olan kalinlasir.
-        // Kalinlik hem yaklasmayla (hazirlik) hem salinimla (darbe ani)
-        // artiyor — vurus aninda en sisman haline ulasiyor.
+        // KOL DUZ KALIR, sadece HAFIFCE kalinlasir.
+        //
+        // Once cekic, sonra ayri bir el kutusu denendi; ikisi de kolun ucuna
+        // takilmis yabanci bir parca gibi durdu ve dev askerde kolla el
+        // arasinda gorunur bir BOSLUK biraktı, cunku ikisinin kalinliklari
+        // ayri olceklendiriliyordu. Artik ek geometri yok: vuracak kolun
+        // TAMAMI vurus aninda az miktarda sisiyor.
+        //
+        // Carpan olcek kullaniliyor; kolun taban kalinligini applyBulk
+        // (dev / BLADE / BREAKER) belirliyor ve o oran korunmali.
         float ready = entity.getHammerProgress();
         float swing = entity.getSwingProgress();
         float punch = swing > 0f ? Mth.sin(swing * (float) Math.PI) : 0f;
 
-        float thick = 1.0f + ready * 0.35f + punch * 0.55f;
+        float thick = 1.0f + ready * 0.05f + punch * 0.13f;
         boolean rightSwings = entity.getSwingDirection() != 2;
 
-        setHandThickness(rightHand, rightSwings ? thick : 1.0f + ready * 0.12f);
-        setHandThickness(leftHand, rightSwings ? 1.0f + ready * 0.12f : thick);
+        thickenArm(rightArm, rightSwings ? thick : 1.0f);
+        thickenArm(leftArm, rightSwings ? 1.0f : thick);
     }
 
-    private static void setHandThickness(ModelPart hand, float scale) {
-        hand.xScale = scale;
-        hand.yScale = scale;
-        hand.zScale = scale;
+    /** Kolun MEVCUT kalinligini carpar; taban orani applyBulk'tan gelir. */
+    private static void thickenArm(ModelPart arm, float factor) {
+        arm.xScale *= factor;
+        arm.zScale *= factor;
     }
 
     /**

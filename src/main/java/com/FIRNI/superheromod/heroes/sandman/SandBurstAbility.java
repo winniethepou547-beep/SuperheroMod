@@ -85,6 +85,9 @@ public class SandBurstAbility extends Ability {
 
             // Dolu barda dikenler daha uzun cikar
             SandSpikeController.spawnBurst(player, ground, damage, 2.2 + fill * 1.6);
+
+            // Dikenin ciktigi yerde kum kalir — Sandman yakinken yavaslatir
+            SandPatchController.drop(player, ground, 1.8);
             placed++;
         }
 

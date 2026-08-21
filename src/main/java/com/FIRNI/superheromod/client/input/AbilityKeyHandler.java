@@ -3,6 +3,9 @@ package com.FIRNI.superheromod.client.input;
 import com.FIRNI.superheromod.SuperheroMod;
 import com.FIRNI.superheromod.client.hud.ClientUltimateState;
 import com.FIRNI.superheromod.client.render.ClientSandWallData;
+import com.FIRNI.superheromod.client.render.ClientSandGraspData;
+import com.FIRNI.superheromod.network.packet.SandGraspActionPacket;
+import com.FIRNI.superheromod.network.packet.SandPillarPacket;
 import com.FIRNI.superheromod.core.ability.AbilitySlot;
 import com.FIRNI.superheromod.network.ModNetworking;
 import com.FIRNI.superheromod.network.packet.AbilityInputPacket;
@@ -71,6 +74,11 @@ public class AbilityKeyHandler {
 
     private static final Map<AbilitySlot, Boolean> previousState = new EnumMap<>(AbilitySlot.class);
 
+    /** Ziplama tusunun onceki durumu — cift basis algilamak icin. */
+    private static boolean jumpWasDown = false;
+    /** Bu havalanmada kum sutunu kullanildi mi; yere deginca sifirlanir. */
+    private static boolean airJumpUsed = false;
+
     static {
         for (AbilitySlot slot : AbilitySlot.values()) {
             previousState.put(slot, false);
@@ -98,6 +106,38 @@ public class AbilityKeyHandler {
 
             Minecraft mc = Minecraft.getInstance();
             if (mc.player == null || mc.screen != null) return;
+
+            // CIFT BOSLUK — havada ikinci basiste kum sutunu.
+            //
+            // Ziplama tusu sunucuya ulasmadigi icin algilama burada. Tus
+            // BIRAKILIP tekrar basilmasi sart, yoksa basili tutmak surekli
+            // tetiklerdi. Sayac oyuncu yere degdiginde sifirlaniyor.
+            boolean jump = mc.options.keyJump.isDown();
+            if (mc.player.onGround()) {
+                airJumpUsed = false;
+            } else if (jump && !jumpWasDown && !airJumpUsed) {
+                airJumpUsed = true;
+                ModNetworking.CHANNEL.sendToServer(new SandPillarPacket());
+            }
+            jumpWasDown = jump;
+
+            // Sand Grasp alani acikken LMB onaylar, RMB iptal eder
+            if (ClientSandGraspData.hasPreview()) {
+                boolean lmb = mc.options.keyAttack.isDown();
+                boolean rmb = mc.options.keyUse.isDown();
+
+                if (lmb && !previousState.get(AbilitySlot.LMB)) {
+                    ModNetworking.CHANNEL.sendToServer(
+                            new SandGraspActionPacket(SandGraspActionPacket.CONFIRM));
+                } else if (rmb && !previousState.get(AbilitySlot.RMB)) {
+                    ModNetworking.CHANNEL.sendToServer(
+                            new SandGraspActionPacket(SandGraspActionPacket.CANCEL));
+                }
+
+                previousState.put(AbilitySlot.LMB, lmb);
+                previousState.put(AbilitySlot.RMB, rmb);
+                return;
+            }
 
             // Kum duvari onizlemesi acikken LMB onaylar, RMB iptal eder
             if (ClientSandWallData.hasPreview()) {

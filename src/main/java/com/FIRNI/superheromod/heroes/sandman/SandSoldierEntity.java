@@ -83,8 +83,12 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
     private static final EntityDataAccessor<Float> SWING =
             SynchedEntityData.defineId(SandSoldierEntity.class, EntityDataSerializers.FLOAT);
 
-    /** Cekic savurmasinin suresi (tick). */
+    /** Savurmanin suresi (tick). */
     public static final int SWING_TICKS = 13;
+    /** Bu mesafede hedef varsa savurur. */
+    private static final double SWING_TRIGGER_RANGE = 2.6;
+    /** Savurmalar arasi bekleme. */
+    private static final int SWING_INTERVAL = 18;
 
     /** Menzilli turde nisan alma orani 0..1. */
     private static final EntityDataAccessor<Float> AIM =
@@ -153,6 +157,7 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
     private boolean crumbling;
     /** Savurma sayaci — sunucuda isler, ilerleme olarak senkronlanir. */
     private int swingTicks;
+    private int swingCooldown;
 
     public SandSoldierEntity(EntityType<? extends SandSoldierEntity> type, Level level) {
         super(type, level);
@@ -452,6 +457,23 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
      * animasyonu bastan sona ilerleme bekliyor.
      */
     private void tickSwing() {
+        // TETIKLEME BURADA, saldiri goal'unda DEGIL.
+        //
+        // Uc denemede animasyon gorunmedi ve sebep MeleeAttackGoal'un
+        // gorunmeyen ic isleyisindeydi (menzil hesabi, bekleme sayaci,
+        // ayni onceliktekI goal'larin birbirini bloklamasi). Vurus artik
+        // dogrudan MESAFEYE bakarak baslatiliyor: asker hedefin yanindaysa
+        // savurur. Hasari yine goal veriyor; burasi sadece GORSEL.
+        if (swingTicks <= 0 && getVariant() != Variant.RANGED) {
+            LivingEntity target = getTarget();
+            if (target != null && target.isAlive()
+                    && distanceToSqr(target) <= SWING_TRIGGER_RANGE * SWING_TRIGGER_RANGE
+                    && ++swingCooldown >= SWING_INTERVAL) {
+                swingCooldown = 0;
+                beginSwing();
+            }
+        }
+
         if (swingTicks <= 0) {
             if (getSwingProgress() != 0f) this.entityData.set(SWING, 0f);
             return;

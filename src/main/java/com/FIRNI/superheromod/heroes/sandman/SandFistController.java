@@ -208,6 +208,14 @@ public final class SandFistController {
 
         Vec3 fist = fistPosition(player, swing.range * 0.8);
 
+        // Yumrugun degdigi zeminde kum kalir. Yerden yuksekte savrulan
+        // yumruk iz birakmiyor: havadaki bir darbenin yere kum dokmesi
+        // anlamsiz olurdu.
+        Vec3 ground = SandSpikeController.groundUnder(level, fist);
+        if (ground != null && Math.abs(ground.y - fist.y) < 2.5) {
+            SandPatchController.drop(player, ground, 1.6);
+        }
+
         // Darbe bulutu
         level.sendParticles(SAND_DUST, fist.x, fist.y, fist.z,
                 26, 0.55, 0.5, 0.55, 0.06);

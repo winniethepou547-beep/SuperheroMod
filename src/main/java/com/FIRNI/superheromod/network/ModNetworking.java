@@ -10,6 +10,9 @@ import com.FIRNI.superheromod.network.packet.ColossusSyncPacket;
 import com.FIRNI.superheromod.network.packet.SandArmorPacket;
 import com.FIRNI.superheromod.network.packet.ShockwavePacket;
 import com.FIRNI.superheromod.network.packet.SandWallActionPacket;
+import com.FIRNI.superheromod.network.packet.SandGraspActionPacket;
+import com.FIRNI.superheromod.network.packet.SandGraspPreviewPacket;
+import com.FIRNI.superheromod.network.packet.SandPillarPacket;
 import com.FIRNI.superheromod.network.packet.SandWallSyncPacket;
 import com.FIRNI.superheromod.network.packet.CinematicSyncPacket;
 import com.FIRNI.superheromod.network.packet.GroundFxPacket;
@@ -106,5 +109,14 @@ public final class ModNetworking {
         CHANNEL.registerMessage(id++, ColossusActionPacket.class,
                 ColossusActionPacket::encode, ColossusActionPacket::decode,
                 ColossusActionPacket::handle);
+        CHANNEL.registerMessage(id++, SandGraspPreviewPacket.class,
+                SandGraspPreviewPacket::encode, SandGraspPreviewPacket::decode,
+                SandGraspPreviewPacket::handle);
+        CHANNEL.registerMessage(id++, SandGraspActionPacket.class,
+                SandGraspActionPacket::encode, SandGraspActionPacket::decode,
+                SandGraspActionPacket::handle);
+        CHANNEL.registerMessage(id++, SandPillarPacket.class,
+                SandPillarPacket::encode, SandPillarPacket::decode,
+                SandPillarPacket::handle);
     }
 }
