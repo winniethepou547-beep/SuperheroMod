@@ -318,4 +318,70 @@ public final class ColossusRockController {
         return new BlockParticleOption(ParticleTypes.BLOCK,
                 Blocks.SANDSTONE.defaultBlockState());
     }
+
+    /**
+     * Kayayi ve nisan halkasini cizim listesine ekler.
+     *
+     * Kaya partikulle ciziliyordu ve GORUNMUYORDU: mermi hizli oldugu icin
+     * partikuller bir iki karede geride kaliyor, oyuncuya yere carpma
+     * efektinden baska bir sey ulasmiyordu. Artik somut geometri.
+     *
+     * Nisan halkasi da buradan gidiyor: dev bir kaya firlatiyor ama nereye
+     * dustugu ancak carptiktan sonra anlasiliyordu.
+     */
+    static void collectShapes(java.util.List<
+            com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.Shape> out) {
+        var server = ServerLifecycleHooks.getCurrentServer();
+        if (server == null) return;
+
+        int id = 700_000;
+
+        for (Rock rock : rocks) {
+            // Donme acisi konumdan turetiliyor: kaya ucarken yuvarlanmali,
+            // sabit acili bir kutu uzayda kaymis gibi duruyordu
+            float spin = (float) ((rock.pos.x + rock.pos.z) * 57.0);
+
+            out.add(new com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.Shape(
+                    id++,
+                    com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.TYPE_ROCK,
+                    rock.pos.x, rock.pos.y, rock.pos.z,
+                    spin, 0f, 1f, (float) ROCK_RADIUS, 0f));
+        }
+
+        // Nisan halkasi: SADECE hazirlik sirasinda. Surekli gorunseydi
+        // dev formunda ekranda hep bir halka dolasirdi.
+        for (Windup windup : windups) {
+            ServerPlayer player = server.getPlayerList().getPlayer(windup.player);
+            if (player == null) continue;
+            if (!(player.level() instanceof ServerLevel level)) continue;
+
+            Vec3 spot = aimPoint(level, player);
+            if (spot == null) continue;
+
+            out.add(new com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.Shape(
+                    id++,
+                    com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.TYPE_TARGET,
+                    spot.x, spot.y, spot.z,
+                    0f, 0f, 1f, (float) BLAST_RADIUS, 0f));
+        }
+    }
+
+    /**
+     * Imlecin gosterdigi zemin noktasi.
+     *
+     * Kayanin gercekte carpacagi yer bu; gosterge ile atis ayni kaynaktan
+     * hesaplanmali, yoksa halka yalan soyler.
+     */
+    private static Vec3 aimPoint(ServerLevel level, ServerPlayer player) {
+        Vec3 eye = player.getEyePosition(1.0f);
+        Vec3 look = player.getLookAngle();
+
+        RaycastResult result = RaycastSystem.cast(
+                level, player, eye, look, MAX_TRAVEL, 0.6f, false,
+                e -> e instanceof LivingEntity && e != player);
+
+        Vec3 point = result.getHitPosition();
+        Vec3 ground = SandSpikeController.groundUnder(level, point.add(0, 1.0, 0));
+        return ground != null ? ground : point;
+    }
 }

@@ -33,10 +33,15 @@ import java.util.Random;
 @Mod.EventBusSubscriber(modid = SuperheroMod.MODID, value = Dist.CLIENT)
 public final class SandWallRenderer {
 
-    private static final float[] SAND_LIGHT = {0.86f, 0.75f, 0.50f};
-    private static final float[] SAND_MID = {0.72f, 0.61f, 0.39f};
-    private static final float[] SAND_DARK = {0.52f, 0.43f, 0.27f};
-    private static final float[] PREVIEW = {0.95f, 0.85f, 0.55f};
+    // Doku artik gercek kum oldugu icin renkler DOKUYU BOYAMIYOR, sadece
+    // hafif golgeleme yapiyor. Onceki koyu degerler kum dokusunu
+    // camurlastiriyordu; 1.0 civari degerler kumu kendi renginde birakiyor.
+    private static final float[] SAND_LIGHT = {1.0f, 1.0f, 1.0f};
+    private static final float[] SAND_MID = {0.92f, 0.90f, 0.86f};
+    private static final float[] SAND_DARK = {0.66f, 0.62f, 0.55f};
+
+    /** Onizleme: dokunun uzerine sari bir ton -- "henuz gercek degil". */
+    private static final float[] PREVIEW = {1.0f, 0.92f, 0.55f};
 
     private SandWallRenderer() {}
 
@@ -62,31 +67,59 @@ public final class SandWallRenderer {
         RenderSystem.getModelViewStack().last().normal().identity();
         RenderSystem.applyModelViewMatrix();
 
-        RenderSystem.enableBlend();
-        RenderSystem.blendFunc(GlStateManager.SourceFactor.SRC_ALPHA,
-                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA);
-        RenderSystem.depthMask(false);
         RenderSystem.disableCull();
+
         // DOKULU CIZIM -- sol tiktaki uzayan kolla ayni yontem.
         //
-        // Duvar duz renkli kutulardan olusuyordu ve "kum" gibi degil renkli
-        // bir blok gibi okunuyordu. Doku oyunun blok atlasindan aliniyor;
-        // kendi doku dosyasi eklemek yerine oyunun kumu kullaniliyor,
-        // boylece duvar arazideki kumla ayni tonu tutuyor.
+        // Duvar duz renkli kutulardan olusuyordu ve "kum" gibi degil
+        // renkli bir blok gibi okunuyordu. Doku oyunun blok atlasindan.
         RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
         RenderSystem.setShaderTexture(0, InventoryMenu.BLOCK_ATLAS);
 
         TextureAtlasSprite sprite = sandSprite();
-
         Tesselator tes = Tesselator.getInstance();
         BufferBuilder buf = tes.getBuilder();
-        buf.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
 
+        // ---- KATI DUVARLAR: opak, derinlik yazan ----
+        //
+        // Onceden hepsi saydam ve derinlik yazmadan ciziliyordu; onay
+        // sonrasi duvar hala onizleme gibi parliyor ve icinden her sey
+        // gorunuyordu. Kati duvar KATI cizilmeli: harman kapali, derinlik
+        // acik. Kum dokusu ancak boyle kendi rengiyle gorunuyor.
+        boolean anySolid = false;
         for (SandWallSyncPacket.Entry wall : walls) {
-            drawWall(buf, matrix, wall, sprite);
+            if (!wall.preview()) { anySolid = true; break; }
         }
 
-        tes.end();
+        if (anySolid) {
+            RenderSystem.disableBlend();
+            RenderSystem.depthMask(true);
+
+            buf.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
+            for (SandWallSyncPacket.Entry wall : walls) {
+                if (!wall.preview()) drawWall(buf, matrix, wall, sprite);
+            }
+            tes.end();
+        }
+
+        // ---- ONIZLEME: saydam, derinlik yazmayan ----
+        boolean anyPreview = false;
+        for (SandWallSyncPacket.Entry wall : walls) {
+            if (wall.preview()) { anyPreview = true; break; }
+        }
+
+        if (anyPreview) {
+            RenderSystem.enableBlend();
+            RenderSystem.blendFunc(GlStateManager.SourceFactor.SRC_ALPHA,
+                    GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA);
+            RenderSystem.depthMask(false);
+
+            buf.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
+            for (SandWallSyncPacket.Entry wall : walls) {
+                if (wall.preview()) drawWall(buf, matrix, wall, sprite);
+            }
+            tes.end();
+        }
 
         RenderSystem.enableCull();
         RenderSystem.disableBlend();
@@ -107,7 +140,9 @@ public final class SandWallRenderer {
         Vec3 up = new Vec3(0, 1, 0);
 
         boolean preview = wall.preview();
-        float alpha = preview ? 0.32f : 0.95f;
+        // Kati duvar TAM OPAK. Yarim saydam kalinca onay oncesi haliyle
+        // ayni parlaklikta duruyor ve "kum" gibi okunmuyordu.
+        float alpha = preview ? 0.32f : 1.0f;
 
         // Hasar aldikca koyulasip soluklasir
         float health = Mth.clamp(wall.health(), 0f, 1f);

@@ -24,7 +24,12 @@ import java.util.function.Supplier;
  */
 public class SandArmSyncPacket {
 
-    public record Entry(int entityId, float length, boolean active) {}
+    /**
+     * @param hammer ucta olusan balyozun orani 0..1.
+     *               Kol tam uzunlukta TUTULDUGU surece buyuyor; elini
+     *               hemen ceken oyuncu duz yumrukla kaliyor.
+     */
+    public record Entry(int entityId, float length, boolean active, float hammer) {}
 
     private final List<Entry> entries;
 
@@ -38,6 +43,7 @@ public class SandArmSyncPacket {
             buf.writeVarInt(e.entityId());
             buf.writeFloat(e.length());
             buf.writeBoolean(e.active());
+            buf.writeFloat(e.hammer());
         }
     }
 
@@ -45,7 +51,8 @@ public class SandArmSyncPacket {
         int count = buf.readVarInt();
         List<Entry> list = new java.util.ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            list.add(new Entry(buf.readVarInt(), buf.readFloat(), buf.readBoolean()));
+            list.add(new Entry(buf.readVarInt(), buf.readFloat(),
+                    buf.readBoolean(), buf.readFloat()));
         }
         return new SandArmSyncPacket(list);
     }
@@ -54,7 +61,8 @@ public class SandArmSyncPacket {
         ctx.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
             Map<Integer, ClientSandArmData.Arm> map = new HashMap<>();
             for (Entry e : msg.entries) {
-                map.put(e.entityId(), new ClientSandArmData.Arm(e.length(), e.active()));
+                map.put(e.entityId(), new ClientSandArmData.Arm(
+                        e.length(), e.active(), e.hammer()));
             }
             ClientSandArmData.set(map);
         }));

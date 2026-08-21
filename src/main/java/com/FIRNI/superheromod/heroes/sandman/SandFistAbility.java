@@ -15,7 +15,9 @@ import net.minecraft.server.level.ServerPlayer;
 public class SandFistAbility extends Ability {
 
     public SandFistAbility() {
-        super("sandman_sand_fist", AbilityType.INSTANT, AbilitySlot.LMB);
+        // CHANNELED: tus BASILI TUTULDUKCA kol uzamis kaliyor, birakilinca
+        // geri toplaniyor. INSTANT olsaydi surenin sonunu kod belirlerdi.
+        super("sandman_sand_fist", AbilityType.CHANNELED, AbilitySlot.LMB);
     }
 
     @Override
@@ -53,5 +55,10 @@ public class SandFistAbility extends Ability {
         }
 
         SandFistController.start(player, getConfig());
+    }
+
+    @Override
+    protected void onChannelStop(ServerPlayer player) {
+        SandFistController.release(player);
     }
 }

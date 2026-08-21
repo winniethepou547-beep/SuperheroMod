@@ -21,7 +21,7 @@ public final class ClientSandArmData {
     /** Sunucu tick suresi (ms) — ara deger bu pencereye yayiliyor. */
     private static final float TICK_MS = 50f;
 
-    public record Arm(float length, boolean active) {}
+    public record Arm(float length, boolean active, float hammer) {}
 
     private static volatile Map<Integer, Arm> previous = Collections.emptyMap();
     private static volatile Map<Integer, Arm> current = Collections.emptyMap();
@@ -53,6 +53,21 @@ public final class ClientSandArmData {
 
         float t = Math.min(1f, age / TICK_MS);
         return before.length() + (now.length() - before.length()) * t;
+    }
+
+    /** Ucta olusan balyozun orani, ara degeri uygulanmis. */
+    public static float hammerOf(int entityId) {
+        Arm now = current.get(entityId);
+        if (now == null) return 0f;
+
+        long age = System.currentTimeMillis() - currentTime;
+        if (age > 500L) return 0f;
+
+        Arm before = previous.get(entityId);
+        if (before == null) return now.hammer();
+
+        float t = Math.min(1f, age / TICK_MS);
+        return before.hammer() + (now.hammer() - before.hammer()) * t;
     }
 
     /**

@@ -93,7 +93,8 @@ public final class SandShapeRenderer {
     private static void drawTextured(Matrix4f m, List<SandShapeSyncPacket.Shape> shapes) {
         boolean any = false;
         for (SandShapeSyncPacket.Shape s : shapes) {
-            if (s.type() != SandShapeSyncPacket.TYPE_ARROW) {
+            if (s.type() == SandShapeSyncPacket.TYPE_HAND
+                    || s.type() == SandShapeSyncPacket.TYPE_ROCK) {
                 any = true;
                 break;
             }
@@ -112,6 +113,8 @@ public final class SandShapeRenderer {
         for (SandShapeSyncPacket.Shape s : shapes) {
             if (s.type() == SandShapeSyncPacket.TYPE_HAND) {
                 drawHand(buf, m, s, sprite);
+            } else if (s.type() == SandShapeSyncPacket.TYPE_ROCK) {
+                drawRock(buf, m, s, sprite);
             }
         }
 
@@ -208,13 +211,118 @@ public final class SandShapeRenderer {
     }
 
     // ------------------------------------------------------------------
+    // FIRLATILAN KAYA
+    // ------------------------------------------------------------------
+
+    /**
+     * Colossus'un firlattigi kaya.
+     *
+     * Once partikulle ciziliyordu ve GORUNMUYORDU: kaya hizli oldugu icin
+     * partikuller bir iki karede geride kaliyor, oyuncuya yere carpma
+     * efektinden baska bir sey ulasmiyordu. Artik somut geometri.
+     *
+     * Tek kup degil UC parcali kume: dev bir kaya duzgun bir kup olmaz.
+     * Parcalar farkli acilarda ve boyutlarda.
+     */
+    private static void drawRock(BufferBuilder buf, Matrix4f m,
+                                 SandShapeSyncPacket.Shape s, TextureAtlasSprite sprite) {
+        double radius = s.curl();
+        if (radius <= 0.05) return;
+
+        Vec3 center = new Vec3(s.x(), s.y(), s.z());
+
+        // Yuvarlanma: aci konumdan turetiliyor, boylece kaya ucarken
+        // donuyor. Sabit acili bir kutu uzayda kaymis gibi duruyordu.
+        double spin = Math.toRadians(s.yaw());
+
+        for (int i = 0; i < 3; i++) {
+            double a = spin + i * 2.1;
+            double tilt = spin * 0.7 + i * 1.3;
+
+            Vec3 ax = new Vec3(Math.cos(a), Math.sin(tilt) * 0.5, Math.sin(a)).normalize();
+            Vec3 az = new Vec3(-ax.z, 0, ax.x).normalize();
+            Vec3 ay = az.cross(ax).normalize();
+
+            // Parcalar merkeze gore kaymis; ust uste binmeleri kutleyi
+            // tek parca gibi gosteriyor
+            double off = radius * 0.35;
+            Vec3 c = center
+                    .add(ax.scale(Math.cos(i * 2.4) * off))
+                    .add(ay.scale(Math.sin(i * 1.7) * off));
+
+            double half = radius * (0.78 - i * 0.13);
+            float[] tint = (i == 1) ? TINT_DARK : TINT_MID;
+
+            box(buf, m, sprite, c,
+                    ax.scale(half), ay.scale(half), az.scale(half), tint, 1f);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // NISAN HALKASI
+    // ------------------------------------------------------------------
+
+    /**
+     * Kayanin dusecegi yeri gosteren halka.
+     *
+     * Dev bir kaya firlatiliyordu ama nereye dustugu ancak carptiktan
+     * sonra anlasiliyordu. Halka imlecin gosterdigi zemin noktasinda ve
+     * yaricapi patlama alaniyla AYNI -- gosterge gercek etkiyi anlatmali,
+     * dekoratif bir daire olmamali.
+     */
+    private static void drawTargetRing(BufferBuilder buf, Matrix4f m,
+                                       SandShapeSyncPacket.Shape s) {
+        double radius = s.curl();
+        if (radius <= 0.1) return;
+
+        Vec3 center = new Vec3(s.x(), s.y() + 0.05, s.z());
+        double thickness = 0.22;
+
+        int steps = 40;
+        for (int i = 0; i < steps; i++) {
+            double a0 = (i / (double) steps) * Math.PI * 2;
+            double a1 = ((i + 1) / (double) steps) * Math.PI * 2;
+
+            Vec3 inner0 = center.add(Math.cos(a0) * (radius - thickness), 0,
+                    Math.sin(a0) * (radius - thickness));
+            Vec3 outer0 = center.add(Math.cos(a0) * radius, 0, Math.sin(a0) * radius);
+            Vec3 outer1 = center.add(Math.cos(a1) * radius, 0, Math.sin(a1) * radius);
+            Vec3 inner1 = center.add(Math.cos(a1) * (radius - thickness), 0,
+                    Math.sin(a1) * (radius - thickness));
+
+            vert(buf, m, inner0, MARK_RED, 0.85f);
+            vert(buf, m, outer0, MARK_RED, 0.85f);
+            vert(buf, m, outer1, MARK_RED, 0.85f);
+            vert(buf, m, inner1, MARK_RED, 0.85f);
+        }
+
+        // Merkez isareti — halka tek basina "nereye" degil "nerede"
+        // diyor; ortadaki capraz hedefi kesinlestiriyor
+        double cross = radius * 0.28;
+        for (int axis = 0; axis < 2; axis++) {
+            Vec3 dir = axis == 0 ? new Vec3(1, 0, 0) : new Vec3(0, 0, 1);
+            Vec3 across = axis == 0 ? new Vec3(0, 0, 1) : new Vec3(1, 0, 0);
+
+            vert(buf, m, center.subtract(dir.scale(cross)).subtract(across.scale(0.12)),
+                    MARK_RED, 0.7f);
+            vert(buf, m, center.add(dir.scale(cross)).subtract(across.scale(0.12)),
+                    MARK_RED, 0.7f);
+            vert(buf, m, center.add(dir.scale(cross)).add(across.scale(0.12)),
+                    MARK_RED, 0.7f);
+            vert(buf, m, center.subtract(dir.scale(cross)).add(across.scale(0.12)),
+                    MARK_RED, 0.7f);
+        }
+    }
+
+    // ------------------------------------------------------------------
     // KIRMIZI OK GOSTERGESI
     // ------------------------------------------------------------------
 
     private static void drawMarkers(Matrix4f m, List<SandShapeSyncPacket.Shape> shapes) {
         boolean any = false;
         for (SandShapeSyncPacket.Shape s : shapes) {
-            if (s.type() == SandShapeSyncPacket.TYPE_ARROW) {
+            if (s.type() == SandShapeSyncPacket.TYPE_ARROW
+                    || s.type() == SandShapeSyncPacket.TYPE_TARGET) {
                 any = true;
                 break;
             }
@@ -228,8 +336,8 @@ public final class SandShapeRenderer {
         buf.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
 
         for (SandShapeSyncPacket.Shape s : shapes) {
-            if (s.type() != SandShapeSyncPacket.TYPE_ARROW) continue;
-            drawArrow(buf, m, s);
+            if (s.type() == SandShapeSyncPacket.TYPE_ARROW) drawArrow(buf, m, s);
+            else if (s.type() == SandShapeSyncPacket.TYPE_TARGET) drawTargetRing(buf, m, s);
         }
 
         tes.end();

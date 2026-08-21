@@ -132,11 +132,69 @@ public class SandArmLayer
         // Yumruk konigin devami: kolun uc kalinligindan da genis olmali,
         // yoksa uca dogru sisen kolun ucunda ince bir kutu kaliyor
         float fistSwell = SWELL_PX + TIP_SWELL_PX + 1.1f;
+        float tipY = ARM_LENGTH_PX + totalPx;
+
         box(poseStack, buf, sprite, packedLight,
-                xOrigin - fistSwell, ARM_LENGTH_PX + totalPx - 1f, -2f - fistSwell,
+                xOrigin - fistSwell, tipY - 1f, -2f - fistSwell,
                 width + fistSwell * 2f, 5f, 4f + fistSwell * 2f, 0.55f);
 
+        float hammer = ClientSandArmData.hammerOf(player.getId());
+        if (hammer > 0.01f) {
+            drawHammer(poseStack, buf, sprite, packedLight, xOrigin, width, tipY, hammer);
+        }
+
         poseStack.popPose();
+    }
+
+    /**
+     * BALYOZ — kol tam uzunlukta TUTULDUGUNDA ucta olusan kutle.
+     *
+     * Cizimdeki gibi kola DIK duran uzun bir bas: yatayda genis, dikeyde
+     * alcak. Kolun devami olan bir kup degil, gercekten bir alet silueti.
+     * Bu yuzden en (side) ekseninde uzuyor, kol ekseninde degil.
+     *
+     * Basin ortasindan gecen bir boyun var; olmasaydi bas kolun ucuna
+     * yapistirilmis gibi durur, sap iceri girmis gibi gorunmezdi.
+     *
+     * Olcek balyoz orani ile buyur: kutle bir anda belirmiyor, kol tam
+     * boyda beklerken kum uzerinde topluyor.
+     */
+    private static void drawHammer(PoseStack poseStack, VertexConsumer buf,
+                                   TextureAtlasSprite sprite, int light,
+                                   float xOrigin, float width, float tipY, float hammer) {
+        float g = Mth.clamp(hammer, 0f, 1f);
+
+        // Basin olculeri (piksel). Genislik boyunun cok uzerinde; cizimde
+        // de bas uzun ve yassi.
+        float headLen = 22f * g;      // side ekseni boyunca
+        float headTall = 9f * g;      // kol ekseni boyunca
+        float headDeep = 9f * g;      // derinlik
+
+        float cx = xOrigin + width * 0.5f;
+
+        // BAS: kola dik, ortasi kolun ucunda
+        box(poseStack, buf, sprite, light,
+                cx - headLen * 0.5f, tipY + 1f, -headDeep * 0.5f,
+                headLen, headTall, headDeep, 0.1f);
+
+        // Uc kapaklari — basin iki ucunda hafif genisleme; duz bir kutu
+        // balyozdan cok kalas gibi duruyordu
+        float capLen = 3.5f * g;
+        float capTall = headTall * 1.22f;
+        float capDeep = headDeep * 1.22f;
+
+        box(poseStack, buf, sprite, light,
+                cx - headLen * 0.5f - capLen, tipY + 1f - (capTall - headTall) * 0.5f,
+                -capDeep * 0.5f, capLen, capTall, capDeep, 0.45f);
+        box(poseStack, buf, sprite, light,
+                cx + headLen * 0.5f, tipY + 1f - (capTall - headTall) * 0.5f,
+                -capDeep * 0.5f, capLen, capTall, capDeep, 0.45f);
+
+        // BOYUN: sapin basa girdigi yer
+        float neck = 6.5f * g;
+        box(poseStack, buf, sprite, light,
+                cx - neck * 0.5f, tipY - 1.5f, -neck * 0.5f,
+                neck, 3.5f, neck, 0.72f);
     }
 
     /**

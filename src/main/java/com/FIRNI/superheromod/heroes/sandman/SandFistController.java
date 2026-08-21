@@ -49,25 +49,29 @@ public final class SandFistController {
 
     public enum Phase { CHARGE, EXTEND, HOLD, RETRACT }
 
-    /**
-     * Tusa basildiktan sonra uzamaya kadar gecen sure.
-     *
-     * 0.2 saniye: rakibin "geliyor" diyebilecegi kadar kisa bir on
-     * hazirlik, ama refleksle kacilamayacak kadar da hizli. Onceki 1
-     * saniyelik sarj yetenegi agir ve okunakli yapiyordu; kullanici
-     * bunu kisaltmayi istedi.
-     */
+    /** Tusa basildiktan sonra uzamaya kadar gecen sure (0.2 sn). */
     private static final int CHARGE_END = 4;
 
     /**
-     * Uzama suresi YARIYA indirildi (21 -> 11 tick).
+     * Kolun tick basina uzama hizi (blok).
      *
-     * Kol "yeterince hizli gitmiyor" geri bildirimiyle hizlandirildi.
-     * Sure kisaldi ama menzil ayni, yani kol iki kat hizli uzuyor.
+     * Sure yerine HIZ tutuluyor cunku kol artik sabit sureli degil: tus
+     * birakilana kadar uzamis kaliyor. Sabit sureli bir egri, degisken
+     * uzunlukta anlamsizdi.
+     *
+     * Deger %50 artirildi: 8 bloga 11 tickte varan hiz "yeterince hizli
+     * gitmiyor" geri bildirimiyle 7 ticke indi.
      */
-    private static final int EXTEND_END = 15;
-    private static final int HOLD_END = 18;
-    private static final int TOTAL_TICKS = 25;
+    private static final double EXTEND_SPEED = 1.15;
+
+    /** Geri toplanma hizi — uzamadan biraz yavas, agirlik hissi icin. */
+    private static final double RETRACT_SPEED = 0.85;
+
+    /** Balyozun tam boyuna ulasmasi (tick). */
+    private static final int HAMMER_TICKS = 12;
+
+    /** Kol en fazla bu kadar tutulabilir; sonra kendiliginden geri gelir. */
+    private static final int MAX_HOLD_TICKS = 160;
 
     private static final BlockParticleOption SAND_BLOCK =
             new BlockParticleOption(ParticleTypes.BLOCK, Blocks.SAND.defaultBlockState());
@@ -80,6 +84,10 @@ public final class SandFistController {
         final Set<UUID> hit = new HashSet<>();
         /** Kolun o anki uzunlugu; cizim ve carpisma ayni degeri kullaniyor. */
         double length = 0;
+        /** Balyozun olusma orani 0..1 (sadece tam uzunlukta buyur). */
+        float hammer = 0f;
+        /** Tus birakildi mi — birakilinca kol geri toplanmaya baslar. */
+        boolean released = false;
 
         Strike(UUID player, AbilityConfig cfg) {
             this.player = player;
@@ -87,10 +95,9 @@ public final class SandFistController {
         }
 
         Phase phase() {
+            if (released) return Phase.RETRACT;
             if (ticks <= CHARGE_END) return Phase.CHARGE;
-            if (ticks <= EXTEND_END) return Phase.EXTEND;
-            if (ticks <= HOLD_END) return Phase.HOLD;
-            return Phase.RETRACT;
+            return hammer > 0f ? Phase.HOLD : Phase.EXTEND;
         }
     }
 
@@ -103,6 +110,17 @@ public final class SandFistController {
 
         player.level().playSound(null, player.blockPosition(),
                 SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 1.0f, 0.6f);
+    }
+
+    /**
+     * Tus birakildi.
+     *
+     * Kol hemen kaybolmuyor, GERI TOPLANIYOR: aniden yok olmasi kolun
+     * emildigi degil silindigi izlenimi veriyordu.
+     */
+    public static void release(ServerPlayer player) {
+        Strike strike = strikes.get(player.getUUID());
+        if (strike != null) strike.released = true;
     }
 
     public static boolean isSwinging(UUID playerId) {
@@ -138,7 +156,9 @@ public final class SandFistController {
             strike.ticks++;
             tickStrike(player, strike);
 
-            if (strike.ticks >= TOTAL_TICKS) it.remove();
+            // Kol tamamen toplanunca is biter. Sabit toplam sure YOK:
+            // yetenegin suresini artik oyuncu belirliyor.
+            if (strike.released && strike.length <= 0.01) it.remove();
         }
     }
 
@@ -146,34 +166,45 @@ public final class SandFistController {
         ServerLevel level = (ServerLevel) player.level();
         double maxLength = strike.cfg.getDouble("range", 8.0);
 
-        switch (strike.phase()) {
-            case CHARGE -> {
-                strike.length = 0;
-
-                // Sarjin bittigi an duyulur olmali: rakip bu sesi duyup
-                // kacabilmeli, yoksa yetenek okunamaz olur
-                if (strike.ticks == CHARGE_END) {
-                    level.playSound(null, player.blockPosition(),
-                            SoundEvents.SAND_PLACE, SoundSource.PLAYERS, 1.5f, 0.7f);
-                }
-            }
-            case EXTEND -> {
-                float t = (strike.ticks - CHARGE_END) / (float) (EXTEND_END - CHARGE_END);
-
-                // Hizlanan uzama: kol basta agir kalkip sonra firliyor.
-                // Dogrusal uzama mekanik duruyordu.
-                strike.length = maxLength * (t * t);
-                checkHit(player, strike, level);
-            }
-            case HOLD -> {
-                strike.length = maxLength;
-                checkHit(player, strike, level);
-            }
-            case RETRACT -> {
-                float t = (strike.ticks - HOLD_END) / (float) (TOTAL_TICKS - HOLD_END);
-                strike.length = maxLength * (1f - t);
-            }
+        if (strike.released) {
+            strike.length = Math.max(0, strike.length - RETRACT_SPEED);
+            strike.hammer = Math.max(0f, strike.hammer - 0.12f);
+            return;
         }
+
+        // Cok uzun tutulursa kendiliginden geri gelir; yoksa oyuncu kolu
+        // surekli uzatip duvar gibi kullanabilirdi
+        if (strike.ticks > CHARGE_END + MAX_HOLD_TICKS) {
+            strike.released = true;
+            return;
+        }
+
+        if (strike.ticks <= CHARGE_END) {
+            strike.length = 0;
+            if (strike.ticks == CHARGE_END) {
+                level.playSound(null, player.blockPosition(),
+                        SoundEvents.SAND_PLACE, SoundSource.PLAYERS, 1.5f, 0.7f);
+            }
+            return;
+        }
+
+        if (strike.length < maxLength) {
+            strike.length = Math.min(maxLength, strike.length + EXTEND_SPEED);
+
+            // Tam boya ULASILDIGI an balyoz olusmaya baslar
+            if (strike.length >= maxLength - 0.001) {
+                level.playSound(null, player.blockPosition(),
+                        SoundEvents.SAND_PLACE, SoundSource.PLAYERS, 1.2f, 0.5f);
+                strike.hammer = 0.001f;
+            }
+        } else if (strike.hammer > 0f && strike.hammer < 1f) {
+            // BALYOZ: kol tam uzunlukta tutuldugu surece ucta kum toplanir.
+            // Sadece elini cekmeyen oyuncu bunu goruyor -- uzatip hemen
+            // birakan biri duz yumrukla kaliyor.
+            strike.hammer = Math.min(1f, strike.hammer + 1f / HAMMER_TICKS);
+        }
+
+        checkHit(player, strike, level);
     }
 
     /**
@@ -185,7 +216,9 @@ public final class SandFistController {
      */
     private static void checkHit(ServerPlayer player, Strike strike, ServerLevel level) {
         Vec3 fist = armOrigin(player).add(player.getLookAngle().scale(strike.length));
-        double radius = strike.cfg.getDouble("radius", 0.9);
+        // Balyoz olustukca vurus alani buyur: buyuk bir kutle ince bir
+        // yumrukla ayni menzile sahip olsaydi gorsel yalan olurdu
+        double radius = strike.cfg.getDouble("radius", 0.9) * (1.0 + strike.hammer * 0.9);
 
         AABB box = new AABB(fist, fist).inflate(radius);
 
@@ -195,8 +228,9 @@ public final class SandFistController {
                     && player.getUUID().equals(soldier.getOwnerId())) continue;
             if (!strike.hit.add(target.getUUID())) continue;
 
+            // Balyoz hasari da artiriyor -- elini cekmeyen oyuncunun odulu
             target.hurt(level.damageSources().playerAttack(player),
-                    strike.cfg.getFloat("damage", 6.0f));
+                    strike.cfg.getFloat("damage", 6.0f) * (1f + strike.hammer * 0.6f));
 
             Vec3 push = player.getLookAngle();
             target.setDeltaMovement(
@@ -252,7 +286,7 @@ public final class SandFistController {
             // active bayragi uzunluktan AYRI: sarj sirasinda kol henuz
             // uzamamis oluyor ama poz zaten ileri bakmali
             out.add(new SandArmSyncPacket.Entry(
-                    player.getId(), (float) strike.length, true));
+                    player.getId(), (float) strike.length, true, strike.hammer));
         }
     }
 

@@ -22,8 +22,10 @@ public class SandShapeSyncPacket {
     public static final byte TYPE_HAND = 0;
     /** Cekme alani gostergesi -- kirmizi ok. */
     public static final byte TYPE_ARROW = 2;
-    /** Uzayan kum kolu. */
-    public static final byte TYPE_ARM = 4;
+    /** Colossus formunda firlatilan kaya. */
+    public static final byte TYPE_ROCK = 5;
+    /** Kayanin dusecegi yeri gosteren halka. */
+    public static final byte TYPE_TARGET = 6;
 
     /**
      * @param id    kareler arasi ESLESTIRME kimligi.
@@ -32,7 +34,7 @@ public class SandShapeSyncPacket {
      *              olmasa hangi seklin hangisinin devami oldugu bilinemez
      *              ve ara deger hesaplanamazdi -- goruntu "kasiyor" gibi
      *              gorunuyordu.
-     * @param type  HAND / ARROW / ARM
+     * @param type  HAND / ARROW / ROCK / TARGET
      * @param pitch dikey aci (derece) -- kol icin sart, el/ok zeminde yatik
      * @param yaw   sekil yonu (derece)
      * @param grow  0..1 olusma ilerlemesi (ok icin parlaklik)

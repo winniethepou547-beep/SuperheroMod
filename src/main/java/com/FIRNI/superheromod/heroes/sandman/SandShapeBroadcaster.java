@@ -43,6 +43,7 @@ public final class SandShapeBroadcaster {
 
         List<SandShapeSyncPacket.Shape> all = new ArrayList<>();
         SandGraspController.collectShapes(all);
+        ColossusRockController.collectShapes(all);
 
         // KOLLAR AYRI PAKETLE gidiyor: kol dunya sekli degil, oyuncu
         // modelinin bir katmani. Ayni listede tasinsaydi konum alanlari

@@ -188,7 +188,7 @@ public final class ColossusRenderer {
 
         // Kristaller ancak son asamada belirir
         if (ColossusForm.crystalsActive(progress)) {
-            drawCrystals(pose, buffer, cam, player, pos, yaw, growth, light);
+            drawCrystals(pose, buffer, cam, player, pos, yaw, growth, light, colossus);
         }
     }
 
@@ -330,9 +330,23 @@ public final class ColossusRenderer {
         return t * t * (3f - 2f * t);
     }
 
+    /**
+     * Kristaller.
+     *
+     * KRISTAL KONUMU vucut hareketini TAKIP EDIYOR. Onceden konumlar
+     * devin tabanina gore sabitti ve kristaller govdeden bagimsiz havada
+     * asili duruyordu; kol salinsa bile omuzdaki kristal kimildamiyordu.
+     * Artik omuz kristalleri kolun donusunden, govde kristalleri de nefes
+     * hareketinden pay aliyor.
+     *
+     * Kaydirma modelin ANIMASYON degerlerinden turetiliyor, ayri bir
+     * kopya animasyondan degil -- ikisi ayri hesaplansaydi zamanla
+     * birbirinden kayarlardi.
+     */
     private static void drawCrystals(PoseStack pose, MultiBufferSource buffer,
                                      Vec3 cam, Player player, Vec3 pos,
-                                     float yaw, float growth, int light) {
+                                     float yaw, float growth, int light,
+                                     ColossusModel model) {
         ColossusCrystalModel cm = crystalModel();
         VertexConsumer crystal = buffer.getBuffer(RenderType.entityTranslucent(CRYSTAL));
 
@@ -340,7 +354,7 @@ public final class ColossusRenderer {
             int state = ClientColossusData.crystalState(player, type.ordinal());
             if (!cm.prepare(state)) continue;
 
-            Vec3 world = type.worldPosition(pos, yaw);
+            Vec3 world = type.worldPosition(pos, yaw).add(bodyOffset(type, model, yaw));
 
             pose.pushPose();
             pose.translate(world.x - cam.x, world.y - cam.y, world.z - cam.z);
@@ -353,12 +367,63 @@ public final class ColossusRenderer {
             float scale = (float) (type.radius * 2.0) * growth;
             pose.scale(-scale, -scale, scale);
 
-            // Akkor amber rengi — kumdan bir bakista ayrilmali
-            cm.root().render(pose, crystal, LightTexture.FULL_BRIGHT,
+            // ISIK: cevrenin isigi kullaniliyor, FULL_BRIGHT DEGIL.
+            // Tam parlaklikta kristaller geceleyin karanlikta yanan
+            // lambalar gibi duruyordu ve devin geri kalaniyla ayni
+            // dunyada gorunmuyorlardi.
+            cm.root().render(pose, crystal, light,
                     OverlayTexture.NO_OVERLAY,
                     CRYSTAL_R, CRYSTAL_G, CRYSTAL_B, 1f);
 
             pose.popPose();
         }
+    }
+
+    /**
+     * Kristalin vucut hareketinden aldigi kayma (blok).
+     *
+     * Modelin ANIMASYON degerleri okunuyor; kristal icin ayri bir hareket
+     * hesaplansaydi zamanla govdeden kayardi.
+     *
+     * Kaymalar KUCUK tutuluyor. Sunucudaki isabet kontrolu kristalleri
+     * sabit konumda ariyor; gorsel oradan cok uzaklasirsa oyuncu gordugu
+     * yere nisan alip iskalar. Animasyonun genligi zaten birkac derece,
+     * yani gorsel ile isabet alani ic ice kaliyor.
+     */
+    private static Vec3 bodyOffset(ColossusCrystal type, ColossusModel model, float yaw) {
+        // Model uzayi 16'ya bolunuyor ve dev buyutulmus haliyle ciziliyor;
+        // burada sadece ORAN gerekiyor, mutlak piksel degil.
+        double breathe = model.torso.y / 16.0;
+
+        return switch (type) {
+            case RIGHT_SHOULDER -> armOffset(model.rightArm.xRot, model.rightArm.zRot, yaw)
+                    .add(0, breathe, 0);
+            case LEFT_SHOULDER -> armOffset(model.leftArm.xRot, -model.leftArm.zRot, yaw)
+                    .add(0, breathe, 0);
+            // Kafa govdeyle birlikte nefes aliyor, ayrica hafif one egilme
+            case HEAD -> new Vec3(0, breathe * 1.15, 0);
+            default -> new Vec3(0, breathe, 0);
+        };
+    }
+
+    /**
+     * Omuz kristalinin kol donusuyle savrulmasi.
+     *
+     * Kol omuzdan doner; omuzdaki kristal donus merkezine yakin oldugu
+     * icin kucuk bir yay ciziyor. Yarıcap kolun uzunlugu degil OMUZ
+     * kalinligi kadar.
+     */
+    private static Vec3 armOffset(float xRot, float zRot, float yaw) {
+        double reach = 1.1;   // omuz yaricapi (blok)
+
+        double forward = -Math.sin(xRot) * reach;
+        double up = -Math.sin(zRot) * reach;
+
+        double rad = Math.toRadians(yaw);
+        double sin = Math.sin(rad);
+        double cos = Math.cos(rad);
+
+        // Ileri yonu devin baktigi yone cevir
+        return new Vec3(-forward * sin, up, forward * cos);
     }
 }
