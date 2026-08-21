@@ -2,6 +2,7 @@ package com.FIRNI.superheromod.heroes.sandman;
 
 import com.FIRNI.superheromod.SuperheroMod;
 import com.FIRNI.superheromod.network.ModNetworking;
+import com.FIRNI.superheromod.network.packet.ColossusActionPacket;
 import com.FIRNI.superheromod.network.packet.ShockwavePacket;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.BlockParticleOption;
@@ -93,6 +94,11 @@ public final class ColossusMaceController {
         boolean rightArm = !SandColossusController.isArmWeakened(player.getUUID(), true);
 
         swings.put(player.getUUID(), new Swing(player.getUUID(), rightArm));
+
+        // Istemci animasyonu baslatsin — kol ve govde bu paketle hareket ediyor
+        ModNetworking.CHANNEL.send(PacketDistributor.ALL.noArg(),
+                new ColossusActionPacket(player.getUUID(),
+                        ColossusActionPacket.MACE_SWING, TOTAL_TICKS));
 
         player.level().playSound(null, player.blockPosition(),
                 SoundEvents.SAND_PLACE, SoundSource.PLAYERS, 1.4f, 0.42f);

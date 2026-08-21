@@ -47,6 +47,16 @@ public final class ColossusRenderer {
             new ResourceLocation("minecraft", "textures/block/amethyst_block.png");
 
     /**
+     * Kristal rengi — referanstaki gibi AKKOR turuncu/amber.
+     *
+     * Ametist dokusu mor; renk carpaniyla amber'e cevriliyor. Ayri bir doku
+     * dosyasi uretmeye gerek kalmiyor ve kristalin kristal dokusu korunuyor.
+     */
+    private static final float CRYSTAL_R = 1.00f;
+    private static final float CRYSTAL_G = 0.52f;
+    private static final float CRYSTAL_B = 0.16f;
+
+    /**
      * Modelin ayak hizasi (blok).
      *
      * DIKKAT: ModelPart kup koordinatlarini KENDI ICINDE 16'ya boluyor, yani
@@ -146,6 +156,16 @@ public final class ColossusRenderer {
         ColossusModel colossus = model();
         animate(colossus, age, yaw, smoothed, growth);
 
+        // Hareket varsa notr salinimin UZERINE biner
+        ClientColossusActions.Action action =
+                ClientColossusActions.of(player.getUUID());
+        if (action != null) {
+            boolean maceRight = ClientColossusActions.isMaceInRight(player.getUUID(),
+                    ClientColossusData.crystalState(player,
+                            ColossusCrystal.RIGHT_SHOULDER.ordinal()));
+            applyAction(colossus, action, partial, maceRight);
+        }
+
         pose.pushPose();
         pose.translate(pos.x - cam.x, pos.y - cam.y, pos.z - cam.z);
 
@@ -202,6 +222,114 @@ public final class ColossusRenderer {
         m.mace.xRot = Mth.sin(age * 0.033f) * 0.05f;
     }
 
+    /**
+     * SALDIRI ANIMASYONLARI.
+     *
+     * Zaman cizelgeleri sunucudaki faz sinirlariyla ayni tutuldu; aksi halde
+     * darbe sesi ile kolun indigi an tutmuyor ve vurus sahte gorunuyor.
+     */
+    private static void applyAction(ColossusModel m, ClientColossusActions.Action action,
+                                    float partial, boolean maceRight) {
+        float t = action.progress(partial);
+
+        if (ClientColossusActions.isMaceSwing(action)) {
+            maceSwing(m, t, maceRight);
+        } else if (ClientColossusActions.isRockThrow(action)) {
+            rockThrow(m, t, maceRight);
+        }
+    }
+
+    /**
+     * TOPUZ VURUSU: kaldir -> TEPEDE BEKLE -> indir -> toparlan.
+     *
+     * Tepedeki bekleme bilerek var; topuz kesintisiz inerse darbe hafif
+     * kaliyor. Agirlik hissini veren sey o duraklama.
+     */
+    private static void maceSwing(ColossusModel m, float t, boolean maceRight) {
+        ModelPart arm = maceRight ? m.rightArm : m.leftArm;
+        ModelPart other = maceRight ? m.leftArm : m.rightArm;
+
+        float armX;
+        float torsoLean;
+
+        if (t < 0.31f) {
+            // Kaldirma (0-10 tick)
+            float p = ease(t / 0.31f);
+            armX = lerp(p, 0f, -2.45f);
+            torsoLean = lerp(p, 0f, -0.16f);
+        } else if (t < 0.50f) {
+            // Tepede bekleme (10-16 tick) — hafif titreme
+            armX = -2.45f;
+            torsoLean = -0.16f;
+        } else if (t < 0.66f) {
+            // Inis (16-21 tick) — hizli
+            float p = (t - 0.50f) / 0.16f;
+            p = p * p;   // hizlanarak insin
+            armX = lerp(p, -2.45f, 1.05f);
+            torsoLean = lerp(p, -0.16f, 0.34f);
+        } else {
+            // Toparlanma (21-32 tick)
+            float p = ease((t - 0.66f) / 0.34f);
+            armX = lerp(p, 1.05f, 0f);
+            torsoLean = lerp(p, 0.34f, 0f);
+        }
+
+        arm.xRot = armX;
+        arm.zRot += maceRight ? -0.18f : 0.18f;
+        m.torso.xRot = torsoLean;
+        m.head.xRot = 0.12f + torsoLean * 0.5f;
+
+        // Diger kol dengeleme icin ters yone gider
+        other.xRot = -armX * 0.22f;
+    }
+
+    /**
+     * KAYA FIRLATMA: kolu geri cek -> savur -> toparlan.
+     *
+     * Govde de doner; sadece kol hareket ederse firlatma guclu gorunmuyor.
+     */
+    private static void rockThrow(ColossusModel m, float t, boolean maceRight) {
+        // Kaya topuz TUTMAYAN elde
+        ModelPart arm = maceRight ? m.leftArm : m.rightArm;
+        float side = maceRight ? 1f : -1f;
+
+        float armX;
+        float twist;
+
+        if (t < 0.43f) {
+            // Geri cekme (0-9 tick)
+            float p = ease(t / 0.43f);
+            armX = lerp(p, 0f, 0.95f);
+            twist = lerp(p, 0f, 0.34f * side);
+        } else if (t < 0.60f) {
+            // Savurma — cok hizli
+            float p = (t - 0.43f) / 0.17f;
+            p = p * p;
+            armX = lerp(p, 0.95f, -2.10f);
+            twist = lerp(p, 0.34f * side, -0.30f * side);
+        } else {
+            // Toparlanma
+            float p = ease((t - 0.60f) / 0.40f);
+            armX = lerp(p, -2.10f, 0f);
+            twist = lerp(p, -0.30f * side, 0f);
+        }
+
+        arm.xRot = armX;
+        arm.zRot += 0.20f * side;
+        m.torso.yRot = twist;
+        m.head.yRot = -twist * 0.4f;
+    }
+
+    private static float lerp(float t, float a, float b) {
+        return a + (b - a) * t;
+    }
+
+    /** Yumusak giris/cikis. */
+    private static float ease(float t) {
+        t = Mth.clamp(t, 0f, 1f);
+        return t * t * (3f - 2f * t);
+    }
+
     private static void drawCrystals(PoseStack pose, MultiBufferSource buffer,
                                      Vec3 cam, Player player, Vec3 pos,
                                      float yaw, float growth, int light) {
@@ -225,8 +353,10 @@ public final class ColossusRenderer {
             float scale = (float) (type.radius * 2.0) * growth;
             pose.scale(-scale, -scale, scale);
 
-            cm.root().render(pose, crystal, light, OverlayTexture.NO_OVERLAY,
-                    1f, 1f, 1f, 1f);
+            // Akkor amber rengi — kumdan bir bakista ayrilmali
+            cm.root().render(pose, crystal, LightTexture.FULL_BRIGHT,
+                    OverlayTexture.NO_OVERLAY,
+                    CRYSTAL_R, CRYSTAL_G, CRYSTAL_B, 1f);
 
             pose.popPose();
         }

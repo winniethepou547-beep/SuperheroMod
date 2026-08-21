@@ -5,6 +5,7 @@ import com.FIRNI.superheromod.network.packet.AbilityInputPacket;
 import com.FIRNI.superheromod.network.packet.BeamSyncPacket;
 import com.FIRNI.superheromod.network.packet.CameraStatePacket;
 import com.FIRNI.superheromod.network.packet.HeroIdentityPacket;
+import com.FIRNI.superheromod.network.packet.ColossusActionPacket;
 import com.FIRNI.superheromod.network.packet.ColossusSyncPacket;
 import com.FIRNI.superheromod.network.packet.SandArmorPacket;
 import com.FIRNI.superheromod.network.packet.ShockwavePacket;
@@ -102,5 +103,8 @@ public final class ModNetworking {
                 ColossusSyncPacket::encode, ColossusSyncPacket::decode, ColossusSyncPacket::handle);
         CHANNEL.registerMessage(id++, ShockwavePacket.class,
                 ShockwavePacket::encode, ShockwavePacket::decode, ShockwavePacket::handle);
+        CHANNEL.registerMessage(id++, ColossusActionPacket.class,
+                ColossusActionPacket::encode, ColossusActionPacket::decode,
+                ColossusActionPacket::handle);
     }
 }

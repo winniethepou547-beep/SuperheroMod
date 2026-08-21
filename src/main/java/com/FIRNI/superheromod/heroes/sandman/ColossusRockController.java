@@ -4,6 +4,7 @@ import com.FIRNI.superheromod.SuperheroMod;
 import com.FIRNI.superheromod.core.combat.raycast.RaycastResult;
 import com.FIRNI.superheromod.core.combat.raycast.RaycastSystem;
 import com.FIRNI.superheromod.network.ModNetworking;
+import com.FIRNI.superheromod.network.packet.ColossusActionPacket;
 import com.FIRNI.superheromod.network.packet.ShockwavePacket;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.BlockParticleOption;
@@ -103,6 +104,11 @@ public final class ColossusRockController {
 
         windups.add(new Windup(player.getUUID()));
 
+        // Istemci animasyonu: kol geri cekilip savrulur
+        ModNetworking.CHANNEL.send(PacketDistributor.ALL.noArg(),
+                new ColossusActionPacket(player.getUUID(),
+                        ColossusActionPacket.ROCK_THROW, WINDUP_TICKS + 12));
+
         // Govdeden kaya kopuyor
         if (player.level() instanceof ServerLevel level) {
             Vec3 hand = handPosition(player);
@@ -195,8 +201,11 @@ public final class ColossusRockController {
 
             Vec3 to = result.getHitPosition();
 
-            // Kayanin ucus izi — donen kum kutlesi
-            level.sendParticles(sand(), to.x, to.y, to.z, 8, 0.35, 0.35, 0.35, 0.04);
+            // Kayanin GORSELI: kum partikulu tek basina kaya gibi durmuyordu,
+            // bu yuzden ucan blok gorunumu icin yogun blok partikulu +
+            // arkasinda toz izi kullaniliyor
+            level.sendParticles(rockChunk(), to.x, to.y, to.z, 14, 0.45, 0.45, 0.45, 0.0);
+            level.sendParticles(sand(), to.x, to.y, to.z, 6, 0.5, 0.5, 0.5, 0.03);
 
             boolean hit = result.didHitEntity() || result.didHitBlock();
 
@@ -290,5 +299,11 @@ public final class ColossusRockController {
 
     private static BlockParticleOption sand() {
         return new BlockParticleOption(ParticleTypes.BLOCK, Blocks.SAND.defaultBlockState());
+    }
+
+    /** Kayalasmis kum — govdeden kopan parca bundan. */
+    private static BlockParticleOption rockChunk() {
+        return new BlockParticleOption(ParticleTypes.BLOCK,
+                Blocks.SANDSTONE.defaultBlockState());
     }
 }
