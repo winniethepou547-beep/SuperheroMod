@@ -72,6 +72,20 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
     private static final EntityDataAccessor<Byte> SWING_DIR =
             SynchedEntityData.defineId(SandSoldierEntity.class, EntityDataSerializers.BYTE);
 
+    /**
+     * Salinim ilerlemesi 0..1 (0 = salinim yok).
+     *
+     * Vanilla'nin attackAnim sayaci KULLANILMIYOR: o 6 tick suruyor ve
+     * istemciye ulasmasi guvenilir degil — animasyon hic gorunmuyordu.
+     * Kendi sayacimiz hem daha uzun (cekic savurmasi icin 6 tick cok kisa)
+     * hem de dev askerin agir vurusunda calistigi kanitlanmis yontem.
+     */
+    private static final EntityDataAccessor<Float> SWING =
+            SynchedEntityData.defineId(SandSoldierEntity.class, EntityDataSerializers.FLOAT);
+
+    /** Cekic savurmasinin suresi (tick). */
+    public static final int SWING_TICKS = 13;
+
     /** Menzilli turde nisan alma orani 0..1. */
     private static final EntityDataAccessor<Float> AIM =
             SynchedEntityData.defineId(SandSoldierEntity.class, EntityDataSerializers.FLOAT);
@@ -137,6 +151,8 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
     private UUID ownerId;
     private int lifetime = 400;
     private boolean crumbling;
+    /** Savurma sayaci — sunucuda isler, ilerleme olarak senkronlanir. */
+    private int swingTicks;
 
     public SandSoldierEntity(EntityType<? extends SandSoldierEntity> type, Level level) {
         super(type, level);
@@ -167,6 +183,20 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
         this.entityData.define(AIM, 0f);
         this.entityData.define(AIM_TARGET, -1);
         this.entityData.define(SLAM, 0f);
+        this.entityData.define(SWING, 0f);
+    }
+
+    /** Cekic savurmasinin ilerlemesi. */
+    public float getSwingProgress() {
+        return this.entityData.get(SWING);
+    }
+
+    /** Yeni bir savurma baslatir. */
+    public void beginSwing() {
+        swingTicks = SWING_TICKS;
+        // Yon her vurusta rastgele — hep ayni yon robotik duruyordu
+        setSwingDirection((byte) (random.nextBoolean() ? 1 : 2));
+        this.entityData.set(SWING, 0.001f);
     }
 
     /** Dev askerin agir vurus ilerlemesi. */
@@ -364,6 +394,7 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
         }
 
         tickHammer();
+        tickSwing();
         tickMovementDust();
 
         if (--lifetime <= 0 || getOwner() == null) {
@@ -399,6 +430,26 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
                         hand.x, hand.y, hand.z, 3, 0.5, 0.3, 0.5, 0.02);
             }
         }
+    }
+
+    /**
+     * Savurma sayaci.
+     *
+     * Ilerleme 1 -> 0 degil 0 -> 1 olarak senkronlaniyor cunku model
+     * animasyonu bastan sona ilerleme bekliyor.
+     */
+    private void tickSwing() {
+        if (swingTicks <= 0) {
+            if (getSwingProgress() != 0f) this.entityData.set(SWING, 0f);
+            return;
+        }
+
+        swingTicks--;
+        float progress = 1f - (swingTicks / (float) SWING_TICKS);
+        this.entityData.set(SWING, Math.min(1f, progress));
+
+        // Iz cekicin gectigi yay boyunca, VURUS ANINDA cikar
+        if (swingTicks == SWING_TICKS / 2) emitSwingTrail();
     }
 
     /**
@@ -545,7 +596,35 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
             return false;
         }
 
-        return super.hurt(source, amount);
+        boolean applied = super.hurt(source, amount);
+        if (applied) emitDamageBurst(source);
+        return applied;
+    }
+
+    /**
+     * Vurulan yerde kucuk kum patlamasi.
+     *
+     * Isabet noktasi saldirganin YONUNDEN turetiliyor: vanilla hasar olayi
+     * temas noktasini vermiyor, ama saldirganin geldigi yon govdenin hangi
+     * tarafina vuruldugunu yeterince iyi anlatiyor.
+     */
+    private void emitDamageBurst(DamageSource source) {
+        if (!(level() instanceof ServerLevel server)) return;
+
+        Vec3 hit = position().add(0, getBbHeight() * 0.6, 0);
+
+        if (source.getEntity() != null) {
+            Vec3 from = source.getEntity().position();
+            Vec3 dir = hit.subtract(from);
+            Vec3 flat = new Vec3(dir.x, 0, dir.z);
+            if (flat.lengthSqr() > 1.0E-4) {
+                // Govdenin saldirgana BAKAN yuzeyi
+                hit = hit.subtract(flat.normalize().scale(getBbWidth() * 0.5));
+            }
+        }
+
+        server.sendParticles(sandParticle(),
+                hit.x, hit.y, hit.z, 12, 0.16, 0.16, 0.16, 0.10);
     }
 
     @Override
@@ -674,11 +753,7 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
             if (distSqr > getAttackReachSqr(target)) return;
 
             soldier.swing(InteractionHand.MAIN_HAND);
-
-            // Salinim yonu her vurusta RASTGELE — hep ayni yon tekrar
-            // izlenince robotik duruyordu
-            soldier.setSwingDirection((byte) (soldier.getRandom().nextBoolean() ? 1 : 2));
-            soldier.emitSwingTrail();
+            soldier.beginSwing();
 
             if (soldier.getVariant() == Variant.BLADE) {
                 cooldown = BLADE_COOLDOWN;

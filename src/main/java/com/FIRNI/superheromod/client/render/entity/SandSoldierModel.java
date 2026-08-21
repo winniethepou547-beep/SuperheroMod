@@ -114,25 +114,31 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
                         .addBox(-2.0f, -3.5f, -3.5f, 7, 4, 7),
                 PartPose.ZERO);
 
-        // --- CEKIC ELLERI: yakin dovus turlerinde hedefe yaklasinca acilir ---
-        // Bas KOLDAN BELIRGIN GENIS olmali; dar tutulunca sadece sisirilmis
-        // bir yumruk gibi duruyor ve cekic oldugu anlasilmiyordu.
-        // Kol 5 piksel genisliginde, bas 14 — iki yana tasiyor.
+        // --- CEKIC ELLERI ---
+        // Sorun genislikte degil BICIMDE idi: kolun ucundaki genis kutu
+        // "sismis yumruk" gibi duruyordu. Cekic silueti UZUN BIR SAP ve
+        // sapa DIK duran bir bastan olusur — bas kolun devami degil, kola
+        // capraz duran ayri bir kutle olmali.
+        //
+        // Bas kol ekseninde 22 piksel UZUN, derinlikte 10 dar: yandan
+        // bakinca cekic, onden bakinca ince. Kolun ucundan asagi tasiyor.
         rightArm.addOrReplaceChild("right_hammer",
                 CubeListBuilder.create()
-                        // sap boynu — bas havada durmasin, kola baglansin
-                        .texOffs(0, 0).addBox(-3.0f, 7.0f, -3.0f, 3, 4, 3)
-                        // asil bas
-                        .texOffs(0, 0).addBox(-9.5f, 10.0f, -5.5f, 14, 9, 11)
-                        // ust kenar cikintisi — siluete kose versin
-                        .texOffs(0, 0).addBox(-8.0f, 8.5f, -4.0f, 11, 2, 8),
+                        // sap: elden asagi uzanan ince kol
+                        .texOffs(0, 0).addBox(-2.5f, 8.0f, -2.5f, 4, 9, 4)
+                        // BAS: sapa DIK, uzun eksen yanlara degil ILERI-GERI
+                        .texOffs(0, 0).addBox(-4.5f, 15.0f, -11.0f, 8, 10, 22)
+                        // basin uc yuzeyleri — vurus yuzu belirgin olsun
+                        .texOffs(0, 0).addBox(-5.5f, 16.5f, -13.5f, 10, 7, 3)
+                        .texOffs(0, 0).addBox(-5.5f, 16.5f, 10.5f, 10, 7, 3),
                 PartPose.ZERO);
 
         leftArm.addOrReplaceChild("left_hammer",
                 CubeListBuilder.create()
-                        .texOffs(0, 0).addBox(0.0f, 7.0f, -3.0f, 3, 4, 3)
-                        .texOffs(0, 0).addBox(-4.5f, 10.0f, -5.5f, 14, 9, 11)
-                        .texOffs(0, 0).addBox(-3.0f, 8.5f, -4.0f, 11, 2, 8),
+                        .texOffs(0, 0).addBox(-1.5f, 8.0f, -2.5f, 4, 9, 4)
+                        .texOffs(0, 0).addBox(-3.5f, 15.0f, -11.0f, 8, 10, 22)
+                        .texOffs(0, 0).addBox(-4.5f, 16.5f, -13.5f, 10, 7, 3)
+                        .texOffs(0, 0).addBox(-4.5f, 16.5f, 10.5f, 10, 7, 3),
                 PartPose.ZERO);
 
         // --- MENZILLI TURUN OMUZ DIKENLERI: yukari dogru dik cikintilar ---
@@ -210,13 +216,14 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
         float breathe = Mth.sin(ageInTicks * 0.06f) * 0.02f;
         body.y = breathe;
 
-        float attack = entity.getAttackAnim(0f);
-
+        // Vanilla attackAnim yerine kendi senkronize ilerlememiz kullaniliyor;
+        // o sayac 6 tick suruyor ve istemciye guvenilir ulasmiyordu
         applySpawnStages(progress);
         applyBulk(entity);
         applyHammers(entity);
-        applySwing(entity, attack);
+        applySwing(entity, entity.getSwingProgress());
         applySlam(entity);
+        applyAimBlock(entity);
     }
 
     /**
@@ -244,30 +251,40 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
         float armX;      // kollarin kalkma acisi
         float massScale; // kutlenin buyuklugu
         float massY;     // kutlenin yuksekligi
+        float massZ;     // kutlenin ONE gitmesi
 
         if (slam <= raiseEnd) {
             float p = ease(slam / raiseEnd);
             armX = -3.05f * p;
             massScale = 0f;
             massY = -8f;
+            massZ = 0f;
         } else if (slam <= gatherEnd) {
             float p = (slam - raiseEnd) / (gatherEnd - raiseEnd);
             armX = -3.05f;
             massScale = ease(p);
             massY = -8f;
+            massZ = 0f;
         } else if (slam <= impact) {
-            // Inis — hizlanarak
+            // INIS — hizlanarak, ve ONE dogru.
+            // Onceden kutle sadece asagi iniyordu; kafanin ustunde oldugu
+            // icin "elinden kayip kafasina dustu" gibi gorunuyordu. Kutlenin
+            // kollarla birlikte ONE savrulmasi gerekiyor.
             float p = (slam - gatherEnd) / (impact - gatherEnd);
             p = p * p;
             armX = -3.05f + p * 4.25f;
             massScale = 1f;
-            massY = -8f + p * 14f;
+            // Zemine kadar in (model uzayinda y asagi dogru artar)
+            massY = -8f + p * 30f;
+            // Modelde on taraf -Z; kutle devin onune ~2.5 blok gider
+            massZ = -p * 34f;
         } else {
-            // Toparlanma
+            // Toparlanma — kutle yerde dagilir
             float p = ease((slam - impact) / (1f - impact));
             armX = 1.20f * (1f - p);
             massScale = Math.max(0f, 1f - p * 2.2f);
-            massY = 6f;
+            massY = 22f;
+            massZ = -34f;
         }
 
         rightArm.xRot = armX;
@@ -285,9 +302,38 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
             slamMass.yScale = massScale;
             slamMass.zScale = massScale;
             slamMass.y = massY;
+            slamMass.z = massZ;
             // Kutle yavasca doner — durgun durmasin
             slamMass.yRot = slam * 3.2f;
         }
+    }
+
+    /**
+     * MENZILLI TURUN MERMISI — nisan alirken kafanin ustunde olusan kucuk
+     * kum blogu.
+     *
+     * Dev askerin buyuk kutlesiyle ayni parca kullaniliyor, sadece cok
+     * kucuk olcekte: ikisi de "kumdan bir kutle topluyor" fikri, biri dev
+     * biri minik.
+     */
+    private void applyAimBlock(T entity) {
+        if (entity.getVariant() != SandSoldierEntity.Variant.RANGED) return;
+
+        float aim = entity.getAimProgress();
+        if (aim <= 0.02f) return;
+
+        slamMass.visible = true;
+
+        // Minik blok — devin kutlesinin altida biri
+        float scale = 0.16f * aim;
+        slamMass.xScale = scale;
+        slamMass.yScale = scale;
+        slamMass.zScale = scale;
+
+        // Kafanin hemen ustunde
+        slamMass.y = -12f;
+        slamMass.z = 0f;
+        slamMass.yRot = entity.tickCount * 0.18f;
     }
 
     private static float ease(float t) {

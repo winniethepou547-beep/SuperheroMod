@@ -148,15 +148,29 @@ public final class SandBoltController {
         }
     }
 
-    /** Merminin arkasinda kalan kum izi. */
+    /**
+     * Merminin arkasinda kalan kum izi.
+     *
+     * Merminin kendisi ucan bir KUM BLOGU olarak okunmali: yogun blok
+     * partikulu kutleyi, arkasindaki ince toz ise hizi anlatiyor. Tek basina
+     * ince iz birakilinca mermi gorunmuyordu.
+     */
     private static void trail(ServerLevel level, Vec3 from, Vec3 to) {
         Vec3 delta = to.subtract(from);
-        int steps = Math.max(2, (int) (delta.length() * 2));
+        int steps = Math.max(3, (int) (delta.length() * 3));
 
         for (int i = 0; i <= steps; i++) {
             double t = i / (double) steps;
             Vec3 p = from.add(delta.scale(t));
-            level.sendParticles(sand(), p.x, p.y, p.z, 1, 0.06, 0.06, 0.06, 0.01);
+
+            // Kutle: yogun, dagilmayan
+            level.sendParticles(sand(), p.x, p.y, p.z, 2, 0.10, 0.10, 0.10, 0.0);
+
+            // Iz: arkaya dogru seyrelen toz
+            if (i % 2 == 0) {
+                level.sendParticles(sand(), p.x, p.y, p.z,
+                        1, 0.22, 0.22, 0.22, 0.02);
+            }
         }
     }
 
