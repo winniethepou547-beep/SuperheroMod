@@ -49,7 +49,15 @@ public final class SandFistController {
 
     public enum Phase { CHARGE, EXTEND, HOLD, RETRACT }
 
-    private static final int CHARGE_END = 20;    // 1 saniye
+    /**
+     * Tusa basildiktan sonra uzamaya kadar gecen sure.
+     *
+     * 0.2 saniye: rakibin "geliyor" diyebilecegi kadar kisa bir on
+     * hazirlik, ama refleksle kacilamayacak kadar da hizli. Onceki 1
+     * saniyelik sarj yetenegi agir ve okunakli yapiyordu; kullanici
+     * bunu kisaltmayi istedi.
+     */
+    private static final int CHARGE_END = 4;
     private static final int EXTEND_END = 25;
     private static final int HOLD_END = 28;
     private static final int TOTAL_TICKS = 35;
