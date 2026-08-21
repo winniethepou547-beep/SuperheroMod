@@ -101,9 +101,17 @@ public class SandArmLayer
             // boru yerine kum yigilmasi gibi kirikli bir siluet
             float swell = SWELL_PX + (i % 2 == 0 ? 0.18f : 0f);
 
+            // Her bogum kum dokusunun BASKA bir dilimini kullaniyor.
+            //
+            // Ayni dilim tekrarlansaydi kum deseni bogum bogum birebir
+            // kopyalanir ve kol boyunca bantli/tekrar eden bir goruntu
+            // olusurdu. Kum gurultulu bir doku oldugu icin dilimi
+            // kaydirmak yeterli: desen boyunca surekli degisiyor.
+            float vShift = (i % 3) * 0.3f;
+
             box(poseStack, buf, sprite, packedLight,
                     xOrigin - swell, from, -2f - swell,
-                    width + swell * 2f, height, 4f + swell * 2f);
+                    width + swell * 2f, height, 4f + swell * 2f, vShift);
         }
 
         // YUMRUK — kolun ucundaki kutle. Onsuz kol duz bir boru gibi
@@ -111,7 +119,7 @@ public class SandArmLayer
         float fistSwell = SWELL_PX + 1.1f;
         box(poseStack, buf, sprite, packedLight,
                 xOrigin - fistSwell, ARM_LENGTH_PX + totalPx - 1f, -2f - fistSwell,
-                width + fistSwell * 2f, 5f, 4f + fistSwell * 2f);
+                width + fistSwell * 2f, 5f, 4f + fistSwell * 2f, 0.55f);
 
         poseStack.popPose();
     }
@@ -143,41 +151,45 @@ public class SandArmLayer
      */
     private static void box(PoseStack poseStack, VertexConsumer buf, TextureAtlasSprite sprite,
                             int light, float x, float y, float z,
-                            float sizeX, float sizeY, float sizeZ) {
+                            float sizeX, float sizeY, float sizeZ, float vShift) {
         float x0 = x / PX, x1 = (x + sizeX) / PX;
         float y0 = y / PX, y1 = (y + sizeY) / PX;
         float z0 = z / PX, z1 = (z + sizeZ) / PX;
 
         // Dokuyu UZUNLUGA ORANTILI esle: her bogumda 0..1 tekrarlansaydi
         // kum deseni bogum sinirlarinda goze batacak sekilde sikisirdi.
-        float vSpan = sizeY / PX;
+        float v0 = vShift;
+        float v1 = vShift + sizeY / PX;
 
         // Yan yuzler
         quad(poseStack, buf, sprite, light, 0f, 0f, -1f,
-                x0, y0, z0, x1, y0, z0, x1, y1, z0, x0, y1, z0, 1f, vSpan);
+                x0, y0, z0, x1, y0, z0, x1, y1, z0, x0, y1, z0, v0, v1);
         quad(poseStack, buf, sprite, light, 0f, 0f, 1f,
-                x1, y0, z1, x0, y0, z1, x0, y1, z1, x1, y1, z1, 1f, vSpan);
+                x1, y0, z1, x0, y0, z1, x0, y1, z1, x1, y1, z1, v0, v1);
         quad(poseStack, buf, sprite, light, -1f, 0f, 0f,
-                x0, y0, z1, x0, y0, z0, x0, y1, z0, x0, y1, z1, 1f, vSpan);
+                x0, y0, z1, x0, y0, z0, x0, y1, z0, x0, y1, z1, v0, v1);
         quad(poseStack, buf, sprite, light, 1f, 0f, 0f,
-                x1, y0, z0, x1, y0, z1, x1, y1, z1, x1, y1, z0, 1f, vSpan);
+                x1, y0, z0, x1, y0, z1, x1, y1, z1, x1, y1, z0, v0, v1);
 
-        // Uc yuzler
+        // Uc yuzler -- kesit oldugu icin dokunun tamamini kullaniyorlar
         quad(poseStack, buf, sprite, light, 0f, -1f, 0f,
-                x0, y0, z1, x1, y0, z1, x1, y0, z0, x0, y0, z0, 1f, 1f);
+                x0, y0, z1, x1, y0, z1, x1, y0, z0, x0, y0, z0, 0f, 1f);
         quad(poseStack, buf, sprite, light, 0f, 1f, 0f,
-                x0, y1, z0, x1, y1, z0, x1, y1, z1, x0, y1, z1, 1f, 1f);
+                x0, y1, z0, x1, y1, z0, x1, y1, z1, x0, y1, z1, 0f, 1f);
     }
 
     private static void quad(PoseStack poseStack, VertexConsumer buf, TextureAtlasSprite sprite,
                              int light, float nx, float ny, float nz,
                              float ax, float ay, float az, float bx, float by, float bz,
                              float cx, float cy, float cz, float dx, float dy, float dz,
-                             float uSpan, float vSpan) {
-        vertex(poseStack, buf, sprite, light, nx, ny, nz, ax, ay, az, 0f, 0f);
-        vertex(poseStack, buf, sprite, light, nx, ny, nz, bx, by, bz, uSpan, 0f);
-        vertex(poseStack, buf, sprite, light, nx, ny, nz, cx, cy, cz, uSpan, vSpan);
-        vertex(poseStack, buf, sprite, light, nx, ny, nz, dx, dy, dz, 0f, vSpan);
+                             float v0, float v1) {
+        // U her zaman dokunun tam genisligi; kol ince oldugu icin yatayda
+        // dilimlemenin gorsel karsiligi yok. Dikeyde ise her bogum farkli
+        // bir dilim aliyor, tekrar bu sayede fark edilmiyor.
+        vertex(poseStack, buf, sprite, light, nx, ny, nz, ax, ay, az, 0f, v0);
+        vertex(poseStack, buf, sprite, light, nx, ny, nz, bx, by, bz, 1f, v0);
+        vertex(poseStack, buf, sprite, light, nx, ny, nz, cx, cy, cz, 1f, v1);
+        vertex(poseStack, buf, sprite, light, nx, ny, nz, dx, dy, dz, 0f, v1);
     }
 
     private static void vertex(PoseStack poseStack, VertexConsumer buf, TextureAtlasSprite sprite,
