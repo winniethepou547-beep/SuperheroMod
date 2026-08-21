@@ -469,10 +469,13 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
         // ayni onceliktekI goal'larin birbirini bloklamasi). Vurus artik
         // dogrudan MESAFEYE bakarak baslatiliyor: asker hedefin yanindaysa
         // savurur. Hasari yine goal veriyor; burasi sadece GORSEL.
-        // DEV ASKER bu savurmayi KULLANMAZ. Onun saldirisi GiantSlamGoal:
-        // iki elini kaldirip tepede kum kutlesi olusturup yere indirmesi.
-        // Yandan savurma ustune binince agir darbe hissi bozuluyordu.
-        if (swingTicks <= 0 && getVariant() != Variant.RANGED && !isGiant()) {
+        // DEV ASKER de savuruyor -- bu onun DUZ OTO SALDIRISI.
+        //
+        // Agir vurus (GiantSlamGoal) bekleme suresinde olan bir yetenek;
+        // arada dev hicbir sey yapmadan bekliyordu. Simdi araya asker
+        // savurmasi giriyor. Savurma agir vurus SIRASINDA calismiyor:
+        // ikisi ust uste binince darbe hissi bozuluyordu.
+        if (swingTicks <= 0 && getVariant() != Variant.RANGED && getSlamProgress() <= 0f) {
             LivingEntity target = getTarget();
             if (target != null && target.isAlive()
                     && distanceToSqr(target) <= SWING_TRIGGER_RANGE * SWING_TRIGGER_RANGE

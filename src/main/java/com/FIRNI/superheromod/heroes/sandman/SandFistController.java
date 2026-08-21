@@ -58,9 +58,16 @@ public final class SandFistController {
      * bunu kisaltmayi istedi.
      */
     private static final int CHARGE_END = 4;
-    private static final int EXTEND_END = 25;
-    private static final int HOLD_END = 28;
-    private static final int TOTAL_TICKS = 35;
+
+    /**
+     * Uzama suresi YARIYA indirildi (21 -> 11 tick).
+     *
+     * Kol "yeterince hizli gitmiyor" geri bildirimiyle hizlandirildi.
+     * Sure kisaldi ama menzil ayni, yani kol iki kat hizli uzuyor.
+     */
+    private static final int EXTEND_END = 15;
+    private static final int HOLD_END = 18;
+    private static final int TOTAL_TICKS = 25;
 
     private static final BlockParticleOption SAND_BLOCK =
             new BlockParticleOption(ParticleTypes.BLOCK, Blocks.SAND.defaultBlockState());

@@ -29,7 +29,10 @@ public class SandGraspAbility extends Ability {
         config.set("length", 9.0);       // dikdortgenin uzunlugu
         config.set("width", 3.0);        // dikdortgenin genisligi
         config.set("startGap", 1.2);     // oyuncuyla alan arasindaki bosluk
-        config.set("pull", 1.15);        // Sandman'a dogru cekis gucu
+        // Cekis gucu iki katina cikarildi: 1.15 ile hedefler "yeterince
+        // hizli gelmiyor" geri bildirimi geldi. Yakin dovus karakterinin
+        // acilis yetenegi hedefi gercekten kucagina getirmeli.
+        config.set("pull", 2.3);
     }
 
     @Override

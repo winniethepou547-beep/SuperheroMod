@@ -7,7 +7,10 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.util.Mth;
+import net.minecraft.world.inventory.InventoryMenu;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
@@ -64,14 +67,23 @@ public final class SandWallRenderer {
                 GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA);
         RenderSystem.depthMask(false);
         RenderSystem.disableCull();
-        RenderSystem.setShader(GameRenderer::getPositionColorShader);
+        // DOKULU CIZIM -- sol tiktaki uzayan kolla ayni yontem.
+        //
+        // Duvar duz renkli kutulardan olusuyordu ve "kum" gibi degil renkli
+        // bir blok gibi okunuyordu. Doku oyunun blok atlasindan aliniyor;
+        // kendi doku dosyasi eklemek yerine oyunun kumu kullaniliyor,
+        // boylece duvar arazideki kumla ayni tonu tutuyor.
+        RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
+        RenderSystem.setShaderTexture(0, InventoryMenu.BLOCK_ATLAS);
+
+        TextureAtlasSprite sprite = sandSprite();
 
         Tesselator tes = Tesselator.getInstance();
         BufferBuilder buf = tes.getBuilder();
-        buf.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+        buf.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
 
         for (SandWallSyncPacket.Entry wall : walls) {
-            drawWall(buf, matrix, wall);
+            drawWall(buf, matrix, wall, sprite);
         }
 
         tes.end();
@@ -86,7 +98,8 @@ public final class SandWallRenderer {
         pose.popPose();
     }
 
-    private static void drawWall(BufferBuilder buf, Matrix4f m, SandWallSyncPacket.Entry wall) {
+    private static void drawWall(BufferBuilder buf, Matrix4f m, SandWallSyncPacket.Entry wall,
+                                 TextureAtlasSprite sprite) {
         double yaw = Math.toRadians(wall.yaw());
         // Dis yuzey normali ve duvarin yan ekseni
         Vec3 facing = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
@@ -106,21 +119,23 @@ public final class SandWallRenderer {
         Vec3 hh = up.scale(wall.halfHeight());
         Vec3 hd = facing.scale(wall.halfDepth());
 
-        box(buf, m, c, hw, hh, hd, body, alpha);
+        box(buf, m, sprite, c, hw, hh, hd, body, alpha);
 
         // Kenar vurgusu — duvarin sinirlari belli olsun
-        box(buf, m, c, hw.scale(1.02), hh.scale(0.06), hd.scale(1.02), edge, alpha * 0.8f);
-        box(buf, m, c.add(0, wall.halfHeight() * 0.95, 0),
+        box(buf, m, sprite, c, hw.scale(1.02), hh.scale(0.06), hd.scale(1.02),
+                edge, alpha * 0.8f);
+        box(buf, m, sprite, c.add(0, wall.halfHeight() * 0.95, 0),
                 hw.scale(1.02), hh.scale(0.05), hd.scale(1.02), edge, alpha * 0.8f);
 
         float spike = wall.spike();
         if (spike > 0.01f) {
-            drawSpikes(buf, m, wall, facing, side, up, spike, alpha);
+            drawSpikes(buf, m, sprite, wall, facing, side, up, spike, alpha);
         }
     }
 
     /** Dis yuzeyden cikan dikenler — sadece firlatma hazirliginda gorunur. */
-    private static void drawSpikes(BufferBuilder buf, Matrix4f m, SandWallSyncPacket.Entry wall,
+    private static void drawSpikes(BufferBuilder buf, Matrix4f m, TextureAtlasSprite sprite,
+                                   SandWallSyncPacket.Entry wall,
                                    Vec3 facing, Vec3 side, Vec3 up, float spike, float alpha) {
         Random rng = new Random(Double.doubleToLongBits(wall.center().x) ^ 0x5A17D);
 
@@ -152,16 +167,29 @@ public final class SandWallRenderer {
                 Vec3 d = base.add(side.scale(-thick)).add(up.scale(-thick));
                 Vec3 e = base.add(side.scale(-thick)).add(up.scale(thick));
 
-                tri(buf, m, a, b, tip, SAND_LIGHT, alpha);
-                tri(buf, m, b, d, tip, SAND_MID, alpha);
-                tri(buf, m, d, e, tip, SAND_DARK, alpha);
-                tri(buf, m, e, a, tip, SAND_MID, alpha);
+                tri(buf, m, sprite, a, b, tip, SAND_LIGHT, alpha);
+                tri(buf, m, sprite, b, d, tip, SAND_MID, alpha);
+                tri(buf, m, sprite, d, e, tip, SAND_DARK, alpha);
+                tri(buf, m, sprite, e, a, tip, SAND_MID, alpha);
             }
         }
     }
 
-    /** Merkez + üc yari eksenden kutu. */
-    private static void box(BufferBuilder buf, Matrix4f m, Vec3 c,
+    /**
+     * Kum dokusu, oyunun kendi blok atlasindan.
+     *
+     * Kendi doku dosyasi eklemek yerine oyunun kumu kullaniliyor; kaynak
+     * paketi degistiren oyuncuda duvar da degisiyor ve arazideki kumla
+     * ayni tonu tutuyor.
+     */
+    private static TextureAtlasSprite sandSprite() {
+        return Minecraft.getInstance().getModelManager()
+                .getBlockModelShaper()
+                .getParticleIcon(Blocks.SAND.defaultBlockState());
+    }
+
+    /** Merkez + uc yari eksenden kutu. */
+    private static void box(BufferBuilder buf, Matrix4f m, TextureAtlasSprite sprite, Vec3 c,
                             Vec3 hw, Vec3 hh, Vec3 hd, float[] col, float alpha) {
         Vec3 p000 = c.subtract(hw).subtract(hh).subtract(hd);
         Vec3 p100 = c.add(hw).subtract(hh).subtract(hd);
@@ -172,36 +200,66 @@ public final class SandWallRenderer {
         Vec3 p111 = c.add(hw).add(hh).add(hd);
         Vec3 p011 = c.subtract(hw).add(hh).add(hd);
 
-        quad(buf, m, p001, p101, p111, p011, col, alpha);          // dis yuz
-        quad(buf, m, p100, p000, p010, p110, col, alpha);          // ic yuz
-        quad(buf, m, p000, p001, p011, p010, darker(col), alpha);  // yan
-        quad(buf, m, p101, p100, p110, p111, darker(col), alpha);  // yan
-        quad(buf, m, p010, p011, p111, p110, col, alpha);          // ust
-        quad(buf, m, p000, p100, p101, p001, darker(col), alpha);  // alt
+        // Genis yuzlerde doku BIRDEN COK kez tekrarlaniyor: tek bir 16x16
+        // kum karesi bes blokluk duvara yayilsaydi bulanik bir leke gibi
+        // gorunurdu. Tekrar sayisi duvarin gercek olcusunden geliyor,
+        // boylece doku arazideki kum bloklariyla ayni olcekte kaliyor.
+        float uRep = (float) (hw.length() * 2.0);
+        float vRep = (float) (hh.length() * 2.0);
+        float dRep = (float) (hd.length() * 2.0);
+
+        face(buf, m, sprite, p001, p101, p111, p011, col, alpha, uRep, vRep);
+        face(buf, m, sprite, p100, p000, p010, p110, col, alpha, uRep, vRep);
+        face(buf, m, sprite, p000, p001, p011, p010, darker(col), alpha, dRep, vRep);
+        face(buf, m, sprite, p101, p100, p110, p111, darker(col), alpha, dRep, vRep);
+        face(buf, m, sprite, p010, p011, p111, p110, col, alpha, uRep, dRep);
+        face(buf, m, sprite, p000, p100, p101, p001, darker(col), alpha, uRep, dRep);
     }
 
     private static float[] darker(float[] col) {
         return new float[]{col[0] * 0.78f, col[1] * 0.78f, col[2] * 0.78f};
     }
 
-    private static void quad(BufferBuilder buf, Matrix4f m,
-                             Vec3 a, Vec3 b, Vec3 c, Vec3 d, float[] col, float alpha) {
-        vert(buf, m, a, col, alpha);
-        vert(buf, m, b, col, alpha);
-        vert(buf, m, c, col, alpha);
-        vert(buf, m, d, col, alpha);
+    private static void face(BufferBuilder buf, Matrix4f m, TextureAtlasSprite sprite,
+                             Vec3 a, Vec3 b, Vec3 c, Vec3 d, float[] col, float alpha,
+                             float uRep, float vRep) {
+        vert(buf, m, sprite, a, 0f, 0f, col, alpha);
+        vert(buf, m, sprite, b, uRep, 0f, col, alpha);
+        vert(buf, m, sprite, c, uRep, vRep, col, alpha);
+        vert(buf, m, sprite, d, 0f, vRep, col, alpha);
     }
 
-    private static void tri(BufferBuilder buf, Matrix4f m,
+    private static void tri(BufferBuilder buf, Matrix4f m, TextureAtlasSprite sprite,
                             Vec3 a, Vec3 b, Vec3 c, float[] col, float alpha) {
-        vert(buf, m, a, col, alpha);
-        vert(buf, m, b, col, alpha);
-        vert(buf, m, c, col, alpha);
-        vert(buf, m, c, col, alpha);
+        // Dortgen arayuzunde ucgen: son nokta tekrarlaniyor
+        vert(buf, m, sprite, a, 0f, 0f, col, alpha);
+        vert(buf, m, sprite, b, 1f, 0f, col, alpha);
+        vert(buf, m, sprite, c, 0.5f, 1f, col, alpha);
+        vert(buf, m, sprite, c, 0.5f, 1f, col, alpha);
     }
 
-    private static void vert(BufferBuilder buf, Matrix4f m, Vec3 p, float[] col, float alpha) {
+    /**
+     * Doku koordinati sprite'in atlas dilimine esleniyor.
+     *
+     * Tekrar icin kesirli kisim aliniyor; dilim disina tasmak atlastaki
+     * KOMSU dokuyu cizdirirdi.
+     */
+    private static void vert(BufferBuilder buf, Matrix4f m, TextureAtlasSprite sprite,
+                             Vec3 p, float u, float v, float[] col, float alpha) {
+        float uu = sprite.getU(wrap(u) * 16f);
+        float vv = sprite.getV(wrap(v) * 16f);
+
         buf.vertex(m, (float) p.x, (float) p.y, (float) p.z)
-                .color(col[0], col[1], col[2], Mth.clamp(alpha, 0f, 1f)).endVertex();
+                .uv(uu, vv)
+                .color(Mth.clamp(col[0], 0f, 1f), Mth.clamp(col[1], 0f, 1f),
+                        Mth.clamp(col[2], 0f, 1f), Mth.clamp(alpha, 0f, 1f))
+                .endVertex();
+    }
+
+    /** 0..1 arasina sarar ama tam 1'i 1 olarak birakir (0'a dusmesin). */
+    private static float wrap(float value) {
+        if (value <= 1f) return Mth.clamp(value, 0f, 1f);
+        float frac = value % 1f;
+        return frac == 0f ? 1f : frac;
     }
 }

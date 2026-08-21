@@ -55,6 +55,9 @@ public class SandArmLayer
      */
     private static final float SWELL_PX = 0.6f;
 
+    /** Ucta eklenen fazladan kalinlik — kol uca dogru konik acilir. */
+    private static final float TIP_SWELL_PX = 1.6f;
+
     public SandArmLayer(
             RenderLayerParent<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> parent) {
         super(parent);
@@ -97,9 +100,19 @@ public class SandArmLayer
             if (remaining <= 0.05f) break;
             float height = Math.min(SEGMENT_PX, remaining);
 
-            // Bogumlar sirayla azicik farkli kalinlikta: tamamen duz bir
-            // boru yerine kum yigilmasi gibi kirikli bir siluet
-            float swell = SWELL_PX + (i % 2 == 0 ? 0.18f : 0f);
+            // KOL UCA DOGRU KALINLASIYOR.
+            //
+            // Sabit kalinlik kolu boru gibi gosteriyordu. Kum omuzdan uca
+            // dogru toplandigi icin kutle ucta birikmeli — hem daha dogru
+            // gorunuyor hem de vurusun nereden geldigi belli oluyor.
+            //
+            // Oran uzunluga degil BOGUM SAYISINA gore: kisa kolda da uzun
+            // kolda da ayni konik siluet cikiyor.
+            float along = segments <= 1 ? 1f : i / (float) (segments - 1);
+
+            // Ustune tek/cift kirilma: tamamen duzgun koni fazla temiz
+            // duruyordu, kum yigilmasi kirikli olmali
+            float swell = SWELL_PX + along * TIP_SWELL_PX + (i % 2 == 0 ? 0.18f : 0f);
 
             // Her bogum kum dokusunun BASKA bir dilimini kullaniyor.
             //
@@ -116,7 +129,9 @@ public class SandArmLayer
 
         // YUMRUK — kolun ucundaki kutle. Onsuz kol duz bir boru gibi
         // bitiyor ve neyin vurdugu belli olmuyor.
-        float fistSwell = SWELL_PX + 1.1f;
+        // Yumruk konigin devami: kolun uc kalinligindan da genis olmali,
+        // yoksa uca dogru sisen kolun ucunda ince bir kutu kaliyor
+        float fistSwell = SWELL_PX + TIP_SWELL_PX + 1.1f;
         box(poseStack, buf, sprite, packedLight,
                 xOrigin - fistSwell, ARM_LENGTH_PX + totalPx - 1f, -2f - fistSwell,
                 width + fistSwell * 2f, 5f, 4f + fistSwell * 2f, 0.55f);

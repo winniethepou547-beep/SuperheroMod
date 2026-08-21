@@ -205,8 +205,9 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
         applySpawnStages(progress);
         applyBulk(entity);
         applyHammers(entity);
-        // Dev asker savurmaz; onun animasyonu applySlam
-        if (!entity.isGiant()) applySwing(entity, entity.getSwingProgress());
+        // Dev asker de savuruyor: agir vurus arasindaki DUZ OTO SALDIRISI.
+        // Agir vurus sirasinda devre disi -- ikisi ust uste binmemeli.
+        applySwing(entity, entity.getSwingProgress());
         applySlam(entity);
         applyAimBlock(entity);
     }
