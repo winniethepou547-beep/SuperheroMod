@@ -19,7 +19,11 @@ import net.minecraft.server.level.ServerPlayer;
 public class SandGraspAbility extends Ability {
 
     public SandGraspAbility() {
-        super("sandman_sand_grasp", AbilityType.INSTANT, AbilitySlot.RMB);
+        // CHANNELED: Colossus formunda sag tik BASILI TUTULDUKCA nisan
+        // alaniyor, birakilinca kaya gidiyor. Normal formda onay/iptal
+        // akisi zaten kendi tuslarinda oldugu icin bu degisiklik onu
+        // etkilemiyor.
+        super("sandman_sand_grasp", AbilityType.CHANNELED, AbilitySlot.RMB);
     }
 
     @Override
@@ -56,5 +60,13 @@ public class SandGraspAbility extends Ability {
         }
 
         SandGraspController.press(player, getConfig());
+    }
+
+    @Override
+    protected void onChannelStop(ServerPlayer player) {
+        // Colossus formunda tus birakilinca kaya firlatilir
+        if (SandColossusController.isColossus(player.getUUID())) {
+            ColossusRockController.aimReleased(player);
+        }
     }
 }

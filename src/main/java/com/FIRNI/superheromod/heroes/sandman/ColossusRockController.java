@@ -52,7 +52,14 @@ public final class ColossusRockController {
 
     private static final double ROCK_SPEED = 1.35;
     private static final double MAX_TRAVEL = 48.0;
-    private static final float ROCK_RADIUS = 0.9f;
+    /**
+     * Kayanin gorsel ve carpisma yaricapi.
+     *
+     * 0.9 blokta kaya "dev bir kaya" gibi degil atilmis bir tas gibi
+     * duruyordu. Colossus 10 blok boyunda; elindeki kutle de o olcekte
+     * okunmali.
+     */
+    private static final float ROCK_RADIUS = 2.2f;
 
     private static final float IMPACT_DAMAGE = 9.0f;
     private static final double BLAST_RADIUS = 6.5;
@@ -67,6 +74,8 @@ public final class ColossusRockController {
     private static final class Windup {
         final UUID player;
         int ticks = 0;
+        /** Tus birakildi mi -- birakilinca kaya firlatilir. */
+        boolean released = false;
         Windup(UUID player) { this.player = player; }
     }
 
@@ -98,7 +107,7 @@ public final class ColossusRockController {
         return false;
     }
 
-    /** Colossus formunda sag tik buraya gelir. */
+    /** Colossus formunda sag tik BASILINCA buraya gelir. */
     public static void throwRock(ServerPlayer player) {
         if (isThrowing(player.getUUID())) return;
 
@@ -153,7 +162,15 @@ public final class ColossusRockController {
                         5, 0.4, 0.4, 0.4, 0.03);
             }
 
-            if (windup.ticks >= WINDUP_TICKS) {
+            // KAYA TUS BIRAKILINCA firlatiliyor.
+            //
+            // Onceden sabit sure sonunda kendiliginden gidiyordu ve oyuncu
+            // nereye attigini goremiyordu. Artik alan gosterilirken nisan
+            // alinabiliyor; en az WINDUP_TICKS beklemek gerekiyor cunku
+            // kayanin elde OLUSMASI icin zaman lazim.
+            if (windup.ticks >= MAX_AIM_TICKS) windup.released = true;
+
+            if (windup.released && windup.ticks >= WINDUP_TICKS) {
                 release(player);
                 it.remove();
             }
@@ -355,6 +372,18 @@ public final class ColossusRockController {
             if (player == null) continue;
             if (!(player.level() instanceof ServerLevel level)) continue;
 
+            // KAYA ELDE OLUSUYOR: nisan alinirken oyuncu neyi
+            // firlatacagini goruyor. Onceden kaya ancak firladiktan
+            // sonra vardi ve hazirlik bos bir bekleme gibi duruyordu.
+            Vec3 hand = handPosition(player);
+            float grow = Math.min(1f, windup.ticks / (float) WINDUP_TICKS);
+
+            out.add(new com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.Shape(
+                    id++,
+                    com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.TYPE_ROCK,
+                    hand.x, hand.y, hand.z,
+                    windup.ticks * 6f, 0f, 1f, ROCK_RADIUS * grow, 0f));
+
             Vec3 spot = aimPoint(level, player);
             if (spot == null) continue;
 
@@ -384,4 +413,19 @@ public final class ColossusRockController {
         Vec3 ground = SandSpikeController.groundUnder(level, point.add(0, 1.0, 0));
         return ground != null ? ground : point;
     }
+
+    /**
+     * Sag tik birakildi — kaya gidiyor.
+     *
+     * Basili tutulurken alan gosterilip nisan aliniyor; oyuncu nereye
+     * attigini gormeden atmak zorunda kalmiyor.
+     */
+    public static void aimReleased(ServerPlayer player) {
+        for (Windup w : windups) {
+            if (w.player.equals(player.getUUID())) w.released = true;
+        }
+    }
+
+    /** Cok uzun tutulursa kendiliginden gitsin; sonsuz nisan olmasin. */
+    private static final int MAX_AIM_TICKS = 120;
 }

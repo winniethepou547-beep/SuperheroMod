@@ -205,6 +205,57 @@ public final class SandFistController {
         }
 
         checkHit(player, strike, level);
+        breakBlocks(player, strike, level);
+    }
+
+    /**
+     * Kolun ve balyozun degdigi bloklari kirar.
+     *
+     * Kum kolu bir kutle: onune cikan araziyi delip gecmeli, yoksa duvara
+     * dayanan bir cubuk gibi duruyor. Kirma SADECE UCTA oluyor -- kolun
+     * govdesi de kirsaydi oyuncu ilerledikce arkasinda tunel acilirdi.
+     *
+     * Yaricap balyozla birlikte buyuyor; buyuk bir kutlenin ince bir
+     * yumrukla ayni deligi acmasi gorsel yalan olurdu.
+     */
+    private static void breakBlocks(ServerPlayer player, Strike strike, ServerLevel level) {
+        Vec3 fist = armOrigin(player).add(player.getLookAngle().scale(strike.length));
+        double radius = 0.8 + strike.hammer * 0.9;
+
+        BlockPos center = BlockPos.containing(fist);
+        int r = (int) Math.ceil(radius);
+        boolean broke = false;
+
+        for (int dx = -r; dx <= r; dx++) {
+            for (int dy = -r; dy <= r; dy++) {
+                for (int dz = -r; dz <= r; dz++) {
+                    if (dx * dx + dy * dy + dz * dz > radius * radius) continue;
+
+                    BlockPos pos = center.offset(dx, dy, dz);
+                    var state = level.getBlockState(pos);
+
+                    if (state.isAir()) continue;
+                    // Kirilmaz bloklar ve blok varliklari korunuyor:
+                    // yetenek arazi acmali, oyuncunun sandigini yutmamali
+                    if (state.getDestroySpeed(level, pos) < 0) continue;
+                    if (state.hasBlockEntity()) continue;
+
+                    level.destroyBlock(pos, false);
+                    broke = true;
+                }
+            }
+        }
+
+        if (broke) impactBurst(level, fist, strike.hammer);
+    }
+
+    /** Kirilan yerde minik patlama + kum saclimasi. */
+    private static void impactBurst(ServerLevel level, Vec3 at, float hammer) {
+        level.sendParticles(ParticleTypes.EXPLOSION, at.x, at.y, at.z, 1, 0, 0, 0, 0);
+        level.sendParticles(SAND_BLOCK, at.x, at.y, at.z,
+                8 + (int) (hammer * 8), 0.35, 0.35, 0.35, 0.09);
+        level.playSound(null, BlockPos.containing(at),
+                SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 0.8f, 0.7f);
     }
 
     /**

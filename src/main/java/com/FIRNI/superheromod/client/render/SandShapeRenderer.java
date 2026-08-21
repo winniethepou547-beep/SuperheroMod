@@ -6,7 +6,10 @@ import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
 import net.minecraft.client.Minecraft;
+import com.FIRNI.superheromod.client.render.util.SandGeometry;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.util.Mth;
 import net.minecraft.world.inventory.InventoryMenu;
@@ -62,83 +65,39 @@ public final class SandShapeRenderer {
         pose.translate(-cam.x, -cam.y, -cam.z);
         Matrix4f matrix = pose.last().pose();
 
-        RenderSystem.getModelViewStack().pushPose();
-        RenderSystem.getModelViewStack().last().pose().identity();
-        RenderSystem.getModelViewStack().last().normal().identity();
-        RenderSystem.applyModelViewMatrix();
+        // ENTITY CIZIM YOLU — sol tiktaki uzayan kolla AYNI.
+        //
+        // Onceden POSITION_TEX_COLOR kullaniliyordu; o shader ne dunya
+        // isigini ne de yuz golgelemesini uyguluyor. Sekiller hem gece
+        // yaniyor hem de gunduz oyunun kum bloklarindan parlak duruyordu.
+        MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
+        TextureAtlasSprite sprite = SandGeometry.sandSprite();
 
-        RenderSystem.enableBlend();
-        RenderSystem.blendFunc(GlStateManager.SourceFactor.SRC_ALPHA,
-                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA);
-        RenderSystem.depthMask(false);
-        RenderSystem.disableCull();
-
-        drawTextured(matrix, shapes);
-        drawMarkers(matrix, shapes);
-
-        RenderSystem.enableCull();
-        RenderSystem.disableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.depthMask(true);
-
-        RenderSystem.getModelViewStack().popPose();
-        RenderSystem.applyModelViewMatrix();
-        pose.popPose();
-    }
-
-    // ------------------------------------------------------------------
-    // Dokulu gecis
-    // ------------------------------------------------------------------
-
-    private static void drawTextured(Matrix4f m, List<SandShapeSyncPacket.Shape> shapes) {
-        boolean any = false;
-        for (SandShapeSyncPacket.Shape s : shapes) {
-            if (s.type() == SandShapeSyncPacket.TYPE_HAND
-                    || s.type() == SandShapeSyncPacket.TYPE_ROCK) {
-                any = true;
-                break;
-            }
-        }
-        if (!any) return;
-
-        RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
-        RenderSystem.setShaderTexture(0, InventoryMenu.BLOCK_ATLAS);
-
-        TextureAtlasSprite sprite = sandSprite();
-
-        Tesselator tes = Tesselator.getInstance();
-        BufferBuilder buf = tes.getBuilder();
-        buf.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
+        RenderType sandType = RenderType.entityCutoutNoCull(InventoryMenu.BLOCK_ATLAS);
+        VertexConsumer sand = buffers.getBuffer(sandType);
 
         for (SandShapeSyncPacket.Shape s : shapes) {
             if (s.type() == SandShapeSyncPacket.TYPE_HAND) {
-                drawHand(buf, m, s, sprite);
+                drawHand(sand, matrix, s, sprite);
             } else if (s.type() == SandShapeSyncPacket.TYPE_ROCK) {
-                drawRock(buf, m, s, sprite);
+                drawRock(sand, matrix, s, sprite);
             }
         }
+        buffers.endBatch(sandType);
 
-        tes.end();
+        // Gostergeler AYRI: onlar bir cisim degil CIZIM. Dokulu ve
+        // golgeli olsalardi araziye karisirlardi.
+        drawMarkers(matrix, shapes);
+
+        pose.popPose();
     }
 
-    /**
-     * Kum dokusu, oyunun kendi blok atlasindan.
-     *
-     * Kendi doku dosyamizi eklemek yerine oyunun kumunu kullaniyoruz:
-     * boylece kaynak paketi degistiren oyuncuda sekiller de degisiyor ve
-     * sekil her zaman arazideki kumla ayni tonu tutuyor.
-     */
-    private static TextureAtlasSprite sandSprite() {
-        return Minecraft.getInstance().getModelManager()
-                .getBlockModelShaper()
-                .getParticleIcon(Blocks.SAND.defaultBlockState());
-    }
 
     // ------------------------------------------------------------------
     // CEKME ELI
     // ------------------------------------------------------------------
 
-    private static void drawHand(BufferBuilder buf, Matrix4f m,
+    private static void drawHand(VertexConsumer buf, Matrix4f m,
                                  SandShapeSyncPacket.Shape s, TextureAtlasSprite sprite) {
         float sink = Mth.clamp(s.sink(), 0f, 1f);
         if (sink >= 0.999f) return;
@@ -153,15 +112,16 @@ public final class SandShapeRenderer {
         float alpha = 1f - sink * 0.85f;
 
         Vec3 base = new Vec3(s.x(), s.y() - sink * 1.6, s.z());
+        int light = SandGeometry.lightAt(base);
 
         double palmHalfWidth = 1.9;
         double palmHalfLen = 1.5;
         double palmThick = 0.34;
 
         Vec3 palmCenter = base.add(up.scale(0.4 * grow));
-        box(buf, m, sprite, palmCenter,
+        SandGeometry.box(buf, m, sprite, light, palmCenter,
                 side.scale(palmHalfWidth), up.scale(palmThick), fwd.scale(palmHalfLen),
-                TINT_MID, alpha);
+                TINT_MID, alpha, 1f);
 
         // Parmaklar avucun ON KENARINDAN cikar; ortadan ciksalardi el degil
         // sirtindan diken cikmis bir levha gibi gorunurdu.
@@ -173,19 +133,19 @@ public final class SandShapeRenderer {
 
             // Ortadaki parmaklar uzun — esit uzunluk tarak gibi duruyordu
             double lengthScale = (i == 1 || i == 2) ? 1.0 : 0.85;
-            drawFinger(buf, m, sprite, root, fwd, side, up, grow, curl, lengthScale, alpha);
+            drawFinger(buf, m, sprite, light, root, fwd, side, up, grow, curl, lengthScale, alpha);
         }
 
         // Bilek: elin yerden CIKTIGINI anlatir, olmayinca el havada yuzuyor
-        box(buf, m, sprite,
+        SandGeometry.box(buf, m, sprite, light,
                 base.subtract(up.scale(0.5)).subtract(fwd.scale(palmHalfLen * 0.4)),
                 side.scale(palmHalfWidth * 0.6), up.scale(0.85), fwd.scale(palmHalfLen * 0.5),
-                TINT_DARK, alpha);
+                TINT_DARK, alpha, 1f);
     }
 
     /** Tek parmak: iki bogum, ust bogum one kirik; curl ile kapaniyor. */
-    private static void drawFinger(BufferBuilder buf, Matrix4f m, TextureAtlasSprite sprite,
-                                   Vec3 root, Vec3 fwd, Vec3 side, Vec3 up,
+    private static void drawFinger(VertexConsumer buf, Matrix4f m, TextureAtlasSprite sprite,
+                                   int light, Vec3 root, Vec3 fwd, Vec3 side, Vec3 up,
                                    float grow, float curl, double lengthScale, float alpha) {
         double thick = 0.34;
         double lower = 1.65 * lengthScale * grow;
@@ -196,7 +156,7 @@ public final class SandShapeRenderer {
         Vec3 lowerDir = up.scale(1.0 - lowerLean * 0.55)
                 .add(fwd.scale(lowerLean * 0.6)).normalize();
 
-        boxAlong(buf, m, sprite, root.add(lowerDir.scale(lower * 0.5)),
+        boxAlong(buf, m, sprite, light, root.add(lowerDir.scale(lower * 0.5)),
                 lowerDir, lower * 0.5, thick, side, TINT_LIGHT, alpha);
 
         Vec3 joint = root.add(lowerDir.scale(lower));
@@ -205,7 +165,7 @@ public final class SandShapeRenderer {
         Vec3 upperDir = up.scale(1.0 - upperLean * 0.62)
                 .add(fwd.scale(upperLean * 0.72)).normalize();
 
-        boxAlong(buf, m, sprite, joint.add(upperDir.scale(upper * 0.5)),
+        boxAlong(buf, m, sprite, light, joint.add(upperDir.scale(upper * 0.5)),
                 upperDir, upper * 0.5, thick * 0.86, side, TINT_MID, alpha);
 
     }
@@ -224,12 +184,13 @@ public final class SandShapeRenderer {
      * Tek kup degil UC parcali kume: dev bir kaya duzgun bir kup olmaz.
      * Parcalar farkli acilarda ve boyutlarda.
      */
-    private static void drawRock(BufferBuilder buf, Matrix4f m,
+    private static void drawRock(VertexConsumer buf, Matrix4f m,
                                  SandShapeSyncPacket.Shape s, TextureAtlasSprite sprite) {
         double radius = s.curl();
         if (radius <= 0.05) return;
 
         Vec3 center = new Vec3(s.x(), s.y(), s.z());
+        int light = SandGeometry.lightAt(center);
 
         // Yuvarlanma: aci konumdan turetiliyor, boylece kaya ucarken
         // donuyor. Sabit acili bir kutu uzayda kaymis gibi duruyordu.
@@ -253,8 +214,8 @@ public final class SandShapeRenderer {
             double half = radius * (0.78 - i * 0.13);
             float[] tint = (i == 1) ? TINT_DARK : TINT_MID;
 
-            box(buf, m, sprite, c,
-                    ax.scale(half), ay.scale(half), az.scale(half), tint, 1f);
+            SandGeometry.box(buf, m, sprite, light, c,
+                    ax.scale(half), ay.scale(half), az.scale(half), tint, 1f, 1f);
         }
     }
 
@@ -385,62 +346,24 @@ public final class SandShapeRenderer {
     // Geometri yardimcilari
     // ------------------------------------------------------------------
 
-    private static void boxAlong(BufferBuilder buf, Matrix4f m, TextureAtlasSprite sprite,
-                                 Vec3 center, Vec3 dir, double halfLen, double thick,
-                                 Vec3 side, float[] col, float alpha) {
+    /** Verilen yon boyunca uzanan kutu — parmak bogumlari icin. */
+    private static void boxAlong(VertexConsumer buf, Matrix4f m, TextureAtlasSprite sprite,
+                                 int light, Vec3 center, Vec3 dir, double halfLen,
+                                 double thick, Vec3 side, float[] col, float alpha) {
         Vec3 across = side.normalize().scale(thick);
         Vec3 depth = dir.cross(side).normalize().scale(thick);
-        box(buf, m, sprite, center, across, dir.normalize().scale(halfLen), depth, col, alpha);
+        SandGeometry.box(buf, m, sprite, light, center,
+                across, dir.normalize().scale(halfLen), depth, col, alpha, 1f);
     }
 
-    private static void box(BufferBuilder buf, Matrix4f m, TextureAtlasSprite sprite, Vec3 c,
-                            Vec3 hw, Vec3 hh, Vec3 hd, float[] col, float alpha) {
-        Vec3 p000 = c.subtract(hw).subtract(hh).subtract(hd);
-        Vec3 p100 = c.add(hw).subtract(hh).subtract(hd);
-        Vec3 p110 = c.add(hw).add(hh).subtract(hd);
-        Vec3 p010 = c.subtract(hw).add(hh).subtract(hd);
-        Vec3 p001 = c.subtract(hw).subtract(hh).add(hd);
-        Vec3 p101 = c.add(hw).subtract(hh).add(hd);
-        Vec3 p111 = c.add(hw).add(hh).add(hd);
-        Vec3 p011 = c.subtract(hw).add(hh).add(hd);
-
-        face(buf, m, sprite, p001, p101, p111, p011, col, alpha);
-        face(buf, m, sprite, p100, p000, p010, p110, col, alpha);
-        face(buf, m, sprite, p000, p001, p011, p010, darker(col), alpha);
-        face(buf, m, sprite, p101, p100, p110, p111, darker(col), alpha);
-        face(buf, m, sprite, p010, p011, p111, p110, lighter(col), alpha);
-        face(buf, m, sprite, p000, p100, p101, p001, darker(col), alpha);
-    }
-
-    private static void face(BufferBuilder buf, Matrix4f m, TextureAtlasSprite sprite,
-                             Vec3 a, Vec3 b, Vec3 c, Vec3 d, float[] col, float alpha) {
-        vertTex(buf, m, a, sprite, 0f, 0f, col, alpha);
-        vertTex(buf, m, b, sprite, 1f, 0f, col, alpha);
-        vertTex(buf, m, c, sprite, 1f, 1f, col, alpha);
-        vertTex(buf, m, d, sprite, 0f, 1f, col, alpha);
-    }
-
-    /** Sprite'in atlas icindeki dilimine 0..1 araligini esler. */
-    private static void vertTex(BufferBuilder buf, Matrix4f m, Vec3 p,
-                                TextureAtlasSprite sprite, float u, float v,
-                                float[] col, float alpha) {
-        buf.vertex(m, (float) p.x, (float) p.y, (float) p.z)
-                .uv(sprite.getU(u * 16f), sprite.getV(v * 16f))
-                .color(Mth.clamp(col[0], 0f, 1f), Mth.clamp(col[1], 0f, 1f),
-                        Mth.clamp(col[2], 0f, 1f), Mth.clamp(alpha, 0f, 1f))
-                .endVertex();
-    }
-
+    /**
+     * Gosterge vertex'i — DUZ RENK, dokusuz ve golgesiz.
+     *
+     * Gosterge bir cisim degil bir cizim: dunya isigindan etkilenmemeli,
+     * yoksa karanlikta tam da gorulmesi gereken anda kayboluyor.
+     */
     private static void vert(BufferBuilder buf, Matrix4f m, Vec3 p, float[] col, float alpha) {
         buf.vertex(m, (float) p.x, (float) p.y, (float) p.z)
                 .color(col[0], col[1], col[2], Mth.clamp(alpha, 0f, 1f)).endVertex();
-    }
-
-    private static float[] darker(float[] col) {
-        return new float[]{col[0] * 0.76f, col[1] * 0.76f, col[2] * 0.76f};
-    }
-
-    private static float[] lighter(float[] col) {
-        return new float[]{col[0] * 1.12f, col[1] * 1.12f, col[2] * 1.12f};
     }
 }

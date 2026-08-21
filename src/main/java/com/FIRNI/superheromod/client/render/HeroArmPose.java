@@ -86,8 +86,24 @@ public final class HeroArmPose {
         // Dirsek DUZ (bend = 0): kirik bir kol uzayamaz, ek parcalar
         // on kolun acisinda degil omuzun acisinda cikardi.
         if (ClientSandArmData.isActive(player.getId())) {
-            model.rightArm.xRot = -((float) Math.PI / 2f);
-            model.rightArm.yRot = 0f;
+            // KOL KAMERAYI TAKIP EDIYOR.
+            //
+            // Onceden sabit yatay tutuluyordu: oyuncu yukari/asagi
+            // bakinca kol duz kaliyor, uzayan parca gorsel olarak
+            // baktigi yere gitmiyordu. Oysa hasar kontrolu bakis
+            // yonunu kullaniyor -- gorsel ile vurus ayri yerlere
+            // bakiyordu.
+            //
+            // Dikey: bakis acisi dogrudan omuza biniyor.
+            float pitch = player.getViewXRot(1.0f) * Mth.DEG_TO_RAD;
+            model.rightArm.xRot = -((float) Math.PI / 2f) + pitch;
+
+            // Yatay: govde bakis yonunu GECIKMELI takip ediyor, o yuzden
+            // aradaki fark kola ekleniyor. Boylece kol her zaman tam
+            // olarak imlecin baktigi yone uzuyor.
+            float bodyYaw = Mth.rotLerp(1.0f, player.yBodyRotO, player.yBodyRot);
+            float delta = Mth.wrapDegrees(player.getViewYRot(1.0f) - bodyYaw);
+            model.rightArm.yRot = -delta * Mth.DEG_TO_RAD;
             model.rightArm.zRot = 0f;
 
             copySleeves(model);
