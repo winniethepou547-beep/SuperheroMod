@@ -1,7 +1,7 @@
 package com.FIRNI.superheromod.client.render;
 
 import com.FIRNI.superheromod.SuperheroMod;
-import com.FIRNI.superheromod.heroes.sandman.ColossusCrystal;
+import com.FIRNI.superheromod.heroes.sandman.ColossusForm;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RenderPlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -20,17 +20,19 @@ import net.minecraftforge.fml.common.Mod;
 @Mod.EventBusSubscriber(modid = SuperheroMod.MODID, value = Dist.CLIENT)
 public final class ColossusRenderHandler {
 
-    private static final float PLAYER_HEIGHT = 1.8f;
-    private static final float SCALE = ColossusCrystal.COLOSSUS_HEIGHT / PLAYER_HEIGHT;
-
     private ColossusRenderHandler() {}
 
     @SubscribeEvent
     public static void onRenderPre(RenderPlayerEvent.Pre event) {
         if (!ClientColossusData.isColossus(event.getEntity())) return;
 
+        // Olcek olusma ilerlemesinden geliyor: dev bir anda belirmiyor,
+        // kum askerlerindeki gibi asama asama buyuyor
+        float progress = ClientColossusData.formProgress(event.getEntity());
+        float scale = ColossusForm.scaleFor(progress);
+
         event.getPoseStack().pushPose();
-        event.getPoseStack().scale(SCALE, SCALE, SCALE);
+        event.getPoseStack().scale(scale, scale, scale);
     }
 
     @SubscribeEvent

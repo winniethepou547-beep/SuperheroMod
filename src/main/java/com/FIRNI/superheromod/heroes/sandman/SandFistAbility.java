@@ -32,12 +32,25 @@ public class SandFistAbility extends Ability {
     @Override
     public boolean canActivate(ServerPlayer player) {
         if (!super.canActivate(player)) return false;
+
+        // Colossus formunda sol tik TOPUZ vurusudur
+        if (SandColossusController.isColossus(player.getUUID())) {
+            return !ColossusMaceController.isSwinging(player.getUUID())
+                    && !SandColossusController.isStaggered(player.getUUID());
+        }
+
         // Ayni anda ikinci yumruk baslamasin
         return !SandFistController.isSwinging(player.getUUID());
     }
 
     @Override
     protected void onActivate(ServerPlayer player) {
+        // Dev formundayken kucuk kum yumrugu yerine dev topuz iner
+        if (SandColossusController.isColossus(player.getUUID())) {
+            ColossusMaceController.swing(player);
+            return;
+        }
+
         SandFistController.start(player, getConfig());
     }
 }

@@ -11,20 +11,25 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class ClientColossusData {
 
     private static final Map<UUID, int[]> colossi = new ConcurrentHashMap<>();
+    /** Olusma ilerlemesi — gorsel olcek buradan hesaplaniyor. */
+    private static final Map<UUID, Float> formProgress = new ConcurrentHashMap<>();
 
     /** Form yeni acildiysa kamera bir kez ucuncu sahsa alinsin diye isaret. */
     private static volatile boolean justActivated = false;
 
     private ClientColossusData() {}
 
-    public static void set(UUID playerId, boolean active, int[] crystalStates) {
+    public static void set(UUID playerId, boolean active,
+                           float progress, int[] crystalStates) {
         if (!active) {
             colossi.remove(playerId);
+            formProgress.remove(playerId);
             return;
         }
 
         boolean wasActive = colossi.containsKey(playerId);
         colossi.put(playerId, crystalStates);
+        formProgress.put(playerId, progress);
 
         Minecraft mc = Minecraft.getInstance();
         if (!wasActive && mc.player != null && mc.player.getUUID().equals(playerId)) {
@@ -48,6 +53,11 @@ public final class ClientColossusData {
         return states[index];
     }
 
+    /** Olusma ilerlemesi 0..1; kayit yoksa tam olusmus kabul edilir. */
+    public static float formProgress(Player player) {
+        return formProgress.getOrDefault(player.getUUID(), 1f);
+    }
+
     /** Kamera bir kez ayarlansin diye okunup sifirlanan bayrak. */
     public static boolean consumeActivation() {
         if (!justActivated) return false;
@@ -57,6 +67,7 @@ public final class ClientColossusData {
 
     public static void clear() {
         colossi.clear();
+        formProgress.clear();
         justActivated = false;
     }
 }

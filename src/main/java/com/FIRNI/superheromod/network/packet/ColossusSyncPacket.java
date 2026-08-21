@@ -20,22 +20,27 @@ public class ColossusSyncPacket {
 
     private final UUID playerId;
     private final boolean active;
+    /** 0..1 olusma ilerlemesi — istemci gorsel olcegi buna gore buyutuyor. */
+    private final float formProgress;
     /** Kristal basina gorsel durum: 0 saglam, 1 catlak, 2 agir, 3 kirik. */
     private final int[] crystalStates;
 
-    public ColossusSyncPacket(UUID playerId, boolean active, int[] crystalStates) {
+    public ColossusSyncPacket(UUID playerId, boolean active,
+                              float formProgress, int[] crystalStates) {
         this.playerId = playerId;
         this.active = active;
+        this.formProgress = formProgress;
         this.crystalStates = crystalStates;
     }
 
     public static ColossusSyncPacket inactive(UUID playerId) {
-        return new ColossusSyncPacket(playerId, false, new int[0]);
+        return new ColossusSyncPacket(playerId, false, 0f, new int[0]);
     }
 
     public static void encode(ColossusSyncPacket msg, FriendlyByteBuf buf) {
         buf.writeUUID(msg.playerId);
         buf.writeBoolean(msg.active);
+        buf.writeFloat(msg.formProgress);
         buf.writeVarInt(msg.crystalStates.length);
         for (int state : msg.crystalStates) {
             buf.writeByte(state);
@@ -45,19 +50,21 @@ public class ColossusSyncPacket {
     public static ColossusSyncPacket decode(FriendlyByteBuf buf) {
         UUID id = buf.readUUID();
         boolean active = buf.readBoolean();
+        float progress = buf.readFloat();
         int n = buf.readVarInt();
         int[] states = new int[n];
         for (int i = 0; i < n; i++) {
             states[i] = buf.readByte();
         }
-        return new ColossusSyncPacket(id, active, states);
+        return new ColossusSyncPacket(id, active, progress, states);
     }
 
     public static void handle(ColossusSyncPacket msg, Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() ->
                 DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () ->
                         com.FIRNI.superheromod.client.render.ClientColossusData
-                                .set(msg.playerId, msg.active, msg.crystalStates)));
+                                .set(msg.playerId, msg.active,
+                                        msg.formProgress, msg.crystalStates)));
         ctx.get().setPacketHandled(true);
     }
 }

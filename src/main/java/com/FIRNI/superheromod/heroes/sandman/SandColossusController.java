@@ -65,6 +65,10 @@ public final class SandColossusController {
         int ticksLeft;
         final Map<ColossusCrystal, Float> crystalHealth = new EnumMap<>(ColossusCrystal.class);
 
+        /** Olusma sayaci — dolana kadar dev henuz kurulmamis sayilir. */
+        int formTicks = 0;
+        int lastStage = -1;
+
         /** Kafa kristali kirilinca sersemleme. */
         int staggerTicks;
         /** Omuz kristalleri kirildiysa o kol zayiflar. */
@@ -81,6 +85,14 @@ public final class SandColossusController {
 
         boolean isBroken(ColossusCrystal c) {
             return crystalHealth.getOrDefault(c, 0f) <= 0f;
+        }
+
+        float formProgress() {
+            return Math.min(1f, formTicks / (float) ColossusForm.FORM_TICKS);
+        }
+
+        boolean isForming() {
+            return formTicks < ColossusForm.FORM_TICKS;
         }
     }
 
@@ -113,17 +125,12 @@ public final class SandColossusController {
 
         ServerLevel level = (ServerLevel) player.level();
 
-        // Vucut parcalanir ve cevredeki kum yukselir
+        // Vucut parcalanir — olusma buradan sonra asama asama ilerler
         level.sendParticles(sand(),
                 player.getX(), player.getY() + 1.0, player.getZ(),
-                120, 1.2, 1.6, 1.2, 0.25);
+                90, 0.9, 1.2, 0.9, 0.22);
         level.playSound(null, player.blockPosition(),
-                SoundEvents.SAND_PLACE, SoundSource.PLAYERS, 2.0f, 0.28f);
-        level.playSound(null, player.blockPosition(),
-                SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 1.6f, 0.45f);
-
-        // Devasa kutle yere iner — cevredekiler savrulur
-        groundSlam(level, player, player.position(), 6.0, 4.0f);
+                SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 1.8f, 0.4f);
 
         broadcast(player);
     }
@@ -166,11 +173,106 @@ public final class SandColossusController {
 
             if (colossus.staggerTicks > 0) colossus.staggerTicks--;
 
+            // Olusma bitene kadar sure isletilmiyor — dev henuz ayakta degil
+            if (colossus.isForming()) {
+                tickForming(player, colossus);
+                continue;
+            }
+
             tickForm(player, colossus);
 
             if (--colossus.ticksLeft <= 0) {
                 it.remove();
                 stopVisualsOnly(player);
+            }
+        }
+    }
+
+    /**
+     * OLUSMA — kum askerlerindeki gibi asama asama kurulur.
+     *
+     * Oyuncu bu sirada yerinde kilitli: dev kurulurken yurumek "olusma"
+     * hissini tamamen bozuyordu. Yer cekimi devam ediyor, yani havada
+     * asili kalmiyor.
+     */
+    private static void tickForming(ServerPlayer player, Colossus colossus) {
+        colossus.formTicks++;
+        float progress = colossus.formProgress();
+
+        // Yerinde kilitle ama yer cekimini kesme
+        player.setDeltaMovement(0, player.getDeltaMovement().y, 0);
+        player.hurtMarked = true;
+        player.fallDistance = 0f;
+
+        if (!(player.level() instanceof ServerLevel level)) return;
+
+        int stage = ColossusForm.stage(progress);
+        if (stage != colossus.lastStage) {
+            colossus.lastStage = stage;
+            onFormStage(level, player, stage);
+        }
+
+        emitFormParticles(level, player, progress, stage);
+
+        // Olusma tamamlandi — dev yere caklir
+        if (!colossus.isForming()) {
+            level.playSound(null, player.blockPosition(),
+                    SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 2.0f, 0.32f);
+            level.playSound(null, player.blockPosition(),
+                    SoundEvents.SAND_PLACE, SoundSource.PLAYERS, 2.0f, 0.25f);
+
+            groundSlam(level, player, player.position(), 7.0, 5.0f);
+            broadcast(player);
+        } else if (colossus.formTicks % 3 == 0) {
+            broadcast(player);
+        }
+    }
+
+    /** Her asamanin kendi sesi var — kurulusun ilerledigi duyulmali. */
+    private static void onFormStage(ServerLevel level, ServerPlayer player, int stage) {
+        switch (stage) {
+            case 1 -> level.playSound(null, player.blockPosition(),
+                    SoundEvents.SAND_PLACE, SoundSource.PLAYERS, 1.6f, 0.45f);
+            case 2 -> level.playSound(null, player.blockPosition(),
+                    SoundEvents.SAND_PLACE, SoundSource.PLAYERS, 1.7f, 0.38f);
+            case 3 -> level.playSound(null, player.blockPosition(),
+                    SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 1.6f, 0.42f);
+            case 4 -> level.playSound(null, player.blockPosition(),
+                    SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, 1.2f, 0.55f);
+            default -> { }
+        }
+    }
+
+    /** Asamaya gore kum farkli yerden toplanir — yerden yukari dogru. */
+    private static void emitFormParticles(ServerLevel level, ServerPlayer player,
+                                          float progress, int stage) {
+        double x = player.getX();
+        double y = player.getY();
+        double z = player.getZ();
+
+        // Zeminde donen kum halkasi — tum olusma boyunca
+        double ring = 2.0 + progress * 3.0;
+        for (int i = 0; i < 3; i++) {
+            double a = (player.tickCount * 0.35) + i * (Math.PI * 2 / 3);
+            level.sendParticles(sand(),
+                    x + Math.cos(a) * ring, y + 0.1, z + Math.sin(a) * ring,
+                    2, 0.2, 0.05, 0.2, 0.06);
+        }
+
+        // Kum yerden yukari akiyor — yukseklik asamayla artiyor
+        double height = ColossusCrystal.COLOSSUS_HEIGHT * ColossusForm.growth(progress);
+        if (height > 0.2) {
+            level.sendParticles(sand(),
+                    x, y + height * 0.5, z,
+                    6, 1.0, height * 0.45, 1.0, 0.05);
+        }
+
+        // Son asamada kristaller belirir
+        if (stage == 4 && player.tickCount % 2 == 0) {
+            for (ColossusCrystal crystal : ColossusCrystal.values()) {
+                Vec3 pos = crystal.worldPosition(player.position(), player.getYRot());
+                level.sendParticles(ParticleTypes.CRIT,
+                        pos.x, pos.y, pos.z, 2, 0.15, 0.15, 0.15, 0.02);
             }
         }
     }
@@ -224,6 +326,12 @@ public final class SandColossusController {
 
         Colossus colossus = active.get(victim.getUUID());
         if (colossus == null) return;
+
+        // Olusurken vurulamaz — dev henuz kurulmadi, kristalleri de yok
+        if (colossus.isForming()) {
+            event.setCanceled(true);
+            return;
+        }
 
         ColossusCrystal hit = findHitCrystal(colossus, victim, event.getSource().getEntity());
 
@@ -420,7 +528,8 @@ public final class SandColossusController {
         }
 
         ModNetworking.CHANNEL.send(PacketDistributor.ALL.noArg(),
-                new ColossusSyncPacket(player.getUUID(), true, states));
+                new ColossusSyncPacket(player.getUUID(), true,
+                        colossus.formProgress(), states));
     }
 
     private static BlockParticleOption sand() {
