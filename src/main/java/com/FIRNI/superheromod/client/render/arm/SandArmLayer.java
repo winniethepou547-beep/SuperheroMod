@@ -53,10 +53,10 @@ public class SandArmLayer
      * kalir ve z-fighting yapardi; ayrica kum "uzerine sarilmis" gibi
      * durmazdi.
      */
-    private static final float SWELL_PX = 0.6f;
+    private static final float SWELL_PX = 2.0f;
 
     /** Ucta eklenen fazladan kalinlik — kol uca dogru konik acilir. */
-    private static final float TIP_SWELL_PX = 1.6f;
+    private static final float TIP_SWELL_PX = 2.6f;
 
     public SandArmLayer(
             RenderLayerParent<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> parent) {
@@ -94,56 +94,64 @@ public class SandArmLayer
         for (int i = 0; i < segments; i++) {
             float from = ARM_LENGTH_PX + i * SEGMENT_PX;
 
-            // Son bogum tasmasin: kalan uzunluk kadar kisaliyor, yoksa
-            // kol hedeflenenden uzun gorunuyordu
             float remaining = totalPx - i * SEGMENT_PX;
             if (remaining <= 0.05f) break;
             float height = Math.min(SEGMENT_PX, remaining);
 
-            // KOL UCA DOGRU KALINLASIYOR.
-            //
-            // Sabit kalinlik kolu boru gibi gosteriyordu. Kum omuzdan uca
-            // dogru toplandigi icin kutle ucta birikmeli — hem daha dogru
-            // gorunuyor hem de vurusun nereden geldigi belli oluyor.
-            //
-            // Oran uzunluga degil BOGUM SAYISINA gore: kisa kolda da uzun
-            // kolda da ayni konik siluet cikiyor.
+            // Uca dogru kalinlasma
             float along = segments <= 1 ? 1f : i / (float) (segments - 1);
-
-            // Ustune tek/cift kirilma: tamamen duzgun koni fazla temiz
-            // duruyordu, kum yigilmasi kirikli olmali
             float swell = SWELL_PX + along * TIP_SWELL_PX + (i % 2 == 0 ? 0.18f : 0f);
 
-            // Her bogum kum dokusunun BASKA bir dilimini kullaniyor.
-            //
-            // Ayni dilim tekrarlansaydi kum deseni bogum bogum birebir
-            // kopyalanir ve kol boyunca bantli/tekrar eden bir goruntu
-            // olusurdu. Kum gurultulu bir doku oldugu icin dilimi
-            // kaydirmak yeterli: desen boyunca surekli degisiyor.
             float vShift = (i % 3) * 0.3f;
 
             box(poseStack, buf, sprite, packedLight,
                     xOrigin - swell, from, -2f - swell,
                     width + swell * 2f, height, 4f + swell * 2f, vShift);
+
+            // ICINDEN CIKAN KAYA PARCALARI.
+            //
+            // Duz bir kum borusu "icinde kaya var" hissi vermiyordu.
+            // Parcalar govdeden DISARI tasiyor ve her biri farkli yonde;
+            // hizali olsalardi cikinti degil kaburga gibi gorunurlerdi.
+            addChunks(poseStack, buf, sprite, packedLight, i,
+                    xOrigin + width * 0.5f, from + height * 0.5f,
+                    (width + swell * 2f) * 0.5f);
         }
-
-        // YUMRUK — kolun ucundaki kutle. Onsuz kol duz bir boru gibi
-        // bitiyor ve neyin vurdugu belli olmuyor.
-        // Yumruk konigin devami: kolun uc kalinligindan da genis olmali,
-        // yoksa uca dogru sisen kolun ucunda ince bir kutu kaliyor
-        float fistSwell = SWELL_PX + TIP_SWELL_PX + 1.1f;
-        float tipY = ARM_LENGTH_PX + totalPx;
-
-        box(poseStack, buf, sprite, packedLight,
-                xOrigin - fistSwell, tipY - 1f, -2f - fistSwell,
-                width + fistSwell * 2f, 5f, 4f + fistSwell * 2f, 0.55f);
-
-        float hammer = ClientSandArmData.hammerOf(player.getId());
-        if (hammer > 0.01f) {
-            drawHammer(poseStack, buf, sprite, packedLight, xOrigin, width, tipY, hammer);
-        }
-
         poseStack.popPose();
+    }
+
+    /**
+     * Kolun icinden cikan kaya parcalari.
+     *
+     * Cizimde kolun her yerinden farkli acilarda bloklar tasiyor; amac
+     * "icinde kaya var" izlenimi. Parcalar govde yuzeyinden DISARI cikiyor
+     * ve konumlari bogum sirasindan turetiliyor -- rastgele sayi
+     * kullanilsaydi her karede yer degistirir, kol kaynayan bir kutle
+     * gibi gorunurdu.
+     */
+    private static void addChunks(PoseStack poseStack, VertexConsumer buf,
+                                  TextureAtlasSprite sprite, int light, int index,
+                                  float cx, float cy, float halfWidth) {
+        // Bogum basina uc parca; her biri govdenin farkli bir yuzunde
+        for (int k = 0; k < 3; k++) {
+            int seed = index * 7 + k * 13;
+
+            // Yon: govde cevresinde dagilmis acilar
+            double angle = (seed % 8) * (Math.PI / 4.0) + (index % 2) * 0.4;
+            float ox = (float) Math.cos(angle) * halfWidth;
+            float oz = (float) Math.sin(angle) * halfWidth;
+
+            // Boy: parcalar esit olmasin, kirikli siluet olussun
+            float size = 2.2f + (seed % 5) * 0.55f;
+
+            // Kol ekseni boyunca kaydirma — hepsi bogumun ortasinda
+            // toplanmasin
+            float oy = ((seed % 3) - 1) * 1.8f;
+
+            box(poseStack, buf, sprite, light,
+                    cx + ox - size * 0.5f, cy + oy - size * 0.5f, oz - size * 0.5f,
+                    size, size, size, (seed % 3) * 0.3f);
+        }
     }
 
     /**
@@ -166,9 +174,11 @@ public class SandArmLayer
 
         // Basin olculeri (piksel). Genislik boyunun cok uzerinde; cizimde
         // de bas uzun ve yassi.
-        float headLen = 22f * g;      // side ekseni boyunca
-        float headTall = 9f * g;      // kol ekseni boyunca
-        float headDeep = 9f * g;      // derinlik
+        // Balyoz da kolla AYNI ORANDA kalinlasti: kol sismisken bas ayni
+        // kalirsa alet degil kolun ucundaki cikinti gibi duruyor.
+        float headLen = 30f * g;      // side ekseni boyunca
+        float headTall = 13f * g;     // kol ekseni boyunca
+        float headDeep = 13f * g;     // derinlik
 
         float cx = xOrigin + width * 0.5f;
 
@@ -189,6 +199,19 @@ public class SandArmLayer
         box(poseStack, buf, sprite, light,
                 cx + headLen * 0.5f, tipY + 1f - (capTall - headTall) * 0.5f,
                 -capDeep * 0.5f, capLen, capTall, capDeep, 0.45f);
+
+        // BALYOZUN UZERINDE de kaya parcalari — cizimde cekic tarafi da
+        // ayni dokuda ve ayni oranda kalin
+        for (int k = 0; k < 5; k++) {
+            int seed = k * 11 + 3;
+            float ox = ((seed % 5) - 2) * headLen * 0.2f;
+            float oz = ((seed % 3) - 1) * headDeep * 0.45f;
+            float size = (2.6f + (seed % 4) * 0.7f) * g;
+
+            box(poseStack, buf, sprite, light,
+                    cx + ox - size * 0.5f, tipY + 1f + headTall * 0.5f - size * 0.5f,
+                    oz - size * 0.5f, size, size, size, (seed % 3) * 0.3f);
+        }
 
         // BOYUN: sapin basa girdigi yer
         float neck = 6.5f * g;

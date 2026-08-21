@@ -23,8 +23,13 @@ public class SandWallSyncPacket {
      * @param spike   0..1 dis yuzeydeki dikenlerin cikma orani
      * @param health  0..1 duvarin kalan dayanikliligi
      */
+    /**
+     * @param crumble dagilma orani 0..1. Duvar pat diye kaybolmuyor;
+     *                asker olumundeki gibi parcalanarak yok oluyor.
+     */
     public record Entry(Vec3 center, float yaw, float halfWidth, float halfHeight,
-                        float halfDepth, float spike, float health, boolean preview) {}
+                        float halfDepth, float spike, float health, boolean preview,
+                        float crumble) {}
 
     private final List<Entry> walls;
 
@@ -45,6 +50,7 @@ public class SandWallSyncPacket {
             buf.writeFloat(e.spike());
             buf.writeFloat(e.health());
             buf.writeBoolean(e.preview());
+            buf.writeFloat(e.crumble());
         }
     }
 
@@ -55,7 +61,8 @@ public class SandWallSyncPacket {
             list.add(new Entry(
                     new Vec3(buf.readDouble(), buf.readDouble(), buf.readDouble()),
                     buf.readFloat(), buf.readFloat(), buf.readFloat(), buf.readFloat(),
-                    buf.readFloat(), buf.readFloat(), buf.readBoolean()));
+                    buf.readFloat(), buf.readFloat(), buf.readBoolean(),
+                    buf.readFloat()));
         }
         return new SandWallSyncPacket(list);
     }

@@ -44,7 +44,10 @@ import java.util.*;
 @Mod.EventBusSubscriber(modid = SuperheroMod.MODID)
 public final class SandWallController {
 
-    public enum State { PREVIEW, SOLID, SPIKING, FLYING }
+    public enum State { PREVIEW, SOLID, SPIKING, FLYING, CRUMBLING }
+
+    /** Dagilma suresi (tick) — asker olum animasyonuyla ayni ritim. */
+    private static final int CRUMBLE_TICKS = 14;
 
     /** Dikenler ciktiktan sonra firlamadan onceki kisa bekleme. */
     private static final int SPIKE_DELAY = 9;
@@ -239,10 +242,21 @@ public final class SandWallController {
                     yield false;
                 }
                 case FLYING -> tickFlying(wall, owner);
+                case CRUMBLING -> {
+                    // Dagilirken de yolu kesmesin: duvar artik yok
+                    tickCrumble(wall);
+                    yield false;
+                }
             };
 
-            if (done) {
+            // PAT DIYE KAYBOLMUYOR: dagilma asamasina geciyor. Aniden
+            // silinmesi duvarin yikildigi degil kapatildigi izlenimi
+            // veriyordu.
+            if (done && wall.state != State.CRUMBLING) {
+                wall.state = State.CRUMBLING;
+                wall.stateTicks = 0;
                 crumble(wall);
+            } else if (wall.state == State.CRUMBLING && wall.stateTicks >= CRUMBLE_TICKS) {
                 it.remove();
             }
         }
@@ -393,6 +407,44 @@ public final class SandWallController {
                 count, wall.halfWidth * 0.8, wall.halfHeight * 0.8, wall.halfDepth, speed);
     }
 
+    /**
+     * Dagilma asamasi.
+     *
+     * Asker olumundeki gibi GERCEK kum bloklari dokuluyor; sadece
+     * partikul kullanilsaydi duvar dagilmiyor, buharlasiyormus gibi
+     * gorunurdu. Bloklar duvarin YUZEYINDEN kopuyor, merkezden degil.
+     */
+    private static void tickCrumble(Wall wall) {
+        if (wall.stateTicks % 2 != 0) return;
+
+        var rnd = wall.level.random;
+        double yaw = Math.toRadians(wall.yaw);
+        Vec3 facing = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
+        Vec3 side = new Vec3(facing.z, 0, -facing.x);
+
+        for (int i = 0; i < 3; i++) {
+            Vec3 spot = wall.center
+                    .add(side.scale((rnd.nextDouble() * 2 - 1) * wall.halfWidth))
+                    .add(0, (rnd.nextDouble() * 2 - 1) * wall.halfHeight, 0)
+                    .add(facing.scale((rnd.nextDouble() * 2 - 1) * wall.halfDepth));
+
+            var falling = net.minecraft.world.entity.item.FallingBlockEntity.fall(
+                    wall.level, BlockPos.containing(spot),
+                    net.minecraft.world.level.block.Blocks.SAND.defaultBlockState());
+
+            falling.setDeltaMovement(
+                    (rnd.nextDouble() - 0.5) * 0.18,
+                    rnd.nextDouble() * 0.14,
+                    (rnd.nextDouble() - 0.5) * 0.18);
+            falling.time = 1;
+            falling.dropItem = false;
+        }
+
+        wall.level.sendParticles(SAND_BLOCK,
+                wall.center.x, wall.center.y, wall.center.z,
+                14, wall.halfWidth * 0.7, wall.halfHeight * 0.7, wall.halfDepth * 0.7, 0.05);
+    }
+
     private static void crumble(Wall wall) {
         wall.level.sendParticles(SAND_BLOCK,
                 wall.center.x, wall.center.y, wall.center.z,
@@ -419,7 +471,10 @@ public final class SandWallController {
                         wall.halfWidth, wall.halfHeight, wall.halfDepth,
                         wall.spikeAmount(),
                         Math.max(0f, wall.health / wall.maxHealth),
-                        wall.state == State.PREVIEW));
+                        wall.state == State.PREVIEW,
+                        wall.state == State.CRUMBLING
+                                ? Math.min(1f, wall.stateTicks / (float) CRUMBLE_TICKS)
+                                : 0f));
             }
 
             ModNetworking.CHANNEL.send(PacketDistributor.PLAYER.with(() -> viewer),

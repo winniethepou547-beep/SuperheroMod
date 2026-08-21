@@ -108,6 +108,14 @@ public final class SandWallRenderer {
         // ayni parlaklikta duruyor ve "kum" gibi okunmuyordu.
         float alpha = preview ? 0.32f : 1.0f;
 
+        // DAGILIRKEN duvar soluyor ve kuculuyor: parcalanma sunucuda
+        // gercek kum bloklariyla anlatiliyor, burasi govdenin geri
+        // cekilmesini gosteriyor. Ikisi birlikte "yikildi" diyor.
+        float crumble = Mth.clamp(wall.crumble(), 0f, 1f);
+        if (crumble >= 0.999f) return;
+        alpha *= 1f - crumble * 0.85f;
+        float shrink = 1f - crumble * 0.55f;
+
         // Hasar aldikca koyulasip soluklasir
         float health = Mth.clamp(wall.health(), 0f, 1f);
         int light = SandGeometry.lightAt(wall.center());
@@ -116,9 +124,9 @@ public final class SandWallRenderer {
         float[] edge = preview ? PREVIEW : SAND_LIGHT;
 
         Vec3 c = wall.center();
-        Vec3 hw = side.scale(wall.halfWidth());
-        Vec3 hh = up.scale(wall.halfHeight());
-        Vec3 hd = facing.scale(wall.halfDepth());
+        Vec3 hw = side.scale(wall.halfWidth() * shrink);
+        Vec3 hh = up.scale(wall.halfHeight() * shrink);
+        Vec3 hd = facing.scale(wall.halfDepth() * shrink);
 
         SandGeometry.box(buf, m, sprite, light, c, hw, hh, hd, body, alpha, 1f);
 
@@ -128,9 +136,64 @@ public final class SandWallRenderer {
         SandGeometry.box(buf, m, sprite, light, c.add(0, wall.halfHeight() * 0.95, 0),
                 hw.scale(1.02), hh.scale(0.05), hd.scale(1.02), edge, alpha * 0.8f, 1f);
 
+        // YUZEY CIKINTILARI — duvar dumduz bir levha gibi duruyordu.
+        // Cikintilar duvarin KENDI eksenlerine gore yerlestiriliyor,
+        // yani duvar hareket edince onlar da birlikte gidiyor: tek parca.
+        addBumps(buf, m, sprite, light, wall, facing, side, up, body, alpha);
+
         float spike = wall.spike();
         if (spike > 0.01f) {
             drawSpikes(buf, m, sprite, light, wall, facing, side, up, spike, alpha);
+        }
+    }
+
+    /**
+     * Yuzeydeki minik cikintilar.
+     *
+     * Duvarin dis ve ic yuzunden kucuk kum kupleri tasiyor. Konumlar
+     * duvarin merkezinden turetilmis sabit bir tohumdan geliyor: rastgele
+     * olsaydi her karede yer degistirir, duvar kaynayan bir kutle gibi
+     * gorunurdu.
+     *
+     * Cikintilar duvarin YEREL eksenlerinde konumlaniyor, dunya
+     * koordinatlarinda degil -- duvar firlatildiginda birlikte uctuklari
+     * icin tek bir cisim olarak okunuyorlar.
+     */
+    private static void addBumps(VertexConsumer buf, Matrix4f m, TextureAtlasSprite sprite,
+                                 int light, SandWallSyncPacket.Entry wall,
+                                 Vec3 facing, Vec3 side, Vec3 up,
+                                 float[] tint, float alpha) {
+        Random rng = new Random(Double.doubleToLongBits(wall.halfWidth()) ^ 0x9E3779B9L);
+
+        int count = 22;
+        for (int i = 0; i < count; i++) {
+            double u = rng.nextDouble() * 2 - 1;
+            double v = rng.nextDouble() * 2 - 1;
+
+            // Hangi yuzden ciksin: on, arka veya ust
+            int face = rng.nextInt(5);
+            double size = 0.12 + rng.nextDouble() * 0.16;
+
+            Vec3 base;
+            if (face == 4) {
+                // Ust kenar — cizimdeki gibi tepede de kirikli olmali
+                base = wall.center()
+                        .add(side.scale(u * wall.halfWidth() * 0.92))
+                        .add(up.scale(wall.halfHeight()))
+                        .add(facing.scale(v * wall.halfDepth() * 0.8));
+            } else {
+                double dir = face < 2 ? 1.0 : -1.0;
+                base = wall.center()
+                        .add(side.scale(u * wall.halfWidth() * 0.92))
+                        .add(up.scale(v * wall.halfHeight() * 0.9))
+                        .add(facing.scale(wall.halfDepth() * dir));
+            }
+
+            // Cikinti govdeye YARISI GOMULU: tamamen disarida olsaydi
+            // duvara yapistirilmis ayri kupler gibi dururdu
+            SandGeometry.box(buf, m, sprite, light, base,
+                    side.scale(size), up.scale(size), facing.scale(size),
+                    tint, alpha, 1f);
         }
     }
 

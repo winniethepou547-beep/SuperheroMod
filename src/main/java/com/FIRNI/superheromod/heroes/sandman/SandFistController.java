@@ -209,20 +209,50 @@ public final class SandFistController {
     }
 
     /**
-     * Kolun ve balyozun degdigi bloklari kirar.
+    /**
+     * Kolun GECTIGI HER YERI kirar — sadece ucunu degil.
      *
-     * Kum kolu bir kutle: onune cikan araziyi delip gecmeli, yoksa duvara
-     * dayanan bir cubuk gibi duruyor. Kirma SADECE UCTA oluyor -- kolun
-     * govdesi de kirsaydi oyuncu ilerledikce arkasinda tunel acilirdi.
+     * Once yalnizca uc kiriyordu ve kolun govdesi bloklarin icinden
+     * hayalet gibi geciyordu: uzayan bir kum kutlesi icin bu yanlis.
+     * Artik omuzdan uca kadar tum hat taraniyor.
      *
-     * Yaricap balyozla birlikte buyuyor; buyuk bir kutlenin ince bir
-     * yumrukla ayni deligi acmasi gorsel yalan olurdu.
+     * Yaricap kol boyunca DEGISIYOR: govde ince, uc kalin, balyoz en
+     * kalin. Cizimdeki konik siluetin actigi delik de ayni olmali.
      */
     private static void breakBlocks(ServerPlayer player, Strike strike, ServerLevel level) {
-        Vec3 fist = armOrigin(player).add(player.getLookAngle().scale(strike.length));
-        double radius = 0.8 + strike.hammer * 0.9;
+        Vec3 origin = armOrigin(player);
+        Vec3 dir = player.getLookAngle();
 
-        BlockPos center = BlockPos.containing(fist);
+        // Adim boyu blok boyutundan kucuk: daha buyuk olsaydi hizli uzayan
+        // kol aradaki bloklari atlayip delik delik bir iz birakirdi
+        int steps = Math.max(2, (int) (strike.length * 2.5));
+        boolean broke = false;
+        Vec3 lastBreak = null;
+
+        for (int i = 1; i <= steps; i++) {
+            double t = i / (double) steps;
+            Vec3 at = origin.add(dir.scale(strike.length * t));
+
+            // Uca dogru kalinlasan kol, uca dogru buyuyen delik
+            double radius = 0.45 + t * 0.35 + strike.hammer * (t > 0.85 ? 0.9 : 0.0);
+
+            if (breakAround(level, at, radius)) {
+                broke = true;
+                lastBreak = at;
+            }
+        }
+
+        if (broke && lastBreak != null) impactBurst(level, lastBreak, strike.hammer);
+    }
+
+    /**
+     * Tek noktanin cevresindeki bloklari kirar.
+     *
+     * Kirilmaz bloklar ve blok varliklari korunuyor: yetenek arazi acmali,
+     * oyuncunun sandigini yutmamali.
+     */
+    private static boolean breakAround(ServerLevel level, Vec3 at, double radius) {
+        BlockPos center = BlockPos.containing(at);
         int r = (int) Math.ceil(radius);
         boolean broke = false;
 
@@ -235,8 +265,6 @@ public final class SandFistController {
                     var state = level.getBlockState(pos);
 
                     if (state.isAir()) continue;
-                    // Kirilmaz bloklar ve blok varliklari korunuyor:
-                    // yetenek arazi acmali, oyuncunun sandigini yutmamali
                     if (state.getDestroySpeed(level, pos) < 0) continue;
                     if (state.hasBlockEntity()) continue;
 
@@ -245,8 +273,7 @@ public final class SandFistController {
                 }
             }
         }
-
-        if (broke) impactBurst(level, fist, strike.hammer);
+        return broke;
     }
 
     /** Kirilan yerde minik patlama + kum saclimasi. */

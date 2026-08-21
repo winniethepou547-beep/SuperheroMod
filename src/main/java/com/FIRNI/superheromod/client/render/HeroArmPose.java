@@ -103,7 +103,11 @@ public final class HeroArmPose {
             // olarak imlecin baktigi yone uzuyor.
             float bodyYaw = Mth.rotLerp(1.0f, player.yBodyRotO, player.yBodyRot);
             float delta = Mth.wrapDegrees(player.getViewYRot(1.0f) - bodyYaw);
-            model.rightArm.yRot = -delta * Mth.DEG_TO_RAD;
+            // ISARET POZITIF. Vanilla netHeadYaw'i (bakis - govde) DOGRUDAN
+            // yRot olarak kullaniyor; eksi verince kol bakisin TERSINE
+            // donuyordu ve hata iki katina cikiyordu -- kol yana bakiyor,
+            // hasar ise imlecin gosterdigi yere gidiyordu.
+            model.rightArm.yRot = delta * Mth.DEG_TO_RAD;
             model.rightArm.zRot = 0f;
 
             copySleeves(model);

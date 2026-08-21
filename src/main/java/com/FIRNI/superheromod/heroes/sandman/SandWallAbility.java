@@ -27,7 +27,9 @@ public class SandWallAbility extends Ability {
         config.set("depth", 0.8f);
         config.set("distance", 3.2);
         config.set("wallHealth", 60.0f);
-        config.set("lifetimeTicks", 240);
+        // 30 saniye: duvar bir siper, gecici bir parlama degil. Kirilmaz
+        // veya kullanilmazsa bu sure sonunda kendiliginden dagiliyor.
+        config.set("lifetimeTicks", 600);
         config.set("flyDamage", 7.0f);      // 3.5 kalp — dikenli duvar agir vurur
     }
 
