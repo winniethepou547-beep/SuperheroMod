@@ -13,6 +13,7 @@ import com.FIRNI.superheromod.network.packet.SandWallActionPacket;
 import com.FIRNI.superheromod.network.packet.SandGraspActionPacket;
 import com.FIRNI.superheromod.network.packet.SandGraspPreviewPacket;
 import com.FIRNI.superheromod.network.packet.SandPillarPacket;
+import com.FIRNI.superheromod.network.packet.SandShapeSyncPacket;
 import com.FIRNI.superheromod.network.packet.SandWallSyncPacket;
 import com.FIRNI.superheromod.network.packet.CinematicSyncPacket;
 import com.FIRNI.superheromod.network.packet.GroundFxPacket;
@@ -118,5 +119,8 @@ public final class ModNetworking {
         CHANNEL.registerMessage(id++, SandPillarPacket.class,
                 SandPillarPacket::encode, SandPillarPacket::decode,
                 SandPillarPacket::handle);
+        CHANNEL.registerMessage(id++, SandShapeSyncPacket.class,
+                SandShapeSyncPacket::encode, SandShapeSyncPacket::decode,
+                SandShapeSyncPacket::handle);
     }
 }

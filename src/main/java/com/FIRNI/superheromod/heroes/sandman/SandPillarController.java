@@ -52,13 +52,16 @@ public final class SandPillarController {
     private static final class Pillar {
         final ServerLevel level;
         final Vec3 base;
+        /** Kaya parcalarinin dizilim acisi — her sutun farkli gorunsun. */
+        final float yaw;
         int ticks = 0;
         boolean shattering = false;
         int shatterTicks = 0;
 
-        Pillar(ServerLevel level, Vec3 base) {
+        Pillar(ServerLevel level, Vec3 base, float yaw) {
             this.level = level;
             this.base = base;
+            this.yaw = yaw;
         }
     }
 
@@ -81,7 +84,7 @@ public final class SandPillarController {
         Vec3 ground = SandSpikeController.groundUnder(level, player.position());
         Vec3 base = ground != null ? ground : player.position().subtract(0, 1.0, 0);
 
-        pillars.put(player.getUUID(), new Pillar(level, base));
+        pillars.put(player.getUUID(), new Pillar(level, base, player.getYRot()));
         cooldowns.put(player.getUUID(), COOLDOWN_TICKS);
 
         // Yukari itis: mevcut dusus hizi SIFIRLANIYOR, yoksa asagi dusen
@@ -158,33 +161,25 @@ public final class SandPillarController {
 
     /** Sutunun govdesi — burgulu dizilim ile silindir hissi veriyor. */
     private static void draw(Pillar pillar) {
-        // Yukselme animasyonu: ilk tick'lerde sutun asagidan yukari uzuyor
-        float grow = Math.min(1f, pillar.ticks / 6f);
-        double height = PILLAR_HEIGHT * grow;
+        // Sutunun GOVDESI artik geometri (SandShapeRenderer). Burasi sadece
+        // kayanin cevresinden dokulen kum: partikuller govde olarak
+        // kullanildiginda "somut kaya" gibi okunmuyordu.
+        if (pillar.ticks % 3 != 0) return;
 
-        int rings = (int) (height * 3);
-        for (int i = 0; i < rings; i++) {
-            double y = pillar.base.y + (i / (double) rings) * height;
+        double height = PILLAR_HEIGHT * Math.min(1f, pillar.ticks / 6f);
 
-            // Her halka bir oncekine gore doner; duz dizilim sutunu
-            // dumduz bir cizgi gibi gosteriyordu
-            double twist = i * 0.8 + pillar.ticks * 0.05;
-            for (int k = 0; k < 3; k++) {
-                double angle = twist + k * (Math.PI * 2 / 3);
-                pillar.level.sendParticles(sand(),
-                        pillar.base.x + Math.cos(angle) * PILLAR_RADIUS,
-                        y,
-                        pillar.base.z + Math.sin(angle) * PILLAR_RADIUS,
-                        1, 0.06, 0.06, 0.06, 0.0);
-            }
-        }
+        // Kenardan dokulen kum
+        double angle = pillar.level.random.nextDouble() * Math.PI * 2;
+        pillar.level.sendParticles(sand(),
+                pillar.base.x + Math.cos(angle) * (PILLAR_RADIUS + 0.35),
+                pillar.base.y + pillar.level.random.nextDouble() * height,
+                pillar.base.z + Math.sin(angle) * (PILLAR_RADIUS + 0.35),
+                1, 0.05, 0.1, 0.05, 0.01);
 
-        // Tabanda birikinti — sutunun yerden ciktigini anlatir
-        if (pillar.ticks % 4 == 0) {
-            pillar.level.sendParticles(sand(),
-                    pillar.base.x, pillar.base.y + 0.1, pillar.base.z,
-                    3, PILLAR_RADIUS, 0.05, PILLAR_RADIUS, 0.01);
-        }
+        // Tabanda birikinti — kayanin yerden ciktigini anlatir
+        pillar.level.sendParticles(sand(),
+                pillar.base.x, pillar.base.y + 0.1, pillar.base.z,
+                2, PILLAR_RADIUS, 0.05, PILLAR_RADIUS, 0.01);
     }
 
     /** Parcalanma — sutun disari savrulan kum bulutuna donusur. */
@@ -219,6 +214,28 @@ public final class SandPillarController {
         return cooldowns.getOrDefault(playerId, 0);
     }
 
+
+    /**
+     * SOMUT KAYA — sutun artik partikul bulutu degil geometri.
+     *
+     * Kullanici zipla mayi begendi ama "somut bir kaya" istedi: partikul
+     * ne kadar yogun olursa olsun uzerine basilabilecek bir cisim gibi
+     * okunmuyordu.
+     */
+    static void collectShapes(java.util.List<
+            com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.Shape> out) {
+        for (Pillar pillar : pillars.values()) {
+            float grow = Math.min(1f, pillar.ticks / 6f);
+            float sink = pillar.shattering
+                    ? pillar.shatterTicks / (float) SHATTER_TICKS
+                    : 0f;
+
+            out.add(new com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.Shape(
+                    com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.TYPE_PILLAR,
+                    pillar.base.x, pillar.base.y, pillar.base.z,
+                    pillar.yaw, grow, 0f, sink));
+        }
+    }
     public static void clear() {
         pillars.clear();
         cooldowns.clear();

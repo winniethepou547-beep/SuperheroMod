@@ -317,34 +317,28 @@ public final class SandGraspController {
                 intensity > 0.75f ? 2 : 1, 0.04, 0.0, 0.04, 0.0);
     }
 
-    /** Kumdan el — yerden cikan kutle olarak okunmali, bu yuzden yogun. */
+    /**
+     * Elin cevresindeki kum.
+     *
+     * Elin KENDISI artik geometri olarak ciziliyor (SandShapeRenderer);
+     * burasi sadece etrafa savrulan dokuntu. Partikuller once elin govdesi
+     * olarak kullaniliyordu ve somut cisim gibi okunmuyordu — ikisi birden
+     * yogun kalirsa bu sefer sekil partikul bulutunun icinde kayboluyor.
+     */
     private static void drawHand(Grasp grasp, Vec3 hand, float progress) {
         double halfWidth = grasp.cfg.getDouble("width", 3.0) * 0.5;
-
-        // Yukselme: el once yerden firlar, sonra suruklenirken alcalmaz
-        double rise = Math.min(1.0, progress * 3.0) * 2.2;
 
         Vec3 base = SandSpikeController.groundUnder(grasp.level, hand.add(0, 1.5, 0));
         if (base == null) base = hand;
 
-        // Avuc — genis kesit
-        for (int i = -3; i <= 3; i++) {
-            Vec3 p = base.add(grasp.side.scale(halfWidth * (i / 3.0)));
-            grasp.level.sendParticles(sand(),
-                    p.x, p.y + rise * 0.75, p.z, 4, 0.12, 0.35, 0.12, 0.02);
-        }
-
-        // Parmaklar — kesitin ustunde yukari uzanan tutamlar
-        for (int i = -2; i <= 2; i++) {
-            Vec3 p = base.add(grasp.side.scale(halfWidth * 0.8 * (i / 2.0)))
-                    .add(grasp.forward.scale(0.4));
-            grasp.level.sendParticles(sand(),
-                    p.x, p.y + rise, p.z, 3, 0.06, 0.25, 0.06, 0.01);
-        }
-
-        // Bilek — elin yerden ciktigini gosteren govde
+        // Elin yerden ciktigi yerde kum savrulur
         grasp.level.sendParticles(sand(),
-                base.x, base.y + rise * 0.3, base.z, 6, 0.25, 0.2, 0.25, 0.03);
+                base.x, base.y + 0.25, base.z, 5, halfWidth * 0.6, 0.15, halfWidth * 0.6, 0.05);
+
+        // Surukleme izi — elin arkasinda kalan yarik
+        Vec3 trail = base.subtract(grasp.forward.scale(0.8));
+        grasp.level.sendParticles(sand(),
+                trail.x, trail.y + 0.1, trail.z, 3, 0.4, 0.05, 0.4, 0.02);
     }
 
     private static void setClientPreview(ServerPlayer player, boolean active) {
@@ -358,6 +352,45 @@ public final class SandGraspController {
     }
 
     /** Sunucu kapanirken kalinti kalmasin. */
+
+    /**
+     * SOMUT EL — cizimdeki gibi genis avuc + dort kirik parmak.
+     *
+     * Partikul bulutu kuvveti anlatiyordu ama kutle anlatmiyordu; el artik
+     * geometri olarak da ciziliyor. Parmaklar cekme ilerledikce yumruk
+     * sikar gibi kapaniyor ve en sonda el yuzeye gomulup kayboluyor.
+     */
+    static void collectShapes(java.util.List<
+            com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.Shape> out) {
+        for (Grasp grasp : grasps.values()) {
+            if (grasp.state != State.ERUPTING) continue;
+
+            float progress = Math.min(1f, grasp.ticks / (float) ERUPT_TICKS);
+            Vec3 hand = grasp.far.add(grasp.near.subtract(grasp.far).scale(progress));
+
+            Vec3 base = SandSpikeController.groundUnder(grasp.level, hand.add(0, 1.5, 0));
+            if (base == null) base = hand;
+
+            // El SANDMAN'A BAKAR: parmaklar cekis yonunde kapanmali,
+            // ters baksaydi dusmani iterek kapaniyormus gibi gorunurdu
+            Vec3 dir = grasp.near.subtract(grasp.far);
+            float yaw = (float) Math.toDegrees(Math.atan2(-dir.x, dir.z));
+
+            // Yerden cikma: ilk ucte biri. Sonra surukleme boyunca ayakta.
+            float grow = Math.min(1f, progress * 3f);
+
+            // Parmaklar surukleme boyunca yavasca kapanir
+            float curl = progress;
+
+            // Son ceyrekte el yuzeye gomulur — cekis bitince ortada asili
+            // bir el kalmamali
+            float sink = progress > 0.75f ? (progress - 0.75f) / 0.25f : 0f;
+
+            out.add(new com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.Shape(
+                    com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.TYPE_HAND,
+                    base.x, base.y, base.z, yaw, grow, curl, sink));
+        }
+    }
     public static void clear() {
         grasps.clear();
     }

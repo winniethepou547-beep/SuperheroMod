@@ -388,21 +388,40 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
         if (dir == 0) return;
 
         float side = dir == 1 ? 1f : -1f;
-        // Yay: bir uctan diger uca gecis
-        float phase = Mth.sin(attack * (float) Math.PI);
-        float sweep = (attack - 0.5f) * 2f;
 
-        // Bel donusu — govde salinimi takip eder
-        body.yRot = -sweep * 0.55f * side;
-        head.yRot += sweep * 0.25f * side;
+        // Uc asama: kurulum -> savurma -> toparlanma. Tek bir sinus egrisi
+        // kullanildiginda vurusun nerede basladigi belli olmuyordu.
+        float windup = Mth.clamp(attack / 0.35f, 0f, 1f);
+        float sweep = Mth.clamp((attack - 0.35f) / 0.40f, 0f, 1f);
+        float recover = Mth.clamp((attack - 0.75f) / 0.25f, 0f, 1f);
 
-        // Kollar yatay duzlemde savrulur
-        rightArm.xRot = -1.15f * phase;
-        leftArm.xRot = -0.95f * phase;
-        rightArm.yRot = sweep * 0.9f * side;
-        leftArm.yRot = sweep * 0.7f * side;
-        rightArm.zRot = 0.08f + phase * 0.35f * side;
-        leftArm.zRot = -0.08f + phase * 0.30f * side;
+        // KOL ONCE YATAY DURUMA GETIRILIR. Bu sart:
+        // asagi sarkan bir kolda yRot kolu sadece KENDI EKSENINDE dondurur,
+        // yani yatay savurma hic gorunmez. Onceki surumde tek gorunen sey
+        // xRot'un iki kolu da yukari kaldirmasiydi -- "iki elini alttan
+        // yukari kaldiriyor" goruntusu tam olarak bundan geliyordu.
+        float lift = -1.45f * (windup - recover * 0.85f);
+
+        // Savurma yayi: bir yandan otekine gecis
+        float arc = (sweep * 2f - 1f) * 1.7f * side;
+
+        ModelPart swingArm = side > 0 ? rightArm : leftArm;
+        ModelPart idleArm = side > 0 ? leftArm : rightArm;
+
+        swingArm.xRot = lift;
+        swingArm.yRot = arc;
+        swingArm.zRot = 0.25f * side * (1f - sweep);
+
+        // Diger kol NEREDEYSE HAREKETSIZ. Ikisi birden oynayinca vurus
+        // savurma degil "iki elini kaldirma" gibi okunuyordu.
+        idleArm.xRot = -0.15f * windup;
+        idleArm.yRot = 0f;
+        idleArm.zRot = -0.10f * side;
+
+        // Bel savurmayi takip eder; yoksa sadece kol oynamis gibi duruyor
+        // ve vurusta agirlik hissi olusmuyor.
+        body.yRot = -arc * 0.30f;
+        head.yRot += arc * 0.15f;
     }
 
     /**
