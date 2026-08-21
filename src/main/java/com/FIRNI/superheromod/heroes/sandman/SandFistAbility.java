@@ -28,8 +28,10 @@ public class SandFistAbility extends Ability {
         // Menzil uzun cunku vurus artik yakin dovus degil UZANAN kol
         config.set("range", 8.0);
         config.set("radius", 0.9);
-        config.set("knockback", 0.9);
-        config.set("knockbackVertical", 0.35);
+        // Savurma artirildi: kol dev bir kutle, degdigi seyi gercekten
+        // firlatmali
+        config.set("knockback", 1.8);
+        config.set("knockbackVertical", 0.55);
     }
 
     @Override

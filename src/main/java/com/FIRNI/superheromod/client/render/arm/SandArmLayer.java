@@ -59,11 +59,12 @@ public class SandArmLayer
     /**
      * Ucta eklenen fazladan kalinlik.
      *
-     * Kucuk tutuluyor: kol zaten kalin, uc de belirgin sekilde sismis
-     * olsaydi konik degil huni gibi duruyordu. Istenen sey ucun SADECE
-     * HAFIF daha kalin olmasi.
+     * Kalinlasma UCA TOPLANIYOR (kup egri), boyuna esit dagilmiyor: esit
+     * dagilinca kol bastan sona genisleyen bir huni gibi duruyordu.
+     * Simdi govde neredeyse esit kalinlikta, son bogumlarda belirgin
+     * sekilde sisiyor -- kutle ucta.
      */
-    private static final float TIP_SWELL_PX = 0.7f;
+    private static final float TIP_SWELL_PX = 3.2f;
 
     public SandArmLayer(
             RenderLayerParent<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> parent) {
@@ -105,9 +106,12 @@ public class SandArmLayer
             if (remaining <= 0.05f) break;
             float height = Math.min(SEGMENT_PX, remaining);
 
-            // Uca dogru kalinlasma
+            // Uca dogru kalinlasma — KUP EGRI ile uca toplaniyor.
+            // Dogrusal olsaydi kol bastan sona genisleyen bir huni gibi
+            // duruyordu; simdi govde neredeyse esit, kutle ucta.
             float along = segments <= 1 ? 1f : i / (float) (segments - 1);
-            float swell = SWELL_PX + along * TIP_SWELL_PX + (i % 2 == 0 ? 0.18f : 0f);
+            float taper = along * along * along;
+            float swell = SWELL_PX + taper * TIP_SWELL_PX + (i % 2 == 0 ? 0.18f : 0f);
 
             float vShift = (i % 3) * 0.3f;
 

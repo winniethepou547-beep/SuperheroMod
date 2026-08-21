@@ -1,6 +1,7 @@
 package com.FIRNI.superheromod.client.render;
 
 import com.FIRNI.superheromod.network.packet.SandShapeSyncPacket;
+import net.minecraft.util.Mth;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -54,8 +55,18 @@ public final class ClientSandShapeData {
         // Sunucu susarsa sekiller ekranda asili kalmasin
         if (age > 800L) return Collections.emptyList();
 
-        // Ara deger 0..1 arasi; gecikme olursa son degere kilitlenir
-        float t = Math.min(1f, age / TICK_MS);
+        // ARA DEGER OYUNUN KENDI KARE ZAMANINDAN.
+        //
+        // Duvar saati kullanilinca istemcinin cizim dongusuyle sunucunun
+        // tick'i birbirini tutmuyordu: bazi karelerde sekil ayni yerde
+        // kaliyor, bazilarinda iki adim birden atliyordu -- gozle
+        // "takiliyor" gibi gorunen sey buydu. getFrameTime() oyunun
+        // kendi tick icindeki ilerlemesi, yani her kare duzgun artiyor.
+        float t = Mth.clamp(net.minecraft.client.Minecraft.getInstance().getFrameTime(),
+                0f, 1f);
+
+        // Paket gecikirse son degere kilitlen; yoksa sekil geri sarardi
+        if (age > TICK_MS * 1.6f) t = 1f;
 
         Map<Integer, SandShapeSyncPacket.Shape> prev = previous;
         List<SandShapeSyncPacket.Shape> out = new ArrayList<>(cur.size());

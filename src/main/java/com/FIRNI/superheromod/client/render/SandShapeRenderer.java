@@ -112,7 +112,13 @@ public final class SandShapeRenderer {
         float alpha = 1f - sink * 0.85f;
 
         Vec3 base = new Vec3(s.x(), s.y() - sink * 1.6, s.z());
-        int light = SandGeometry.lightAt(base);
+
+        // ISIK ZEMININ USTUNDEN orneklem aliniyor.
+        //
+        // Elin kendi konumu zemine oturuyor ve gomulurken yerin ALTINA
+        // giriyor; oradan okunan isik sifir cikiyor ve el bir anda
+        // kararyordu. Bir blok yukarisi her zaman acik havada.
+        int light = SandGeometry.lightAt(new Vec3(s.x(), s.y() + 1.2, s.z()));
 
         double palmHalfWidth = 1.9;
         double palmHalfLen = 1.5;
@@ -136,11 +142,51 @@ public final class SandShapeRenderer {
             drawFinger(buf, m, sprite, light, root, fwd, side, up, grow, curl, lengthScale, alpha);
         }
 
+        // YUZEY CIKINTILARI — duvardaki mantigin aynisi. Duz kutulardan
+        // olusan el "yontulmus" duruyordu; kum bir yigin, yuzeyi kirikli
+        // olmali.
+        addHandBumps(buf, m, sprite, light, palmCenter, side, up, fwd,
+                palmHalfWidth, palmThick, palmHalfLen, alpha);
+
         // Bilek: elin yerden CIKTIGINI anlatir, olmayinca el havada yuzuyor
         SandGeometry.box(buf, m, sprite, light,
                 base.subtract(up.scale(0.5)).subtract(fwd.scale(palmHalfLen * 0.4)),
                 side.scale(palmHalfWidth * 0.6), up.scale(0.85), fwd.scale(palmHalfLen * 0.5),
                 TINT_DARK, alpha, 1f);
+    }
+
+    /**
+     * Avucun yuzeyindeki minik kum kupleri.
+     *
+     * Duvardaki cikinti mantiginin aynisi: konumlar SABIT bir tohumdan
+     * turetiliyor, rastgele sayidan degil. Rastgele olsaydi her karede
+     * yer degistirir ve el kaynayan bir kutle gibi gorunurdu.
+     */
+    private static void addHandBumps(VertexConsumer buf, Matrix4f m,
+                                     TextureAtlasSprite sprite, int light,
+                                     Vec3 center, Vec3 side, Vec3 up, Vec3 fwd,
+                                     double halfWidth, double thick, double halfLen,
+                                     float alpha) {
+        for (int i = 0; i < 26; i++) {
+            int seed = i * 17 + 5;
+
+            double u = ((seed % 11) / 10.0) * 2 - 1;
+            double v = ((seed % 7) / 6.0) * 2 - 1;
+            double size = 0.10 + (seed % 5) * 0.045;
+
+            // Ust ve alt yuze dagiliyorlar; avuc yassi oldugu icin yan
+            // yuzlerde gorunur bir karsiligi yok
+            double dir = (seed % 2 == 0) ? 1.0 : -1.0;
+
+            Vec3 base = center
+                    .add(side.scale(u * halfWidth * 0.9))
+                    .add(up.scale(thick * dir))
+                    .add(fwd.scale(v * halfLen * 0.85));
+
+            SandGeometry.box(buf, m, sprite, light, base,
+                    side.scale(size), up.scale(size), fwd.scale(size),
+                    TINT_LIGHT, alpha, 1f);
+        }
     }
 
     /** Tek parmak: iki bogum, ust bogum one kirik; curl ile kapaniyor. */
@@ -283,7 +329,8 @@ public final class SandShapeRenderer {
         boolean any = false;
         for (SandShapeSyncPacket.Shape s : shapes) {
             if (s.type() == SandShapeSyncPacket.TYPE_ARROW
-                    || s.type() == SandShapeSyncPacket.TYPE_TARGET) {
+                    || s.type() == SandShapeSyncPacket.TYPE_TARGET
+                    || s.type() == SandShapeSyncPacket.TYPE_RECT) {
                 any = true;
                 break;
             }
@@ -299,6 +346,7 @@ public final class SandShapeRenderer {
         for (SandShapeSyncPacket.Shape s : shapes) {
             if (s.type() == SandShapeSyncPacket.TYPE_ARROW) drawArrow(buf, m, s);
             else if (s.type() == SandShapeSyncPacket.TYPE_TARGET) drawTargetRing(buf, m, s);
+            else if (s.type() == SandShapeSyncPacket.TYPE_RECT) drawEdgeMark(buf, m, s);
         }
 
         tes.end();
@@ -326,6 +374,31 @@ public final class SandShapeRenderer {
                     .subtract(fwd.scale(halfWidth * 0.9));
             ribbon(buf, m, tip, end, thickness, MARK_RED, alpha);
         }
+    }
+
+    /**
+     * Alan cercevesinin tek parcasi — ince kirmizi cizgi.
+     *
+     * Cerceve tek uzun cizgi degil PARCALARDAN olusuyor: tek parca
+     * olsaydi egimli arazide havada asili kalirdi, parcalar ise tek tek
+     * zemine oturuyor.
+     *
+     * Ok yerine cerceve kullaniliyor cunku ok bir YON anlatir; burada
+     * onemli olan alanin SINIRI.
+     */
+    private static void drawEdgeMark(BufferBuilder buf, Matrix4f m,
+                                     SandShapeSyncPacket.Shape s) {
+        double yaw = Math.toRadians(s.yaw());
+        Vec3 dir = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
+
+        double half = s.curl() * 0.5;
+        float alpha = 0.25f + s.grow() * 0.65f;
+
+        Vec3 center = new Vec3(s.x(), s.y() + 0.04, s.z());
+
+        // INCE: cizgi bir sinir isareti, dolgu degil
+        ribbon(buf, m, center.subtract(dir.scale(half)), center.add(dir.scale(half)),
+                0.055, MARK_RED, alpha);
     }
 
     /** Zemine yatik, kalinligi olan duz serit. */

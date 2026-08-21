@@ -26,6 +26,8 @@ public class SandShapeSyncPacket {
     public static final byte TYPE_ROCK = 5;
     /** Kayanin dusecegi yeri gosteren halka. */
     public static final byte TYPE_TARGET = 6;
+    /** Ince kirmizi cizgilerden dikdortgen alan gostergesi. */
+    public static final byte TYPE_RECT = 7;
 
     /**
      * @param id    kareler arasi ESLESTIRME kimligi.
