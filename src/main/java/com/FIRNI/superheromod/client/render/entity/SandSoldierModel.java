@@ -42,6 +42,8 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
     private final ModelPart leftHammer;
     private final ModelPart rightSpikes;
     private final ModelPart leftSpikes;
+    /** Dev vurusunda ellerin arasinda olusan dikenli kum kutlesi. */
+    private final ModelPart slamMass;
 
     public SandSoldierModel(ModelPart root) {
         this.root = root;
@@ -57,6 +59,7 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
         this.leftHammer = leftArm.getChild("left_hammer");
         this.rightSpikes = rightArm.getChild("right_spikes");
         this.leftSpikes = leftArm.getChild("left_spikes");
+        this.slamMass = root.getChild("slam_mass");
     }
 
     public static LayerDefinition createBodyLayer() {
@@ -112,13 +115,24 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
                 PartPose.ZERO);
 
         // --- CEKIC ELLERI: yakin dovus turlerinde hedefe yaklasinca acilir ---
+        // Bas KOLDAN BELIRGIN GENIS olmali; dar tutulunca sadece sisirilmis
+        // bir yumruk gibi duruyor ve cekic oldugu anlasilmiyordu.
+        // Kol 5 piksel genisliginde, bas 14 — iki yana tasiyor.
         rightArm.addOrReplaceChild("right_hammer",
-                CubeListBuilder.create().texOffs(0, 0)
-                        .addBox(-6.0f, 8.0f, -4.5f, 9, 8, 9),
+                CubeListBuilder.create()
+                        // sap boynu — bas havada durmasin, kola baglansin
+                        .texOffs(0, 0).addBox(-3.0f, 7.0f, -3.0f, 3, 4, 3)
+                        // asil bas
+                        .texOffs(0, 0).addBox(-9.5f, 10.0f, -5.5f, 14, 9, 11)
+                        // ust kenar cikintisi — siluete kose versin
+                        .texOffs(0, 0).addBox(-8.0f, 8.5f, -4.0f, 11, 2, 8),
                 PartPose.ZERO);
+
         leftArm.addOrReplaceChild("left_hammer",
-                CubeListBuilder.create().texOffs(0, 0)
-                        .addBox(-3.0f, 8.0f, -4.5f, 9, 8, 9),
+                CubeListBuilder.create()
+                        .texOffs(0, 0).addBox(0.0f, 7.0f, -3.0f, 3, 4, 3)
+                        .texOffs(0, 0).addBox(-4.5f, 10.0f, -5.5f, 14, 9, 11)
+                        .texOffs(0, 0).addBox(-3.0f, 8.5f, -4.0f, 11, 2, 8),
                 PartPose.ZERO);
 
         // --- MENZILLI TURUN OMUZ DIKENLERI: yukari dogru dik cikintilar ---
@@ -147,6 +161,20 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
                 CubeListBuilder.create().texOffs(0, 0)
                         .addBox(-2.5f, 0.0f, -2.5f, 5, 12, 5),
                 PartPose.offset(2.2f, 12.0f, 0.0f));
+
+        // --- DEV VURUSUNUN KUM KUTLESI: ellerin arasinda olusur ---
+        // Govdeye degil KOKE bagli, cunku iki elin ortasinda durmasi gerekiyor
+        root.addOrReplaceChild("slam_mass",
+                CubeListBuilder.create()
+                        .texOffs(0, 0).addBox(-8.0f, -12.0f, -8.0f, 16, 14, 16)
+                        // dort yana cikan dikenler
+                        .texOffs(0, 0).addBox(-12.0f, -9.0f, -3.0f, 5, 7, 6)
+                        .texOffs(0, 0).addBox(7.0f, -9.0f, -3.0f, 5, 7, 6)
+                        .texOffs(0, 0).addBox(-3.0f, -9.0f, -12.0f, 6, 7, 5)
+                        .texOffs(0, 0).addBox(-3.0f, -9.0f, 7.0f, 6, 7, 5)
+                        // tepe dikeni
+                        .texOffs(0, 0).addBox(-4.0f, -18.0f, -4.0f, 8, 7, 8),
+                PartPose.offset(0.0f, -8.0f, 0.0f));
 
         // --- Yer kum yigini (sadece olusmanin basinda) ---
         root.addOrReplaceChild("mound",
@@ -188,6 +216,83 @@ public class SandSoldierModel<T extends SandSoldierEntity> extends EntityModel<T
         applyBulk(entity);
         applyHammers(entity);
         applySwing(entity, attack);
+        applySlam(entity);
+    }
+
+    /**
+     * DEV ASKERIN AGIR VURUSU.
+     *
+     * Eller havaya kalkip tepede birlesir, aralarinda dikenli kum kutlesi
+     * olusur, sonra hep birlikte yere iner.
+     *
+     * Kutle KOKE bagli, kollara degil: iki elin TAM ORTASINDA durmasi
+     * gerekiyor, tek bir kola baglansa yana kayardi.
+     */
+    private void applySlam(T entity) {
+        float slam = entity.getSlamProgress();
+
+        if (slam <= 0.001f) {
+            slamMass.visible = false;
+            return;
+        }
+
+        // Faz sinirlari GiantSlamGoal ile ayni oranlarda
+        float raiseEnd = 14f / 44f;
+        float gatherEnd = 24f / 44f;
+        float impact = 30f / 44f;
+
+        float armX;      // kollarin kalkma acisi
+        float massScale; // kutlenin buyuklugu
+        float massY;     // kutlenin yuksekligi
+
+        if (slam <= raiseEnd) {
+            float p = ease(slam / raiseEnd);
+            armX = -3.05f * p;
+            massScale = 0f;
+            massY = -8f;
+        } else if (slam <= gatherEnd) {
+            float p = (slam - raiseEnd) / (gatherEnd - raiseEnd);
+            armX = -3.05f;
+            massScale = ease(p);
+            massY = -8f;
+        } else if (slam <= impact) {
+            // Inis — hizlanarak
+            float p = (slam - gatherEnd) / (impact - gatherEnd);
+            p = p * p;
+            armX = -3.05f + p * 4.25f;
+            massScale = 1f;
+            massY = -8f + p * 14f;
+        } else {
+            // Toparlanma
+            float p = ease((slam - impact) / (1f - impact));
+            armX = 1.20f * (1f - p);
+            massScale = Math.max(0f, 1f - p * 2.2f);
+            massY = 6f;
+        }
+
+        rightArm.xRot = armX;
+        leftArm.xRot = armX;
+        // Eller tepede BIRLESIR — omuzdan ice dogru kapanir
+        float close = Math.min(1f, slam / gatherEnd);
+        rightArm.zRot = 0.38f * close;
+        leftArm.zRot = -0.38f * close;
+
+        body.xRot = armX * 0.10f;
+
+        slamMass.visible = massScale > 0.01f;
+        if (slamMass.visible) {
+            slamMass.xScale = massScale;
+            slamMass.yScale = massScale;
+            slamMass.zScale = massScale;
+            slamMass.y = massY;
+            // Kutle yavasca doner — durgun durmasin
+            slamMass.yRot = slam * 3.2f;
+        }
+    }
+
+    private static float ease(float t) {
+        t = Mth.clamp(t, 0f, 1f);
+        return t * t * (3f - 2f * t);
     }
 
     /**

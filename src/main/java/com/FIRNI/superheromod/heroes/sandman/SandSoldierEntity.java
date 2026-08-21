@@ -76,8 +76,35 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
     private static final EntityDataAccessor<Float> AIM =
             SynchedEntityData.defineId(SandSoldierEntity.class, EntityDataSerializers.FLOAT);
 
-    /** Ellerin cekice donmesi icin gereken mesafe. */
-    private static final double HAMMER_RANGE = 2.0;
+    /**
+     * Nisan alinan hedefin entity kimligi (-1 = yok).
+     *
+     * Cizgiyi partikulle cizmek yerine hedefin KIMLIGI gonderiliyor; istemci
+     * hedefi bulup her karede duz bir cizgi ciziyor. Boylece cizgi hedefi
+     * puruzsuz takip ediyor. Onceki surumde her tick partikul serpiliyordu ve
+     * hedef hareket ettikce ekran nokta nokta izlerle doluyordu.
+     */
+    private static final EntityDataAccessor<Integer> AIM_TARGET =
+            SynchedEntityData.defineId(SandSoldierEntity.class, EntityDataSerializers.INT);
+
+    /**
+     * Dev askerin AGIR VURUS ilerlemesi 0..1 (0 = yok).
+     *
+     * Iki eli havaya kalkip birlesir, aralarinda dikenli bir kum kutlesi
+     * olusur, sonra yere iner. Model bunu okuyup kollari ve kutleyi
+     * konumlandiriyor.
+     */
+    private static final EntityDataAccessor<Float> SLAM =
+            SynchedEntityData.defineId(SandSoldierEntity.class, EntityDataSerializers.FLOAT);
+
+    /**
+     * Ellerin cekice donmesi icin gereken mesafe.
+     *
+     * Vurus menzilinden GENIS tutuluyor: 2 blokta cekic henuz olusurken
+     * asker vurmaya basliyordu ve yumrukla vuruyormus gibi gorunuyordu.
+     * Once cekic tamamlansin, sonra vursun.
+     */
+    private static final double HAMMER_RANGE = 4.0;
     private static final float HAMMER_SPEED = 0.12f;
 
     /**
@@ -138,6 +165,31 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
         this.entityData.define(HAMMER, 0f);
         this.entityData.define(SWING_DIR, (byte) 0);
         this.entityData.define(AIM, 0f);
+        this.entityData.define(AIM_TARGET, -1);
+        this.entityData.define(SLAM, 0f);
+    }
+
+    /** Dev askerin agir vurus ilerlemesi. */
+    public float getSlamProgress() {
+        return this.entityData.get(SLAM);
+    }
+
+    public void setSlamProgress(float value) {
+        this.entityData.set(SLAM, value);
+    }
+
+    /** Nisan alinan hedefin kimligi; yoksa -1. */
+    public int getAimTargetId() {
+        return this.entityData.get(AIM_TARGET);
+    }
+
+    public void setAimTargetId(int id) {
+        this.entityData.set(AIM_TARGET, id);
+    }
+
+    /** Merminin cikis noktasi — omuz cikintilarinin hizasi. */
+    public Vec3 muzzlePosition() {
+        return position().add(0, getBbHeight() * 0.85, 0);
     }
 
     /** Ellerin cekice donusme orani — model bunu okuyup elleri buyutuyor. */
@@ -219,10 +271,12 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
         // Iki saldiri hedefi de eklenir; hangisinin calisacagina TUR karar
         // verir. registerGoals kurucudan cagriliyor ve tur henuz atanmamis
         // oluyor, bu yuzden secim canUse icinde yapiliyor.
-        this.goalSelector.addGoal(1, new RangedSandGoal(this));
-        this.goalSelector.addGoal(1, new PatternAttackGoal(this));
+        // Dev askerin agir vurusu normal saldiriyi ONCELER
+        this.goalSelector.addGoal(1, new GiantSlamGoal(this));
+        this.goalSelector.addGoal(2, new RangedSandGoal(this));
+        this.goalSelector.addGoal(2, new PatternAttackGoal(this));
         this.goalSelector.addGoal(2, new FollowOwnerGoal(this));
-        this.goalSelector.addGoal(3, new WaterAvoidingRandomStrollGoal(this, 0.8));
+        this.goalSelector.addGoal(4, new WaterAvoidingRandomStrollGoal(this, 0.8));
         this.goalSelector.addGoal(4, new LookAtPlayerGoal(this, Player.class, 8.0f));
         this.goalSelector.addGoal(5, new RandomLookAroundGoal(this));
 
@@ -745,6 +799,7 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
             target = null;
             aimTicks = 0;
             soldier.setAimProgress(0f);
+            soldier.setAimTargetId(-1);
             soldier.getNavigation().stop();
         }
 
@@ -770,6 +825,7 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
             if (cooldown > 0) {
                 cooldown--;
                 soldier.setAimProgress(0f);
+                soldier.setAimTargetId(-1);
                 return;
             }
 
@@ -777,6 +833,7 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
             if (!soldier.getSensing().hasLineOfSight(target)) {
                 aimTicks = 0;
                 soldier.setAimProgress(0f);
+                soldier.setAimTargetId(-1);
                 return;
             }
 
@@ -784,29 +841,31 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
             float progress = Math.min(1f, aimTicks / (float) AIM_TICKS);
             soldier.setAimProgress(progress);
 
-            // Nisan cizgisi son yarida belirginlesir
-            if (soldier.level() instanceof ServerLevel server && progress > 0.45f) {
-                SandBoltController.drawAimLine(server,
-                        muzzle(), target.getEyePosition(), (progress - 0.45f) / 0.55f);
-            }
+            // Cizginin kendisi ISTEMCIDE ciziliyor; burada sadece KIME nisan
+            // alindigi bildiriliyor. Boylece cizgi hedefi puruzsuz takip
+            // ediyor ve her tick partikul serpilmiyor.
+            soldier.setAimTargetId(target.getId());
 
             if (aimTicks >= AIM_TICKS) {
                 fire();
                 aimTicks = 0;
                 cooldown = RELOAD_TICKS;
                 soldier.setAimProgress(0f);
+                soldier.setAimTargetId(-1);
             }
         }
 
         private void fire() {
-            Vec3 from = muzzle();
-            Vec3 dir = target.getEyePosition().subtract(from);
-            SandBoltController.fire(soldier, from, dir);
-        }
+            Vec3 from = soldier.muzzlePosition();
+            Vec3 to = target.getEyePosition();
 
-        /** Mermi OMUZ cikintilarindan cikar. */
-        private Vec3 muzzle() {
-            return soldier.position().add(0, soldier.getBbHeight() * 0.85, 0);
+            // Nokta nokta iz SADECE ates aninda — kilitlendigini anlatan
+            // isaret bu. Takip boyunca kullanilinca ekran karmasa oluyordu.
+            if (soldier.level() instanceof ServerLevel server) {
+                SandBoltController.drawLockFlash(server, from, to);
+            }
+
+            SandBoltController.fire(soldier, from, to.subtract(from));
         }
     }
 

@@ -70,25 +70,24 @@ public final class SandBoltController {
     }
 
     /**
-     * NISAN CIZGISI — mermi cikmadan hemen once nereye gidecegini gosterir.
+     * KILITLENME ISARETI — sadece ATES ANINDA, hat boyunca tek seferlik.
      *
-     * Rakibin kacacak zamani olmali; hicbir uyari olmadan gelen menzilli
-     * saldiri adil hissettirmiyor.
+     * Takip suresince partikul serpilmiyor: hedef hareket ettikce her tick
+     * yeni noktalar birakiliyordu ve ekran nokta nokta izlerle doluyordu.
+     * Takip cizgisi artik istemcide duz geometri olarak ciziliyor; buradaki
+     * nokta nokta iz ise "kilitlendi, ates ediliyor" anini isaretliyor.
      */
-    public static void drawAimLine(ServerLevel level, Vec3 from, Vec3 to, float strength) {
+    public static void drawLockFlash(ServerLevel level, Vec3 from, Vec3 to) {
         Vec3 delta = to.subtract(from);
         double length = delta.length();
         if (length < 0.5) return;
 
         Vec3 dir = delta.scale(1.0 / length);
-        int steps = (int) Math.min(30, length * 1.2);
+        int steps = (int) Math.min(26, length * 1.1);
 
         for (int i = 1; i <= steps; i++) {
             double t = i / (double) steps;
             Vec3 p = from.add(dir.scale(length * t));
-
-            // Sarj arttikca cizgi yogunlasir
-            if (level.random.nextFloat() > strength) continue;
 
             level.sendParticles(ParticleTypes.END_ROD,
                     p.x, p.y, p.z, 1, 0.0, 0.0, 0.0, 0.0);
