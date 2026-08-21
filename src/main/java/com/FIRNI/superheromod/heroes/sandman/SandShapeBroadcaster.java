@@ -27,7 +27,7 @@ import java.util.List;
 @Mod.EventBusSubscriber(modid = SuperheroMod.MODID)
 public final class SandShapeBroadcaster {
 
-    private static final double VIEW_RANGE = 64.0;
+    private static final double VIEW_RANGE = 80.0;
     private static final double VIEW_RANGE_SQR = VIEW_RANGE * VIEW_RANGE;
 
     private SandShapeBroadcaster() {}
@@ -39,6 +39,7 @@ public final class SandShapeBroadcaster {
 
         List<SandShapeSyncPacket.Shape> all = new ArrayList<>();
         SandGraspController.collectShapes(all);
+        SandPatchController.collectShapes(all);
 
         for (ServerLevel level : ServerLifecycleHooks.getCurrentServer().getAllLevels()) {
             for (ServerPlayer player : level.players()) {

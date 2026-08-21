@@ -194,7 +194,6 @@ public final class SandGraspController {
                 // Onizleme oyuncuyu TAKIP EDER: sabit kalsaydi oyuncu donunce
                 // alan arkasinda kalir, nisan almak imkansizlasirdi
                 aim(owner, grasp);
-                drawOutline(grasp, previewAlpha(grasp));
 
                 if (grasp.ticks > PREVIEW_TIMEOUT) {
                     setClientPreview(owner, false);
@@ -211,10 +210,6 @@ public final class SandGraspController {
         }
     }
 
-    /** Onizleme nabiz gibi atiyor; donuk cizgi "aktif" hissi vermiyordu. */
-    private static float previewAlpha(Grasp grasp) {
-        return 0.6f + Mth.sin(grasp.ticks * 0.25f) * 0.4f;
-    }
 
     /**
      * EL UZAK UCTAN CIKAR VE SANDMAN'A DOGRU SUREKLENIR.
@@ -307,63 +302,7 @@ public final class SandGraspController {
     // ------------------------------------------------------------------
 
     /** Dikdortgen zemin gostergesi — dort kenar partikulle ciziliyor. */
-    /**
-     * KIRMIZI OK GOSTERGESI.
-     *
-     * Kum renginde dikdortgen cerceve zeminde kayboluyordu -- kum uzerine
-     * kum ciziyordu. Kirmizi hem zeminden ayrisiyor hem de "tehlike alani"
-     * olarak okunuyor.
-     *
-     * Sekil cerceve degil ARDISIK OKLAR: cerceve alanin sinirini
-     * gosteriyordu ama cekisin HANGI YONE oldugunu anlatmiyordu. Oklarin
-     * ucu Sandman'a bakiyor, yani gosterge dogrudan "buradakiler sana
-     * gelecek" diyor.
-     */
-    private static void drawOutline(Grasp grasp, float intensity) {
-        double halfWidth = grasp.cfg.getDouble("width", 3.0) * 0.5;
-        double length = grasp.near.distanceTo(grasp.far);
 
-        int chevrons = Math.max(3, (int) (length / 2.2));
-
-        for (int c = 0; c < chevrons; c++) {
-            // Oklar uzak uctan yakina siralanir
-            double t = (c + 0.5) / chevrons;
-            Vec3 tip = grasp.far.add(
-                    grasp.near.subtract(grasp.far).scale(t));
-
-            // Ok ucu Sandman'a bakar; kanatlar geriye acilir
-            for (int arm = -1; arm <= 1; arm += 2) {
-                int steps = 6;
-                for (int i = 0; i <= steps; i++) {
-                    double f = i / (double) steps;
-                    Vec3 p = tip
-                            .add(grasp.side.scale(halfWidth * f * arm))
-                            .add(grasp.forward.scale(halfWidth * f * 0.9));
-                    markGround(grasp, p, intensity);
-                }
-            }
-        }
-    }
-
-    /**
-     * Gosterge noktasini ZEMINE oturtur.
-     *
-     * Oyuncunun ayak yuksekligine cizilseydi egimli arazide gosterge
-     * havada asili kalir, nereye vuracagi anlasilmazdi.
-     */
-    private static void markGround(Grasp grasp, Vec3 point, float intensity) {
-        Vec3 ground = SandSpikeController.groundUnder(grasp.level, point.add(0, 1.5, 0));
-        if (ground == null) ground = point;
-
-        // DUST partikulu tek renk verebiliyor; kirmizi gosterge icin
-        // kum blogu partikulu kullanilamaz.
-        grasp.level.sendParticles(
-                new net.minecraft.core.particles.DustParticleOptions(
-                        new org.joml.Vector3f(0.95f, 0.12f, 0.12f),
-                        0.9f + intensity * 0.5f),
-                ground.x, ground.y + 0.08, ground.z,
-                1, 0.02, 0.0, 0.02, 0.0);
-    }
 
     /**
      * Elin cevresindeki kum.
@@ -411,7 +350,15 @@ public final class SandGraspController {
     static void collectShapes(java.util.List<
             com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.Shape> out) {
         for (Grasp grasp : grasps.values()) {
-            if (grasp.state != State.ERUPTING) continue;
+            // Kimlik oyuncunun kimliginden turetiliyor: kareler arasi
+            // eslestirme buna dayaniyor ve ayni el her karede ayni kimligi
+            // tasimali, yoksa yumusatma calismaz.
+            int baseId = grasp.ownerId.hashCode();
+
+            if (grasp.state == State.PREVIEW) {
+                collectArrows(grasp, baseId, out);
+                continue;
+            }
 
             float grow;
             float progress;
@@ -437,16 +384,48 @@ public final class SandGraspController {
             Vec3 dir = grasp.near.subtract(grasp.far);
             float yaw = (float) Math.toDegrees(Math.atan2(-dir.x, dir.z));
 
-            // Parmaklar cekis boyunca yumruk sikar gibi kapanir
-            float curl = progress;
-
-            // Son ceyrekte el yuzeye gomulur -- cekis bitince ortada
-            // asili bir el kalmamali
             float sink = progress > 0.78f ? (progress - 0.78f) / 0.22f : 0f;
 
             out.add(new com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.Shape(
+                    baseId,
                     com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.TYPE_HAND,
-                    base.x, base.y, base.z, yaw, grow, curl, sink));
+                    base.x, base.y, base.z, yaw, grow, progress, sink));
+        }
+    }
+
+    /**
+     * Onizleme oklari.
+     *
+     * Partikul yerine sekil gonderiliyor: partikul gostergesi seyrek
+     * kaliyor, oyuncu donunce dagiliyor ve kum zemininde kayboluyordu.
+     * Istemci bunlari duz kirmizi serit olarak ciziyor.
+     */
+    private static void collectArrows(Grasp grasp, int baseId, java.util.List<
+            com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.Shape> out) {
+        double halfWidth = grasp.cfg.getDouble("width", 3.0) * 0.5;
+        double length = grasp.near.distanceTo(grasp.far);
+        int chevrons = Math.max(3, (int) (length / 2.2));
+
+        // Oklarin ucu Sandman'a bakar
+        Vec3 dir = grasp.near.subtract(grasp.far);
+        float yaw = (float) Math.toDegrees(Math.atan2(-dir.x, dir.z));
+
+        for (int c = 0; c < chevrons; c++) {
+            double t = (c + 0.5) / chevrons;
+            Vec3 tip = grasp.far.add(grasp.near.subtract(grasp.far).scale(t));
+
+            Vec3 ground = SandSpikeController.groundUnder(grasp.level, tip.add(0, 1.5, 0));
+            if (ground == null) ground = tip;
+
+            // Nabiz sirali: oklar tek tek parliyor ve akis Sandman'a
+            // dogru ilerliyormus gibi gorunuyor. Hepsi ayni anda yanip
+            // sonseydi gosterge sadece titrerdi.
+            float pulse = 0.5f + 0.5f * Mth.sin(grasp.ticks * 0.28f - c * 0.9f);
+
+            out.add(new com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.Shape(
+                    baseId + 1000 + c,
+                    com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.TYPE_ARROW,
+                    ground.x, ground.y, ground.z, yaw, pulse, (float) halfWidth, 0f));
         }
     }
     public static void clear() {

@@ -201,11 +201,23 @@ public final class ColossusRockController {
 
             Vec3 to = result.getHitPosition();
 
-            // Kayanin GORSELI: kum partikulu tek basina kaya gibi durmuyordu,
-            // bu yuzden ucan blok gorunumu icin yogun blok partikulu +
-            // arkasinda toz izi kullaniliyor
-            level.sendParticles(rockChunk(), to.x, to.y, to.z, 14, 0.45, 0.45, 0.45, 0.0);
-            level.sendParticles(sand(), to.x, to.y, to.z, 6, 0.5, 0.5, 0.5, 0.03);
+            // KAYA TICK BASINA DEGIL, ARA NOKTALARLA ciziliyor.
+            //
+            // Onceden partikuller sadece VARIS noktasina birakiliyordu;
+            // kaya saniyede 20 kez isinlanan bir kume gibi gorunuyor ve
+            // hareket "kasiyor" izlenimi veriyordu. Simdi tick icindeki
+            // yol boyunca dagitiliyor, yani kaya araligi gercekten
+            // katediyormus gibi okunuyor.
+            int steps = Math.max(2, (int) (from.distanceTo(to) * 2.5));
+            for (int i = 1; i <= steps; i++) {
+                double t = i / (double) steps;
+                Vec3 p = from.add(to.subtract(from).scale(t));
+
+                level.sendParticles(rockChunk(), p.x, p.y, p.z, 4, 0.3, 0.3, 0.3, 0.0);
+                if (i % 2 == 0) {
+                    level.sendParticles(sand(), p.x, p.y, p.z, 2, 0.35, 0.35, 0.35, 0.02);
+                }
+            }
 
             boolean hit = result.didHitEntity() || result.didHitBlock();
 

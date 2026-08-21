@@ -55,6 +55,10 @@ public final class SandPatchController {
         final ServerLevel level;
         final Vec3 center;
         final double radius;
+        /** Cizim kimligi -- kareler arasi yumusatma bunun uzerinden. */
+        final int id;
+        /** Sekizgenin donusu; her yama ayni acida olunca dizilim yapay duruyordu. */
+        final float angle;
         int ticksLeft;
         /** Sandman menzilde mi — gorsel yogunlugu buna gore degisiyor. */
         boolean active;
@@ -65,10 +69,13 @@ public final class SandPatchController {
             this.center = center;
             this.radius = radius;
             this.ticksLeft = lifetime;
+            this.id = NEXT_ID++;
+            this.angle = (id * 37) % 360;
         }
     }
 
     private static final List<Patch> patches = new ArrayList<>();
+    private static int NEXT_ID = 500_000;
 
     private SandPatchController() {}
 
@@ -122,7 +129,6 @@ public final class SandPatchController {
 
             if (patch.active) applySlow(patch, owner);
 
-            render(patch);
         }
     }
 
@@ -147,35 +153,28 @@ public final class SandPatchController {
                     false, false, true));
         }
     }
-
     /**
-     * Kumun gorseli.
+     * Alanlari cizim listesine ekler.
      *
-     * Sandman uzaktayken alan tamamen kaybolmuyor, sadece SONUYOR — oyuncu
-     * kumun hala orada oldugunu, yaklasirsa canlanacagini gorebilmeli.
+     * Kum ONCE PARTIKULLE ciziliyordu ve kullanici "cektigi yer kum
+     * olmuyor" dedi: seyrek partikul zemini kaplamiyor, sadece uzerinde
+     * toz gibi duruyordu. Artik zemine oturan dokulu bir katman.
      */
-    private static void render(Patch patch) {
-        int count = patch.active ? 5 : 1;
+    static void collectShapes(java.util.List<
+            com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.Shape> out) {
+        for (Patch patch : patches) {
+            // Sonme: alan bitmeden once solup kayboluyor, birden yok
+            // olmasi goze carpiyordu
+            float sink = patch.ticksLeft < 30 ? 1f - patch.ticksLeft / 30f : 0f;
 
-        for (int i = 0; i < count; i++) {
-            double angle = patch.level.random.nextDouble() * Math.PI * 2;
-            double dist = Math.sqrt(patch.level.random.nextDouble()) * patch.radius;
-
-            double x = patch.center.x + Math.cos(angle) * dist;
-            double z = patch.center.z + Math.sin(angle) * dist;
-
-            patch.level.sendParticles(sand(), x, patch.center.y + 0.08, z,
-                    1, 0.05, 0.02, 0.05, 0.0);
-        }
-
-        // Canliyken alanin ustunde hafif toz donuyor — "bu kum uyanik"
-        if (patch.active && patch.level.random.nextInt(3) == 0) {
-            double angle = patch.level.random.nextDouble() * Math.PI * 2;
-            patch.level.sendParticles(fallingSand(),
-                    patch.center.x + Math.cos(angle) * patch.radius * 0.8,
-                    patch.center.y + 0.5,
-                    patch.center.z + Math.sin(angle) * patch.radius * 0.8,
-                    1, 0.1, 0.2, 0.1, 0.01);
+            out.add(new com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.Shape(
+                    patch.id,
+                    com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.TYPE_PATCH,
+                    patch.center.x, patch.center.y, patch.center.z,
+                    patch.angle,
+                    patch.active ? 1f : 0f,
+                    (float) patch.radius,
+                    sink));
         }
     }
 

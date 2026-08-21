@@ -2,6 +2,7 @@ package com.FIRNI.superheromod.heroes.sandman;
 
 import com.FIRNI.superheromod.SuperheroMod;
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
 import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
@@ -64,9 +65,20 @@ public final class SandPillarController {
 
         Vec3 ground = SandSpikeController.groundUnder(level, player.position());
         Vec3 base = ground != null ? ground : player.position().subtract(0, 1.0, 0);
+        BlockPos origin = BlockPos.containing(base);
 
-        buildTower(level, BlockPos.containing(base));
+        BlockPos top = buildTower(level, origin);
         cooldowns.put(player.getUUID(), COOLDOWN_TICKS);
+
+        // OYUNCU KULENIN TEPESINE TASINIYOR.
+        //
+        // Onceden oyuncu bulundugu yerde kaliyordu ve kule ONUN ETRAFINA
+        // kuruluyordu -- yani kulenin ICINDE sikisiyordu. Kule zaten
+        // ayaklarinin altinda yukseliyor; dogru davranis oyuncunun onun
+        // uzerine cikmasi.
+        // Tepe blogu kaymis olabilir; oyuncu ORIJINE degil gercek tepeye
+        // konuyor, yoksa yine kulenin yan yuzune girebilirdi.
+        player.teleportTo(top.getX() + 0.5, top.getY() + 1.0, top.getZ() + 0.5);
 
         // Mevcut dusus hizi SIFIRLANIYOR: asagi dusen oyuncuda itme
         // yutuluyor ve yetenek calismamis gibi gorunuyordu.
@@ -77,10 +89,36 @@ public final class SandPillarController {
 
         fallGrace.put(player.getUUID(), 300);
 
-        level.playSound(null, BlockPos.containing(base),
-                SoundEvents.SAND_PLACE, SoundSource.PLAYERS, 1.6f, 0.6f);
-        level.sendParticles(sand(), base.x, base.y + 0.2, base.z,
-                40, 0.7, 0.3, 0.7, 0.2);
+        blastBelow(level, origin);
+    }
+
+    /**
+     * Kulenin dibindeki patlama.
+     *
+     * Sadece gorsel -- blok kirmiyor, hasar vermiyor. Kule yukari
+     * firlarken tabaninda hicbir sey olmuyordu ve hareket "sessizce
+     * yukselen bir asansor" gibi duruyordu; itisin nereden geldigi
+     * gorunmuyordu.
+     */
+    private static void blastBelow(ServerLevel level, BlockPos origin) {
+        Vec3 c = new Vec3(origin.getX() + 0.5, origin.getY() + 0.4, origin.getZ() + 0.5);
+
+        level.playSound(null, origin,
+                SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 0.9f, 1.5f);
+        level.playSound(null, origin,
+                SoundEvents.SAND_PLACE, SoundSource.PLAYERS, 1.7f, 0.55f);
+
+        level.sendParticles(ParticleTypes.EXPLOSION, c.x, c.y, c.z, 3, 0.9, 0.15, 0.9, 0.0);
+
+        // Yanlara savrulan kum halkasi — patlamanin yonu disari
+        for (int i = 0; i < 26; i++) {
+            double angle = (i / 26.0) * Math.PI * 2;
+            level.sendParticles(sand(),
+                    c.x + Math.cos(angle) * 1.1, c.y, c.z + Math.sin(angle) * 1.1,
+                    2, 0.15, 0.1, 0.15, 0.22);
+        }
+
+        level.sendParticles(sand(), c.x, c.y, c.z, 40, 0.8, 0.3, 0.8, 0.2);
     }
 
     /**
@@ -89,31 +127,46 @@ public final class SandPillarController {
      * Kule zemin blogunun USTUNDEN basliyor; taban seviyesine yazilsaydi
      * zemin blogunun yerini alir ve yerde delik acardi.
      */
-    private static void buildTower(ServerLevel level, BlockPos ground) {
+    private static BlockPos buildTower(ServerLevel level, BlockPos ground) {
         Random rnd = new Random(ground.getX() * 31L + ground.getZ() * 17L + ground.getY());
 
-        for (int y = 0; y < TOWER_HEIGHT; y++) {
-            // Tabanda 2 yaricap, tepeye dogru daralir
-            double t = y / (double) (TOWER_HEIGHT - 1);
-            int radius = (int) Math.round(2.0 * (1.0 - t * 0.75));
+        // KADEMELI DARALMA — duz konik daralma "kum tepesi" gibi duruyordu.
+        //
+        // Gokdelen silueti kesintisiz incelmeden gelmiyor: birkac kat ayni
+        // genislikte kalip sonra BIRDEN daraliyor. Basamak basamak
+        // daralma cizimdeki kirikligi veren sey.
+        int[] radii = {2, 2, 1, 1, 1, 0, 0};
 
-            // Kat kaydirmasi -- katlar tam hizali olunca gokdelen degil
-            // dumduz bir kule cikiyordu
-            int shiftX = radius > 0 ? rnd.nextInt(3) - 1 : 0;
-            int shiftZ = radius > 0 ? rnd.nextInt(3) - 1 : 0;
+        int shiftX = 0;
+        int shiftZ = 0;
+
+        for (int y = 0; y < TOWER_HEIGHT; y++) {
+            int radius = radii[Math.min(y, radii.length - 1)];
+
+            // Kaymalar BIRIKIYOR: her kat bir oncekine gore kayiyor, hepsi
+            // merkeze gore degil. Boylece kule yukari dogru hafifce
+            // savruluyor, dik bir boru gibi durmuyor.
+            if (radius > 0 && rnd.nextInt(2) == 0) {
+                shiftX += rnd.nextInt(3) - 1;
+                shiftZ += rnd.nextInt(3) - 1;
+            }
+            // Kayma sinirlandiriliyor, yoksa ust katlar tabandan tamamen
+            // kopup havada asili kaliyor
+            shiftX = Mth.clamp(shiftX, -1, 1);
+            shiftZ = Mth.clamp(shiftZ, -1, 1);
 
             for (int dx = -radius; dx <= radius; dx++) {
                 for (int dz = -radius; dz <= radius; dz++) {
                     // Koseleri ve rastgele bloklari atla: keskin kare
                     // katlar yerine kirik siluet
                     if (Math.abs(dx) == radius && Math.abs(dz) == radius
-                            && rnd.nextInt(3) != 0) continue;
-                    if (radius > 0 && rnd.nextInt(9) == 0) continue;
+                            && radius > 0 && rnd.nextInt(3) != 0) continue;
+                    if (radius > 1 && rnd.nextInt(8) == 0) continue;
 
                     BlockPos pos = ground.offset(dx + shiftX, y, dz + shiftZ);
                     if (!canReplace(level, pos)) continue;
 
-                    // Araya sert kum tasi: tek dokulu kule cansiz duruyordu
+                    // Araya sert kum tasi: tek doku cansiz duruyordu
                     level.setBlockAndUpdate(pos,
                             rnd.nextInt(5) == 0
                                     ? Blocks.SANDSTONE.defaultBlockState()
@@ -121,6 +174,17 @@ public final class SandPillarController {
                 }
             }
         }
+
+        // TEPE KATI HER ZAMAN DOLU.
+        //
+        // Oyuncu buraya isinlaniyor; rastgele eksiltme tepede delik
+        // birakirsa oyuncu kulenin icine duser -- duzeltmeye calistigimiz
+        // sikisma sorununun ta kendisi.
+        BlockPos top = ground.offset(shiftX, TOWER_HEIGHT - 1, shiftZ);
+        if (canReplace(level, top)) {
+            level.setBlockAndUpdate(top, Blocks.SANDSTONE.defaultBlockState());
+        }
+        return top;
     }
 
     /**
