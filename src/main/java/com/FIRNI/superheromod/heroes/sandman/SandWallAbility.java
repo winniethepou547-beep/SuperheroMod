@@ -16,7 +16,7 @@ import net.minecraft.server.level.ServerPlayer;
 public class SandWallAbility extends Ability {
 
     public SandWallAbility() {
-        super("sandman_sand_wall", AbilityType.INSTANT, AbilitySlot.SHIFT);
+        super("sandman_sand_wall", AbilityType.INSTANT, AbilitySlot.SKILL_V);
     }
 
     @Override

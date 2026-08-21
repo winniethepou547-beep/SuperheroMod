@@ -2,6 +2,7 @@ package com.FIRNI.superheromod.heroes.sandman;
 
 import com.FIRNI.superheromod.SuperheroMod;
 import com.FIRNI.superheromod.core.ability.AbilityConfig;
+import com.FIRNI.superheromod.network.packet.SandShapeSyncPacket;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
@@ -18,90 +19,85 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 /**
- * Sand Fist'in faz makinesi.
+ * SAND FIST — kol uzayip vurur.
  *
- * Faz akisi (tick cinsinden):
- *   WINDUP    0-4    kol geriye cekilir
- *   EXPAND    5-8    kol kum olarak genisler, yumruk buyur
- *   STRIKE    9-10   ileri savrulur
- *   IMPACT    11     HASAR SADECE BURADA uygulanir
- *   RECOVERY  12-18  kol kuculerek normale doner
+ * Onceki surum yerinde savrulan kisa bir yumruktu. Yeni bicim:
  *
- * Hasarin animasyonun ortasinda durmasi onemli: vurus daha basarken hasar
- * verirse darbe agirligini kaybediyor. Ayni vurusta bir hedefe birden fazla
- * kez hasar gitmemesi icin vurulanlar swing basina tutuluyor.
+ *   CHARGE   20 tick   kol kumla dolar, oyuncu nisan alir
+ *   EXTEND    5 tick   kol HIZLICA one uzar, degdigi ilk hedefe vurur
+ *   HOLD      3 tick   uzamis halde kisa duraklama (darbe agirligi)
+ *   RETRACT   7 tick   kol geri toplanir
+ *
+ * Sarj bilerek var: bir anda uzayan kol refleksle kacilamaz hale gelir.
+ * Sarj suresi rakibe "geliyor" sinyali veriyor, uzama ise cok hizli --
+ * yani isabet nisan almaya degil ZAMANLAMAYA bagli.
+ *
+ * Kolun gorseli partikul DEGIL model: uzayan kisim kum dokulu kutulardan
+ * olusan bogumlar ve ucundaki yumruk olarak ciziliyor. Partikul bulutu
+ * "kolumun devami" gibi okunmuyordu.
  */
 @Mod.EventBusSubscriber(modid = SuperheroMod.MODID)
 public final class SandFistController {
 
-    public enum Phase { WINDUP, EXPAND, STRIKE, IMPACT, RECOVERY }
+    public enum Phase { CHARGE, EXTEND, HOLD, RETRACT }
 
-    private static final int WINDUP_END = 4;
-    private static final int EXPAND_END = 8;
-    private static final int STRIKE_END = 10;
-    private static final int IMPACT_TICK = 11;
-    private static final int TOTAL_TICKS = 18;
-
-    /** Kum tanesi rengi — dust partikulu icin. */
-    private static final net.minecraft.core.particles.DustParticleOptions SAND_DUST =
-            new net.minecraft.core.particles.DustParticleOptions(
-                    new org.joml.Vector3f(0.85f, 0.74f, 0.48f), 1.1f);
+    private static final int CHARGE_END = 20;    // 1 saniye
+    private static final int EXTEND_END = 25;
+    private static final int HOLD_END = 28;
+    private static final int TOTAL_TICKS = 35;
 
     private static final BlockParticleOption SAND_BLOCK =
             new BlockParticleOption(ParticleTypes.BLOCK, Blocks.SAND.defaultBlockState());
 
-    private static final class Swing {
+    private static final class Strike {
         final UUID player;
-        final float damage;
-        final double range;
-        final double radius;
-        final double knockback;
-        final double knockbackVertical;
-
+        final AbilityConfig cfg;
         int ticks = 0;
-        /** Ayni vurusta ayni hedefe tekrar hasar gitmesin. */
+        /** Bu vuruşta hasar alanlar — her hedef bir kez. */
         final Set<UUID> hit = new HashSet<>();
+        /** Kolun o anki uzunlugu; cizim ve carpisma ayni degeri kullaniyor. */
+        double length = 0;
 
-        Swing(UUID player, AbilityConfig cfg) {
+        Strike(UUID player, AbilityConfig cfg) {
             this.player = player;
-            this.damage = cfg.getFloat("damage", 6.0f);
-            this.range = cfg.getDouble("range", 4.2);
-            this.radius = cfg.getDouble("radius", 1.9);
-            this.knockback = cfg.getDouble("knockback", 1.15);
-            this.knockbackVertical = cfg.getDouble("knockbackVertical", 0.42);
+            this.cfg = cfg;
         }
 
         Phase phase() {
-            if (ticks <= WINDUP_END) return Phase.WINDUP;
-            if (ticks <= EXPAND_END) return Phase.EXPAND;
-            if (ticks <= STRIKE_END) return Phase.STRIKE;
-            if (ticks == IMPACT_TICK) return Phase.IMPACT;
-            return Phase.RECOVERY;
+            if (ticks <= CHARGE_END) return Phase.CHARGE;
+            if (ticks <= EXTEND_END) return Phase.EXTEND;
+            if (ticks <= HOLD_END) return Phase.HOLD;
+            return Phase.RETRACT;
         }
     }
 
-    private static final Map<UUID, Swing> swings = new HashMap<>();
+    private static final Map<UUID, Strike> strikes = new HashMap<>();
 
     private SandFistController() {}
 
     public static void start(ServerPlayer player, AbilityConfig cfg) {
-        swings.put(player.getUUID(), new Swing(player.getUUID(), cfg));
+        strikes.put(player.getUUID(), new Strike(player.getUUID(), cfg));
 
         player.level().playSound(null, player.blockPosition(),
                 SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 1.0f, 0.6f);
     }
 
     public static boolean isSwinging(UUID playerId) {
-        return swings.containsKey(playerId);
+        return strikes.containsKey(playerId);
     }
 
     /** Istemci poz sistemi icin: oyuncu su an hangi fazda? */
     public static Phase phaseOf(UUID playerId) {
-        Swing swing = swings.get(playerId);
-        return swing == null ? null : swing.phase();
+        Strike strike = strikes.get(playerId);
+        return strike == null ? null : strike.phase();
     }
 
     // ------------------------------------------------------------------
@@ -109,177 +105,198 @@ public final class SandFistController {
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
-        if (swings.isEmpty()) return;
+        if (strikes.isEmpty()) return;
 
         var server = ServerLifecycleHooks.getCurrentServer();
         if (server == null) return;
 
-        Iterator<Map.Entry<UUID, Swing>> it = swings.entrySet().iterator();
+        Iterator<Map.Entry<UUID, Strike>> it = strikes.entrySet().iterator();
         while (it.hasNext()) {
-            Swing swing = it.next().getValue();
-            ServerPlayer player = server.getPlayerList().getPlayer(swing.player);
+            Strike strike = it.next().getValue();
+            ServerPlayer player = server.getPlayerList().getPlayer(strike.player);
 
-            if (player == null) {
+            if (player == null || !player.isAlive()) {
                 it.remove();
                 continue;
             }
 
-            swing.ticks++;
-            tickSwing(player, swing);
+            strike.ticks++;
+            tickStrike(player, strike);
 
-            if (swing.ticks >= TOTAL_TICKS) it.remove();
+            if (strike.ticks >= TOTAL_TICKS) it.remove();
         }
     }
 
-    private static void tickSwing(ServerPlayer player, Swing swing) {
+    private static void tickStrike(ServerPlayer player, Strike strike) {
         ServerLevel level = (ServerLevel) player.level();
+        double maxLength = strike.cfg.getDouble("range", 8.0);
 
-        switch (swing.phase()) {
-            case WINDUP -> {
-                // Kol geriye cekilirken cevreden kum toplaniyor
-                if (swing.ticks % 2 == 0) gatherSand(level, player);
-            }
-            case EXPAND -> {
-                // Yumruk buyurken kopan kucuk kum parcalari
-                Vec3 fist = fistPosition(player, 1.1);
-                level.sendParticles(SAND_DUST, fist.x, fist.y, fist.z,
-                        6, 0.28, 0.28, 0.28, 0.01);
-                level.sendParticles(SAND_BLOCK, fist.x, fist.y, fist.z,
-                        3, 0.22, 0.22, 0.22, 0.02);
+        switch (strike.phase()) {
+            case CHARGE -> {
+                strike.length = 0;
+                gatherSand(level, player, strike.ticks / (float) CHARGE_END);
 
-                if (swing.ticks == EXPAND_END) {
+                // Sarjin bittigi an duyulur olmali: rakip bu sesi duyup
+                // kacabilmeli, yoksa yetenek okunamaz olur
+                if (strike.ticks == CHARGE_END) {
                     level.playSound(null, player.blockPosition(),
-                            SoundEvents.SAND_PLACE, SoundSource.PLAYERS, 1.1f, 0.5f);
+                            SoundEvents.SAND_PLACE, SoundSource.PLAYERS, 1.5f, 0.7f);
                 }
             }
-            case STRIKE -> {
-                // Savrulurken yumrugun arkasinda kum izi
-                Vec3 fist = fistPosition(player, 1.8);
-                level.sendParticles(SAND_DUST, fist.x, fist.y, fist.z,
-                        8, 0.35, 0.35, 0.35, 0.03);
+            case EXTEND -> {
+                float t = (strike.ticks - CHARGE_END) / (float) (EXTEND_END - CHARGE_END);
+
+                // Hizlanan uzama: kol basta agir kalkip sonra firliyor.
+                // Dogrusal uzama mekanik duruyordu.
+                strike.length = maxLength * (t * t);
+                checkHit(player, strike, level);
+                trailSand(level, player, strike);
             }
-            case IMPACT -> applyImpact(player, swing, level);
-            case RECOVERY -> {
-                // Kol kuculurken dokulen kum
-                if (swing.ticks % 3 == 0) {
-                    Vec3 fist = fistPosition(player, 1.0);
-                    level.sendParticles(SAND_BLOCK, fist.x, fist.y, fist.z,
-                            2, 0.2, 0.2, 0.2, 0.01);
-                }
+            case HOLD -> {
+                strike.length = maxLength;
+                checkHit(player, strike, level);
+            }
+            case RETRACT -> {
+                float t = (strike.ticks - HOLD_END) / (float) (TOTAL_TICKS - HOLD_END);
+                strike.length = maxLength * (1f - t);
             }
         }
     }
 
-    /** Hasar SADECE burada — impact karesinde. */
-    private static void applyImpact(ServerPlayer player, Swing swing, ServerLevel level) {
-        Vec3 eye = player.getEyePosition(1.0f);
-        Vec3 look = player.getLookAngle();
-        Vec3 center = eye.add(look.scale(swing.range * 0.5));
+    /**
+     * Kolun ucunun o an degdigi hedefler.
+     *
+     * Sadece UC kontrol ediliyor, kolun tamami degil: kol geri cekilirken
+     * uzerinden gectigi herkese tekrar vurmasi gerekmiyor ve "her hedef
+     * bir kez" kurali zaten bunu engelliyor.
+     */
+    private static void checkHit(ServerPlayer player, Strike strike, ServerLevel level) {
+        Vec3 fist = armOrigin(player).add(player.getLookAngle().scale(strike.length));
+        double radius = strike.cfg.getDouble("radius", 0.9);
 
-        AABB box = new AABB(center, center).inflate(swing.radius + swing.range * 0.5);
+        AABB box = new AABB(fist, fist).inflate(radius);
 
-        List<LivingEntity> targets = level.getEntitiesOfClass(LivingEntity.class, box,
-                e -> e != player && e.isAlive());
+        for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, box)) {
+            if (target == player) continue;
+            if (target instanceof SandSoldierEntity soldier
+                    && player.getUUID().equals(soldier.getOwnerId())) continue;
+            if (!strike.hit.add(target.getUUID())) continue;
 
-        for (LivingEntity target : targets) {
-            if (!swing.hit.add(target.getUUID())) continue;
+            target.hurt(level.damageSources().playerAttack(player),
+                    strike.cfg.getFloat("damage", 6.0f));
 
-            // Sadece onumuzdeki koni icindekiler — arkadakiler yumruk yemez
-            Vec3 toTarget = target.position().add(0, target.getBbHeight() * 0.5, 0)
-                    .subtract(eye);
-            if (toTarget.lengthSqr() > swing.range * swing.range) continue;
-            if (toTarget.lengthSqr() > 1.0E-4
-                    && look.dot(toTarget.normalize()) < 0.35) continue;
-
-            target.hurt(player.damageSources().playerAttack(player), swing.damage);
-
-            Vec3 push = new Vec3(look.x, 0, look.z);
-            push = push.lengthSqr() < 1.0E-4 ? Vec3.ZERO : push.normalize();
+            Vec3 push = player.getLookAngle();
             target.setDeltaMovement(
-                    push.x * swing.knockback,
-                    swing.knockbackVertical,
-                    push.z * swing.knockback);
+                    push.x * strike.cfg.getDouble("knockback", 0.9),
+                    strike.cfg.getDouble("knockbackVertical", 0.35),
+                    push.z * strike.cfg.getDouble("knockback", 0.9));
             target.hurtMarked = true;
 
-            Vec3 hitPos = target.position().add(0, target.getBbHeight() * 0.5, 0);
-            level.sendParticles(SAND_BLOCK, hitPos.x, hitPos.y, hitPos.z,
-                    18, 0.4, 0.4, 0.4, 0.14);
-        }
-
-        Vec3 fist = fistPosition(player, swing.range * 0.8);
-
-        // Yumrugun degdigi zeminde kum kalir. Yerden yuksekte savrulan
-        // yumruk iz birakmiyor: havadaki bir darbenin yere kum dokmesi
-        // anlamsiz olurdu.
-        Vec3 ground = SandSpikeController.groundUnder(level, fist);
-        if (ground != null && Math.abs(ground.y - fist.y) < 2.5) {
-            SandPatchController.drop(player, ground, 1.6);
-        }
-
-        // Darbe bulutu
-        level.sendParticles(SAND_DUST, fist.x, fist.y, fist.z,
-                26, 0.55, 0.5, 0.55, 0.06);
-        level.sendParticles(SAND_BLOCK, fist.x, fist.y, fist.z,
-                20, 0.5, 0.45, 0.5, 0.12);
-
-        level.playSound(null, BlockPos.containing(fist),
-                SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 0.7f, 1.5f);
-        level.playSound(null, BlockPos.containing(fist),
-                SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 1.4f, 0.5f);
-
-        groundShockwave(level, fist);
-    }
-
-    /**
-     * Yumruk yere yakin patladiysa zeminde kucuk bir kum halkasi acilir.
-     * Blok kirmiyor — Sandman'in kimligi yikim degil alan kontrolu.
-     */
-    private static void groundShockwave(ServerLevel level, Vec3 fist) {
-        BlockPos ground = BlockPos.containing(fist);
-        int drop = 0;
-        while (drop < 3 && level.getBlockState(ground).isAir()) {
-            ground = ground.below();
-            drop++;
-        }
-        if (level.getBlockState(ground).isAir()) return;
-
-        double y = ground.getY() + 1.05;
-        for (int i = 0; i < 20; i++) {
-            double a = i / 20.0 * Math.PI * 2;
-            double dx = Math.cos(a);
-            double dz = Math.sin(a);
+            level.playSound(null, target.blockPosition(),
+                    SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 1.4f, 0.55f);
             level.sendParticles(SAND_BLOCK,
-                    fist.x + dx * 1.5, y, fist.z + dz * 1.5,
-                    1, 0.08, 0.02, 0.08, 0.06);
+                    target.getX(), target.getY() + target.getBbHeight() * 0.5, target.getZ(),
+                    22, 0.35, 0.4, 0.35, 0.16);
         }
     }
 
     /**
-     * Windup sirasinda kolun cevresine kum cekilir: parcalar disaridan
-     * yumrugun olusacagi noktaya dogru akar. Hiz vektoru ice dogru veriliyor,
-     * boylece "toplaniyor" izlenimi olusuyor.
+     * Sarj sirasinda kola cekilen kum.
+     *
+     * Parcalar disaridan kolun uzerine akiyor; hiz vektoru ICE dogru
+     * veriliyor, boylece "toplaniyor" izlenimi olusuyor. Sarj ilerledikce
+     * yogunlasiyor -- oyuncu ne kadar hazir oldugunu gorebilmeli.
      */
-    private static void gatherSand(ServerLevel level, ServerPlayer player) {
-        Vec3 fist = fistPosition(player, 0.9);
+    private static void gatherSand(ServerLevel level, ServerPlayer player, float progress) {
+        Vec3 arm = armOrigin(player);
+        int count = 2 + (int) (progress * 5);
 
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < count; i++) {
             double a = level.random.nextDouble() * Math.PI * 2;
-            double r = 0.9 + level.random.nextDouble() * 0.7;
-            double dx = Math.cos(a) * r;
-            double dz = Math.sin(a) * r;
-            double dy = (level.random.nextDouble() - 0.3) * 0.8;
+            double r = 1.2 - progress * 0.7 + level.random.nextDouble() * 0.4;
 
-            level.sendParticles(SAND_DUST,
-                    fist.x + dx, fist.y + dy, fist.z + dz,
-                    1, 0.02, 0.02, 0.02, 0.0);
+            double px = arm.x + Math.cos(a) * r;
+            double py = arm.y + (level.random.nextDouble() - 0.4) * 0.7;
+            double pz = arm.z + Math.sin(a) * r;
+
+            // Hedefe dogru hiz: parcacik kola cekiliyor
+            Vec3 pull = arm.subtract(new Vec3(px, py, pz)).normalize().scale(0.12);
+
+            level.sendParticles(SAND_BLOCK, px, py, pz, 0,
+                    pull.x, pull.y, pull.z, 1.0);
         }
     }
 
-    /** Yumrugun o anki dunya konumu — goz hizasindan biraz asagida ve onde. */
-    private static Vec3 fistPosition(ServerPlayer player, double forward) {
+    /** Uzayan kolun kenarindan dokulen kum. */
+    private static void trailSand(ServerLevel level, ServerPlayer player, Strike strike) {
+        Vec3 origin = armOrigin(player);
+        Vec3 dir = player.getLookAngle();
+
+        int steps = Math.max(2, (int) strike.length);
+        for (int i = 1; i <= steps; i++) {
+            Vec3 p = origin.add(dir.scale(strike.length * (i / (double) steps)));
+            level.sendParticles(SAND_BLOCK, p.x, p.y, p.z, 1, 0.12, 0.12, 0.12, 0.02);
+        }
+    }
+
+    /**
+     * Kolun cikis noktasi — omuz/el hizasi.
+     *
+     * Goz hizasindan biraz asagi ve SAGA kaydirilmis: tam goz hizasindan
+     * ciksaydi birinci sahiste ekranin ortasindan bir cubuk cikiyormus
+     * gibi durur, ucuncu sahiste de kol govdenin icinden gecerdi.
+     */
+    private static Vec3 armOrigin(ServerPlayer player) {
         Vec3 look = player.getLookAngle();
+        Vec3 right = new Vec3(-look.z, 0, look.x);
+        if (right.lengthSqr() < 1.0E-4) right = new Vec3(1, 0, 0);
+        right = right.normalize();
+
         return player.getEyePosition(1.0f)
-                .add(look.scale(forward))
-                .add(0, -0.35, 0);
+                .add(right.scale(0.36))
+                .add(0, -0.3, 0)
+                .add(look.scale(0.3));
+    }
+
+    /**
+     * Kolu cizim listesine ekler.
+     *
+     * Kol MODEL olarak ciziliyor; kullanici partikulle yapilmamasini
+     * acikca istedi. Konum ve yon her tick gonderiliyor, aradaki kareler
+     * istemcide yumusatiliyor.
+     */
+    static void collectShapes(java.util.List<SandShapeSyncPacket.Shape> out) {
+        var server = ServerLifecycleHooks.getCurrentServer();
+        if (server == null) return;
+
+        for (Strike strike : strikes.values()) {
+            if (strike.length <= 0.05) continue;
+
+            ServerPlayer player = server.getPlayerList().getPlayer(strike.player);
+            if (player == null) continue;
+
+            Vec3 origin = armOrigin(player);
+
+            // Kalinlik geri cekilirken azaliyor: kol sabit kalinlikta
+            // toplanirsa emilmiyor, siliniyormus gibi duruyor
+            float thickness = strike.phase() == Phase.RETRACT ? 0.85f : 1.0f;
+
+            out.add(new SandShapeSyncPacket.Shape(
+                    strike.player.hashCode() ^ 0x5A17,
+                    SandShapeSyncPacket.TYPE_ARM,
+                    origin.x, origin.y, origin.z,
+                    player.getYRot(), player.getXRot(),
+                    (float) strike.length, thickness, 0f));
+        }
+    }
+
+    /** Sunucu kapanirken kalinti kalmasin. */
+    public static void clear() {
+        strikes.clear();
+    }
+
+    /** Yumrugun o anki dunya konumu — baska sistemler icin. */
+    public static Vec3 fistPosition(ServerPlayer player, double forward) {
+        return armOrigin(player).add(player.getLookAngle().scale(forward));
     }
 }

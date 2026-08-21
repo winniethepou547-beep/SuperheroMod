@@ -1,6 +1,7 @@
 package com.FIRNI.superheromod.heroes.sandman;
 
 import com.FIRNI.superheromod.SuperheroMod;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
@@ -88,6 +89,11 @@ public final class SandPatchController {
         if (!(owner.level() instanceof ServerLevel level)) return;
         if (radius <= 0) return;
 
+        // Zemini GERCEKTEN kuma cevir. Cizilen katman denendi ve
+        // reddedildi: uzerine yatirilmis saydam bir doku gibi duruyordu,
+        // arazinin kendisi degismiyordu. Kum izi kalici ve gercek.
+        paveWithSand(level, center, radius);
+
         // Ayni yere ust uste yigilmasin: yakin alan varsa onu tazele
         for (Patch patch : patches) {
             if (patch.level == level && patch.ownerId.equals(owner.getUUID())
@@ -98,9 +104,68 @@ public final class SandPatchController {
         }
 
         patches.add(new Patch(owner.getUUID(), level, center, radius, lifetime));
+    }
 
-        level.sendParticles(sand(), center.x, center.y + 0.1, center.z,
-                (int) (radius * 14), radius * 0.5, 0.08, radius * 0.5, 0.03);
+    /**
+     * Yuzeydeki bloklari kumla degistirir.
+     *
+     * Sadece EN UST katman degisiyor ve sadece SAGLAM zemin: havada
+     * duran bitki, kapi, sandik gibi seyler kuma cevrilseydi yetenek
+     * arazi boyama degil yikim olurdu. Derine inilmiyor -- kum bir
+     * KAPLAMA, bir krater degil.
+     */
+    private static void paveWithSand(ServerLevel level, Vec3 center, double radius) {
+        int r = (int) Math.ceil(radius);
+        BlockPos origin = BlockPos.containing(center);
+
+        for (int dx = -r; dx <= r; dx++) {
+            for (int dz = -r; dz <= r; dz++) {
+                // Kare tarandi, DAIRE ile suzuluyor: kose bloklari da
+                // kuma donerse yama kare gorunuyordu
+                if (dx * dx + dz * dz > radius * radius) continue;
+
+                // Zemini bul: merkez yuksekligi egimli arazide her sutun
+                // icin dogru olmayabilir, o yuzden birkac blok aranıyor
+                BlockPos surface = findSurface(level, origin.offset(dx, 0, dz));
+                if (surface == null) continue;
+
+                if (!isPaveable(level, surface)) continue;
+                level.setBlockAndUpdate(surface, Blocks.SAND.defaultBlockState());
+            }
+        }
+    }
+
+    /** Verilen sutunda, ustunde hava olan en yakin saglam blok. */
+    private static BlockPos findSurface(ServerLevel level, BlockPos around) {
+        for (int dy = 2; dy >= -3; dy--) {
+            BlockPos pos = around.offset(0, dy, 0);
+            if (level.getBlockState(pos).isAir()) continue;
+            if (!level.getBlockState(pos.above()).isAir()
+                    && !level.getBlockState(pos.above()).canBeReplaced()) continue;
+            return pos;
+        }
+        return null;
+    }
+
+    /**
+     * Hangi bloklar kuma cevrilebilir.
+     *
+     * Beyaz liste degil kara liste kullaniliyor cunku harita her turlu
+     * bloktan olusabilir; ama KIRILMAZ ve OYUNCU YAPISI olan seyler
+     * korunuyor.
+     */
+    private static boolean isPaveable(ServerLevel level, BlockPos pos) {
+        var state = level.getBlockState(pos);
+        if (state.isAir()) return false;
+        if (state.is(Blocks.SAND)) return false;              // zaten kum
+
+        // Kirilmaz bloklar (bedrock, barrier...) dokunulmaz
+        if (state.getDestroySpeed(level, pos) < 0) return false;
+
+        // Blok varliklari: sandik, firin, tabela... oyuncunun esyasi
+        if (state.hasBlockEntity()) return false;
+
+        return true;
     }
 
     @SubscribeEvent
@@ -153,35 +218,17 @@ public final class SandPatchController {
                     false, false, true));
         }
     }
+
     /**
-     * Alanlari cizim listesine ekler.
+     * Alanin YAVASLATMASI biter.
      *
-     * Kum ONCE PARTIKULLE ciziliyordu ve kullanici "cektigi yer kum
-     * olmuyor" dedi: seyrek partikul zemini kaplamiyor, sadece uzerinde
-     * toz gibi duruyordu. Artik zemine oturan dokulu bir katman.
+     * Yere serilen kum KALICI: arazi gercekten degisti ve geri alinmiyor.
+     * Biten sey sadece Sandman kontrolu -- kum artik siradan zemin.
      */
-    static void collectShapes(java.util.List<
-            com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.Shape> out) {
-        for (Patch patch : patches) {
-            // Sonme: alan bitmeden once solup kayboluyor, birden yok
-            // olmasi goze carpiyordu
-            float sink = patch.ticksLeft < 30 ? 1f - patch.ticksLeft / 30f : 0f;
-
-            out.add(new com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.Shape(
-                    patch.id,
-                    com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.TYPE_PATCH,
-                    patch.center.x, patch.center.y, patch.center.z,
-                    patch.angle,
-                    patch.active ? 1f : 0f,
-                    (float) patch.radius,
-                    sink));
-        }
-    }
-
     private static void dissolve(Patch patch) {
         patch.level.sendParticles(sand(),
-                patch.center.x, patch.center.y + 0.15, patch.center.z,
-                (int) (patch.radius * 8), patch.radius * 0.5, 0.1, patch.radius * 0.5, 0.05);
+                patch.center.x, patch.center.y + 0.4, patch.center.z,
+                (int) (patch.radius * 6), patch.radius * 0.5, 0.1, patch.radius * 0.5, 0.02);
     }
 
     /** Sunucu kapanirken kalinti kalmasin. */

@@ -18,8 +18,7 @@ public class SandmanCharacter extends SuperCharacter {
         super(ID, "Sandman");
         registerAbility(new SandFistAbility());     // LMB
         registerAbility(new SandGraspAbility());    // RMB
-        registerAbility(new SandSpikeAbility());    // V — RMB'den buraya tasindi
-        registerAbility(new SandWallAbility());     // SHIFT
+        registerAbility(new SandWallAbility());     // V — dikenli duvar
         registerAbility(new SandTravelAbility());   // F
         registerAbility(new SandSoldiersAbility());     // C
         registerAbility(new GiantSandSoldierAbility()); // X

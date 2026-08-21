@@ -57,10 +57,15 @@ public final class SandPillarController {
 
     private SandPillarController() {}
 
-    /** Istemci havada ikinci bosluk basisini gorunce burayi cagirir. */
+    /**
+     * Z tusuna basilinca cagrilir.
+     *
+     * Havada olma sarti KALDIRILDI: yetenek artik kendi tusunda ve yerden
+     * de kullanilabilmeli. Ziplama tusuna bagliyken havada olmak dogal bir
+     * sartti, simdi gereksiz bir kisitlama olurdu.
+     */
     public static void launch(ServerPlayer player) {
         if (!(player.level() instanceof ServerLevel level)) return;
-        if (player.onGround()) return;
         if (cooldowns.getOrDefault(player.getUUID(), 0) > 0) return;
 
         Vec3 ground = SandSpikeController.groundUnder(level, player.position());

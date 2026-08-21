@@ -39,7 +39,7 @@ public final class SandShapeBroadcaster {
 
         List<SandShapeSyncPacket.Shape> all = new ArrayList<>();
         SandGraspController.collectShapes(all);
-        SandPatchController.collectShapes(all);
+        SandFistController.collectShapes(all);
 
         for (ServerLevel level : ServerLifecycleHooks.getCurrentServer().getAllLevels()) {
             for (ServerPlayer player : level.players()) {

@@ -72,6 +72,13 @@ public class AbilityKeyHandler {
             "key.categories.superheromod"
     );
 
+    public static final KeyMapping KEY_SAND_TOWER = new KeyMapping(
+            "key.superheromod.sand_tower",
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_Z,
+            "key.categories.superheromod"
+    );
+
     public static final KeyMapping KEY_ULTIMATE = new KeyMapping(
             "key.superheromod.ruby_rage",
             InputConstants.Type.KEYSYM,
@@ -81,10 +88,8 @@ public class AbilityKeyHandler {
 
     private static final Map<AbilitySlot, Boolean> previousState = new EnumMap<>(AbilitySlot.class);
 
-    /** Ziplama tusunun onceki durumu — cift basis algilamak icin. */
-    private static boolean jumpWasDown = false;
-    /** Bu havalanmada kum sutunu kullanildi mi; yere deginca sifirlanir. */
-    private static boolean airJumpUsed = false;
+    /** Kule tusunun onceki durumu — basili tutmak tekrar tetiklemesin. */
+    private static boolean towerWasDown = false;
 
     static {
         for (AbilitySlot slot : AbilitySlot.values()) {
@@ -102,6 +107,7 @@ public class AbilityKeyHandler {
             event.register(KEY_XRAY);
             event.register(KEY_SKILL_G);
             event.register(KEY_SKILL_V);
+            event.register(KEY_SAND_TOWER);
             event.register(KEY_ULTIMATE);
         }
     }
@@ -115,19 +121,18 @@ public class AbilityKeyHandler {
             Minecraft mc = Minecraft.getInstance();
             if (mc.player == null || mc.screen != null) return;
 
-            // CIFT BOSLUK — havada ikinci basiste kum sutunu.
+            // KUM KULESI — Z tusu.
             //
-            // Ziplama tusu sunucuya ulasmadigi icin algilama burada. Tus
-            // BIRAKILIP tekrar basilmasi sart, yoksa basili tutmak surekli
-            // tetiklerdi. Sayac oyuncu yere degdiginde sifirlaniyor.
-            boolean jump = mc.options.keyJump.isDown();
-            if (mc.player.onGround()) {
-                airJumpUsed = false;
-            } else if (jump && !jumpWasDown && !airJumpUsed) {
-                airJumpUsed = true;
+            // Onceden havada CIFT BOSLUK ile tetikleniyordu ve bu yanlisti:
+            // bosluk zaten ziplama tusu, oyuncu her ziplayip yon
+            // degistirmek istediginde kule kuruluyordu. Kendi tusuna
+            // alindi; Z, hareket tuslarinin hemen yaninda ve bos.
+            boolean tower = KEY_SAND_TOWER.isDown();
+            if (tower && !towerWasDown) {
                 ModNetworking.CHANNEL.sendToServer(new SandPillarPacket());
             }
-            jumpWasDown = jump;
+            towerWasDown = tower;
+
 
             // Sand Grasp alani acikken LMB onaylar, RMB iptal eder
             if (ClientSandGraspData.hasPreview()) {

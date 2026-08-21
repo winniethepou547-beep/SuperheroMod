@@ -112,8 +112,8 @@ public final class SandShapeRenderer {
         for (SandShapeSyncPacket.Shape s : shapes) {
             if (s.type() == SandShapeSyncPacket.TYPE_HAND) {
                 drawHand(buf, m, s, sprite);
-            } else if (s.type() == SandShapeSyncPacket.TYPE_PATCH) {
-                drawPatch(buf, m, s, sprite);
+            } else if (s.type() == SandShapeSyncPacket.TYPE_ARM) {
+                drawArm(buf, m, s, sprite);
             }
         }
 
@@ -209,47 +209,86 @@ public final class SandShapeRenderer {
     }
 
     // ------------------------------------------------------------------
-    // KUM ALANI
+    // ------------------------------------------------------------------
+    // UZAYAN KUM KOLU
     // ------------------------------------------------------------------
 
     /**
-     * Yetenegin biraktigi kum.
+     * Kolun uzayan kismi.
      *
-     * Once partikulle cizildi ve kullanici "cektigi yer kum olmuyor" dedi:
-     * seyrek partikul zemini KAPLAMIYOR, sadece uzerinde toz gibi
-     * duruyordu. Artik zemine oturan dokulu bir katman — gercekten kumla
-     * kaplanmis gibi gorunuyor ama haritaya blok yazmiyor.
+     * Partikul DEGIL model: kullanici acikca "uzamayi model ile yapicaz,
+     * kolumuzun devami seklinde uzayacak" dedi. Partikul bulutu kolun
+     * devami gibi okunmuyor, dagilan bir toz gibi duruyor.
+     *
+     * Bicim vanilla kol oranlarini takip ediyor: Minecraft'ta kol 4x4
+     * piksel, yani 0.25 blok kalinliginda. Ayni kalinlikta tutuluyor ki
+     * baska bir oyundan gelmis gibi durmasin.
+     *
+     * Uzayan kisim TEK PARCA degil bogum bogum: duz bir cubuk lastik gibi
+     * duruyordu. Her bogum bir oncekinden hafifce ince, boylece kol uca
+     * dogru daraliyor ve yumruga baglaniyor.
      */
-    private static void drawPatch(BufferBuilder buf, Matrix4f m,
-                                  SandShapeSyncPacket.Shape s, TextureAtlasSprite sprite) {
-        double radius = s.curl();
-        if (radius <= 0.05) return;
+    private static void drawArm(BufferBuilder buf, Matrix4f m,
+                                SandShapeSyncPacket.Shape s, TextureAtlasSprite sprite) {
+        double length = s.grow();
+        if (length <= 0.05) return;
 
-        // grow: Sandman menzilde mi. Uzaktayken kum sonuk ama GORUNUR —
-        // oyuncu yaklasirsa canlanacagini gorebilmeli.
-        float alpha = (0.5f + s.grow() * 0.45f) * (1f - Mth.clamp(s.sink(), 0f, 1f));
-        float[] tint = s.grow() > 0.5f ? TINT_MID : TINT_DARK;
+        double yaw = Math.toRadians(s.yaw());
+        double pitch = Math.toRadians(s.pitch());
 
-        // Zeminin hemen uzerinde: tam zemin hizasinda cizilseydi zemin
-        // dokusuyla titrerdi
-        Vec3 center = new Vec3(s.x(), s.y() + 0.02, s.z());
+        // Bakis yonu — vanilla ile ayni isaret duzeni
+        Vec3 dir = new Vec3(
+                -Math.sin(yaw) * Math.cos(pitch),
+                -Math.sin(pitch),
+                Math.cos(yaw) * Math.cos(pitch)).normalize();
 
-        // Kare degil sekizgen — kare kum yamasi yapay duruyordu
-        int sides = 8;
-        for (int i = 0; i < sides; i++) {
-            double a0 = (i / (double) sides) * Math.PI * 2 + s.yaw() * Mth.DEG_TO_RAD;
-            double a1 = ((i + 1) / (double) sides) * Math.PI * 2 + s.yaw() * Mth.DEG_TO_RAD;
+        // Kolun yan ekseni: dikey ile capraz carpim. Tam yukari/asagi
+        // bakista bu tanimsizlasiyor, o yuzden yedek eksen var.
+        Vec3 side = dir.cross(new Vec3(0, 1, 0));
+        if (side.lengthSqr() < 1.0E-4) side = new Vec3(1, 0, 0);
+        side = side.normalize();
+        Vec3 upAxis = side.cross(dir).normalize();
 
-            Vec3 p0 = center.add(Math.cos(a0) * radius, 0, Math.sin(a0) * radius);
-            Vec3 p1 = center.add(Math.cos(a1) * radius, 0, Math.sin(a1) * radius);
+        Vec3 origin = new Vec3(s.x(), s.y(), s.z());
 
-            // Dortgen arayuzunde ucgen: son nokta tekrarlaniyor
-            vertTex(buf, m, center, sprite, 0.5f, 0.5f, tint, alpha);
-            vertTex(buf, m, p0, sprite, 0f, 0f, tint, alpha);
-            vertTex(buf, m, p1, sprite, 1f, 0f, tint, alpha);
-            vertTex(buf, m, p1, sprite, 1f, 0f, tint, alpha);
+        float alpha = 1f - Mth.clamp(s.sink(), 0f, 1f);
+        double thick = 0.125 * s.curl();          // vanilla kol yarikalinligi
+
+        // Bogum sayisi uzunlukla artiyor; sabit sayida bogum uzun kolda
+        // gerilmis gibi duruyordu
+        int segments = Math.max(2, (int) (length / 0.55));
+
+        for (int i = 0; i < segments; i++) {
+            double t0 = i / (double) segments;
+            double t1 = (i + 1) / (double) segments;
+
+            double mid = (t0 + t1) * 0.5;
+            Vec3 center = origin.add(dir.scale(length * mid));
+
+            // Uca dogru incelme
+            double taper = 1.0 - mid * 0.25;
+            double half = length * (t1 - t0) * 0.5;
+
+            // Bogumlar sirayla acik/koyu: tek renkli kol duz bir cubuk
+            // gibi duruyordu, kademe derinlik veriyor
+            float[] tint = (i % 2 == 0) ? TINT_MID : TINT_LIGHT;
+
+            box(buf, m, sprite, center,
+                    side.scale(thick * taper),
+                    upAxis.scale(thick * taper),
+                    dir.scale(half),
+                    tint, alpha);
         }
+
+        // YUMRUK — kolun ucundaki kutle. Onsuz kol bir sopa gibi bitiyor
+        // ve neyin vurdugu belli olmuyor.
+        Vec3 fist = origin.add(dir.scale(length));
+        double fistHalf = 0.26 * s.curl();
+        box(buf, m, sprite, fist,
+                side.scale(fistHalf), upAxis.scale(fistHalf), dir.scale(fistHalf),
+                TINT_DARK, alpha);
     }
+
 
     // ------------------------------------------------------------------
     // KIRMIZI OK GOSTERGESI

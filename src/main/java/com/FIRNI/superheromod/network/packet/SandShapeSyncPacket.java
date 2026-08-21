@@ -22,8 +22,8 @@ public class SandShapeSyncPacket {
     public static final byte TYPE_HAND = 0;
     /** Cekme alani gostergesi -- kirmizi ok. */
     public static final byte TYPE_ARROW = 2;
-    /** Yetenegin birakti kum alani. */
-    public static final byte TYPE_PATCH = 3;
+    /** Uzayan kum kolu. */
+    public static final byte TYPE_ARM = 4;
 
     /**
      * @param id    kareler arasi ESLESTIRME kimligi.
@@ -32,14 +32,15 @@ public class SandShapeSyncPacket {
      *              olmasa hangi seklin hangisinin devami oldugu bilinemez
      *              ve ara deger hesaplanamazdi -- goruntu "kasiyor" gibi
      *              gorunuyordu.
-     * @param type  HAND / ARROW / PATCH
+     * @param type  HAND / ARROW / ARM
+     * @param pitch dikey aci (derece) -- kol icin sart, el/ok zeminde yatik
      * @param yaw   sekil yonu (derece)
      * @param grow  0..1 olusma ilerlemesi (ok icin parlaklik)
      * @param curl  el icin parmak kapanmasi; digerlerinde yaricap
      * @param sink  0..1 yuzeye gomulme (1 = gorunmez)
      */
     public record Shape(int id, byte type, double x, double y, double z,
-                        float yaw, float grow, float curl, float sink) {}
+                        float yaw, float pitch, float grow, float curl, float sink) {}
 
     private final List<Shape> shapes;
 
@@ -56,6 +57,7 @@ public class SandShapeSyncPacket {
             buf.writeDouble(s.y());
             buf.writeDouble(s.z());
             buf.writeFloat(s.yaw());
+            buf.writeFloat(s.pitch());
             buf.writeFloat(s.grow());
             buf.writeFloat(s.curl());
             buf.writeFloat(s.sink());
@@ -68,7 +70,8 @@ public class SandShapeSyncPacket {
         for (int i = 0; i < count; i++) {
             list.add(new Shape(buf.readVarInt(), buf.readByte(),
                     buf.readDouble(), buf.readDouble(), buf.readDouble(),
-                    buf.readFloat(), buf.readFloat(), buf.readFloat(), buf.readFloat()));
+                    buf.readFloat(), buf.readFloat(), buf.readFloat(),
+                    buf.readFloat(), buf.readFloat()));
         }
         return new SandShapeSyncPacket(list);
     }

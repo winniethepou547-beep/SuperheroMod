@@ -389,7 +389,7 @@ public final class SandGraspController {
             out.add(new com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.Shape(
                     baseId,
                     com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.TYPE_HAND,
-                    base.x, base.y, base.z, yaw, grow, progress, sink));
+                    base.x, base.y, base.z, yaw, 0f, grow, progress, sink));
         }
     }
 
@@ -425,7 +425,7 @@ public final class SandGraspController {
             out.add(new com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.Shape(
                     baseId + 1000 + c,
                     com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.TYPE_ARROW,
-                    ground.x, ground.y, ground.z, yaw, pulse, (float) halfWidth, 0f));
+                    ground.x, ground.y, ground.z, yaw, 0f, pulse, (float) halfWidth, 0f));
         }
     }
     public static void clear() {

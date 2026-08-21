@@ -75,6 +75,7 @@ public final class ClientSandShapeData {
                 a.y() + (b.y() - a.y()) * t,
                 a.z() + (b.z() - a.z()) * t,
                 lerpAngle(a.yaw(), b.yaw(), t),
+                lerpAngle(a.pitch(), b.pitch(), t),
                 a.grow() + (b.grow() - a.grow()) * t,
                 a.curl() + (b.curl() - a.curl()) * t,
                 a.sink() + (b.sink() - a.sink()) * t);

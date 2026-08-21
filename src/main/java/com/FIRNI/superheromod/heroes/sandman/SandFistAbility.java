@@ -20,13 +20,14 @@ public class SandFistAbility extends Ability {
 
     @Override
     protected void initConfig(AbilityConfig config) {
-        config.set("cooldownTicks", 26);
-        // Agir bruiser vurusu — Cyclops'un tek atisindan belirgin sekilde sert
+        // Sarj + uzama toplam 35 tick; bekleme bunun ustune biniyor
+        config.set("cooldownTicks", 20);
         config.set("damage", 6.0f);          // 3 kalp
-        config.set("range", 4.2);
-        config.set("radius", 1.9);
-        config.set("knockback", 1.15);
-        config.set("knockbackVertical", 0.42);
+        // Menzil uzun cunku vurus artik yakin dovus degil UZANAN kol
+        config.set("range", 8.0);
+        config.set("radius", 0.9);
+        config.set("knockback", 0.9);
+        config.set("knockbackVertical", 0.35);
     }
 
     @Override
