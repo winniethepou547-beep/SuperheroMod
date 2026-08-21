@@ -1,6 +1,8 @@
 package com.FIRNI.superheromod.heroes.sandman;
 
 import com.FIRNI.superheromod.SuperheroMod;
+import com.FIRNI.superheromod.network.ModNetworking;
+import com.FIRNI.superheromod.network.packet.ShockwavePacket;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
@@ -8,11 +10,14 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
 import java.util.HashMap;
@@ -42,9 +47,15 @@ public final class ColossusMaceController {
     private static final int TOTAL_TICKS = 32;
 
     private static final float BASE_DAMAGE = 11.0f;
-    private static final double SHOCKWAVE_RADIUS = 8.5;
+    /** Devin topuzu — alan bilerek COK genis, ultinin agirligi buradan geliyor. */
+    private static final double SHOCKWAVE_RADIUS = 16.0;
     /** Zayiflamis kolda hasar ve menzil bu oranla carpilir. */
     private static final float WEAK_ARM_FACTOR = 0.55f;
+
+    /** Havaya kalkacak azami blok — sunucu bogulmasin. */
+    private static final int MAX_LIFTED_BLOCKS = 90;
+    /** Bloklarin sokulecegi yaricap (carpma noktasi cevresinde). */
+    private static final double BLOCK_LIFT_RADIUS = 6.5;
 
     private static final class Swing {
         final UUID player;
@@ -170,18 +181,88 @@ public final class ColossusMaceController {
         Vec3 center = player.position().add(flat.scale(3.0));
 
         level.playSound(null, BlockPos.containing(center),
-                SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 2.0f, 0.35f);
+                SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 2.4f, 0.28f);
         level.playSound(null, BlockPos.containing(center),
-                SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 2.0f, 0.4f);
+                SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 2.2f, 0.32f);
+        level.playSound(null, BlockPos.containing(center),
+                SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.PLAYERS, 1.6f, 0.55f);
 
         SandColossusController.groundSlam(level, player, center, radius, damage);
+
+        // Cizilen sok dalgasi: merkezden disa buyuyen beyaz halkalar + sarsinti
+        ModNetworking.CHANNEL.send(
+                PacketDistributor.NEAR.with(() -> new PacketDistributor.TargetPoint(
+                        center.x, center.y, center.z, radius * 3.0, level.dimension())),
+                new ShockwavePacket(center, (float) radius, 26, 0.85f));
+
+        liftBlocks(level, player, center, weak);
 
         // Carpma noktasindan yukari firlayan kum
         level.sendParticles(sand(),
                 center.x, center.y + 0.3, center.z,
-                60, 1.4, 0.5, 1.4, 0.22);
+                110, 2.0, 0.8, 2.0, 0.30);
         level.sendParticles(ParticleTypes.EXPLOSION,
-                center.x, center.y + 0.5, center.z, 3, 1.2, 0.3, 1.2, 0);
+                center.x, center.y + 0.5, center.z, 5, 1.8, 0.4, 1.8, 0);
+    }
+
+    /**
+     * Carpma noktasindaki bloklar Y EKSENINDE havaya kalkip dagilir.
+     *
+     * Hiz agirlikli olarak YUKARI veriliyor, disa dogru degil: yatay firlatma
+     * "patlama" gibi duruyordu, oysa topuz yere DIKEY iniyor. Bloklarin once
+     * yukari firlayip sonra dagilmasi darbenin yonunu dogru anlatiyor.
+     */
+    private static void liftBlocks(ServerLevel level, ServerPlayer player,
+                                   Vec3 center, boolean weak) {
+        double radius = weak ? BLOCK_LIFT_RADIUS * WEAK_ARM_FACTOR : BLOCK_LIFT_RADIUS;
+        int max = weak ? MAX_LIFTED_BLOCKS / 2 : MAX_LIFTED_BLOCKS;
+
+        BlockPos origin = BlockPos.containing(center);
+        int r = (int) Math.ceil(radius);
+        int lifted = 0;
+
+        for (int dx = -r; dx <= r && lifted < max; dx++) {
+            for (int dz = -r; dz <= r && lifted < max; dz++) {
+                double distSq = dx * dx + dz * dz;
+                if (distSq > radius * radius) continue;
+
+                // Her sutunda sadece EN USTTEKI blok kalkar; komple kazmak
+                // krater aciyordu, burada istenen sey savrulan enkaz
+                BlockPos surface = topSolid(level, origin.offset(dx, 2, dz));
+                if (surface == null) continue;
+
+                BlockState state = level.getBlockState(surface);
+                if (state.isAir() || state.getDestroySpeed(level, surface) < 0) continue;
+
+                level.setBlock(surface, Blocks.AIR.defaultBlockState(), 3);
+
+                FallingBlockEntity fb = FallingBlockEntity.fall(level, surface, state);
+                double dist = Math.sqrt(distSq);
+                double falloff = Math.max(0.25, 1.0 - dist / radius);
+
+                // Agirlikli olarak YUKARI, hafifce disa
+                double outX = dist < 0.1 ? 0 : dx / dist;
+                double outZ = dist < 0.1 ? 0 : dz / dist;
+
+                fb.setDeltaMovement(
+                        outX * 0.18 * falloff + (level.random.nextDouble() - 0.5) * 0.10,
+                        0.85 * falloff + level.random.nextDouble() * 0.45,
+                        outZ * 0.18 * falloff + (level.random.nextDouble() - 0.5) * 0.10);
+                fb.setHurtsEntities(1.5f, 5);
+                fb.time = 1;
+                lifted++;
+            }
+        }
+    }
+
+    /** Verilen noktadan asagi inip ilk kati blogu bulur. */
+    private static BlockPos topSolid(ServerLevel level, BlockPos start) {
+        BlockPos pos = start;
+        for (int i = 0; i < 6; i++) {
+            if (!level.getBlockState(pos).isAir()) return pos;
+            pos = pos.below();
+        }
+        return null;
     }
 
     private static BlockParticleOption sand() {

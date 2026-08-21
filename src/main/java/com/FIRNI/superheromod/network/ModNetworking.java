@@ -7,6 +7,7 @@ import com.FIRNI.superheromod.network.packet.CameraStatePacket;
 import com.FIRNI.superheromod.network.packet.HeroIdentityPacket;
 import com.FIRNI.superheromod.network.packet.ColossusSyncPacket;
 import com.FIRNI.superheromod.network.packet.SandArmorPacket;
+import com.FIRNI.superheromod.network.packet.ShockwavePacket;
 import com.FIRNI.superheromod.network.packet.SandWallActionPacket;
 import com.FIRNI.superheromod.network.packet.SandWallSyncPacket;
 import com.FIRNI.superheromod.network.packet.CinematicSyncPacket;
@@ -99,5 +100,7 @@ public final class ModNetworking {
                 SandArmorPacket::encode, SandArmorPacket::decode, SandArmorPacket::handle);
         CHANNEL.registerMessage(id++, ColossusSyncPacket.class,
                 ColossusSyncPacket::encode, ColossusSyncPacket::decode, ColossusSyncPacket::handle);
+        CHANNEL.registerMessage(id++, ShockwavePacket.class,
+                ShockwavePacket::encode, ShockwavePacket::decode, ShockwavePacket::handle);
     }
 }

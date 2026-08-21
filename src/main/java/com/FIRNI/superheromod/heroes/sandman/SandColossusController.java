@@ -277,10 +277,17 @@ public final class SandColossusController {
         }
     }
 
-    /** Dev agirdir: yavas hareket eder ve dusme hasari almaz. */
+    /**
+     * Dev agirdir: COK YAVAS hareket eder ve dusme hasari almaz.
+     *
+     * Bacagi olmadigi icin yurumez, alttaki kum kutlesi kayarak ilerler.
+     * Hareket tamamen engellenmiyor — durdugu yere cakili bir ulti oynanis
+     * olarak olu kaliyordu; cok yavas ilerleyebilmesi hem tehdit hem hedef
+     * olmasini sagliyor.
+     */
     private static void tickForm(ServerPlayer player, Colossus colossus) {
-        // Sersemken cok daha yavas
-        int slowness = colossus.staggerTicks > 0 ? 3 : 1;
+        // Sersemken neredeyse hic ilerleyemez
+        int slowness = colossus.staggerTicks > 0 ? 5 : 3;
         player.addEffect(new MobEffectInstance(
                 MobEffects.MOVEMENT_SLOWDOWN, 10, slowness, false, false));
 
@@ -288,20 +295,69 @@ public final class SandColossusController {
 
         if (!(player.level() instanceof ServerLevel level)) return;
 
-        // Alt kum kutlesi surekli akar — bacak olmadigi icin bu, hareket
-        // hissini veren tek sey
-        if (player.tickCount % 2 == 0) {
-            level.sendParticles(sand(),
-                    player.getX(), player.getY() + 0.15, player.getZ(),
-                    5, 0.9, 0.10, 0.9, 0.04);
-        }
+        Vec3 velocity = player.getDeltaMovement();
+        double speed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
+        boolean moving = speed > 0.01;
+
+        emitLowerMass(level, player, moving, speed);
 
         // Govdeden surekli dokulen kum
         if (player.tickCount % 4 == 0) {
             level.sendParticles(sand(),
-                    player.getX(), player.getY() + 2.6, player.getZ(),
-                    3, 0.8, 1.0, 0.8, 0.02);
+                    player.getX(), player.getY() + 6.0, player.getZ(),
+                    3, 1.2, 1.4, 1.2, 0.02);
         }
+    }
+
+    /**
+     * BEL ALTI KUM KUTLESI — bacak yerine gecen sey.
+     *
+     * Dururken: kutle yerinde dairesel olarak akar, "nefes alan" bir yigin.
+     * Hareket ederken: kum ARKAYA dogru savrulur, yani kutlenin kaydigi
+     * gorunur. Bacak animasyonu olmadigi icin hareket hissini tamamen bu
+     * veriyor.
+     */
+    private static void emitLowerMass(ServerLevel level, ServerPlayer player,
+                                      boolean moving, double speed) {
+        double x = player.getX();
+        double y = player.getY();
+        double z = player.getZ();
+
+        // Kutlenin tabani — devin genisligine gore
+        double spread = ColossusCrystal.COLOSSUS_WIDTH * 0.55;
+
+        if (!moving) {
+            // Yerinde akan kum: donen bir halka
+            if (player.tickCount % 2 != 0) return;
+
+            for (int i = 0; i < 3; i++) {
+                double a = (player.tickCount * 0.12) + i * (Math.PI * 2 / 3);
+                level.sendParticles(sand(),
+                        x + Math.cos(a) * spread, y + 0.12, z + Math.sin(a) * spread,
+                        2, 0.25, 0.06, 0.25, 0.02);
+            }
+
+            // Kutlenin govdesi
+            level.sendParticles(sand(),
+                    x, y + 1.2, z, 4, spread * 0.8, 1.0, spread * 0.8, 0.015);
+            return;
+        }
+
+        // Hareket halinde: kum arkaya savrulur
+        Vec3 vel = player.getDeltaMovement();
+        double back = -1.0 / Math.max(0.01, speed);
+        double bx = vel.x * back;
+        double bz = vel.z * back;
+
+        int count = 3 + (int) Math.min(6, speed * 90);
+        level.sendParticles(sand(),
+                x + bx * spread * 0.6, y + 0.15, z + bz * spread * 0.6,
+                count, spread * 0.7, 0.12, spread * 0.7, 0.05);
+
+        // Kutlenin kendisi de akis yonunde uzar
+        level.sendParticles(sand(),
+                x, y + 1.0, z,
+                4, spread * 0.9, 0.9, spread * 0.9, 0.03);
     }
 
     private static void stopVisualsOnly(ServerPlayer player) {
