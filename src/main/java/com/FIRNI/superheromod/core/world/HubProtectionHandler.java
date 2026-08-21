@@ -1,6 +1,7 @@
 package com.FIRNI.superheromod.core.world;
 
 import com.FIRNI.superheromod.SuperheroMod;
+import com.FIRNI.superheromod.core.entity.PlayerSummoned;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
@@ -28,11 +29,20 @@ public class HubProtectionHandler {
         }
     }
 
+    /**
+     * Hub'da dogal mob dogusunu engeller.
+     *
+     * Oyuncunun CAGIRDIGI varliklar muaf: bu koruma dogal dogus icin
+     * yazilmisti ama Sand Soldier'lar da Mob oldugu icin onlar da sessizce
+     * engelleniyordu — hata vermeden iptal edildigi icin sebebi hic
+     * gorunmuyordu.
+     */
     @SubscribeEvent
     public static void onEntitySpawn(EntityJoinLevelEvent event) {
         Entity entity = event.getEntity();
         if (entity.level().isClientSide()) return;
         if (!(entity instanceof Mob)) return;
+        if (entity instanceof PlayerSummoned) return;
 
         if (isInHub(entity.blockPosition(), entity.level())) {
             event.setCanceled(true);

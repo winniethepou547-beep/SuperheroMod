@@ -1,6 +1,7 @@
 package com.FIRNI.superheromod.heroes.sandman;
 
 import com.FIRNI.superheromod.core.entity.ModEntities;
+import com.FIRNI.superheromod.core.entity.PlayerSummoned;
 import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
@@ -43,7 +44,7 @@ import java.util.UUID;
  *   ACTIVE   sahibini takip eder, dusman bulur, saldirir
  *   CRUMBLE  suresi dolunca veya olunce dagilarak yok olur
  */
-public class SandSoldierEntity extends PathfinderMob {
+public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
 
     /** Olusma ilerlemesi 0..1 — model bunu okuyup parcalari sirayla aciyor. */
     private static final EntityDataAccessor<Float> SPAWN_PROGRESS =
