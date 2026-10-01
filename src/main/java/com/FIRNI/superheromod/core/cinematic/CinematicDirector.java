@@ -48,6 +48,10 @@ public final class CinematicDirector {
 
         int tick = 0;
         int nextBeat = 0;
+        final UUID sessionId = UUID.randomUUID();
+        CinematicPlaybackClock clock;
+        boolean preview;
+        int elapsedTicks;
 
         float beamWidth = 0f;
         boolean beamOn = false;
@@ -65,6 +69,9 @@ public final class CinematicDirector {
         // Geri yuklenecek durum
         float savedYRot, savedXRot;
         boolean rotationApplied = false;
+        CinematicActorSnapshot attackerState, targetState;
+        boolean damageApplied;
+        CinematicReadiness readiness;
     }
 
     private static final Map<UUID, Playback> active = new HashMap<>();
@@ -83,32 +90,87 @@ public final class CinematicDirector {
         return false;
     }
 
+    public static boolean isPlaying(UUID participant,String definitionId) {
+        for(var p:active.values()) if(p.def.id.equals(definitionId)
+                && (p.attackerId.equals(participant)||p.targetId.equals(participant)))return true;
+        return false;
+    }
+
     public static boolean start(String cinematicId, ServerPlayer attacker, LivingEntity target) {
+        return start(cinematicId, attacker, target, false);
+    }
+
+    public static boolean startPreview(String cinematicId, ServerPlayer attacker, LivingEntity target) {
+        return start(cinematicId, attacker, target, true);
+    }
+
+    private static boolean start(String cinematicId, ServerPlayer attacker, LivingEntity target, boolean preview) {
         CinematicDefinition def = CinematicRegistry.get(cinematicId);
         if (def == null) return false;
+        // Seeking is only permitted in a visual rehearsal with no irreversible gameplay events.
+        if (preview && !def.beats.isEmpty()) return false;
+        if (attacker==target || !attacker.isAlive() || !target.isAlive() || attacker.level()!=target.level()) return false;
         if (isBusy(attacker.getUUID()) || isBusy(target.getUUID())) return false;
 
         Playback p = new Playback();
         p.def = def;
+        p.preview = preview;
+        p.clock = new CinematicPlaybackClock(def.totalTicks);
         p.attackerId = attacker.getUUID();
         p.targetId = target.getUUID();
+        Set<UUID> participants = new HashSet<>();
+        participants.add(p.attackerId);
+        if (target instanceof ServerPlayer) participants.add(p.targetId);
+        p.readiness = new CinematicReadiness(p.sessionId, participants);
         p.stage = StageFrame.between(attacker.position(), target.position());
+        if(def.stageSpan>0) p.stage=StageFrame.of(attacker.position(),p.stage.forward(),def.stageSpan);
+        if(def.isolatedStage) p.stage=StageFrame.of(new Vec3(attacker.getX(),
+                attacker.level().getMaxBuildHeight()+96,attacker.getZ()),p.stage.forward(),p.stage.span());
         p.savedYRot = attacker.getYRot();
         p.savedXRot = attacker.getXRot();
+        p.attackerState=new CinematicActorSnapshot(attacker);
+        p.targetState=new CinematicActorSnapshot(target);
 
         // Hedefi sahnenin istedigi yere oturt (koreografi deterministik olsun)
-        if (def.targetAnchor != null) {
-            Vec3 world = p.stage.toWorldSpan(def.targetAnchor);
-            target.teleportTo(world.x, target.getY(), world.z);
-        }
+        // Placement and launches belong to visual actors; gameplay bodies stay at their start positions.
 
         active.put(attacker.getUUID(), p);
+        var prepare = new com.FIRNI.superheromod.network.packet.CinematicPreparePacket(p.sessionId, def.id);
+        ModNetworking.CHANNEL.send(PacketDistributor.PLAYER.with(() -> attacker), prepare);
+        if (target instanceof ServerPlayer other)
+            ModNetworking.CHANNEL.send(PacketDistributor.PLAYER.with(() -> other), prepare);
+        return true;
+    }
+
+    public static void ready(UUID participant, UUID session, boolean success) {
+        for (Playback p : active.values()) {
+            if (p.sessionId.equals(session)) { p.readiness.reply(session, participant, success); return; }
+        }
+    }
+
+    public enum Transport { PAUSE, RESUME, SEEK, STEP, SPEED }
+
+    public static boolean control(ServerPlayer owner, Transport action, float value) {
+        Playback p = active.get(owner.getUUID());
+        if (!owner.hasPermissions(2) || p == null || !p.preview) return false;
+        switch (action) {
+            case PAUSE -> p.clock.pause(true);
+            case RESUME -> p.clock.pause(false);
+            case SEEK -> p.clock.seek(value);
+            case STEP -> p.clock.step(value);
+            case SPEED -> p.clock.speed(value);
+        }
         return true;
     }
 
     /** Sinematigi zorla bitir ve her seyi geri yukle. */
     public static void abort(UUID attackerId) {
         Playback p = active.remove(attackerId);
+        if(p==null) {
+            UUID key=null;
+            for(var entry:active.entrySet())if(entry.getValue().targetId.equals(attackerId)){key=entry.getKey();break;}
+            if(key!=null)p=active.remove(key);
+        }
         if (p == null) return;
         restore(p);
     }
@@ -124,6 +186,7 @@ public final class CinematicDirector {
 
         var server = ServerLifecycleHooks.getCurrentServer();
         if (server == null) {
+            active.values().forEach(CinematicDirector::restore);
             active.clear();
             return;
         }
@@ -144,15 +207,34 @@ public final class CinematicDirector {
                 continue;
             }
 
-            p.tick++;
+            if (++p.elapsedTicks > 20 * 60 * 10) {
+                restore(p); it.remove(); continue;
+            }
+            if (!p.readiness.ready()) {
+                p.readiness.waitTick();
+                if (p.readiness.expired()) {
+                    attacker.displayClientMessage(net.minecraft.network.chat.Component.literal(
+                            "Sinematik hazirlanamadi; sahne iptal edildi."), false);
+                    restore(p); it.remove(); continue;
+                }
+                try { holdActors(attacker, target, p); }
+                catch (RuntimeException error) { restore(p); it.remove(); }
+                continue;
+            }
+            p.clock.advance();
+            p.tick = (int) p.clock.position();
 
-            holdActors(attacker, target, p);
-            runBeats(attacker, target, p);
-            driveMotion(target, p);
-            emitBeam(attacker, target, p);
-            sync(attacker, target, p);
+            try {
+                holdActors(attacker, target, p);
+                runBeats(attacker, target, p);
+                emitBeam(attacker, target, p);
+                sync(attacker, target, p);
+            } catch(RuntimeException error) {
+                com.mojang.logging.LogUtils.getLogger().error("Cinematic aborted: {}",p.def.id,error);
+                restore(p);it.remove();continue;
+            }
 
-            if (p.tick >= p.def.totalTicks) {
+            if (p.clock.finished()) {
                 restore(p);
                 it.remove();
             }
@@ -204,9 +286,13 @@ public final class CinematicDirector {
                 p.launchFrom = null;
             }
             case DAMAGE -> {
+                if(p.damageApplied)break;
+                p.damageApplied=true;
                 float dmg = target.getMaxHealth() * beat.param1;
                 target.invulnerableTime = 0;
-                target.hurt(attacker.damageSources().playerAttack(attacker), dmg);
+                target.setInvulnerable(p.targetState.invulnerable);
+                try { target.hurt(attacker.damageSources().playerAttack(attacker), dmg); }
+                finally { target.setInvulnerable(true); }
             }
             case DARKNESS -> p.darkness = beat.param1;
             case TIME_SCALE -> { /* istemci tarafinda gorsel; sync ile gidiyor */ }
@@ -245,7 +331,8 @@ public final class CinematicDirector {
         Vec3 eye = attacker.getEyePosition(1.0f);
         Vec3 look = attacker.getLookAngle();
         Vec3 from = eye.add(look.scale(0.4));
-        Vec3 to = target.position().add(0, target.getBbHeight() * 0.6, 0);
+        Vec3 to = CinematicMotion.target(p.def,p.stage,p.targetState.position,p.tick)
+                .add(0, target.getBbHeight() * 0.6, 0);
 
         ModNetworking.CHANNEL.send(
                 PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> attacker),
@@ -258,37 +345,10 @@ public final class CinematicDirector {
         }
     }
 
-    /** Firlatma ve yumusak tasima — fizik yerine koreografi kontrolunde. */
-    private static void driveMotion(LivingEntity target, Playback p) {
-        if (p.launchFrom != null) {
-            float prog = Math.min(1f, (p.tick - p.launchStart) / (float) p.launchDuration);
-            Vec3 base = p.launchFrom.add(p.launchTo.subtract(p.launchFrom).scale(prog));
-            double arc = Math.sin(prog * Math.PI) * p.launchArc;
-
-            target.setPos(base.x, base.y + arc, base.z);
-            target.setDeltaMovement(Vec3.ZERO);
-            target.hurtMarked = true;
-            target.fallDistance = 0;
-
-            if (prog >= 1f) p.launchFrom = null;
-            return;
-        }
-
-        if (p.moveTo != null) {
-            Vec3 cur = target.position();
-            Vec3 delta = p.moveTo.subtract(cur);
-            if (delta.lengthSqr() < 0.01) {
-                p.moveTo = null;
-                return;
-            }
-            Vec3 step = delta.normalize().scale(Math.min(p.moveSpeed, delta.length()));
-            target.setPos(cur.x + step.x, cur.y, cur.z + step.z);
-            target.hurtMarked = true;
-        }
-    }
-
     /** Aktorler sinematik boyunca normal hareket edemez. */
     private static void holdActors(ServerPlayer attacker, LivingEntity target, Playback p) {
+        p.attackerState.hold();
+        p.targetState.hold();
         attacker.setDeltaMovement(0, Math.min(0, attacker.getDeltaMovement().y), 0);
         attacker.fallDistance = 0;
 
@@ -302,7 +362,6 @@ public final class CinematicDirector {
         if (p.launchFrom == null && p.moveTo == null) {
             target.setDeltaMovement(0, Math.min(0, target.getDeltaMovement().y), 0);
         }
-        target.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 6, 10, false, false));
     }
 
     /** Iki katilimciya AYNI tick gonderilir — ikisi ayni ani gorur. */
@@ -310,13 +369,13 @@ public final class CinematicDirector {
         CinematicSyncPacket packet = new CinematicSyncPacket(
                 true,
                 CinematicRegistry.indexOf(p.def.id),
-                p.tick,
+                p.clock.position(),
                 attacker.getId(),
                 target.getId(),
                 p.stage.origin(),
                 p.stage.forward(),
                 p.darkness,
-                (float) p.stage.span());
+                (float) p.stage.span(), p.clock.rate(), p.clock.revision(), p.sessionId);
 
         ModNetworking.CHANNEL.send(PacketDistributor.PLAYER.with(() -> attacker), packet);
         if (target instanceof ServerPlayer tp) {
@@ -326,6 +385,8 @@ public final class CinematicDirector {
 
     /** Kamera, hareket, isin ve donus geri verilir. */
     private static void restore(Playback p) {
+        p.attackerState.restore();
+        p.targetState.restore();
         var server = ServerLifecycleHooks.getCurrentServer();
         if (server == null) return;
 
@@ -362,3 +423,4 @@ public final class CinematicDirector {
         return e instanceof LivingEntity le ? le : null;
     }
 }
+

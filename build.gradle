@@ -215,3 +215,47 @@ publishing {
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
 }
+
+tasks.register('colossusPoseCheck', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.FIRNI.superheromod.ColossusPoseCheck'
+}
+
+tasks.register('ghostChainPhysicsCheck', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.FIRNI.superheromod.GhostChainPhysicsCheck'
+}
+
+tasks.register('ghostMotionCheck', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.FIRNI.superheromod.GhostMotionCheck'
+}
+
+tasks.register('cinematicMotionCheck', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.FIRNI.superheromod.CinematicMotionCheck'
+}
+
+tasks.register('gltfAssetCheck', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.FIRNI.superheromod.GltfAssetCheck'
+    args providers.gradleProperty('gltfAsset').getOrElse('art/blender/puppet-game-roundtrip.gltf')
+}
+
+tasks.register('shaderCheck', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.FIRNI.superheromod.ShaderCompileCheck'
+}
+
+tasks.register('backdropPreview', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.FIRNI.superheromod.BackdropPreview'
+    args project.findProperty('out') ?: 'build/backdrop-preview'
+}

@@ -36,6 +36,7 @@ public final class ColossusCameraHandler {
 
     /** Gecis yumusak olsun; forma girince kamera birden firlamasin. */
     private static float blend = 0f;
+    private static float previousBlend, aimBlend, previousAim;
 
     private static Field cameraPosField;
     private static boolean fieldResolved = false;
@@ -47,7 +48,12 @@ public final class ColossusCameraHandler {
         if (event.phase != TickEvent.Phase.END) return;
 
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null) return;
+        if (mc.player == null) { blend=previousBlend=aimBlend=previousAim=0; return; }
+        previousBlend=blend;
+        previousAim=aimBlend;
+        var action=com.FIRNI.superheromod.client.render.colossus.ClientColossusActions.of(mc.player.getUUID());
+        boolean aiming=action!=null && action.type==com.FIRNI.superheromod.network.packet.ColossusActionPacket.ROCK_HOLD;
+        aimBlend=Mth.clamp(aimBlend+(aiming?.15f:-.12f),0,1);
 
         boolean colossus = ClientColossusData.isLocalColossus();
 
@@ -65,6 +71,7 @@ public final class ColossusCameraHandler {
     @SubscribeEvent
     public static void onCameraSetup(ViewportEvent.ComputeCameraAngles event) {
         if (blend <= 0.001f) return;
+        if(com.FIRNI.superheromod.client.render.cinematic.CinematicClient.isRunning())return;
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
@@ -75,10 +82,31 @@ public final class ColossusCameraHandler {
         if (look.lengthSqr() < 1.0E-6) return;
 
         // Bakis yonunun TERSINE geri cek + yukari kaldir
-        float t = Mth.clamp(blend, 0f, 1f);
+        float t = Mth.lerp(mc.getFrameTime(),previousBlend,blend);
+        float aim=Mth.lerp(mc.getFrameTime(),previousAim,aimBlend)*t;
         Vec3 pushed = camera.getPosition()
                 .subtract(look.normalize().scale(EXTRA_DISTANCE * t))
-                .add(0, EXTRA_HEIGHT * t, 0);
+                .add(0, EXTRA_HEIGHT * t + aim * 1.5, 0)
+                .subtract(new Vec3(camera.getLeftVector()).scale(4.5 * aim));
+
+        if(aim>.001f) {
+            // Aim from above and beside the titan, looking at the same player-ray endpoint.
+            // The body stays outside the central sight line even for near targets.
+            Vec3 body=mc.player.getPosition(mc.getFrameTime());
+            double yaw=Math.toRadians(mc.player.getYRot());
+            Vec3 forward=new Vec3(-Math.sin(yaw),0,Math.cos(yaw));
+            Vec3 side=new Vec3(Math.cos(yaw),0,Math.sin(yaw));
+            Vec3 aimCamera=body.add(0,12.5,0).add(side.scale(8)).subtract(forward.scale(5));
+            pushed=pushed.lerp(aimCamera,aim);
+            var ray=com.FIRNI.superheromod.core.combat.raycast.RaycastSystem.cast(mc.level,mc.player,
+                    mc.player.getEyePosition(mc.getFrameTime()),mc.player.getViewVector(mc.getFrameTime()),
+                    48,.6f,false,e->e instanceof net.minecraft.world.entity.LivingEntity&&e!=mc.player);
+            Vec3 delta=ray.getHitPosition().subtract(pushed);
+            float targetYaw=(float)Math.toDegrees(Math.atan2(-delta.x,delta.z));
+            float targetPitch=(float)-Math.toDegrees(Math.atan2(delta.y,Math.sqrt(delta.x*delta.x+delta.z*delta.z)));
+            event.setYaw(Mth.rotLerp(aim,event.getYaw(),targetYaw));
+            event.setPitch(Mth.lerp(aim,event.getPitch(),targetPitch));
+        }
 
         setCameraPosition(camera, pushed);
     }

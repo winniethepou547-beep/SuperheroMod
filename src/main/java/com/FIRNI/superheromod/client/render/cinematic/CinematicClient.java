@@ -3,7 +3,7 @@ package com.FIRNI.superheromod.client.render.cinematic;
 import com.FIRNI.superheromod.SuperheroMod;
 import com.FIRNI.superheromod.core.cinematic.CinematicDefinition;
 import com.FIRNI.superheromod.core.cinematic.CinematicRegistry;
-import com.FIRNI.superheromod.core.cinematic.Shot;
+import com.FIRNI.superheromod.core.cinematic.CinematicCameraSampler;
 import com.FIRNI.superheromod.client.render.puppet.CinematicPuppet;
 import com.FIRNI.superheromod.client.render.puppet.PuppetRenderer;
 import com.FIRNI.superheromod.core.cinematic.ActorPose;
@@ -24,7 +24,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 import java.lang.reflect.Field;
-import java.util.Random;
+
 
 /**
  * SINEMATIK ISTEMCISI — kamerayi cekim tanimlarindan surer.
@@ -49,28 +49,22 @@ public final class CinematicClient {
      *  hesaplamak yanlis olcek verip kadraji bozuyordu. */
     private static float span = 1.5f;
 
-    private static int serverTick = 0;
-    private static long serverTickMs = 0;
     private static long lastPacketMs = 0;
-
-    // Gecis durumu
-    private static Vec3 heldCam, heldLook;
-    private static int lastShotIndex = -1;
-    private static float blend = 1f;
+    private static long clockNanos;
+    private static float clockTick, clockRate=1;
+    private static float playbackRate = 1;
+    private static int transportRevision;
+    private static java.util.UUID sessionId;
     private static float fov = 70f;
     private static float roll = 0f;
 
-    /**
-     * Atmosfer degerleri cekimler arasi YUMUSAK gecer. Aniden degisirse sis
-     * "pat" diye acilip kapanir ve sahte durur; buradaki takip degerleri
-     * hedefe dogru her karede biraz yaklasiyor.
-     */
+    // Current timeline sample, consumed by Forge fog callbacks.
     private static float fogNear = -1f;
     private static float fogFar = -1f;
     private static float fogR = -1f, fogG = -1f, fogB = -1f;
     private static boolean fogActive = false;
 
-    private static final Random SHAKE = new Random();
+
 
     private static Field cameraPosField;
     private static boolean fieldResolved = false;
@@ -81,12 +75,23 @@ public final class CinematicClient {
     // Ag girisi
     // ------------------------------------------------------------------
 
-    public static void update(int cinematicIndex, int tick, int attacker, int target,
-                              Vec3 origin, Vec3 forward, float dark, float spanIn) {
+    public static void update(int cinematicIndex, float tick, int attacker, int target,
+                              Vec3 origin, Vec3 forward, float dark, float spanIn,
+                              float rate, int revision, java.util.UUID session) {
         CinematicDefinition d = CinematicRegistry.byIndex(cinematicIndex);
         if (d == null) return;
 
-        boolean fresh = !active || d != def;
+        boolean fresh = !active || d != def || !session.equals(sessionId);
+        boolean discontinuity = fresh || revision != transportRevision;
+        long clockNow=System.nanoTime();
+        float predicted=clockTick+(clockNow-clockNanos)/50_000_000f*clockRate;
+        float error=tick-predicted;
+        clockTick=discontinuity || rate == 0 || Math.abs(error)>4 ? tick : predicted;
+        clockRate=rate == 0 ? 0 : rate * (discontinuity ? 1 : Mth.clamp(1+error*.08f,.9f,1.1f));
+        clockNanos=clockNow;
+        playbackRate = rate;
+        transportRevision = revision;
+        sessionId = session;
 
         active = true;
         def = d;
@@ -97,14 +102,10 @@ public final class CinematicClient {
         darkness = dark;
         span = spanIn;
 
-        serverTick = tick;
-        serverTickMs = System.currentTimeMillis();
-        lastPacketMs = serverTickMs;
+        lastPacketMs = System.currentTimeMillis();
 
-        if (fresh) {
-            reset();
-            setupPuppets();
-        }
+        if (discontinuity) reset();
+        if (fresh) setupPuppets();
 
         // Renk katmani sadece sinematiği IZLEYENDE acilir
         if (shouldDrive()) CinematicPostFx.enable();
@@ -131,11 +132,43 @@ public final class CinematicClient {
 
         addPuppet(attackerId);
         addPuppet(targetId);
+        for (var track : def.actorTracks) {
+            if (track.binding == com.FIRNI.superheromod.core.cinematic.CinematicActorTrack.Binding.SAND) {
+                var puppet = new CinematicPuppet(java.util.UUID.nameUUIDFromBytes(
+                        (def.id+":"+track.role).getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                        new net.minecraft.resources.ResourceLocation("minecraft","textures/block/sand.png"),false);
+                puppet.track=track;
+                PuppetRenderer.add(puppet);
+            } else {
+                Entity entity=resolve(track.binding == com.FIRNI.superheromod.core.cinematic.CinematicActorTrack.Binding.ATTACKER
+                        ? attackerId : targetId);
+                if(entity!=null) for(var puppet:PuppetRenderer.all())
+                    if(puppet.sourcePlayer.equals(entity.getUUID())) puppet.track=track;
+            }
+        }
     }
 
     private static void addPuppet(int entityId) {
         Entity entity = resolve(entityId);
-        if (!(entity instanceof AbstractClientPlayer player)) return;
+        // Zombie UVs match the humanoid rig. Keep its skin while allowing elbows/knees to act.
+        // Piglin heads and non-humanoid mobs need separate adapters and keep their own mesh below.
+        if(entity instanceof net.minecraft.world.entity.monster.Zombie zombie
+                && !(entity instanceof net.minecraft.world.entity.monster.ZombifiedPiglin)) {
+            var renderer=Minecraft.getInstance().getEntityRenderDispatcher().getRenderer(zombie);
+            var puppet=new CinematicPuppet(entity.getUUID(),renderer.getTextureLocation(zombie),false);
+            puppet.legacyZombieUv=true;
+            puppet.baseScale=zombie.isBaby()?.5f:1f;
+            PuppetRenderer.add(puppet);
+            return;
+        }
+        if (!(entity instanceof AbstractClientPlayer player)) {
+            if(entity instanceof net.minecraft.world.entity.LivingEntity) {
+                var puppet=new CinematicPuppet(entity.getUUID(),new net.minecraft.resources.ResourceLocation("minecraft","textures/entity/steve.png"),false);
+                puppet.sourceEntity=entity;
+                PuppetRenderer.add(puppet);
+            }
+            return;
+        }
 
         PuppetRenderer.add(new CinematicPuppet(
                 player.getUUID(),
@@ -144,17 +177,25 @@ public final class CinematicClient {
     }
 
     /**
-     * Aktorleri her karede gercek bedenlerinin bulundugu yere tasir.
-     *
-     * Su an konum hala sunucunun surdugu gercek entity'den geliyor; poz
-     * olaylari baglanana kadar aktor "gorunur ikiz" olarak calisiyor. Asil
-     * kazanim koreografinin buradan devralinmasiyla gelecek.
+     * Samples authored actor tracks at presentation time; gameplay bodies remain untouched.
+     * Legacy scenes without named tracks retain their pose-key adapter.
      */
     private static void updatePuppets(float partial, float timeline) {
         if (PuppetRenderer.all().isEmpty()) return;
 
         synchronized (PuppetRenderer.all()) {
             for (CinematicPuppet puppet : PuppetRenderer.all()) {
+                if(puppet.track!=null) {
+                    puppet.track.sample(timeline,puppet.sample);
+                    var stage=stageFrom(stageOrigin);
+                    puppet.position=stage.toWorldSpan(puppet.sample.position);
+                    double radians=Math.toRadians(puppet.sample.yaw);
+                    puppet.yaw=stage.yawOf(new Vec3(-Math.sin(radians),0,Math.cos(radians)));
+                    puppet.scale=puppet.sample.scale*puppet.baseScale;
+                    puppet.pose.set(puppet.sample.pose);
+                    PuppetRenderer.prepareRigPose(puppet);
+                    continue;
+                }
                 Entity source = findByUuid(puppet.sourcePlayer);
                 if (source == null) continue;
 
@@ -165,11 +206,18 @@ public final class CinematicClient {
                         source.getId() == attackerId
                                 ? CinematicDefinition.Actor.ATTACKER
                                 : CinematicDefinition.Actor.TARGET;
+                if(actor==CinematicDefinition.Actor.TARGET) puppet.position=
+                        com.FIRNI.superheromod.core.cinematic.CinematicMotion.target(def,
+                                stageFrom(stageOrigin),puppet.position,timeline);
+                puppet.yaw=stageFrom(stageOrigin).yawOf(new Vec3(0,0,
+                        actor==CinematicDefinition.Actor.ATTACKER?1:-1));
 
                 if (!applyPoseTrack(puppet, actor, timeline)) {
                     idleBreath(puppet, timeline);
                 }
             }
+            com.FIRNI.superheromod.client.render.puppet.PuppetContacts.apply(
+                    PuppetRenderer.all(),def.handContacts,timeline);
         }
     }
 
@@ -253,6 +301,8 @@ public final class CinematicClient {
 
     /** Ilk poz anahtarindan once kullanilan notr durus. */
     private static final ActorPose NEUTRAL = new ActorPose();
+    private static final com.FIRNI.superheromod.core.cinematic.CinematicActorTrack.Sample CAMERA_ACTOR_SAMPLE =
+            new com.FIRNI.superheromod.core.cinematic.CinematicActorTrack.Sample();
 
     private static Entity findByUuid(java.util.UUID id) {
         Minecraft mc = Minecraft.getInstance();
@@ -272,10 +322,6 @@ public final class CinematicClient {
     }
 
     private static void reset() {
-        heldCam = null;
-        heldLook = null;
-        lastShotIndex = -1;
-        blend = 1f;
         fov = 70f;
         roll = 0f;
         fogNear = -1f;
@@ -294,7 +340,6 @@ public final class CinematicClient {
 
         Minecraft mc = Minecraft.getInstance();
         float partial = (float) event.getPartialTick();
-
         Entity attacker = resolve(attackerId);
         Entity target = resolve(targetId);
         if (attacker == null || target == null) return;
@@ -308,135 +353,42 @@ public final class CinematicClient {
 
         float timeline = timelineTick();
         updatePuppets(partial, timeline);
-
-        CinematicDefinition.Cursor cursor = def.cursorAt(timeline);
-        Shot shot = cursor.shot();
-        float p = shot.easing.apply(cursor.progress());
-
-        Vec3 localCam = lerp(shot.fromPos, shot.toPos, p);
-        Vec3 camPos = stage.toWorldSpan(localCam);
-        Vec3 lookAt = resolveLook(shot, stage, aPos, tPos);
-
-        // Sarsinti — darbe icin: sert, hizli, rastgele
-        float shake = Mth.lerp(p, shot.shakeStart, shot.shakeEnd);
-        if (shake > 0.001f) {
-            double s = shake * 0.09;
-            camPos = camPos.add(
-                    (SHAKE.nextDouble() - 0.5) * s,
-                    (SHAKE.nextDouble() - 0.5) * s,
-                    (SHAKE.nextDouble() - 0.5) * s);
-        }
-
-        // Nefes — sarsintidan farkli: cok yavas, cok kucuk, SUREKLI.
-        // Rastgele degil sinus toplami; rastgelelik titreme yapar, sinus
-        // toplami ise elde tutulmus kamera gibi organik salinir.
-        if (shot.breath > 0.001f) {
-            float ms = System.currentTimeMillis() % 100000L;
-            double b = shot.breath * 0.022;
-            camPos = camPos.add(
-                    (Math.sin(ms * 0.00071) + Math.sin(ms * 0.00033)) * b,
-                    (Math.sin(ms * 0.00053) + Math.sin(ms * 0.00097)) * b * 0.8,
-                    (Math.sin(ms * 0.00041) + Math.sin(ms * 0.00087)) * b);
-        }
-
-        // Gecis: CUT aninda otur, SMOOTH kisa surede harmanla
-        boolean shotChanged = cursor.index() != lastShotIndex;
-        if (heldCam == null || (shotChanged && shot.transition == Shot.Transition.CUT)) {
-            heldCam = camPos;
-            heldLook = lookAt;
-            blend = 1f;
-        } else if (shotChanged) {
-            blend = 0f;
-        }
-        lastShotIndex = cursor.index();
-
-        if (blend < 1f) {
-            blend = Math.min(1f, blend + 0.12f);
-            heldCam = heldCam.add(camPos.subtract(heldCam).scale(blend));
-            heldLook = heldLook.add(lookAt.subtract(heldLook).scale(blend));
-        } else {
-            // Gecikme sifir: cekimin istedigi yerde tam dur
-            heldCam = camPos;
-            heldLook = lookAt;
-        }
-
-        float wantFov = Mth.lerp(p, shot.fovStart, shot.fovEnd);
-        fov += (wantFov - fov) * 0.3f;
-
-        float wantRoll = Mth.lerp(p, shot.rollStart, shot.rollEnd);
-        roll += (wantRoll - roll) * 0.2f;
-
-        updateAtmosphere(shot, p);
-
-        setCameraPosition(event.getCamera(), heldCam);
-
-        Vec3 dir = heldLook.subtract(heldCam);
+        final Vec3 initialAttacker = aPos, initialTarget = tPos;
+        var frame = CinematicCameraSampler.sample(def, stage, timeline, at -> {
+            Vec3 a = initialAttacker;
+            Vec3 t = com.FIRNI.superheromod.core.cinematic.CinematicMotion.target(def, stage, initialTarget, at);
+            for (var track : def.actorTracks) {
+                if (track.binding == com.FIRNI.superheromod.core.cinematic.CinematicActorTrack.Binding.SAND) continue;
+                track.sample(at, CAMERA_ACTOR_SAMPLE);
+                if (track.binding == com.FIRNI.superheromod.core.cinematic.CinematicActorTrack.Binding.ATTACKER)
+                    a = stage.toWorldSpan(CAMERA_ACTOR_SAMPLE.position);
+                else t = stage.toWorldSpan(CAMERA_ACTOR_SAMPLE.position);
+            }
+            return new CinematicCameraSampler.Actors(a, t);
+        });
+        fov = frame.fov(); roll = frame.roll();
+        var fog = frame.fog();
+        fogActive = fog.active(); fogNear = fog.near(); fogFar = fog.far();
+        fogR = fog.r(); fogG = fog.g(); fogB = fog.b();
+        setCameraPosition(event.getCamera(), frame.position());
+        Vec3 dir = frame.look().subtract(frame.position());
         if (dir.lengthSqr() < 1.0E-6) return;
         dir = dir.normalize();
 
-        event.setYaw((float) Math.toDegrees(Math.atan2(-dir.x, dir.z)));
-        event.setPitch((float) Math.toDegrees(-Math.asin(Mth.clamp(dir.y, -1.0, 1.0))));
+        float impactYaw=0,impactPitch=0,impactRoll=0;
+        for(var impact:def.impacts) {
+            float impulse=impact.oscillation(timeline);
+            impactYaw+=impulse*.28f*impact.direction();
+            impactPitch+=impulse*.65f;
+            impactRoll+=impulse*.4f*impact.direction();
+        }
+        event.setYaw((float) Math.toDegrees(Math.atan2(-dir.x, dir.z))+Mth.clamp(impactYaw,-2,2));
+        event.setPitch((float) Math.toDegrees(-Math.asin(Mth.clamp(dir.y, -1.0, 1.0)))+Mth.clamp(impactPitch,-3,3));
         // Yatirma: oyun kamerasi asla yatmaz, bu yuzden beyin yatik kadraji
         // aninda "bu oynanis degil, bu cekim" diye okur
-        event.setRoll(roll);
+        event.setRoll(roll+Mth.clamp(impactRoll,-2,2));
     }
 
-    /**
-     * Cekimin istedigi sis degerlerine yumusakca kayar.
-     *
-     * Cekim kendi sisini yazmadiysa sinematigin TABAN atmosferi kullanilir;
-     * boylece her cekime tek tek sis yazmak gerekmiyor.
-     */
-    private static void updateAtmosphere(Shot shot, float p) {
-        float wantNear, wantFar;
-        int wantColor;
-
-        if (shot.hasFog()) {
-            wantNear = Mth.lerp(p, shot.fogNearStart, shot.fogNearEnd);
-            wantFar = Mth.lerp(p, shot.fogFarStart, shot.fogFarEnd);
-            wantColor = shot.fogColor != Shot.NO_COLOR ? shot.fogColor : def.baseFogColor;
-        } else if (!Float.isNaN(def.baseFogNear)) {
-            wantNear = def.baseFogNear;
-            wantFar = def.baseFogFar;
-            wantColor = def.baseFogColor;
-        } else {
-            fogActive = false;
-            return;
-        }
-
-        if (!fogActive) {
-            // Ilk kez devreye giriyor — mevcut degerden degil, hedeften basla
-            fogNear = wantNear;
-            fogFar = wantFar;
-            fogActive = true;
-        } else {
-            fogNear += (wantNear - fogNear) * 0.12f;
-            fogFar += (wantFar - fogFar) * 0.12f;
-        }
-
-        if (wantColor != Shot.NO_COLOR) {
-            float r = ((wantColor >> 16) & 0xFF) / 255f;
-            float g = ((wantColor >> 8) & 0xFF) / 255f;
-            float b = (wantColor & 0xFF) / 255f;
-
-            if (fogR < 0f) {
-                fogR = r; fogG = g; fogB = b;
-            } else {
-                fogR += (r - fogR) * 0.12f;
-                fogG += (g - fogG) * 0.12f;
-                fogB += (b - fogB) * 0.12f;
-            }
-        }
-    }
-
-    /**
-     * Sis mesafesi.
-     *
-     * Sisi yakina cekmek arka plani eritir ve ozneyi one cikarir — ekrani
-     * siyahla ortmeden odak kurmanin yolu bu. Vanilla sisi duz bir mesafe
-     * solmasi oldugu icin shader kalitesinde olmuyor; asil derinlik hissi
-     * post-processing katmaniyla geliyor.
-     */
     @SubscribeEvent
     public static void onRenderFog(ViewportEvent.RenderFog event) {
         if (!shouldDrive() || !fogActive) return;
@@ -459,7 +411,9 @@ public final class CinematicClient {
     @SubscribeEvent
     public static void onFov(ComputeFovModifierEvent event) {
         if (!shouldDrive()) return;
-        event.setNewFovModifier(fov / 70f);
+        float kick=0;
+        for(var impact:def.impacts)kick+=impact.envelope(timelineTick())*impact.strength()*1.5f;
+        event.setNewFovModifier((fov+Math.min(5,kick)) / 70f);
     }
 
     /** Sinema bantlari + karanlik katmani. */
@@ -493,7 +447,7 @@ public final class CinematicClient {
     // Yardimcilar
     // ------------------------------------------------------------------
 
-    private static boolean shouldDrive() {
+    public static boolean shouldDrive() {
         if (!isRunning()) return false;
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) return false;
@@ -503,28 +457,19 @@ public final class CinematicClient {
         return id == attackerId || id == targetId;
     }
 
+    public record VisualFrame(CinematicDefinition definition, StageFrame stage, float tick) {}
+    public static VisualFrame visualFrame() {
+        return shouldDrive() ? new VisualFrame(def,stageFrom(stageOrigin),timelineTick()) : null;
+    }
+
     /** Sunucu tick'i 20Hz; ekran daha hizli. Kesirli zaman cizgisi uretilir. */
     private static float timelineTick() {
-        long delta = System.currentTimeMillis() - serverTickMs;
-        return serverTick + Math.min(1.6f, delta / 50f);
+        return Math.min(def.totalTicks,clockTick+(System.nanoTime()-clockNanos)/50_000_000f*clockRate);
     }
 
     /** Sunucunun kurdugu ekseni birebir yeniden kurar (span dahil). */
     private static StageFrame stageFrom(Vec3 attackerPos) {
         return StageFrame.of(stageOrigin, stageForward, span);
-    }
-
-    private static Vec3 resolveLook(Shot shot, StageFrame stage, Vec3 aPos, Vec3 tPos) {
-        return switch (shot.lookTarget) {
-            case ATTACKER -> aPos.add(shot.lookOffset);
-            case TARGET -> tPos.add(shot.lookOffset);
-            case MIDPOINT -> aPos.add(tPos.subtract(aPos).scale(0.5)).add(shot.lookOffset);
-            case FIXED -> stage.toWorldSpan(shot.lookOffset);
-        };
-    }
-
-    private static Vec3 lerp(Vec3 a, Vec3 b, float t) {
-        return a.add(b.subtract(a).scale(t));
     }
 
     private static Entity resolve(int id) {

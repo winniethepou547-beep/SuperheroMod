@@ -15,7 +15,7 @@ package com.FIRNI.superheromod.heroes.sandman;
 public final class ColossusForm {
 
     /** Olusmanin toplam suresi (tick). */
-    public static final int FORM_TICKS = 40;
+    public static final int FORM_TICKS = 100;
 
     /** Oyuncu boyu — olcek bunun uzerine hesaplaniyor. */
     private static final float PLAYER_HEIGHT = 1.8f;
@@ -38,13 +38,9 @@ public final class ColossusForm {
      * @return 0..1 arasi buyume orani
      */
     public static float growth(float progress) {
-        if (progress <= 0.15f) return 0f;
-        if (progress < 0.35f) return ramp(progress, 0.15f, 0.35f, 0.00f, 0.35f);
-        if (progress < 0.45f) return 0.35f;
-        if (progress < 0.65f) return ramp(progress, 0.45f, 0.65f, 0.35f, 0.72f);
-        if (progress < 0.72f) return 0.72f;
-        if (progress < 0.88f) return ramp(progress, 0.72f, 0.88f, 0.72f, 0.93f);
-        return ramp(progress, 0.88f, 1.00f, 0.93f, 1.00f);
+        if (progress <= .04f) return 0;
+        if (progress < .40f) return ramp(progress,.04f,.40f,0,1);
+        return 1;
     }
 
     /** Olusma sirasindaki gorsel olcek — 1.0 (normal oyuncu) ile FULL_SCALE arasi. */

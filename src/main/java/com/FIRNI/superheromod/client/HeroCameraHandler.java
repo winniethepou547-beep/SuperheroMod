@@ -30,12 +30,26 @@ public class HeroCameraHandler {
     public static void onCameraSetup(ViewportEvent.ComputeCameraAngles event) {
         // Sinematik sirasinda kamerayi CinematicCameraHandler suruyor
         if (com.FIRNI.superheromod.client.render.cinematic.CinematicClient.isRunning()) return;
+        if (com.FIRNI.superheromod.client.render.ClientColossusData.isLocalColossus()) return;
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.options.getCameraType() != CameraType.THIRD_PERSON_BACK) return;
         if (mc.player == null) return;
 
         Camera camera = event.getCamera();
+        if(mc.player.getVehicle() instanceof com.FIRNI.superheromod.heroes.ghostrider.HellCycleEntity bike) {
+            float pitch=net.minecraft.util.Mth.lerp((float)event.getPartialTick(),bike.xRotO,bike.getXRot());
+            // Interpolated heading: the raw tick value made the chase camera stutter in turns.
+            double yaw=Math.toRadians(net.minecraft.util.Mth.rotLerp((float)event.getPartialTick(),bike.yRotO,bike.getYRot()));
+            Vec3 pivot=mc.player.getEyePosition((float)event.getPartialTick());
+            Vec3 offset=camera.getPosition().subtract(pivot).yRot((float)yaw).xRot((float)Math.toRadians(-pitch)).yRot((float)-yaw);
+            Vec3 wantedPosition=pivot.add(offset);
+            var hit=mc.level.clip(new net.minecraft.world.level.ClipContext(pivot,wantedPosition,
+                net.minecraft.world.level.ClipContext.Block.VISUAL,net.minecraft.world.level.ClipContext.Fluid.NONE,mc.player));
+            if(hit.getType()!=net.minecraft.world.phys.HitResult.Type.MISS)wantedPosition=hit.getLocation().lerp(pivot,.08);
+            setCameraPosition(camera,wantedPosition);event.setPitch(event.getPitch()+pitch);
+            event.setRoll(event.getRoll()+bike.lean((float)event.getPartialTick())*.22f);return;
+        }
         Vector3f left = camera.getLeftVector();
         Vector3f up = camera.getUpVector();
         Vec3 pos = camera.getPosition();

@@ -101,9 +101,11 @@ public class SuperheroMod
 
         ModNetworking.register();
         CharacterRegistry.register(new CyclopsCharacter());
+        CharacterRegistry.register(new com.FIRNI.superheromod.heroes.ghostrider.GhostRiderCharacter());
         CharacterRegistry.register(
                 new com.FIRNI.superheromod.heroes.sandman.SandmanCharacter());
         com.FIRNI.superheromod.heroes.cyclops.MaximumPowerCinematic.register();
+        com.FIRNI.superheromod.heroes.sandman.SandArmyPreview.register();
 
         if (Config.logDirtBlock)
             LOGGER.info("DIRT BLOCK >> {}", ForgeRegistries.BLOCKS.getKey(Blocks.DIRT));

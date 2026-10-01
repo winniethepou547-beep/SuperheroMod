@@ -1,0 +1,5 @@
+Bu yüklediğim görseli başlangıç karesi olarak kullanarak 6–8 saniyelik tek çekim bir animasyon filmi üret. Görseli yeniden tasarlama: yüz, saç, yeşil çizgili gömlek, kum askerlerinin oranları, altın renkli kum dokusu, sıcak kenar ışığı, mavi atmosfer, gölgeler ve ayrıntı kalitesi aynı kalsın.
+
+Sandman uzattığı elinin parmaklarını hafifçe kapatıp sakin bir komut versin. Görseldeki kum askerleri farklı zamanlamalarla hızlanıp kameraya doğru koşsun. Her birinin adım ritmi ve yolu farklı olsun; birbirlerine girmesinler. Diz ve dirsekler doğal bükülsün, ayaklar yere basıp itsin, her adımda ince kum havalansın. Kamera akıcı biçimde geri çekilsin ve Sandman askerlerin arasından görünmeye devam etsin. Kamera hiçbir karakterin içine girmesin. Kum ve kumaş üzerindeki ayrıntılar hareket boyunca sabit kalsın. Güneş ışığı ve temas gölgeleri karakterlerin hareketini takip etsin.
+
+Gerçek karakter hareketi istiyorum; sabit resmi yakınlaştırıp kaydırma. Yüz veya uzuvlar değişmesin, askerler birleşmesin. Yazı ve müzik ekleme. Hafif koşu ve kum sesleri olabilir. Tek çekim, kesme yok.

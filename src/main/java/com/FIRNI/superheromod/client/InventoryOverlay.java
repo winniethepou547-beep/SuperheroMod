@@ -34,19 +34,19 @@ public class InventoryOverlay {
         int btnX = guiLeft + 176 + 4;
         int btnY = guiTop + 2;
 
-        event.addListener(Button.builder(Component.literal("§e⚔ Stats"), b ->
+        event.addListener(Button.builder(Component.literal("Stats"), b ->
                 mc.setScreen(new StatsScreen())
         ).bounds(btnX, btnY, BTN_WIDTH, BTN_HEIGHT).build());
 
-        event.addListener(Button.builder(Component.literal("§6☰ Klan"), b ->
+        event.addListener(Button.builder(Component.literal("Klan"), b ->
                 mc.setScreen(new ClanScreen())
         ).bounds(btnX, btnY + BTN_HEIGHT + BTN_GAP, BTN_WIDTH, BTN_HEIGHT).build());
 
-        event.addListener(Button.builder(Component.literal("§d✉ DM"), b ->
+        event.addListener(Button.builder(Component.literal("DM"), b ->
                 mc.setScreen(new DmScreen())
         ).bounds(btnX, btnY + (BTN_HEIGHT + BTN_GAP) * 2, BTN_WIDTH, BTN_HEIGHT).build());
 
-        event.addListener(Button.builder(Component.literal("§c⚑ Gecmis"), b ->
+        event.addListener(Button.builder(Component.literal("Gecmis"), b ->
                 mc.setScreen(new MatchHistoryScreen())
         ).bounds(btnX, btnY + (BTN_HEIGHT + BTN_GAP) * 3, BTN_WIDTH, BTN_HEIGHT).build());
     }
@@ -65,42 +65,20 @@ public class InventoryOverlay {
         int barX = guiLeft;
         int totalW = 176;
 
-        // Background panel
-        graphics.fill(barX - 2, barY - 2, barX + totalW + 2, barY + 18, 0xCC1a1a2e);
-        // Border
-        graphics.fill(barX - 2, barY - 2, barX + totalW + 2, barY - 1, 0xFF6c5ce7);
-        graphics.fill(barX - 2, barY + 18, barX + totalW + 2, barY + 19, 0xFF6c5ce7);
-
-        // Gold icon + value
-        graphics.drawString(font, "§6⛃", barX + 2, barY + 2, 0xFFFFFF, true);
-        graphics.drawString(font, "§f" + ClientPlayerData.gold, barX + 12, barY + 2, 0xFFFFFF, true);
-
-        // XP bar
-        int xpBarX = barX + 56;
-        int xpBarW = 50;
-        int xpBarH = 6;
-        int xpBarY = barY + 3;
-        graphics.fill(xpBarX, xpBarY, xpBarX + xpBarW, xpBarY + xpBarH, 0xFF333333);
+        // Quiet strip above the inventory: gold, level progress, rank. No boxes.
+        com.FIRNI.superheromod.client.hud.HudStyle.shade(graphics, barX - 6, barY - 4, totalW + 12, 22, .9f);
+        com.FIRNI.superheromod.client.hud.HudStyle.caption(graphics, font, "Gold", barX, barY, com.FIRNI.superheromod.client.hud.HudStyle.MUTED, -1);
+        graphics.drawString(font, String.valueOf(ClientPlayerData.gold), barX, barY + 9, 0xFFFFD27A, false);
+        int xpBarX = barX + 52, xpBarW = 64;
         float xpFraction = ClientPlayerData.xpNeeded > 0
                 ? Math.min(1f, (float) ClientPlayerData.pveXp / ClientPlayerData.xpNeeded) : 0f;
-        int filledW = (int) (xpBarW * xpFraction);
-        if (filledW > 0) {
-            graphics.fill(xpBarX, xpBarY, xpBarX + filledW, xpBarY + xpBarH, 0xFF00d2d3);
-        }
-        // XP text on bar
-        String xpText = "Lv" + ClientPlayerData.level;
-        graphics.drawString(font, xpText, xpBarX + 2, xpBarY + xpBarH + 2, 0xFF00d2d3, true);
-
-        // Rank display
+        com.FIRNI.superheromod.client.hud.HudStyle.caption(graphics, font, "Lv " + ClientPlayerData.level, xpBarX, barY, com.FIRNI.superheromod.client.hud.HudStyle.MUTED, -1);
+        com.FIRNI.superheromod.client.hud.HudStyle.bar(graphics, xpBarX, barY + 11, xpBarW, xpFraction, 0xFF5FD3D4);
         String rankDisplay = ClientPlayerData.rankColor + ClientPlayerData.rankName;
-        int rankW = font.width(rankDisplay);
-        graphics.drawString(font, rankDisplay, barX + totalW - rankW - 2, barY + 2, 0xFFFFFF, true);
-
-        // Right panel background for buttons
+        graphics.drawString(font, rankDisplay, barX + totalW - font.width(rankDisplay), barY + 5, 0xFFFFFFFF, false);
+        // Hairline accent beside the side buttons.
         int btnX = guiLeft + 176 + 4;
-        int btnPanelY = guiTop - 2;
-        int btnPanelH = (BTN_HEIGHT + BTN_GAP) * 4 + 6;
-        graphics.fill(btnX - 2, btnPanelY, btnX + BTN_WIDTH + 2, btnPanelY + btnPanelH, 0xCC1a1a2e);
-        graphics.fill(btnX - 2, btnPanelY, btnX - 1, btnPanelY + btnPanelH, 0xFF6c5ce7);
+        int btnPanelH = (BTN_HEIGHT + BTN_GAP) * 4 - BTN_GAP;
+        graphics.fill(btnX - 3, guiTop + 2, btnX - 2, guiTop + 2 + btnPanelH, com.FIRNI.superheromod.client.hud.HudStyle.ACCENT);
     }
 }

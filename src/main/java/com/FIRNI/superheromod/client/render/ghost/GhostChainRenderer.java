@@ -30,23 +30,45 @@ public final class GhostChainRenderer {
     private static final Map<Integer,Deque<TrailFrame>> TRAILS=new HashMap<>();
     private static final Map<Integer,Vec3> SHIFT=new HashMap<>();
     private static double lastFrameClock;
+    private static double now(Minecraft mc,float partial) { return mc.level.getGameTime()+partial; }
+    /**
+     * Chain coiled around a body: starts on the side facing the hand, winds WRAP_TURNS times
+     * from chest height down to the thighs, just outside the hitbox. amount grows 0..1 as it wraps.
+     */
+    private static java.util.function.DoubleFunction<Vec3> coil(net.minecraft.world.phys.AABB box,Vec3 hand,double amount,double phase,double drop) {
+        Vec3 center=box.getCenter();
+        double radius=Math.max(box.getXsize(),box.getZsize())*.5+.08;
+        double top=box.minY+box.getYsize()*(.74-drop), bottom=box.minY+box.getYsize()*(.30-drop*.5);
+        double start=Math.atan2(hand.z-center.z,hand.x-center.x)+phase;
+        double sweep=WRAP_TURNS*Math.PI*2*amount;
+        return u->{
+            double a=start+u*sweep;
+            return new Vec3(center.x+Math.cos(a)*radius,top+(bottom-top)*u*amount,center.z+Math.sin(a)*radius);
+        };
+    }
     private static double groundUnder(Minecraft mc,Player player,Vec3 feet) {
         var hit=mc.level.clip(new net.minecraft.world.level.ClipContext(feet.add(0,.5,0),feet.add(0,-3,0),
                 net.minecraft.world.level.ClipContext.Block.COLLIDER,net.minecraft.world.level.ClipContext.Fluid.NONE,player));
         return hit.getType()==net.minecraft.world.phys.HitResult.Type.BLOCK?hit.getLocation().y:Double.NEGATIVE_INFINITY;
     }
-    /** Light sparks where links scrape the ground, scaled by how fast they slide. */
+    private static double sparkFrame;
+    /** Spark showers where links scrape the ground, denser the faster they slide. */
     private static void sparks(Minecraft mc,ChainDynamics dynamics) {
         var random=mc.level.getRandom();
+        double frame=Math.max(.05,Math.min(1,sparkFrame));
         dynamics.contacts((point,velocity)->{
             double speed=velocity.horizontalDistance();
-            if(speed<.35 || random.nextFloat()>Math.min(.22,speed*.06))return;
-            Vec3 kick=velocity.scale(.06).add((random.nextDouble()-.5)*.08,.06+random.nextDouble()*.12,(random.nextDouble()-.5)*.08);
-            mc.level.addParticle(random.nextFloat()<.7f?net.minecraft.core.particles.ParticleTypes.ELECTRIC_SPARK
-                    :net.minecraft.core.particles.ParticleTypes.SMALL_FLAME,point.x,point.y+.03,point.z,kick.x,kick.y,kick.z);
+            if(speed<.3)return;
+            double expected=Math.min(3,speed*.9)*frame;
+            int count=(int)expected+(random.nextDouble()<expected-(int)expected?1:0);
+            if(count>0)GhostSparks.emit(point,velocity,point.y-.03,count);
         });
     }
     private static final int MODE_PUNCH=GhostChainController.Mode.PUNCH.ordinal();
+    private static final int MODE_SLAM_THROW=GhostChainController.Mode.SLAM_THROW.ordinal(),
+            MODE_SLAM_LIFT=GhostChainController.Mode.SLAM_LIFT.ordinal(), MODE_SLAM_DOWN=GhostChainController.Mode.SLAM_DOWN.ordinal();
+    /** Turns of chain coiled around a bound body. */
+    private static final double WRAP_TURNS=2;
     private static final int TRAIL_POINTS=21, TRAIL_FIRST=6;
     private static final double TRAIL_INTERVAL=.25, TRAIL_LIFE=2.2;
     // Link half-length, half-width and wire radius in blocks.
@@ -89,6 +111,8 @@ public final class GhostChainRenderer {
         return true;
     }
     public static GhostComboMotion.Pose motion(Player player,float partial) {
+        var penance=PenanceClient.pose(player,partial);
+        if(penance!=null)return penance;
         Sample s=DATA.get(player.getId());
         if(s==null || s.packet.mode()==0 || player.level().getGameTime()-s.tick>20)return null;
         return samplePose(s.packet,motionTick(s,partial));
@@ -99,6 +123,10 @@ public final class GhostChainRenderer {
         if(p.mode()==6)return GhostComboMotion.pose(0,0);
         if(p.mode()==MODE_PUNCH)return GhostComboMotion.punch(tick,GhostChainController.PUNCH_CONTACT,GhostChainController.PUNCH_DURATION);
         if(p.mode()==5)return GhostComboMotion.reel(tick);
+        if(p.mode()==2)return GhostComboMotion.cast(tick);
+        if(p.mode()==MODE_SLAM_THROW)return GhostComboMotion.slamThrow(tick);
+        if(p.mode()==MODE_SLAM_LIFT)return GhostComboMotion.slamLift(tick);
+        if(p.mode()==MODE_SLAM_DOWN)return GhostComboMotion.slamDown(tick);
         return p.mode()==1?GhostComboMotion.pose(p.combo(),tick):GhostComboMotion.grapple(tick,p.mode()==4);
     }
     /** Hands yielding to the spinning chain's pull (model space), shared by the arm mesh and chain anchor. */
@@ -154,18 +182,27 @@ public final class GhostChainRenderer {
         Sample s = DATA.get(mc.player.getId());
         if (s == null || mc.level.getGameTime() - s.tick > 20) return;
         if (!"ghost_rider".equals(com.FIRNI.superheromod.client.ClientHeroRegistry.get(mc.player.getUUID()))) return;
+        if(mc.options.hideGui)return;
         var g=e.getGuiGraphics();int w=e.getWindow().getGuiScaledWidth(),h=e.getWindow().getGuiScaledHeight();
-        int x=w/2-92,y=h-82;
-        g.fill(x-7,y-7,x+191,y+33,0xb0101017);
-        g.fill(x-7,y-7,x-5,y+33,0xffc7421f);
-        g.drawString(mc.font,"HELLCHAIN",x,y,0xffead9bd,false);
-        g.drawString(mc.font,s.packet.heat()>=4?"IGNITED":"HEAT",x+126,y,s.packet.heat()>=4?0xffff983d:0xff9398a0,false);
-        for(int i=0;i<10;i++)g.fill(x+i*19,y+12,x+i*19+16,y+17,i<s.packet.heat()?0xffe95f27:0xff34343d);
+        var font=mc.font;
+        int heat=s.packet.heat(), width=120, x=w/2-width/2, y=h-60;
+        boolean ignited=heat>=4;
+        // Hellfire meter: ten pips, a caption either side, nothing else.
+        com.FIRNI.superheromod.client.hud.HudStyle.caption(g,font,"Hellfire",x,y-10,com.FIRNI.superheromod.client.hud.HudStyle.MUTED,-1);
+        if(heat>0)com.FIRNI.superheromod.client.hud.HudStyle.caption(g,font,ignited?"Ignited":heat+"/10",x+width,y-10,
+                ignited?com.FIRNI.superheromod.client.hud.HudStyle.ACCENT:com.FIRNI.superheromod.client.hud.HudStyle.MUTED,1);
+        com.FIRNI.superheromod.client.hud.HudStyle.segments(g,x,y,width,10,heat,ignited?com.FIRNI.superheromod.client.hud.HudStyle.ACCENT:0xFFD8CFC4);
         if(s.packet.mode()==7) {
-            int percent=Math.min(100,s.packet.age()*100/40);
-            g.fill(x,y+22,x+184,y+26,0xff34343d);g.fill(x,y+22,x+184*percent/100,y+26,0xffffc56a);
-            g.drawCenteredString(mc.font,"RING LAUNCH  "+percent+"%",w/2,y-19,0xffffc56a);
-        } else if(s.packet.mode()==3)g.drawCenteredString(mc.font,"RMB  PULL / RELEASE     LMB  RUSH",w/2,y-19,0xffeee1ce);
+            float charge=Math.min(1,s.packet.age()/(float)GhostComboMotion.CHARGE_FULL);
+            com.FIRNI.superheromod.client.hud.HudStyle.bar(g,x,y+7,width,charge,com.FIRNI.superheromod.client.hud.HudStyle.ACCENT);
+            com.FIRNI.superheromod.client.hud.HudStyle.caption(g,font,charge>=1?"Release":"Ring launch",w/2,y-24,
+                    charge>=1?com.FIRNI.superheromod.client.hud.HudStyle.ACCENT_HOT:com.FIRNI.superheromod.client.hud.HudStyle.TEXT,0);
+        } else if(s.packet.mode()==3) {
+            int total=com.FIRNI.superheromod.client.hud.HudStyle.hintWidth(font,"RMB","Pull")+14+com.FIRNI.superheromod.client.hud.HudStyle.hintWidth(font,"LMB","Rush");
+            int hx=w/2-total/2;
+            hx+=com.FIRNI.superheromod.client.hud.HudStyle.hint(g,font,"RMB","Pull",hx,y-28)+14;
+            com.FIRNI.superheromod.client.hud.HudStyle.hint(g,font,"LMB","Rush",hx,y-28);
+        }
     }
     @SubscribeEvent public static void render(RenderLevelStageEvent e) {
         if (e.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) return;
@@ -174,7 +211,7 @@ public final class GhostChainRenderer {
         DATA.entrySet().removeIf(v -> mc.level.getGameTime() - v.getValue().tick > 20);
         CHAINS.keySet().removeIf(id -> !DATA.containsKey(Math.floorDiv(id,2)));
         double clock=mc.level.getGameTime()+mc.getFrameTime();
-        double frameDt=Math.max(0,Math.min(2,clock-lastFrameClock));lastFrameClock=clock;
+        double frameDt=Math.max(0,Math.min(2,clock-lastFrameClock));lastFrameClock=clock;sparkFrame=frameDt;
         for(var history:TRAILS.values())while(!history.isEmpty() && clock-history.peekFirst().tick>TRAIL_LIFE)history.removeFirst();
         TRAILS.entrySet().removeIf(v->v.getValue().isEmpty());
         if (DATA.isEmpty()) return;
@@ -203,7 +240,8 @@ public final class GhostChainRenderer {
                 final Vec3 along=forward, across=lateral;
                 for(int sign:new int[]{-1,1}) {
                     Vec3 ring=center.add(across.scale(sign*.75));
-                    java.util.function.DoubleFunction<Vec3> curve=t->ring.add(along.scale(Math.cos(t*Math.PI*2+motionTick*.55)*1.2)).add(0,Math.sin(t*Math.PI*2+motionTick*.55)*1.2,0);
+                    double r=1.2*GhostComboMotion.LENGTH;
+                    java.util.function.DoubleFunction<Vec3> curve=t->ring.add(along.scale(Math.cos(t*Math.PI*2+motionTick*.55)*r)).add(0,Math.sin(t*Math.PI*2+motionTick*.55)*r,0);
                     drawLinks(b,pose,curve,80,10,burning);captureTrail(p.player()*2+(sign<0?0:1),curve,clock,1);
                     for(int i=0;i<8;i++)HellfireBreathRenderer.contact(curve.apply(i/8.0),.35);
                 }
@@ -262,15 +300,63 @@ public final class GhostChainRenderer {
                 }
                 continue;
             }
-            Vec3 from = GhostComboMotion.hand(player.getPosition(partial),yaw,samplePose(p,motionTick));
-            Vec3 to = sample.previous.lerp(p.tip(), partial);
-            double length = from.distanceTo(to);
-            if (length < 0.04) continue;
-            int links = Math.min(240, Math.max(1, (int)(length / 0.10)));
-            ChainDynamics dynamics=CHAINS.computeIfAbsent(p.player()*2, id -> new ChainDynamics());
-            dynamics.update(from,to,mc.level.getGameTime()+partial);
-            drawLinks(b,pose,dynamics::point,links,p.heat(),burning);
-            if(p.heat()>=4)for(int i=0;i<8;i++)HellfireBreathRenderer.contact(dynamics.point(i/8.0),.3);
+            // Thrown, bound and hauled chains: a hanging rope from the hand, coiled around the
+            // bound body when there is one. Hell Slam uses both hands.
+            var motion=samplePose(p,motionTick);
+            Vec3 feet=player.getPosition(partial);
+            boolean twin=p.mode()>=MODE_SLAM_THROW;
+            int[] sides=twin?new int[]{-1,1}:new int[]{motion.handSide()};
+            var bound=p.target()>=0?mc.level.getEntity(p.target()):null;
+            boolean coiled=bound instanceof net.minecraft.world.entity.LivingEntity
+                    && (p.mode()==3 || p.mode()==4 || p.mode()==5 || p.mode()==MODE_SLAM_LIFT || p.mode()==MODE_SLAM_DOWN);
+            // Taut while hauling or hoisting, hanging slack while just bound or flying.
+            double slack=p.mode()==4 || p.mode()==MODE_SLAM_LIFT || p.mode()==MODE_SLAM_DOWN?1.0:p.mode()==3?1.07:1.03;
+            double coil=p.mode()==3?Math.min(1,motionTick/5):p.mode()==MODE_SLAM_LIFT?Math.min(1,motionTick/GhostComboMotion.LIFT_WRAP):1;
+            for(int slot=0;slot<sides.length;slot++) {
+                Vec3 from=GhostComboMotion.modelToWorld(feet,yaw,GhostComboMotion.arm(motion,sides[slot]).hand());
+                Vec3 to=sample.previous.lerp(p.tip(),partial);
+                ChainDynamics dynamics=CHAINS.computeIfAbsent(p.player()*2+slot,id->new ChainDynamics());
+                java.util.function.DoubleFunction<Vec3> curve;
+                double length;
+                if(coiled) {
+                    var box=bound.getBoundingBox().move(bound.getPosition(partial).subtract(bound.position()));
+                    java.util.function.DoubleFunction<Vec3> helix=coil(box,from,coil,slot*Math.PI,slot*.14);
+                    Vec3 entry=helix.apply(0);
+                    double straight=from.distanceTo(entry);
+                    double wound=WRAP_TURNS*coil*Math.PI*2*(Math.max(box.getXsize(),box.getZsize())*.5+.08)+.01;
+                    double split=straight/(straight+wound);
+                    java.util.function.DoubleFunction<Vec3> line;
+                    if(p.mode()==MODE_SLAM_LIFT || p.mode()==MODE_SLAM_DOWN) {
+                        // Hoist and slam: the hands drive the chain and the motion runs link by link
+                        // toward the bound body. The far end stays coiled on the body.
+                        int side=sides[slot];
+                        boolean down=p.mode()==MODE_SLAM_DOWN;
+                        double heaveNow=now(mc,partial);
+                        float tick=motionTick;
+                        ChainDynamics.Target heave=(t,time)->{
+                            float at=(float)(tick-(heaveNow-time));
+                            var heavePose=down?GhostComboMotion.slamDown(at):GhostComboMotion.slamLift(at);
+                            Vec3 hand=GhostComboMotion.modelToWorld(feet,yaw,GhostComboMotion.arm(heavePose,side).hand());
+                            return hand.lerp(entry,t);
+                        };
+                        dynamics.drive(heave,heaveNow,ChainDynamics.HEAVE);
+                        line=u->dynamics.point(u).add(entry.subtract(dynamics.point(1)).scale(u*u*u));
+                    } else {
+                        dynamics.update(from,entry,now(mc,partial),slack);
+                        line=dynamics::point;
+                    }
+                    final java.util.function.DoubleFunction<Vec3> rope=line;
+                    curve=t->t<split?rope.apply(t/split):helix.apply((t-split)/(1-split));
+                    length=straight+wound;
+                } else {
+                    length=from.distanceTo(to);
+                    if(length<0.04)continue;
+                    dynamics.update(from,to,now(mc,partial),slack);
+                    curve=dynamics::point;
+                }
+                drawLinks(b,pose,curve,Math.min(240,Math.max(1,(int)(length/LINK_SPACING))),p.heat(),burning);
+                if(p.heat()>=4)for(int i=0;i<8;i++)HellfireBreathRenderer.contact(curve.apply(i/8.0),.3);
+            }
         }
         Tesselator.getInstance().end(); RenderSystem.enableCull();
         if(GhostFireMaterial.ready() && !TRAILS.isEmpty()) {
@@ -319,12 +405,20 @@ public final class GhostChainRenderer {
             history.addLast(new TrailFrame(clock,points,heat));while(history.size()>12)history.removeFirst();
         }
     }
+    /** A chain along a curve, in its own batch (used by film stages). */
+    public static void drawChain(PoseStack pose,java.util.function.DoubleFunction<Vec3> curve,double length,int heat) {
+        RenderSystem.disableCull();RenderSystem.setShader(GameRenderer::getPositionColorShader);
+        BufferBuilder b=Tesselator.getInstance().getBuilder();
+        b.begin(VertexFormat.Mode.QUADS,DefaultVertexFormat.POSITION_COLOR);
+        drawLinks(b,pose,curve,Math.min(240,Math.max(1,(int)(length/LINK_SPACING))),heat,new ArrayList<>());
+        Tesselator.getInstance().end();RenderSystem.enableCull();
+    }
     private static void drawLinks(BufferBuilder b,PoseStack pose,java.util.function.DoubleFunction<Vec3> curve,
                                   int links,int heat,List<Vec3> burning) {
         for(int i=0;i<links;i++) {
             double t=(i+.5)/links;
             Vec3 center=curve.apply(t);
-            if(heat>=4 && i%15==0 && burning.size()<8)burning.add(center);
+            if(heat>=4 && i%15==0 && burning.size()<8 && !com.FIRNI.superheromod.client.render.film.FilmDirector.drawingStage()){burning.add(center);GhostLights.request(center,11);}
             Vec3 axis=curve.apply(Math.min(1,t+.005)).subtract(curve.apply(Math.max(0,t-.005))).normalize();
             if(axis.lengthSqr()<.01)continue;
             Vec3 side=axis.cross(new Vec3(0,1,0));if(side.lengthSqr()<.01)side=axis.cross(new Vec3(1,0,0));

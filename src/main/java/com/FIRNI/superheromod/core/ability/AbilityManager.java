@@ -44,6 +44,9 @@ public class AbilityManager {
     }
 
     public static void activateAbility(ServerPlayer player, AbilitySlot slot) {
+        if(com.FIRNI.superheromod.core.cinematic.CinematicDirector.isBusy(player.getUUID()))return;
+        if (com.FIRNI.superheromod.heroes.sandman.SandColossusController.isForming(player.getUUID())) return;
+        if (com.FIRNI.superheromod.heroes.sandman.SandTravelController.isTravelling(player.getUUID())) return;
         Ability ability = getAbility(player.getUUID(), slot);
         if (ability != null) {
             ability.activate(player);

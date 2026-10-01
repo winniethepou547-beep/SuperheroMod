@@ -111,6 +111,8 @@ public final class ActorPose {
      */
     public static void lerp(ActorPose a, ActorPose b, float t,
                             float[] delays, ActorPose out) {
+        org.joml.Quaternionf from = new org.joml.Quaternionf(), to = new org.joml.Quaternionf();
+        org.joml.Vector3f angles = new org.joml.Vector3f();
         for (int j = 0; j < JOINTS; j++) {
             float local = t;
 
@@ -123,9 +125,10 @@ public final class ActorPose {
             // Yumusak giris/cikis — dogrusal gecis mekanik duruyor
             float e = local * local * (3f - 2f * local);
 
-            for (int ax = 0; ax < 3; ax++) {
-                out.rot[j][ax] = a.rot[j][ax] + (b.rot[j][ax] - a.rot[j][ax]) * e;
-            }
+            from.rotationZYX(a.rot[j][2], a.rot[j][1], a.rot[j][0]);
+            to.rotationZYX(b.rot[j][2], b.rot[j][1], b.rot[j][0]);
+            JointRotations.toEuler(from.slerp(to, e).normalize(), angles);
+            out.rot[j][0] = angles.x; out.rot[j][1] = angles.y; out.rot[j][2] = angles.z;
         }
 
         float e = t * t * (3f - 2f * t);

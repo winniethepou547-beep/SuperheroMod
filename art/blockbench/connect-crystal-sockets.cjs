@@ -1,0 +1,21 @@
+const fs=require('node:fs'),path=require('node:path');
+const root=path.resolve(__dirname,'../..');
+const f=path.join(root,'src/main/java/com/FIRNI/superheromod/client/render/colossus/ColossusRenderer.java');
+let s=fs.readFileSync(f,'utf8');
+s=s.replace('growth, light, colossus);','growth, light, shared);');
+s=s.replace('ColossusModel model) {','com.FIRNI.superheromod.heroes.sandman.ColossusPose shared) {');
+const a=s.indexOf('            Vec3 world = type.worldPosition');
+const b=s.indexOf('            // ISIK:',a);
+if(a<0||b<0)throw Error('Socket site missing');
+s=s.slice(0,a)+`            pose.pushPose();
+            pose.mulPoseMatrix(type.socket(pos.subtract(cam),yaw,growth,shared));
+            float scale=(float)(type.radius*2);
+            pose.scale(scale,scale,scale);
+
+`+s.slice(b);
+const old=s.indexOf('    private static Vec3 bodyOffset(');
+if(old>=0)s=s.slice(0,old)+'}\n';
+fs.writeFileSync(f,s);
+const controller=path.join(root,'src/main/java/com/FIRNI/superheromod/heroes/sandman/SandColossusController.java');
+s=fs.readFileSync(controller,'utf8').replaceAll('crystal.worldPosition(player.position(), player.getYRot())','crystal.worldPosition(player)').replaceAll('crystal.worldPosition(base, yaw)','crystal.worldPosition(victim)').replaceAll('crystal.worldPosition(victim.position(), victim.getYRot())','crystal.worldPosition(victim)');
+fs.writeFileSync(controller,s);

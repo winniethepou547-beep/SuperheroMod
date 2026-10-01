@@ -22,6 +22,7 @@ public final class CinematicPuppet {
     public final UUID sourcePlayer;
     public final ResourceLocation skin;
     public final boolean slim;
+    public boolean legacyZombieUv;
 
     /** Dunya konumu (ayak hizasi). */
     public Vec3 position = Vec3.ZERO;
@@ -38,8 +39,18 @@ public final class CinematicPuppet {
      */
     public int lightLevel = 15;
 
+    /** Colour the whole figure is lit with (1,1,1 = as drawn); films use it as a key light. */
+    public float tintR = 1, tintG = 1, tintB = 1;
+
     /** Sahnede gorunsun mu. */
     public boolean visible = true;
+    public float scale = 1;
+    public float baseScale = 1;
+    public com.FIRNI.superheromod.core.cinematic.CinematicActorTrack track;
+    public final com.FIRNI.superheromod.core.cinematic.CinematicActorTrack.Sample sample =
+            new com.FIRNI.superheromod.core.cinematic.CinematicActorTrack.Sample();
+    /** Non-player fallback retains the original mob mesh instead of applying a player skin to it. */
+    public net.minecraft.world.entity.Entity sourceEntity;
 
     public CinematicPuppet(UUID sourcePlayer, ResourceLocation skin, boolean slim) {
         this.sourcePlayer = sourcePlayer;
@@ -47,4 +58,3 @@ public final class CinematicPuppet {
         this.slim = slim;
     }
 }
-

@@ -39,15 +39,6 @@ public class SandSoldierRenderer<T extends SandSoldierEntity>
             pose.scale(baseScale, baseScale, baseScale);
         }
 
-        // Dagilirken asker cokerek kuculur
-        float crumble = entity.getCrumbleProgress();
-        if (crumble <= 0f) return;
-
-        float remaining = 1.0f - crumble;
-        // Yatayda daha az, dikeyde daha cok kuculur — yere coken kum hissi
-        pose.scale(
-                Math.max(0.01f, 0.35f + remaining * 0.65f),
-                Math.max(0.01f, remaining),
-                Math.max(0.01f, 0.35f + remaining * 0.65f));
+        // Crumble is authored on the rig root. Do not apply its scale twice.
     }
 }

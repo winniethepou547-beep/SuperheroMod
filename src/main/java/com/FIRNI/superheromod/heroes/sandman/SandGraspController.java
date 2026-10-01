@@ -317,6 +317,7 @@ public final class SandGraspController {
 
         Vec3 base = SandSpikeController.groundUnder(grasp.level, hand.add(0, 1.5, 0));
         if (base == null) base = hand;
+        else base = new Vec3(hand.x, base.y, hand.z);
 
         // Elin yerden ciktigi yerde kum savrulur
         grasp.level.sendParticles(sand(),
@@ -378,6 +379,9 @@ public final class SandGraspController {
 
             Vec3 base = SandSpikeController.groundUnder(grasp.level, hand.add(0, 1.5, 0));
             if (base == null) base = hand;
+            // Ground lookup snaps to block centres. Only its height belongs to
+            // the moving hand; quantizing X/Z made it hop one block at a time.
+            else base = new Vec3(hand.x, base.y, hand.z);
 
             // El SANDMAN'A BAKAR: parmaklar cekis yonunde kapanmali,
             // ters baksaydi dusmani iterek kapaniyormus gibi gorunurdu

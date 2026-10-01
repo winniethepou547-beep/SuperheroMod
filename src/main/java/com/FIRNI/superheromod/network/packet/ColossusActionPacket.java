@@ -19,6 +19,8 @@ public class ColossusActionPacket {
 
     public static final byte MACE_SWING = 0;
     public static final byte ROCK_THROW = 1;
+    public static final byte ROCK_HOLD = 2;
+    public static final byte SWORD_STAB = 3;
 
     private final UUID playerId;
     private final byte action;

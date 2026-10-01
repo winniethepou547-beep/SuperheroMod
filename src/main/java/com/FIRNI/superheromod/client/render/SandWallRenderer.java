@@ -114,7 +114,7 @@ public final class SandWallRenderer {
         float crumble = Mth.clamp(wall.crumble(), 0f, 1f);
         if (crumble >= 0.999f) return;
         alpha *= 1f - crumble * 0.85f;
-        float shrink = 1f - crumble * 0.55f;
+        float shrink = 1f - crumble * crumble * (3f - 2f * crumble);
 
         // Hasar aldikca koyulasip soluklasir
         float health = Mth.clamp(wall.health(), 0f, 1f);
@@ -123,7 +123,8 @@ public final class SandWallRenderer {
         float[] body = preview ? PREVIEW : (health > 0.5f ? SAND_MID : SAND_DARK);
         float[] edge = preview ? PREVIEW : SAND_LIGHT;
 
-        Vec3 c = wall.center();
+        // Keep the base on the ground while the whole structure collapses.
+        Vec3 c = wall.center().add(0, -wall.halfHeight() * (1f - shrink), 0);
         Vec3 hw = side.scale(wall.halfWidth() * shrink);
         Vec3 hh = up.scale(wall.halfHeight() * shrink);
         Vec3 hd = facing.scale(wall.halfDepth() * shrink);
@@ -133,17 +134,17 @@ public final class SandWallRenderer {
         // Kenar vurgusu — duvarin sinirlari belli olsun
         SandGeometry.box(buf, m, sprite, light, c,
                 hw.scale(1.02), hh.scale(0.06), hd.scale(1.02), edge, alpha * 0.8f, 1f);
-        SandGeometry.box(buf, m, sprite, light, c.add(0, wall.halfHeight() * 0.95, 0),
+        SandGeometry.box(buf, m, sprite, light, c.add(0, wall.halfHeight() * 0.95 * shrink, 0),
                 hw.scale(1.02), hh.scale(0.05), hd.scale(1.02), edge, alpha * 0.8f, 1f);
 
         // YUZEY CIKINTILARI — duvar dumduz bir levha gibi duruyordu.
         // Cikintilar duvarin KENDI eksenlerine gore yerlestiriliyor,
         // yani duvar hareket edince onlar da birlikte gidiyor: tek parca.
-        addBumps(buf, m, sprite, light, wall, facing, side, up, body, alpha, shrink);
+        addBumps(buf, m, sprite, light, wall, c, facing, side, up, body, alpha, shrink);
 
         float spike = wall.spike();
         if (spike > 0.01f) {
-            drawSpikes(buf, m, sprite, light, wall, facing, side, up, spike, alpha);
+            drawSpikes(buf, m, sprite, light, wall, c, facing, side, up, spike, alpha, shrink);
         }
     }
 
@@ -161,7 +162,7 @@ public final class SandWallRenderer {
      */
     private static void addBumps(VertexConsumer buf, Matrix4f m, TextureAtlasSprite sprite,
                                  int light, SandWallSyncPacket.Entry wall,
-                                 Vec3 facing, Vec3 side, Vec3 up,
+                                 Vec3 center, Vec3 facing, Vec3 side, Vec3 up,
                                  float[] tint, float alpha, float shrink) {
         Random rng = new Random(Double.doubleToLongBits(wall.halfWidth()) ^ 0x9E3779B9L);
 
@@ -184,13 +185,13 @@ public final class SandWallRenderer {
             Vec3 base;
             if (face >= 4) {
                 // Ust kenar — cizimdeki gibi tepede de kirikli olmali
-                base = wall.center()
+                base = center
                         .add(side.scale(u * wall.halfWidth() * 0.96 * shrink))
                         .add(up.scale(wall.halfHeight() * shrink))
                         .add(facing.scale(v * wall.halfDepth() * 0.85 * shrink));
             } else {
                 double dir = face < 2 ? 1.0 : -1.0;
-                base = wall.center()
+                base = center
                         .add(side.scale(u * wall.halfWidth() * 0.96 * shrink))
                         .add(up.scale(v * wall.halfHeight() * 0.94 * shrink))
                         .add(facing.scale(wall.halfDepth() * dir * shrink));
@@ -207,12 +208,13 @@ public final class SandWallRenderer {
     /** Dis yuzeyden cikan dikenler — sadece firlatma hazirliginda gorunur. */
     private static void drawSpikes(VertexConsumer buf, Matrix4f m, TextureAtlasSprite sprite,
                                    int light, SandWallSyncPacket.Entry wall,
-                                   Vec3 facing, Vec3 side, Vec3 up, float spike, float alpha) {
-        Random rng = new Random(Double.doubleToLongBits(wall.center().x) ^ 0x5A17D);
+                                   Vec3 center, Vec3 facing, Vec3 side, Vec3 up, float spike, float alpha, float shrink) {
+        // Shape must not change as the wall crosses world coordinates.
+        Random rng = new Random(Double.doubleToLongBits(wall.halfWidth()) ^ 0x5A17D);
 
         int cols = 5;
         int rows = 3;
-        double maxLen = 1.1 * spike;
+        double maxLen = 1.1 * spike * shrink;
 
         for (int r = 0; r < rows; r++) {
             for (int col = 0; col < cols; col++) {
@@ -223,13 +225,13 @@ public final class SandWallRenderer {
                 u += (rng.nextDouble() - 0.5) * 0.18;
                 v += (rng.nextDouble() - 0.5) * 0.25;
 
-                Vec3 base = wall.center()
-                        .add(side.scale(u * wall.halfWidth() * 0.85))
-                        .add(up.scale(v * wall.halfHeight() * 0.8))
-                        .add(facing.scale(wall.halfDepth()));
+                Vec3 base = center
+                        .add(side.scale(u * wall.halfWidth() * 0.85 * shrink))
+                        .add(up.scale(v * wall.halfHeight() * 0.8 * shrink))
+                        .add(facing.scale(wall.halfDepth() * shrink));
 
                 double len = maxLen * (0.65 + rng.nextDouble() * 0.55);
-                double thick = 0.16 + rng.nextDouble() * 0.10;
+                double thick = (0.16 + rng.nextDouble() * 0.10) * shrink;
 
                 // Diken artik ucgen piramit degil KISALAN KUTU dizisi.
                 //

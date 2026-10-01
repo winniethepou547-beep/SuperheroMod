@@ -14,16 +14,16 @@ import net.minecraft.resources.ResourceLocation;
  * SAHNE AKTORUNUN MODELI — oyuncunun kendi skinini kullanir ama vanilla
  * modelden cok daha fazla eklemi vardir.
  *
- * Vanilla oyuncu 6 kati kutudur. Onlari dondurunce omuzda/kalcada dikis
- * gorunur ve karakter kutu yigini gibi durur. Burada her uzuv ikiye bolundu:
+ * ModelPart hierarchy supplies the joint transforms used by poses and IK.
+ * The body and limbs are rendered by PuppetSkinSurface as continuous weighted
+ * surfaces, rather than rendering the separate joint cubes below. The head
+ * remains rigid. Each limb has two influences:
  *
  *   govde  -> gogus + kalca      (bel donusu ve geriye bukulme)
  *   kollar -> ust kol + on kol   (dirsek)
  *   bacaklar -> ust + alt        (diz — comelme ve direnme icin sart)
  *
- * DOKU: parcalar bolunurken UV'ler de bolundu, bu yuzden oyuncunun kendi
- * skini bozulmadan calisiyor. Vanilla kol/bacak kutusunun yan yuzleri
- * v = 20..32 arasindadir; ust yari 20..26, alt yari 26..32'ye dusuyor.
+ * Surface UVs cover the complete limb; there are no internal elbow/knee caps.
  */
 public final class PuppetModel {
 
@@ -41,8 +41,11 @@ public final class PuppetModel {
     private final ModelPart leftUpperArm, leftLowerArm;
     private final ModelPart rightUpperLeg, rightLowerLeg;
     private final ModelPart leftUpperLeg, leftLowerLeg;
+    private final PuppetSkinSurface[] surfaces;
+    private final org.joml.Matrix4f[] global = new org.joml.Matrix4f[10];
+    private final org.joml.Matrix4f[] skin = new org.joml.Matrix4f[10];
 
-    public PuppetModel(ModelPart root) {
+    public PuppetModel(ModelPart root, boolean slim) {
         this.root = root;
         this.hips = root.getChild("hips");
         this.chest = hips.getChild("chest");
@@ -55,6 +58,15 @@ public final class PuppetModel {
         this.rightLowerLeg = rightUpperLeg.getChild("right_lower_leg");
         this.leftUpperLeg = hips.getChild("left_upper_leg");
         this.leftLowerLeg = leftUpperLeg.getChild("left_lower_leg");
+        for(int i=0;i<10;i++) { global[i]=new org.joml.Matrix4f(); skin[i]=new org.joml.Matrix4f(); }
+        int width=slim?3:4;
+        surfaces=new PuppetSkinSurface[]{
+                new PuppetSkinSurface(-4,0,-2,8,12,4,16,16,6,true),
+                new PuppetSkinSurface(slim?-7:-8,0,-2,width,12,4,40,16,6,false),
+                new PuppetSkinSurface(4,0,-2,width,12,4,32,48,6,false),
+                new PuppetSkinSurface(-3.9f,12,-2,4,12,4,0,16,18,false),
+                new PuppetSkinSurface(-.1f,12,-2,4,12,4,16,48,18,false)
+        };
     }
 
     /**
@@ -118,7 +130,7 @@ public final class PuppetModel {
         PartDefinition rLeg = hips.addOrReplaceChild("right_upper_leg",
                 CubeListBuilder.create().texOffs(0, 16)
                         .addBox(-2.0f, 0.0f, -2.0f, 4, 6, 4),
-                PartPose.offset(-1.9f, 6.0f, 0.0f));
+                PartPose.offset(-1.9f, 0.0f, 0.0f));
         rLeg.addOrReplaceChild("right_lower_leg",
                 CubeListBuilder.create().texOffs(0, 22)
                         .addBox(-2.0f, 0.0f, -2.0f, 4, 6, 4),
@@ -127,7 +139,7 @@ public final class PuppetModel {
         PartDefinition lLeg = hips.addOrReplaceChild("left_upper_leg",
                 CubeListBuilder.create().texOffs(16, 48)
                         .addBox(-2.0f, 0.0f, -2.0f, 4, 6, 4),
-                PartPose.offset(1.9f, 6.0f, 0.0f));
+                PartPose.offset(1.9f, 0.0f, 0.0f));
         lLeg.addOrReplaceChild("left_lower_leg",
                 CubeListBuilder.create().texOffs(16, 54)
                         .addBox(-2.0f, 0.0f, -2.0f, 4, 6, 4),
@@ -165,7 +177,37 @@ public final class PuppetModel {
 
     public void render(PoseStack poseStack, VertexConsumer buffer,
                        int packedLight, int packedOverlay) {
-        root.render(poseStack, buffer, packedLight, packedOverlay, 1f, 1f, 1f, 1f);
+        // Preserve the existing IK/pose hierarchy, but deform a closed skin around it.
+        transform(global[0].identity(),hips);
+        transform(global[1].set(global[0]),chest);
+        transform(global[2].set(global[1]),rightUpperArm);
+        transform(global[3].set(global[2]),rightLowerArm);
+        transform(global[4].set(global[1]),leftUpperArm);
+        transform(global[5].set(global[4]),leftLowerArm);
+        transform(global[6].set(global[0]),rightUpperLeg);
+        transform(global[7].set(global[6]),rightLowerLeg);
+        transform(global[8].set(global[0]),leftUpperLeg);
+        transform(global[9].set(global[8]),leftLowerLeg);
+        inverseBind(0,0,12); inverseBind(1,0,6);
+        inverseBind(2,-5,2); inverseBind(3,-5,6);
+        inverseBind(4,5,2); inverseBind(5,5,6);
+        inverseBind(6,-1.9f,12); inverseBind(7,-1.9f,18);
+        inverseBind(8,1.9f,12); inverseBind(9,1.9f,18);
+        for(int i=0;i<surfaces.length;i++)
+            surfaces[i].render(poseStack,buffer,skin[i*2],skin[i*2+1],packedLight,packedOverlay);
+        poseStack.pushPose();
+        hips.translateAndRotate(poseStack);
+        chest.translateAndRotate(poseStack);
+        head.render(poseStack,buffer,packedLight,packedOverlay);
+        poseStack.popPose();
+    }
+
+    private static void transform(org.joml.Matrix4f matrix,ModelPart part) {
+        matrix.translate(part.x/16,part.y/16,part.z/16)
+                .rotateZYX(part.zRot,part.yRot,part.xRot).scale(part.xScale,part.yScale,part.zScale);
+    }
+
+    private void inverseBind(int index,float x,float y) {
+        skin[index].set(global[index]).translate(-x/16,-y/16,0);
     }
 }
-

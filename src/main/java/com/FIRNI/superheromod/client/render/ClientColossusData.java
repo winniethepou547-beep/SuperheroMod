@@ -13,6 +13,7 @@ public final class ClientColossusData {
     private static final Map<UUID, int[]> colossi = new ConcurrentHashMap<>();
     /** Olusma ilerlemesi — gorsel olcek buradan hesaplaniyor. */
     private static final Map<UUID, Float> formProgress = new ConcurrentHashMap<>();
+    private static final Map<UUID,Double> formStart=new ConcurrentHashMap<>();
 
     /** Form yeni acildiysa kamera bir kez ucuncu sahsa alinsin diye isaret. */
     private static volatile boolean justActivated = false;
@@ -24,6 +25,7 @@ public final class ClientColossusData {
         if (!active) {
             colossi.remove(playerId);
             formProgress.remove(playerId);
+            formStart.remove(playerId);
             return;
         }
 
@@ -32,6 +34,11 @@ public final class ClientColossusData {
         formProgress.put(playerId, progress);
 
         Minecraft mc = Minecraft.getInstance();
+        if(mc.level!=null) {
+            double start=mc.level.getGameTime()-progress*com.FIRNI.superheromod.heroes.sandman.ColossusForm.FORM_TICKS;
+            Double old=formStart.get(playerId);
+            if(old==null || Math.abs(old-start)>5)formStart.put(playerId,start);
+        }
         if (!wasActive && mc.player != null && mc.player.getUUID().equals(playerId)) {
             justActivated = true;
         }
@@ -55,7 +62,12 @@ public final class ClientColossusData {
 
     /** Olusma ilerlemesi 0..1; kayit yoksa tam olusmus kabul edilir. */
     public static float formProgress(Player player) {
-        return formProgress.getOrDefault(player.getUUID(), 1f);
+        float reported=formProgress.getOrDefault(player.getUUID(),1f);
+        var mc=Minecraft.getInstance();
+        Double start=formStart.get(player.getUUID());
+        if(reported>=1||start==null||mc.level==null)return reported;
+        return net.minecraft.util.Mth.clamp((float)((mc.level.getGameTime()+mc.getFrameTime()-start)
+                /com.FIRNI.superheromod.heroes.sandman.ColossusForm.FORM_TICKS),0,1);
     }
 
     /** Kamera bir kez ayarlansin diye okunup sifirlanan bayrak. */
@@ -68,6 +80,7 @@ public final class ClientColossusData {
     public static void clear() {
         colossi.clear();
         formProgress.clear();
+        formStart.clear();
         justActivated = false;
     }
 }

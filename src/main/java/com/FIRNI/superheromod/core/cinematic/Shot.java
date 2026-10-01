@@ -38,11 +38,14 @@ public final class Shot {
 
     public final int durationTicks;
     public final Transition transition;
+    public final float transitionSeconds;
     public final Easing easing;
 
     /** Kamera baslangic/bitis konumu (yerel). */
     public final Vec3 fromPos;
     public final Vec3 toPos;
+    private final Vec3 control1;
+    private final Vec3 control2;
 
     public final LookTarget lookTarget;
     /** LookTarget.FIXED icin yerel bakis noktasi; digerlerinde ofset. */
@@ -78,9 +81,12 @@ public final class Shot {
     private Shot(Builder b) {
         this.durationTicks = b.durationTicks;
         this.transition = b.transition;
+        this.transitionSeconds = b.transitionSeconds;
         this.easing = b.easing;
         this.fromPos = b.fromPos;
         this.toPos = b.toPos == null ? b.fromPos : b.toPos;
+        this.control1 = b.control1;
+        this.control2 = b.control2;
         this.lookTarget = b.lookTarget;
         this.lookOffset = b.lookOffset;
         this.fovStart = b.fovStart;
@@ -101,6 +107,15 @@ public final class Shot {
         return !Float.isNaN(fogNearStart) && !Float.isNaN(fogFarStart);
     }
 
+    /** Sample an eased, stage-local path without accumulating frame state. */
+    public Vec3 positionAt(float easedProgress) {
+        double t = Math.max(0, Math.min(1, easedProgress));
+        if (control1 == null) return fromPos.lerp(toPos, t);
+        double u = 1 - t;
+        return fromPos.scale(u*u*u).add(control1.scale(3*u*u*t))
+                .add(control2.scale(3*u*t*t)).add(toPos.scale(t*t*t));
+    }
+
     public static Builder of(int durationTicks) {
         return new Builder(durationTicks);
     }
@@ -108,9 +123,16 @@ public final class Shot {
     public static final class Builder {
         private final int durationTicks;
         private Transition transition = Transition.CUT;
+        private float transitionSeconds = .16f;
+        public Builder transition(float seconds) {
+            if(!Float.isFinite(seconds)||seconds<=0||seconds>2)throw new IllegalArgumentException("Invalid camera transition");
+            transition=Transition.SMOOTH;transitionSeconds=seconds;return this;
+        }
         private Easing easing = Easing.IN_OUT;
         private Vec3 fromPos = Vec3.ZERO;
         private Vec3 toPos;
+        private Vec3 control1;
+        private Vec3 control2;
         private LookTarget lookTarget = LookTarget.TARGET;
         private Vec3 lookOffset = new Vec3(0, 1.0, 0);
         private float fovStart = 70f;
@@ -143,9 +165,24 @@ public final class Shot {
 
         /** Hareketli kamera: from -> to. */
         public Builder move(Vec3 from, Vec3 to) {
+            this.control1 = this.control2 = null;
             this.fromPos = from;
             this.toPos = to;
             return this;
+        }
+
+        public Builder curve(Vec3 from, Vec3 firstControl, Vec3 secondControl, Vec3 to) {
+            this.fromPos = finite(from);
+            this.control1 = finite(firstControl);
+            this.control2 = finite(secondControl);
+            this.toPos = finite(to);
+            return this;
+        }
+
+        private static Vec3 finite(Vec3 point) {
+            if (point == null || !Double.isFinite(point.x) || !Double.isFinite(point.y)
+                    || !Double.isFinite(point.z)) throw new IllegalArgumentException("Invalid camera path point");
+            return point;
         }
 
         /**

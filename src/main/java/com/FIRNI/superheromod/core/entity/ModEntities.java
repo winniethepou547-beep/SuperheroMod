@@ -38,7 +38,19 @@ public final class ModEntities {
                             .updateInterval(2)
                             .build("giant_sand_soldier"));
 
+    public static final RegistryObject<EntityType<com.FIRNI.superheromod.heroes.sandman.SettledSandBallEntity>> SETTLED_SAND_BALL =
+            ENTITY_TYPES.register("settled_sand_ball", () -> EntityType.Builder
+                    .<com.FIRNI.superheromod.heroes.sandman.SettledSandBallEntity>of(
+                            com.FIRNI.superheromod.heroes.sandman.SettledSandBallEntity::new, MobCategory.MISC)
+                    .sized(4.4f, 4.2f).clientTrackingRange(12).updateInterval(20).build("settled_sand_ball"));
+
     private ModEntities() {}
+
+    public static final RegistryObject<EntityType<com.FIRNI.superheromod.heroes.ghostrider.HellCycleEntity>> HELL_CYCLE =
+            ENTITY_TYPES.register("hell_cycle", () -> EntityType.Builder
+                    .<com.FIRNI.superheromod.heroes.ghostrider.HellCycleEntity>of(
+                            com.FIRNI.superheromod.heroes.ghostrider.HellCycleEntity::new, MobCategory.MISC)
+                    .sized(0.85f, 1.15f).clientTrackingRange(12).updateInterval(1).fireImmune().build("hell_cycle"));
 
     public static void register(IEventBus modEventBus) {
         ENTITY_TYPES.register(modEventBus);

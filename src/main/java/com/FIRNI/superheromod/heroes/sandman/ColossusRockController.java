@@ -72,6 +72,8 @@ public final class ColossusRockController {
 
     /** Kolun geri cekilme asamasi. */
     private static final class Windup {
+        final int shapeId = nextShapeId++;
+        final int targetId = nextShapeId++;
         final UUID player;
         int ticks = 0;
         /** Tus birakildi mi -- birakilinca kaya firlatilir. */
@@ -81,22 +83,38 @@ public final class ColossusRockController {
 
     /** Havada ilerleyen kaya. */
     private static final class Rock {
+        final int shapeId = nextShapeId++;
+        final ServerLevel level;
         final UUID owner;
         Vec3 pos;
         final Vec3 velocity;
+        final double distance;
         final boolean weak;
         double travelled = 0;
 
-        Rock(UUID owner, Vec3 pos, Vec3 velocity, boolean weak) {
+        Rock(ServerLevel level, UUID owner, Vec3 pos, Vec3 velocity, boolean weak, double distance) {
+            this.level = level;
             this.owner = owner;
             this.pos = pos;
             this.velocity = velocity;
             this.weak = weak;
+            this.distance = distance;
         }
     }
 
     private static final List<Windup> windups = new ArrayList<>();
+    private static int nextShapeId = 700_000;
     private static final List<Rock> rocks = new ArrayList<>();
+    private record Recovery(ServerLevel level,long start) {}
+    private static final java.util.Map<UUID,Recovery> recoveries = new java.util.HashMap<>();
+    public static ColossusPose.Action action(UUID id) {
+        for(var w:windups)if(w.player.equals(id))return new ColossusPose.Action(ColossusActionPacket.ROCK_HOLD,w.ticks,MAX_AIM_TICKS+1);
+        var r=recoveries.get(id);
+        if(r==null)return null;
+        int age=(int)(r.level().getGameTime()-r.start());
+        if(age>=12){recoveries.remove(id);return null;}
+        return new ColossusPose.Action(ColossusActionPacket.ROCK_THROW,age,12);
+    }
 
     private ColossusRockController() {}
 
@@ -109,14 +127,15 @@ public final class ColossusRockController {
 
     /** Colossus formunda sag tik BASILINCA buraya gelir. */
     public static void throwRock(ServerPlayer player) {
-        if (isThrowing(player.getUUID())) return;
+        if (isThrowing(player.getUUID()) || ColossusSwordController.isActive(player.getUUID())
+                || ColossusMaceController.isSwinging(player.getUUID())) return;
 
         windups.add(new Windup(player.getUUID()));
 
         // Istemci animasyonu: kol geri cekilip savrulur
         ModNetworking.CHANNEL.send(PacketDistributor.ALL.noArg(),
                 new ColossusActionPacket(player.getUUID(),
-                        ColossusActionPacket.ROCK_THROW, WINDUP_TICKS + 12));
+                        ColossusActionPacket.ROCK_HOLD, MAX_AIM_TICKS + 1));
 
         // Govdeden kaya kopuyor
         if (player.level() instanceof ServerLevel level) {
@@ -133,6 +152,7 @@ public final class ColossusRockController {
     @SubscribeEvent
     public static void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
+        recoveries.entrySet().removeIf(e -> e.getValue().level().getGameTime()-e.getValue().start()>=12);
         if (windups.isEmpty() && rocks.isEmpty()) return;
 
         var server = ServerLifecycleHooks.getCurrentServer();
@@ -186,9 +206,13 @@ public final class ColossusRockController {
         boolean weak = SandColossusController.isArmWeakened(player.getUUID(), !maceInRight);
 
         Vec3 origin = handPosition(player);
-        Vec3 dir = RaycastSystem.getLookDirection(player);
+        Vec3 delta = aimPoint(level, player).subtract(origin);
+        Vec3 dir = delta.normalize();
 
-        rocks.add(new Rock(player.getUUID(), origin, dir.scale(ROCK_SPEED), weak));
+        rocks.add(new Rock(level, player.getUUID(), origin, dir.scale(ROCK_SPEED), weak, delta.length()));
+        recoveries.put(player.getUUID(),new Recovery(level,level.getGameTime()));
+        ModNetworking.CHANNEL.send(PacketDistributor.ALL.noArg(),
+                new ColossusActionPacket(player.getUUID(), ColossusActionPacket.ROCK_THROW, 12));
 
         level.playSound(null, player.blockPosition(),
                 SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 1.2f, 1.1f);
@@ -202,7 +226,7 @@ public final class ColossusRockController {
             Rock rock = it.next();
             ServerPlayer owner = server.getPlayerList().getPlayer(rock.owner);
 
-            if (owner == null) {
+            if (owner == null || !owner.isAlive() || owner.level() != rock.level) {
                 it.remove();
                 continue;
             }
@@ -210,7 +234,7 @@ public final class ColossusRockController {
             ServerLevel level = (ServerLevel) owner.level();
             Vec3 from = rock.pos;
             Vec3 dir = rock.velocity.normalize();
-            double step = rock.velocity.length();
+            double step = Math.min(rock.velocity.length(), Math.max(0,rock.distance-rock.travelled));
 
             RaycastResult result = RaycastSystem.cast(
                     level, owner, from, dir, step, ROCK_RADIUS, false,
@@ -241,7 +265,7 @@ public final class ColossusRockController {
             rock.travelled += from.distanceTo(to);
             rock.pos = to;
 
-            if (hit || rock.travelled >= MAX_TRAVEL) {
+            if (hit || rock.travelled >= rock.distance-.001) {
                 shatter(level, owner, to, rock.weak);
                 it.remove();
             }
@@ -253,6 +277,7 @@ public final class ColossusRockController {
                                 Vec3 center, boolean weak) {
         float damage = weak ? IMPACT_DAMAGE * WEAK_ARM_FACTOR : IMPACT_DAMAGE;
         double radius = weak ? BLAST_RADIUS * WEAK_ARM_FACTOR : BLAST_RADIUS;
+        leaveCrater(level, owner, center);
 
         level.playSound(null, BlockPos.containing(center),
                 SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 1.8f, 0.55f);
@@ -270,6 +295,7 @@ public final class ColossusRockController {
                 e -> e != owner && e.isAlive())) {
 
             double dist = target.position().distanceTo(center);
+            if (dist > radius) continue;
             double falloff = Math.max(0.3, 1.0 - dist / radius);
 
             target.hurt(owner.damageSources().playerAttack(owner),
@@ -308,22 +334,39 @@ public final class ColossusRockController {
                 MobEffects.CONFUSION, STUN_TICKS, 0, false, false));
     }
 
+    private static void leaveCrater(ServerLevel level, ServerPlayer owner, Vec3 hit) {
+        Vec3 ground = SandSpikeController.groundUnder(level, hit.add(0, 2, 0));
+        if (ground == null) return;
+        BlockPos surface = BlockPos.containing(ground.add(0, -.1, 0));
+        int changed = 0;
+        for (int x=-5; x<=5; x++) for (int z=-5; z<=5; z++) {
+            double distance = Math.sqrt(x*x+z*z);
+            if (distance > 5) continue;
+            int depth = Math.max(1, (int)Math.ceil(3*(1-distance/5)));
+            for (int y=0; y<depth && changed<220; y++) {
+                BlockPos p=surface.offset(x,-y,z);
+                double dx=p.getX()+.5-owner.getX(), dz=p.getZ()+.5-owner.getZ();
+                if (dx*dx+dz*dz<16) continue;
+                var state=level.getBlockState(p);
+                if (state.isAir() || state.hasBlockEntity() || !state.getFluidState().isEmpty()
+                        || state.getDestroySpeed(level,p)<0) continue;
+                level.setBlock(p,Blocks.AIR.defaultBlockState(),3);
+                changed++;
+            }
+        }
+        // Find the actual floor after excavation, rather than burying the ball in unbroken terrain.
+        Vec3 floor=SandSpikeController.groundUnder(level,ground.add(0,1,0));
+        if (floor==null) return;
+        var ball=com.FIRNI.superheromod.core.entity.ModEntities.SETTLED_SAND_BALL.get().create(level);
+        if (ball!=null) {
+            ball.setPos(hit.x,floor.y,hit.z);
+            level.addFreshEntity(ball);
+        }
+    }
+
     /** Kayanin cikacagi el — devin omuz hizasinda ve yaninda. */
     private static Vec3 handPosition(ServerPlayer player) {
-        Vec3 look = player.getLookAngle();
-        Vec3 flat = new Vec3(look.x, 0, look.z);
-        flat = flat.lengthSqr() < 1.0E-4 ? new Vec3(0, 0, 1) : flat.normalize();
-
-        // Topuz sagdaysa kaya SOL elde
-        boolean maceInRight = !SandColossusController.isArmWeakened(player.getUUID(), true);
-        double side = maceInRight ? 2.9 : -2.9;
-
-        Vec3 sideVec = new Vec3(-flat.z, 0, flat.x).scale(side);
-
-        return player.position()
-                .add(sideVec)
-                .add(flat.scale(1.5))
-                .add(0, ColossusCrystal.COLOSSUS_HEIGHT * 0.62, 0);
+        return ColossusCrystal.handPosition(player,SandColossusController.isArmWeakened(player.getUUID(),true));
     }
 
     private static BlockParticleOption sand() {
@@ -351,15 +394,13 @@ public final class ColossusRockController {
         var server = ServerLifecycleHooks.getCurrentServer();
         if (server == null) return;
 
-        int id = 700_000;
-
         for (Rock rock : rocks) {
             // Donme acisi konumdan turetiliyor: kaya ucarken yuvarlanmali,
             // sabit acili bir kutu uzayda kaymis gibi duruyordu
             float spin = (float) ((rock.pos.x + rock.pos.z) * 57.0);
 
             out.add(new com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.Shape(
-                    id++,
+                    rock.shapeId,
                     com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.TYPE_ROCK,
                     rock.pos.x, rock.pos.y, rock.pos.z,
                     spin, 0f, 1f, (float) ROCK_RADIUS, 0f));
@@ -379,7 +420,7 @@ public final class ColossusRockController {
             float grow = Math.min(1f, windup.ticks / (float) WINDUP_TICKS);
 
             out.add(new com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.Shape(
-                    id++,
+                    windup.shapeId,
                     com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.TYPE_ROCK,
                     hand.x, hand.y, hand.z,
                     windup.ticks * 6f, 0f, 1f, ROCK_RADIUS * grow, 0f));
@@ -388,10 +429,10 @@ public final class ColossusRockController {
             if (spot == null) continue;
 
             out.add(new com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.Shape(
-                    id++,
+                    windup.targetId,
                     com.FIRNI.superheromod.network.packet.SandShapeSyncPacket.TYPE_TARGET,
                     spot.x, spot.y, spot.z,
-                    0f, 0f, 1f, (float) BLAST_RADIUS, 0f));
+                    player.getId(), 0f, 1f, (float) BLAST_RADIUS, 0f));
         }
     }
 

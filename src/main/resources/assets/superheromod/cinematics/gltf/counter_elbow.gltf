@@ -1,0 +1,73 @@
+{
+  "nodes": [
+    {
+      "name": "right_lower_arm"
+    }
+  ],
+  "animations": [
+    {
+      "name": "counter_elbow",
+      "channels": [
+        {
+          "sampler": 0,
+          "target": {
+            "node": 0,
+            "path": "rotation"
+          }
+        }
+      ],
+      "samplers": [
+        {
+          "input": 0,
+          "interpolation": "LINEAR",
+          "output": 1
+        }
+      ]
+    }
+  ],
+  "accessors": [
+    {
+      "min": [
+        0
+      ],
+      "count": 5,
+      "max": [
+        1.5
+      ],
+      "type": "SCALAR",
+      "componentType": 5126,
+      "bufferView": 0
+    },
+    {
+      "componentType": 5126,
+      "bufferView": 1,
+      "count": 5,
+      "type": "VEC4"
+    }
+  ],
+  "extras": {
+    "puppetProfile": "identity-rest-v1"
+  },
+  "buffers": [
+    {
+      "byteLength": 100,
+      "uri": "data:application/octet-stream;base64,AAAAADMzsz4zMzM/zcyMPwAAwD/o1RK/AAAAAAAAAADzs1E/87NRvwAAAAAAAAAA6NUSPz6qMr0AAAAAAAAAAKDBfz9sYdi+AAAAAAAAAADKA2g/6NUSvwAAAAAAAAAA87NRPw=="
+    }
+  ],
+  "bufferViews": [
+    {
+      "byteLength": 20,
+      "buffer": 0,
+      "byteOffset": 0
+    },
+    {
+      "byteLength": 80,
+      "buffer": 0,
+      "byteOffset": 20
+    }
+  ],
+  "asset": {
+    "version": "2.0",
+    "generator": "SuperheroMod named-rig animation fixture"
+  }
+}

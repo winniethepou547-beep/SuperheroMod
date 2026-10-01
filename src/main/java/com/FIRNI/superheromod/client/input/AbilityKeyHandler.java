@@ -193,13 +193,21 @@ public class AbilityKeyHandler {
             checkSlot(AbilitySlot.RMB, mc.options.keyUse.isDown());
             // Itis SHIFT'te (egilme kaldirildi), sprint CTRL'de kaliyor
             checkSlot(AbilitySlot.SHIFT, mc.options.keyShift.isDown());
-            checkSlot(AbilitySlot.SKILL_E, KEY_RAPID_FIRE.isDown());
-            checkSlot(AbilitySlot.SKILL_F, KEY_SKILL_F.isDown());
+            checkSlot(AbilitySlot.SKILL_E, pressed(KEY_RAPID_FIRE));
+            // Chained by a Ghost Rider: F is the break-free key, not an ability.
+            checkSlot(AbilitySlot.SKILL_F, KEY_SKILL_F.isDown()
+                    && !com.FIRNI.superheromod.client.render.ghost.GhostBindClient.bound());
             checkSlot(AbilitySlot.SKILL_C, KEY_RICOCHET.isDown());
             checkSlot(AbilitySlot.SKILL_X, KEY_XRAY.isDown());
             checkSlot(AbilitySlot.SKILL_G, KEY_SKILL_G.isDown());
             checkSlot(AbilitySlot.SKILL_V, KEY_SKILL_V.isDown());
-            checkSlot(AbilitySlot.ULTIMATE, KEY_ULTIMATE.isDown());
+            checkSlot(AbilitySlot.ULTIMATE, pressed(KEY_ULTIMATE));
+        }
+
+        private static boolean pressed(KeyMapping key) {
+            boolean queued=false;
+            while(key.consumeClick())queued=true;
+            return queued || key.isDown();
         }
 
         private static void checkSlot(AbilitySlot slot, boolean currentlyDown) {

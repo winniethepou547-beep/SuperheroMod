@@ -69,6 +69,10 @@ public final class HeroArmPose {
         if (PoseStudio.apply(model, entity)) return;
 
         UUID id = player.getUUID();
+        if (com.FIRNI.superheromod.client.render.ghost.GhostChainRenderer.pose(model, player, ageInTicks)) {
+            elbow.remove(id);
+            return;
+        }
 
         if (!isHero(player)) {
             elbow.remove(id);

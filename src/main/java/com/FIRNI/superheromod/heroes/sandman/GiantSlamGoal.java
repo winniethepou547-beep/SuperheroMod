@@ -44,7 +44,7 @@ public class GiantSlamGoal extends Goal {
 
     private final SandSoldierEntity giant;
     private int ticks;
-    private int cooldown;
+    private int nextAttackTick;
     private boolean impacted;
 
     public GiantSlamGoal(SandSoldierEntity giant) {
@@ -56,7 +56,7 @@ public class GiantSlamGoal extends Goal {
     public boolean canUse() {
         if (!(giant instanceof GiantSandSoldierEntity)) return false;
         if (giant.isForming()) return false;
-        if (cooldown-- > 0) return false;
+        if (giant.tickCount < nextAttackTick) return false;
 
         LivingEntity target = giant.getTarget();
         return target != null && target.isAlive()
@@ -79,9 +79,12 @@ public class GiantSlamGoal extends Goal {
     public void stop() {
         ticks = 0;
         impacted = false;
-        cooldown = COOLDOWN_TICKS;
+        nextAttackTick = giant.tickCount + COOLDOWN_TICKS;
         giant.setSlamProgress(0f);
     }
+
+    @Override
+    public boolean requiresUpdateEveryTick() { return true; }
 
     @Override
     public void tick() {

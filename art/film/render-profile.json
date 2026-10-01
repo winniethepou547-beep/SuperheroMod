@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "id": "sand_army_film",
+  "status": "preproduction",
+  "referenceScript": "docs/SANDMAN_ULTIMATE_KULLANICI_SENARYOSU_2026-09-10.md",
+  "appearanceDecision": "pending",
+  "width": 1920,
+  "height": 1080,
+  "fps": 60,
+  "imageSequence": "frames/%06d.png",
+  "audioMaster": "sound/mix.wav",
+  "delivery": "sand_army_film.mp4",
+  "codec": "libx264",
+  "pixelFormat": "yuv420p",
+  "crf": 18,
+  "audioCodec": "aac",
+  "audioBitrate": "192k",
+  "gameIntegration": {
+    "preloadBeforeStart": true,
+    "participantsOnly": true,
+    "serverOwnsDamage": true,
+    "damageEvent": "sphere_ground_impact",
+    "damageTimestamp": null,
+    "hashRequired": true
+  }
+}

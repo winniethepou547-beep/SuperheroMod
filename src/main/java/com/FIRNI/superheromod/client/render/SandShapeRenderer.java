@@ -238,31 +238,8 @@ public final class SandShapeRenderer {
         Vec3 center = new Vec3(s.x(), s.y(), s.z());
         int light = SandGeometry.lightAt(center);
 
-        // Yuvarlanma: aci konumdan turetiliyor, boylece kaya ucarken
-        // donuyor. Sabit acili bir kutu uzayda kaymis gibi duruyordu.
-        double spin = Math.toRadians(s.yaw());
-
-        for (int i = 0; i < 3; i++) {
-            double a = spin + i * 2.1;
-            double tilt = spin * 0.7 + i * 1.3;
-
-            Vec3 ax = new Vec3(Math.cos(a), Math.sin(tilt) * 0.5, Math.sin(a)).normalize();
-            Vec3 az = new Vec3(-ax.z, 0, ax.x).normalize();
-            Vec3 ay = az.cross(ax).normalize();
-
-            // Parcalar merkeze gore kaymis; ust uste binmeleri kutleyi
-            // tek parca gibi gosteriyor
-            double off = radius * 0.35;
-            Vec3 c = center
-                    .add(ax.scale(Math.cos(i * 2.4) * off))
-                    .add(ay.scale(Math.sin(i * 1.7) * off));
-
-            double half = radius * (0.78 - i * 0.13);
-            float[] tint = (i == 1) ? TINT_DARK : TINT_MID;
-
-            SandGeometry.box(buf, m, sprite, light, c,
-                    ax.scale(half), ay.scale(half), az.scale(half), tint, 1f, 1f);
-        }
+        com.FIRNI.superheromod.client.render.colossus.RockFacets.render(buf,m,sprite,light,
+                s.x(),s.y(),s.z(),radius,(float)Math.toRadians(s.yaw()));
     }
 
     // ------------------------------------------------------------------
@@ -350,6 +327,26 @@ public final class SandShapeRenderer {
         }
 
         tes.end();
+        var mc=Minecraft.getInstance();
+        if(mc.player!=null && ClientColossusData.isLocalColossus()) {
+            for(var shape:shapes) {
+                if(shape.type()!=SandShapeSyncPacket.TYPE_TARGET || Math.round(shape.yaw())!=mc.player.getId())continue;
+                // Tactical reticle only: visible through the caster and terrain, never a solid-world effect.
+                RenderSystem.disableDepthTest();
+                RenderSystem.depthMask(false);
+                RenderSystem.enableBlend();
+                RenderSystem.defaultBlendFunc();
+                try {
+                    buf.begin(VertexFormat.Mode.QUADS,DefaultVertexFormat.POSITION_COLOR);
+                    drawTargetRing(buf,m,shape);
+                    tes.end();
+                } finally {
+                    RenderSystem.depthMask(true);
+                    RenderSystem.enableDepthTest();
+                    RenderSystem.disableBlend();
+                }
+            }
+        }
     }
 
     /**

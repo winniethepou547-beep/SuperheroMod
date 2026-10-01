@@ -1,0 +1,13 @@
+{
+  "gpu": "NVIDIA GeForce RTX 4060 Ti/PCIe/SSE2",
+  "shader_compiled": true,
+  "flame_frames": 60,
+  "crown_frames": 60,
+  "scorch_tiling_mean_error": 0.00041988168724279836,
+  "ten_fullscreen_layers_gpu_ms": 1.20832,
+  "resolution": [
+    960,
+    540
+  ],
+  "scope": "Offscreen actual GLSL material validation, not Minecraft FPS or an in-game screenshot"
+}

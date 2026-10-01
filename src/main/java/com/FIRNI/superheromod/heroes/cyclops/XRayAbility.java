@@ -15,7 +15,7 @@ import java.util.List;
 
 /**
  * MAXIMUM POWER (X) — sinematik bitirme hamlesi.
- * Koreografi MaximumPowerCinematic'te, oynatma CinematicDirector'da.
+ * Dunya tarafi MaximumPowerSession, film MaximumPowerFilm (istemci).
  */
 public class XRayAbility extends Ability {
 
@@ -37,7 +37,7 @@ public class XRayAbility extends Ability {
     @Override
     public boolean canActivate(ServerPlayer player) {
         if (!super.canActivate(player)) return false;
-        if (CinematicDirector.isBusy(player.getUUID())) return false;
+        if (CinematicDirector.isBusy(player.getUUID()) || com.FIRNI.superheromod.core.film.FilmSessions.busy(player.getUUID())) return false;
 
         if (findTarget(player) == null) {
             player.displayClientMessage(
@@ -51,7 +51,7 @@ public class XRayAbility extends Ability {
     protected void onActivate(ServerPlayer player) {
         LivingEntity target = findTarget(player);
         if (target == null) return;
-        CinematicDirector.start(MaximumPowerCinematic.ID, player, target);
+        MaximumPowerSession.start(player, target);
     }
 
     /** Bakis yonundeki en uygun hedef. */
@@ -61,7 +61,7 @@ public class XRayAbility extends Ability {
 
         AABB box = player.getBoundingBox().inflate(LOCK_RANGE);
         List<LivingEntity> candidates = player.level().getEntitiesOfClass(
-                LivingEntity.class, box, e -> e != player && e.isAlive());
+                LivingEntity.class, box, e -> e != player && e.isAlive() && !com.FIRNI.superheromod.core.film.FilmSessions.busy(e.getUUID()));
 
         LivingEntity best = null;
         double bestScore = -1;

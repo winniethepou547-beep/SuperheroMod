@@ -85,10 +85,14 @@ public final class ColossusMaceController {
     public static boolean isSwinging(UUID playerId) {
         return swings.containsKey(playerId);
     }
+    public static ColossusPose.Action action(UUID id) {
+        var s=swings.get(id);return s==null?null:new ColossusPose.Action(ColossusActionPacket.MACE_SWING,s.ticks,TOTAL_TICKS);
+    }
 
     /** Colossus formunda sol tik buraya gelir. */
     public static void swing(ServerPlayer player) {
-        if (swings.containsKey(player.getUUID())) return;
+        if (swings.containsKey(player.getUUID()) || ColossusSwordController.isActive(player.getUUID())
+                || ColossusRockController.isThrowing(player.getUUID())) return;
 
         // Sag kol kirildiysa sol kolla vurur — dev iki kollu
         boolean rightArm = !SandColossusController.isArmWeakened(player.getUUID(), true);
@@ -193,8 +197,8 @@ public final class ColossusMaceController {
         Vec3 flat = new Vec3(look.x, 0, look.z);
         flat = flat.lengthSqr() < 1.0E-4 ? new Vec3(0, 0, 1) : flat.normalize();
 
-        double reach = weak ? MACE_REACH * 0.7 : MACE_REACH;
-        Vec3 center = groundUnder(level, player.position().add(flat.scale(reach)));
+        Vec3 contact = ColossusCrystal.handPosition(player, swing.rightArm);
+        Vec3 center = groundUnder(level, new Vec3(contact.x, player.getY(), contact.z));
 
         level.playSound(null, BlockPos.containing(center),
                 SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 2.4f, 0.28f);
@@ -203,7 +207,8 @@ public final class ColossusMaceController {
         level.playSound(null, BlockPos.containing(center),
                 SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.PLAYERS, 1.6f, 0.55f);
 
-        SandColossusController.groundSlam(level, player, center, radius, damage);
+        // Vanilla drag/gravity: 1.45 blocks/tick peaks near ten blocks on flat ground.
+        SandColossusController.groundSlam(level, player, center, radius, damage, 1.45);
 
         // Cizilen sok dalgasi: merkezden disa buyuyen beyaz halkalar + sarsinti
         ModNetworking.CHANNEL.send(
@@ -248,7 +253,10 @@ public final class ColossusMaceController {
                 if (surface == null) continue;
 
                 BlockState state = level.getBlockState(surface);
-                if (state.isAir() || state.getDestroySpeed(level, surface) < 0) continue;
+                // Keep a support island under the caster, even when turning during the strike.
+                double supportX=surface.getX()+.5-player.getX(), supportZ=surface.getZ()+.5-player.getZ();
+                if(supportX*supportX+supportZ*supportZ<16)continue;
+                if (state.isAir() || state.hasBlockEntity() || state.getDestroySpeed(level, surface) < 0) continue;
 
                 level.setBlock(surface, Blocks.AIR.defaultBlockState(), 3);
 

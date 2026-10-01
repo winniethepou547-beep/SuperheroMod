@@ -157,7 +157,39 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
     private boolean crumbling;
     /** Savurma sayaci — sunucuda isler, ilerleme olarak senkronlanir. */
     private int swingTicks;
-    private int swingCooldown;
+    private LivingEntity swingVictim;
+    public enum Visual { SPAWN, CRUMBLE, SWING, SLAM, AIM }
+    private final float[] previousVisual = new float[Visual.values().length];
+    private final float[] currentVisual = new float[Visual.values().length];
+    private boolean visualInitialized;
+
+    public float renderProgress(Visual visual, float partial) {
+        int i = visual.ordinal();
+        if (!visualInitialized) return visualValue(visual);
+        float a = previousVisual[i], b = currentVisual[i];
+        // A reset is not a backwards playback through the whole clip.
+        if ((visual == Visual.SWING || visual == Visual.SLAM || visual == Visual.AIM) && b < a) return b;
+        return a + (b - a) * net.minecraft.util.Mth.clamp(partial, 0, 1);
+    }
+
+    private float visualValue(Visual visual) {
+        return switch (visual) {
+            case SPAWN -> getSpawnProgress();
+            case CRUMBLE -> getCrumbleProgress();
+            case SWING -> getSwingProgress();
+            case SLAM -> getSlamProgress();
+            case AIM -> getAimProgress();
+        };
+    }
+
+    private void tickVisuals() {
+        for (Visual visual : Visual.values()) {
+            int i = visual.ordinal();
+            previousVisual[i] = visualInitialized ? currentVisual[i] : visualValue(visual);
+            currentVisual[i] = visualValue(visual);
+        }
+        visualInitialized = true;
+    }
 
     public SandSoldierEntity(EntityType<? extends SandSoldierEntity> type, Level level) {
         super(type, level);
@@ -198,21 +230,19 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
 
     /** Yeni bir savurma baslatir. */
     public void beginSwing() {
+        if (swingTicks > 0 || getSlamProgress() > 0 || isForming() || crumbling) return;
+        LivingEntity target = getTarget();
+        if (target == null || !isValidTarget(target) || !getSensing().hasLineOfSight(target)) return;
+        swingVictim = target;
         swingTicks = SWING_TICKS;
-        // Yon her vurusta rastgele — hep ayni yon robotik duruyordu
         setSwingDirection((byte) (random.nextBoolean() ? 1 : 2));
         this.entityData.set(SWING, 0.001f);
+    }
 
-        // TESPIT ISARETI: animasyon uc kez gorunmedi ve sorunun sunucu
-        // tarafinda mi (vurus hic tetiklenmiyor) yoksa model tarafinda mi
-        // (tetikleniyor ama cizilmiyor) oldugu ayirt edilemedi. Bu ses+efekt
-        // sadece vurus GERCEKTEN tetiklendiginde cikiyor.
-        if (level() instanceof ServerLevel server) {
-            server.playSound(null, blockPosition(),
-                    SoundEvents.SAND_BREAK, SoundSource.HOSTILE, 1.4f, 1.8f);
-            server.sendParticles(sandParticle(),
-                    getX(), getY() + 1.3, getZ(), 18, 0.35, 0.25, 0.35, 0.12);
-        }
+    private void cancelSwing() {
+        swingTicks = 0;
+        swingVictim = null;
+        this.entityData.set(SWING, 0f);
     }
 
     /** Dev askerin agir vurus ilerlemesi. */
@@ -221,6 +251,7 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
     }
 
     public void setSlamProgress(float value) {
+        if (value > 0) cancelSwing();
         this.entityData.set(SLAM, value);
     }
 
@@ -400,6 +431,7 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
         super.tick();
 
         if (level().isClientSide) {
+            tickVisuals();
             spawnAmbientSand();
             return;
         }
@@ -462,40 +494,27 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
      * animasyonu bastan sona ilerleme bekliyor.
      */
     private void tickSwing() {
-        // TETIKLEME BURADA, saldiri goal'unda DEGIL.
-        //
-        // Uc denemede animasyon gorunmedi ve sebep MeleeAttackGoal'un
-        // gorunmeyen ic isleyisindeydi (menzil hesabi, bekleme sayaci,
-        // ayni onceliktekI goal'larin birbirini bloklamasi). Vurus artik
-        // dogrudan MESAFEYE bakarak baslatiliyor: asker hedefin yanindaysa
-        // savurur. Hasari yine goal veriyor; burasi sadece GORSEL.
-        // DEV ASKER de savuruyor -- bu onun DUZ OTO SALDIRISI.
-        //
-        // Agir vurus (GiantSlamGoal) bekleme suresinde olan bir yetenek;
-        // arada dev hicbir sey yapmadan bekliyordu. Simdi araya asker
-        // savurmasi giriyor. Savurma agir vurus SIRASINDA calismiyor:
-        // ikisi ust uste binince darbe hissi bozuluyordu.
-        if (swingTicks <= 0 && getVariant() != Variant.RANGED && getSlamProgress() <= 0f) {
-            LivingEntity target = getTarget();
-            if (target != null && target.isAlive()
-                    && distanceToSqr(target) <= SWING_TRIGGER_RANGE * SWING_TRIGGER_RANGE
-                    && ++swingCooldown >= SWING_INTERVAL) {
-                swingCooldown = 0;
-                beginSwing();
-            }
-        }
-
         if (swingTicks <= 0) {
             if (getSwingProgress() != 0f) this.entityData.set(SWING, 0f);
+            swingVictim = null;
             return;
         }
-
         swingTicks--;
-        float progress = 1f - (swingTicks / (float) SWING_TICKS);
-        this.entityData.set(SWING, Math.min(1f, progress));
-
-        // Iz cekicin gectigi yay boyunca, VURUS ANINDA cikar
-        if (swingTicks == SWING_TICKS / 2) emitSwingTrail();
+        int elapsed = SWING_TICKS - swingTicks;
+        this.entityData.set(SWING, elapsed / (float) SWING_TICKS);
+        // strike_right/left contact key is 0.30 seconds (six server ticks).
+        if (elapsed == 6) {
+            LivingEntity victim = swingVictim;
+            double reach = this instanceof GiantSandSoldierEntity ? 3.2 : SWING_TRIGGER_RANGE;
+            if (victim != null && victim.isAlive() && isValidTarget(victim)
+                    && distanceToSqr(victim) <= reach * reach && getSensing().hasLineOfSight(victim)) {
+                if (doHurtTarget(victim) && getVariant() == Variant.BREAKER) {
+                    PatternAttackGoal.slam(this, victim);
+                }
+            }
+            emitSwingTrail();
+            level().playSound(null, blockPosition(), SoundEvents.SAND_BREAK, SoundSource.HOSTILE, .65f, .8f);
+        }
     }
 
     /**
@@ -759,7 +778,7 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
         private static final int BLADE_COOLDOWN = 16;
         private static final int BREAKER_COOLDOWN = 34;
         /** BLADE'in ikinci vurusunun ilkinden kac tick sonra gelecegi. */
-        private static final int SECOND_STRIKE_DELAY = 5;
+        private static final int SECOND_STRIKE_DELAY = SWING_TICKS + 2;
 
         private final SandSoldierEntity soldier;
         private int cooldown;
@@ -784,36 +803,41 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
             if (pendingSecondStrike > 0 && --pendingSecondStrike == 0) {
                 LivingEntity target = soldier.getTarget();
                 if (target != null && soldier.distanceToSqr(target) <= getAttackReachSqr(target)) {
-                    soldier.swing(InteractionHand.OFF_HAND);
-                    soldier.doHurtTarget(target);
+                    byte previous = soldier.getSwingDirection();
+                    soldier.beginSwing();
+                    soldier.setSwingDirection((byte) (previous == 1 ? 2 : 1));
                 }
             }
         }
 
         @Override
         protected void checkAndPerformAttack(LivingEntity target, double distSqr) {
-            if (cooldown > 0) {
-                cooldown--;
-                return;
-            }
-            if (distSqr > getAttackReachSqr(target)) return;
-
-            soldier.swing(InteractionHand.MAIN_HAND);
+            if (cooldown > 0) { cooldown--; return; }
+            if (soldier.swingTicks > 0 || soldier.getSlamProgress() > 0
+                    || distSqr > getAttackReachSqr(target)
+                    || !soldier.getSensing().hasLineOfSight(target)) return;
             soldier.beginSwing();
-
+            if (soldier.swingTicks <= 0) return;
             if (soldier.getVariant() == Variant.BLADE) {
-                cooldown = BLADE_COOLDOWN;
-                soldier.doHurtTarget(target);
+                cooldown = BLADE_COOLDOWN + SWING_TICKS;
                 pendingSecondStrike = SECOND_STRIKE_DELAY;
             } else {
                 cooldown = BREAKER_COOLDOWN;
-                soldier.doHurtTarget(target);
-                slam(target);
             }
         }
 
+        @Override
+        public boolean requiresUpdateEveryTick() { return true; }
+
+        @Override
+        public void stop() {
+            super.stop();
+            pendingSecondStrike = 0;
+            soldier.cancelSwing();
+        }
+
         /** BREAKER darbesi hedefin cevresindekileri de savurur. */
-        private void slam(LivingEntity target) {
+        private static void slam(SandSoldierEntity soldier, LivingEntity target) {
             AABB area = new AABB(target.position(), target.position()).inflate(2.2);
 
             for (LivingEntity nearby : soldier.level().getEntitiesOfClass(
@@ -885,11 +909,13 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
         private static final double IDEAL_MIN = 7.0;
         private static final double IDEAL_MAX = 15.0;
         private static final int AIM_TICKS = 22;
+        private static final int RECOVERY_TICKS = 8;
         private static final int RELOAD_TICKS = 26;
 
         private final SandSoldierEntity soldier;
         private LivingEntity target;
         private int aimTicks;
+        private int recoveryTicks;
         private int cooldown;
 
         RangedSandGoal(SandSoldierEntity soldier) {
@@ -919,10 +945,14 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
         public void stop() {
             target = null;
             aimTicks = 0;
+            recoveryTicks = 0;
             soldier.setAimProgress(0f);
             soldier.setAimTargetId(-1);
             soldier.getNavigation().stop();
         }
+
+        @Override
+        public boolean requiresUpdateEveryTick() { return true; }
 
         @Override
         public void tick() {
@@ -945,7 +975,10 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
 
             if (cooldown > 0) {
                 cooldown--;
-                soldier.setAimProgress(0f);
+                if (recoveryTicks > 0) {
+                    recoveryTicks--;
+                    soldier.setAimProgress((AIM_TICKS + RECOVERY_TICKS - recoveryTicks) / (float) AIM_TICKS);
+                } else soldier.setAimProgress(0f);
                 soldier.setAimTargetId(-1);
                 return;
             }
@@ -971,7 +1004,8 @@ public class SandSoldierEntity extends PathfinderMob implements PlayerSummoned {
                 fire();
                 aimTicks = 0;
                 cooldown = RELOAD_TICKS;
-                soldier.setAimProgress(0f);
+                recoveryTicks = RECOVERY_TICKS;
+                soldier.setAimProgress(1f);
                 soldier.setAimTargetId(-1);
             }
         }

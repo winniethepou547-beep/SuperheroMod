@@ -34,6 +34,7 @@ public final class CountdownOverlay {
 
     @SubscribeEvent
     public static void onRenderGui(RenderGuiEvent.Post event) {
+        if (com.FIRNI.superheromod.client.render.cinematic.CinematicClient.shouldDrive()) return;
         if (!active) return;
 
         long elapsed = Util.getMillis() - startMillis;
@@ -59,9 +60,9 @@ public final class CountdownOverlay {
             long local = elapsed - (long) PHASE_MS * 3;
             if (local < 120) {
                 int alpha = (int) (200 * (1f - local / 120f));
-                graphics.fill(0, 0, screenW, screenH, (alpha << 24) | 0xFFFFFF);
+                graphics.fill(0, 0, screenW, screenH, (alpha / 2 << 24) | 0xFFF1E0);
             }
-            renderPunch(graphics, font, "FIGHT!", centerX, centerY, local, FIGHT_MS, 0xFF4A3D);
+            renderPunch(graphics, font, "FIGHT", centerX, centerY, local, FIGHT_MS, 0xFF7A2A);
         }
     }
 
@@ -91,7 +92,10 @@ public final class CountdownOverlay {
         graphics.pose().translate(centerX, centerY, 0);
         graphics.pose().scale(scale * 2f, scale * 2f, 1f);
         int width = font.width(text);
-        graphics.drawString(font, text, -(width / 2), -(font.lineHeight / 2), drawColor, true);
+        graphics.drawString(font, text, -(width / 2) + 1, -(font.lineHeight / 2) + 1, (a / 3 << 24), false);
+        graphics.drawString(font, text, -(width / 2), -(font.lineHeight / 2), drawColor, false);
+        // Hairline accent under the numeral.
+        graphics.fill(-(width / 2), font.lineHeight / 2 + 2, width - width / 2, font.lineHeight / 2 + 3, (a << 24) | 0xFF7A2A);
         graphics.pose().popPose();
     }
 

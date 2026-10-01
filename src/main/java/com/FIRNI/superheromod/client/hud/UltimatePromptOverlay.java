@@ -9,46 +9,22 @@ import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
-/**
- * Ulti nisan modundayken ekranin ortasinda Confirm / Cancel istemi gosterir.
- */
+/** While aiming an ultimate: its name above the crosshair and the two key hints below. */
 @Mod.EventBusSubscriber(modid = SuperheroMod.MODID, value = Dist.CLIENT)
 public class UltimatePromptOverlay {
-
     @SubscribeEvent
     public static void onRenderGui(RenderGuiOverlayEvent.Post event) {
         if (event.getOverlay() != VanillaGuiOverlay.CROSSHAIR.type()) return;
         if (!ClientUltimateState.isAiming()) return;
-
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return;
-
         GuiGraphics gui = event.getGuiGraphics();
-        int w = mc.getWindow().getGuiScaledWidth();
-        int h = mc.getWindow().getGuiScaledHeight();
-
-        int cy = h / 2 - 6;
-
-        drawPrompt(gui, mc, w / 2 - 90, cy, "Confirm", "LMB", 0xFFFFFFFF, 0xCC1A1A1A);
-        drawPrompt(gui, mc, w / 2 + 34, cy, "Cancel", "RMB", 0xFFFFFFFF, 0xCC1A1A1A);
-
-        String title = "RUBY RAGE";
-        int tw = mc.font.width(title);
-        long pulse = System.currentTimeMillis() % 700;
-        int titleColor = pulse < 350 ? 0xFFFF3333 : 0xFFAA1111;
-        gui.drawString(mc.font, title, w / 2 - tw / 2, cy - 26, titleColor, true);
-    }
-
-    private static void drawPrompt(GuiGraphics gui, Minecraft mc, int x, int y,
-                                   String label, String key, int textColor, int bg) {
-        int keyW = mc.font.width(key);
-        int boxW = keyW + 8;
-
-        gui.fill(x, y - 2, x + boxW, y + 11, bg);
-        gui.fill(x, y - 2, x + boxW, y - 1, 0xFF555555);
-        gui.fill(x, y + 10, x + boxW, y + 11, 0xFF555555);
-        gui.drawString(mc.font, key, x + 4, y + 1, 0xFFFFDD55, true);
-
-        gui.drawString(mc.font, label, x + boxW + 5, y + 1, textColor, true);
+        int w = mc.getWindow().getGuiScaledWidth(), h = mc.getWindow().getGuiScaledHeight();
+        float pulse = (float) (.5 + .5 * Math.sin(System.currentTimeMillis() * .006));
+        HudStyle.caption(gui, mc.font, "Ruby Rage", w / 2, h / 2 - 30, HudStyle.alpha(HudStyle.DANGER, .7f + .3f * pulse), 0);
+        int total = HudStyle.hintWidth(mc.font, "LMB", "Confirm") + 16 + HudStyle.hintWidth(mc.font, "RMB", "Cancel");
+        int x = w / 2 - total / 2, y = h / 2 + 18;
+        x += HudStyle.hint(gui, mc.font, "LMB", "Confirm", x, y) + 16;
+        HudStyle.hint(gui, mc.font, "RMB", "Cancel", x, y);
     }
 }

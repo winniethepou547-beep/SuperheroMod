@@ -44,7 +44,7 @@ public final class ColossusRenderer {
             new ResourceLocation("minecraft", "textures/block/sand.png");
     /** Kristal icin ayri doku — kumdan belirgin farkli gorunmeli. */
     private static final ResourceLocation CRYSTAL =
-            new ResourceLocation("minecraft", "textures/block/amethyst_block.png");
+            new ResourceLocation(SuperheroMod.MODID, "textures/entity/colossus_crystal.png");
 
     /**
      * Kristal rengi — referanstaki gibi AKKOR turuncu/amber.
@@ -70,7 +70,8 @@ public final class ColossusRenderer {
     private static ColossusCrystalModel crystalModel;
 
     /** Alt kum kutlesinin gecikmeli donusu — oyuncu basina. */
-    private static final java.util.Map<java.util.UUID, Float> massYaw =
+    private record Follow(float yaw, float age) {}
+    private static final java.util.Map<java.util.UUID, Follow> massYaw =
             new java.util.concurrent.ConcurrentHashMap<>();
 
     private ColossusRenderer() {}
@@ -121,7 +122,11 @@ public final class ColossusRenderer {
         if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_ENTITIES) return;
 
         Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null) return;
+        if (mc.level == null) { massYaw.clear(); return; }
+        massYaw.keySet().removeIf(id -> {
+            Player p = mc.level.getPlayerByUUID(id);
+            return p == null || !ClientColossusData.isColossus(p);
+        });
 
         float partial = mc.getFrameTime();
         PoseStack pose = event.getPoseStack();
@@ -142,6 +147,7 @@ public final class ColossusRenderer {
                              Vec3 cam, Player player, float partial) {
         float progress = ClientColossusData.formProgress(player);
         float growth = ColossusForm.growth(progress);
+        if(progress<.43f)drawGathering(pose,buffer,cam,player,partial,progress);
         if (growth <= 0.01f) return;
 
         Vec3 pos = player.getPosition(partial);
@@ -149,22 +155,36 @@ public final class ColossusRenderer {
         float age = player.tickCount + partial;
 
         // Alt kum kutlesi torsoyu GECIKMELI takip eder — agirlik hissi
-        float smoothed = massYaw.getOrDefault(player.getUUID(), yaw);
-        smoothed = smoothed + Mth.wrapDegrees(yaw - smoothed) * 0.06f;
-        massYaw.put(player.getUUID(), smoothed);
+        Follow previous = massYaw.get(player.getUUID());
+        float smoothed = yaw;
+        if (previous != null && age >= previous.age() && age - previous.age() < 20f) {
+            float elapsedTicks = age - previous.age();
+            // Same damping at 30/60/144 FPS; repeated renders at the same time do not advance it.
+            float response = (float) (1.0 - Math.pow(0.94, elapsedTicks * 3.0));
+            smoothed = previous.yaw() + Mth.wrapDegrees(yaw - previous.yaw()) * response;
+        }
+        massYaw.put(player.getUUID(), new Follow(smoothed, age));
 
         ColossusModel colossus = model();
-        animate(colossus, age, yaw, smoothed, growth);
-
-        // Hareket varsa notr salinimin UZERINE biner
-        ClientColossusActions.Action action =
-                ClientColossusActions.of(player.getUUID());
-        if (action != null) {
-            boolean maceRight = ClientColossusActions.isMaceInRight(player.getUUID(),
-                    ClientColossusData.crystalState(player,
-                            ColossusCrystal.RIGHT_SHOULDER.ordinal()));
-            applyAction(colossus, action, partial, maceRight);
-        }
+        // One shared mesh is drawn for every player. Never inherit another player's action pose.
+        colossus.root().getAllParts().forEach(ModelPart::resetPose);
+        colossus.sword.visible = false;
+        colossus.mace.visible = true;
+        var action=ClientColossusActions.of(player.getUUID());
+        boolean right=ClientColossusData.crystalState(player,ColossusCrystal.RIGHT_SHOULDER.ordinal())<3;
+        var shared=com.FIRNI.superheromod.heroes.sandman.ColossusPose.evaluate(age,yaw,smoothed,growth,
+                action==null?null:new com.FIRNI.superheromod.heroes.sandman.ColossusPose.Action(action.type,action.ticks,action.duration),partial,right);
+        com.FIRNI.superheromod.heroes.sandman.ColossusPose.form(shared,progress);
+        applyPose(colossus.lowerMass,shared.lowerMass);
+        applyPose(colossus.torso,shared.torso);
+        applyPose(colossus.head,shared.head);
+        applyPose(colossus.rightArm,shared.rightArm);
+        applyPose(colossus.leftArm,shared.leftArm);
+        applyPose(colossus.rightForearm,shared.rightForearm);
+        applyPose(colossus.leftForearm,shared.leftForearm);
+        applyPose(colossus.mace,shared.mace);
+        applyPose(colossus.sword,shared.sword);
+        colossus.rightArm.getChild("right_crags").visible=!shared.rightArm.skipDraw;
 
         pose.pushPose();
         pose.translate(pos.x - cam.x, pos.y - cam.y, pos.z - cam.z);
@@ -179,16 +199,30 @@ public final class ColossusRenderer {
         pose.scale(-1.0f, -1.0f, 1.0f);
         pose.translate(0.0f, -FOOT_OFFSET, 0.0f);
 
-        int light = LightTexture.pack(14, 14);
+        int light = net.minecraft.client.renderer.LevelRenderer.getLightColor(player.level(), player.blockPosition());
 
-        VertexConsumer sand = buffer.getBuffer(RenderType.entityCutoutNoCull(SAND));
+        VertexConsumer sand = new com.FIRNI.superheromod.client.render.util.SandTextureConsumer(
+                buffer.getBuffer(RenderType.entityCutoutNoCull(SAND)));
+        boolean leftMace = !right && colossus.mace.visible;
+        if (leftMace) colossus.mace.visible = false;
         colossus.root().render(pose, sand, light, OverlayTexture.NO_OVERLAY, 1f, 1f, 1f, 1f);
+        if (leftMace) {
+            // Reuse the same mesh under the surviving arm; do not leave a second fist on the broken side.
+            pose.pushPose();
+            colossus.root().getChild("root").translateAndRotate(pose);
+            colossus.torso.translateAndRotate(pose);
+            colossus.leftArm.translateAndRotate(pose);
+            colossus.leftForearm.translateAndRotate(pose);
+            colossus.mace.visible = true;
+            colossus.mace.render(pose, sand, light, OverlayTexture.NO_OVERLAY, 1f,1f,1f,1f);
+            pose.popPose();
+        }
 
         pose.popPose();
 
         // Kristaller ancak son asamada belirir
         if (ColossusForm.crystalsActive(progress)) {
-            drawCrystals(pose, buffer, cam, player, pos, yaw, growth, light, colossus);
+            drawCrystals(pose, buffer, cam, player, pos, yaw, growth, light, shared);
         }
     }
 
@@ -198,138 +232,6 @@ public final class ColossusRenderer {
      * Yurume yok; agirlik su uc seyden okunuyor: nefes, kol salinimi ve alt
      * kutlenin gecikmeli donusu.
      */
-    private static void animate(ColossusModel m, float age, float yaw,
-                                float massYawSmoothed, float growth) {
-        // 1) Nefes — torso cok yavas yukari/asagi suzulur
-        float breathe = Mth.sin(age * 0.045f);
-        m.torso.y = breathe * 1.6f;
-        m.head.xRot = 0.12f + breathe * 0.03f;   // kafa hafif one egik
-
-        // 2) Kollar agirliga gore salinir, ikisi ayni fazda DEGIL
-        m.rightArm.xRot = Mth.sin(age * 0.040f) * 0.07f;
-        m.rightArm.zRot = 0.10f + Mth.sin(age * 0.031f) * 0.025f;
-        m.leftArm.xRot = Mth.sin(age * 0.036f + 1.4f) * 0.07f;
-        m.leftArm.zRot = -0.12f + Mth.sin(age * 0.028f) * 0.025f;
-
-        // 3) Alt kutle gecikmeli doner — torso once, kum sonra
-        m.lowerMass.yRot = (float) Math.toRadians(Mth.wrapDegrees(massYawSmoothed - yaw));
-        // Kutle nefesle birlikte hafifce yayilir
-        float spread = 1.0f + breathe * 0.02f;
-        m.lowerMass.xScale = spread;
-        m.lowerMass.zScale = spread;
-
-        // Topuz elde hafifce sallanir
-        m.mace.xRot = Mth.sin(age * 0.033f) * 0.05f;
-    }
-
-    /**
-     * SALDIRI ANIMASYONLARI.
-     *
-     * Zaman cizelgeleri sunucudaki faz sinirlariyla ayni tutuldu; aksi halde
-     * darbe sesi ile kolun indigi an tutmuyor ve vurus sahte gorunuyor.
-     */
-    private static void applyAction(ColossusModel m, ClientColossusActions.Action action,
-                                    float partial, boolean maceRight) {
-        float t = action.progress(partial);
-
-        if (ClientColossusActions.isMaceSwing(action)) {
-            maceSwing(m, t, maceRight);
-        } else if (ClientColossusActions.isRockThrow(action)) {
-            rockThrow(m, t, maceRight);
-        }
-    }
-
-    /**
-     * TOPUZ VURUSU: kaldir -> TEPEDE BEKLE -> indir -> toparlan.
-     *
-     * Tepedeki bekleme bilerek var; topuz kesintisiz inerse darbe hafif
-     * kaliyor. Agirlik hissini veren sey o duraklama.
-     */
-    private static void maceSwing(ColossusModel m, float t, boolean maceRight) {
-        ModelPart arm = maceRight ? m.rightArm : m.leftArm;
-        ModelPart other = maceRight ? m.leftArm : m.rightArm;
-
-        float armX;
-        float torsoLean;
-
-        if (t < 0.31f) {
-            // Kaldirma (0-10 tick)
-            float p = ease(t / 0.31f);
-            armX = lerp(p, 0f, -2.45f);
-            torsoLean = lerp(p, 0f, -0.16f);
-        } else if (t < 0.50f) {
-            // Tepede bekleme (10-16 tick) — hafif titreme
-            armX = -2.45f;
-            torsoLean = -0.16f;
-        } else if (t < 0.66f) {
-            // Inis (16-21 tick) — hizli
-            float p = (t - 0.50f) / 0.16f;
-            p = p * p;   // hizlanarak insin
-            armX = lerp(p, -2.45f, 1.05f);
-            torsoLean = lerp(p, -0.16f, 0.34f);
-        } else {
-            // Toparlanma (21-32 tick)
-            float p = ease((t - 0.66f) / 0.34f);
-            armX = lerp(p, 1.05f, 0f);
-            torsoLean = lerp(p, 0.34f, 0f);
-        }
-
-        arm.xRot = armX;
-        arm.zRot += maceRight ? -0.18f : 0.18f;
-        m.torso.xRot = torsoLean;
-        m.head.xRot = 0.12f + torsoLean * 0.5f;
-
-        // Diger kol dengeleme icin ters yone gider
-        other.xRot = -armX * 0.22f;
-    }
-
-    /**
-     * KAYA FIRLATMA: kolu geri cek -> savur -> toparlan.
-     *
-     * Govde de doner; sadece kol hareket ederse firlatma guclu gorunmuyor.
-     */
-    private static void rockThrow(ColossusModel m, float t, boolean maceRight) {
-        // Kaya topuz TUTMAYAN elde
-        ModelPart arm = maceRight ? m.leftArm : m.rightArm;
-        float side = maceRight ? 1f : -1f;
-
-        float armX;
-        float twist;
-
-        if (t < 0.43f) {
-            // Geri cekme (0-9 tick)
-            float p = ease(t / 0.43f);
-            armX = lerp(p, 0f, 0.95f);
-            twist = lerp(p, 0f, 0.34f * side);
-        } else if (t < 0.60f) {
-            // Savurma — cok hizli
-            float p = (t - 0.43f) / 0.17f;
-            p = p * p;
-            armX = lerp(p, 0.95f, -2.10f);
-            twist = lerp(p, 0.34f * side, -0.30f * side);
-        } else {
-            // Toparlanma
-            float p = ease((t - 0.60f) / 0.40f);
-            armX = lerp(p, -2.10f, 0f);
-            twist = lerp(p, -0.30f * side, 0f);
-        }
-
-        arm.xRot = armX;
-        arm.zRot += 0.20f * side;
-        m.torso.yRot = twist;
-        m.head.yRot = -twist * 0.4f;
-    }
-
-    private static float lerp(float t, float a, float b) {
-        return a + (b - a) * t;
-    }
-
-    /** Yumusak giris/cikis. */
-    private static float ease(float t) {
-        t = Mth.clamp(t, 0f, 1f);
-        return t * t * (3f - 2f * t);
-    }
-
     /**
      * Kristaller.
      *
@@ -343,37 +245,57 @@ public final class ColossusRenderer {
      * kopya animasyondan degil -- ikisi ayri hesaplansaydi zamanla
      * birbirinden kayarlardi.
      */
+    private static void applyPose(ModelPart m,com.FIRNI.superheromod.heroes.sandman.ColossusPose.Part p) {
+        m.x+=p.x;m.y+=p.y;m.z+=p.z;m.xRot=p.xRot;m.yRot=p.yRot;m.zRot=p.zRot;
+        m.xScale=p.xScale;m.yScale=p.yScale;m.zScale=p.zScale;m.visible=p.visible;m.skipDraw=p.skipDraw;
+    }
+
+    private static void drawGathering(PoseStack pose,MultiBufferSource buffer,Vec3 camera,
+                                      Player player,float partial,float progress) {
+        if(progress<=0 || player.position().distanceToSqr(camera)>80*80)return;
+        var mc=Minecraft.getInstance();
+        Vec3 origin=player.getPosition(partial);
+        int light=net.minecraft.client.renderer.LevelRenderer.getLightColor(player.level(),player.blockPosition().above());
+        for(int i=0;i<28;i++) {
+            float t=Mth.clamp((progress-i%5*.014f)/.34f,0,1);
+            float smooth=t*t*(3-2*t);
+            double angle=i*2.39996 + smooth*.35;
+            double radius=(5.5+(i%4)*.7)*(1-smooth)+.8;
+            float scale=(.32f+(i%4)*.095f)*(1-Mth.clamp((t-.85f)/.15f,0,1));
+            if(scale<.005)continue;
+            pose.pushPose();
+            pose.translate(origin.x-camera.x+Math.cos(angle)*radius,
+                    origin.y-camera.y+.15+smooth*(1+i%9*.85),origin.z-camera.z+Math.sin(angle)*radius);
+            pose.mulPose(Axis.ZP.rotationDegrees(i*31+smooth*60));
+            pose.mulPose(Axis.YP.rotationDegrees(i*57));
+            pose.scale(scale,scale*1.4f,scale);
+            pose.translate(-.5,-.5,-.5);
+            mc.getBlockRenderer().renderSingleBlock(net.minecraft.world.level.block.Blocks.SAND.defaultBlockState(),
+                    pose,buffer,light,OverlayTexture.NO_OVERLAY);
+            pose.popPose();
+        }
+    }
+
     private static void drawCrystals(PoseStack pose, MultiBufferSource buffer,
                                      Vec3 cam, Player player, Vec3 pos,
                                      float yaw, float growth, int light,
-                                     ColossusModel model) {
-        ColossusCrystalModel cm = crystalModel();
-        VertexConsumer crystal = buffer.getBuffer(RenderType.entityTranslucent(CRYSTAL));
+                                     com.FIRNI.superheromod.heroes.sandman.ColossusPose shared) {
+        VertexConsumer crystal = buffer.getBuffer(RenderType.entityCutoutNoCull(CRYSTAL));
 
         for (ColossusCrystal type : ColossusCrystal.values()) {
             int state = ClientColossusData.crystalState(player, type.ordinal());
-            if (!cm.prepare(state)) continue;
-
-            Vec3 world = type.worldPosition(pos, yaw).add(bodyOffset(type, model, yaw));
+            if (state>=3) continue;
 
             pose.pushPose();
-            pose.translate(world.x - cam.x, world.y - cam.y, world.z - cam.z);
-            pose.mulPose(Axis.YP.rotationDegrees(180.0f - yaw));
-
-            // Kristal boyutu ISABET YARICAPIYLA orantili: gorulen sey ile
-            // vurulabilen alan tutmali, yoksa oyuncu nisan alamaz.
-            // ModelPart zaten 16'ya boluyor, yani model ~1 blok yuksekliginde;
-            // radius*2 blok olmasi icin olcek dogrudan radius*2.
-            float scale = (float) (type.radius * 2.0) * growth;
-            pose.scale(-scale, -scale, scale);
+            pose.mulPoseMatrix(type.socket(pos.subtract(cam),yaw,growth,shared));
+            float scale=(float)(type.radius*1.15);
+            pose.scale(scale,scale,scale);
 
             // ISIK: cevrenin isigi kullaniliyor, FULL_BRIGHT DEGIL.
             // Tam parlaklikta kristaller geceleyin karanlikta yanan
             // lambalar gibi duruyordu ve devin geri kalaniyla ayni
             // dunyada gorunmuyorlardi.
-            cm.root().render(pose, crystal, light,
-                    OverlayTexture.NO_OVERLAY,
-                    CRYSTAL_R, CRYSTAL_G, CRYSTAL_B, 1f);
+            CrystalFacets.render(pose,crystal,light,state,type.ordinal());
 
             pose.popPose();
         }
@@ -390,40 +312,4 @@ public final class ColossusRenderer {
      * yere nisan alip iskalar. Animasyonun genligi zaten birkac derece,
      * yani gorsel ile isabet alani ic ice kaliyor.
      */
-    private static Vec3 bodyOffset(ColossusCrystal type, ColossusModel model, float yaw) {
-        // Model uzayi 16'ya bolunuyor ve dev buyutulmus haliyle ciziliyor;
-        // burada sadece ORAN gerekiyor, mutlak piksel degil.
-        double breathe = model.torso.y / 16.0;
-
-        return switch (type) {
-            case RIGHT_SHOULDER -> armOffset(model.rightArm.xRot, model.rightArm.zRot, yaw)
-                    .add(0, breathe, 0);
-            case LEFT_SHOULDER -> armOffset(model.leftArm.xRot, -model.leftArm.zRot, yaw)
-                    .add(0, breathe, 0);
-            // Kafa govdeyle birlikte nefes aliyor, ayrica hafif one egilme
-            case HEAD -> new Vec3(0, breathe * 1.15, 0);
-            default -> new Vec3(0, breathe, 0);
-        };
-    }
-
-    /**
-     * Omuz kristalinin kol donusuyle savrulmasi.
-     *
-     * Kol omuzdan doner; omuzdaki kristal donus merkezine yakin oldugu
-     * icin kucuk bir yay ciziyor. Yarıcap kolun uzunlugu degil OMUZ
-     * kalinligi kadar.
-     */
-    private static Vec3 armOffset(float xRot, float zRot, float yaw) {
-        double reach = 1.1;   // omuz yaricapi (blok)
-
-        double forward = -Math.sin(xRot) * reach;
-        double up = -Math.sin(zRot) * reach;
-
-        double rad = Math.toRadians(yaw);
-        double sin = Math.sin(rad);
-        double cos = Math.cos(rad);
-
-        // Ileri yonu devin baktigi yone cevir
-        return new Vec3(-forward * sin, up, forward * cos);
-    }
 }

@@ -53,34 +53,7 @@ public class SandTravelAbility extends Ability {
         Vec3 target = findAnchor(player);
         if (target == null) return;
 
-        ServerLevel level = (ServerLevel) player.level();
-        Vec3 from = player.position();
-
-        BlockParticleOption sand =
-                new BlockParticleOption(ParticleTypes.BLOCK, Blocks.SAND.defaultBlockState());
-
-        // 1) Vucut dagilir
-        level.sendParticles(sand, from.x, from.y + 1.0, from.z, 45, 0.45, 0.9, 0.45, 0.12);
-        level.playSound(null, player.blockPosition(),
-                SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 1.3f, 0.7f);
-
-        // 2) Yerde akan kum izi — iki nokta arasi
-        Vec3 delta = target.subtract(from);
-        int steps = (int) Math.min(40, delta.length() * 1.5);
-        for (int i = 1; i < steps; i++) {
-            double t = i / (double) steps;
-            Vec3 p = from.add(delta.scale(t));
-            level.sendParticles(sand, p.x, p.y + 0.25, p.z, 2, 0.18, 0.05, 0.18, 0.03);
-        }
-
-        // 3) Isinlanma — sunucu tarafinda
-        player.teleportTo(target.x, target.y, target.z);
-        player.fallDistance = 0f;
-
-        // 4) Hedefte kum sutunu yukselir ve Sandman yeniden olusur
-        level.sendParticles(sand, target.x, target.y + 1.0, target.z, 50, 0.45, 1.0, 0.45, 0.14);
-        level.playSound(null, BlockPos.containing(target),
-                SoundEvents.SAND_PLACE, SoundSource.PLAYERS, 1.4f, 0.6f);
+        SandTravelController.start(player, target);
     }
 
     /**
@@ -156,6 +129,6 @@ public class SandTravelAbility extends Ability {
             }
             pos = pos.above();
         }
-        return anchor;
+        return null;
     }
 }

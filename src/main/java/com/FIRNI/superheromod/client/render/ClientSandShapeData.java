@@ -1,79 +1,37 @@
 package com.FIRNI.superheromod.client.render;
 
 import com.FIRNI.superheromod.network.packet.SandShapeSyncPacket;
-import net.minecraft.util.Mth;
+import com.FIRNI.superheromod.core.animation.TimedSnapshotBuffer;
+import java.util.*;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-/**
- * Istemcide cizilecek kum sekilleri -- ARA DEGERLI.
- *
- * Sunucu saniyede 20 guncelleme gonderiyor, ekran 60+ kare ciziyor. Gelen
- * degerler dogrudan cizilirse sekil saniyede 20 kez ziplar ve hareket
- * "kasiyor" gibi gorunur; kullanicinin bildirdigi takilma tam olarak buydu.
- *
- * Burasi son IKI guncellemeyi saklayip aradaki degeri hesapliyor. Eslestirme
- * seklin kimligi uzerinden: kimlik olmasa hangi seklin hangisinin devami
- * oldugu bilinemez ve ara deger uretilemezdi.
- */
+/** Network snapshots are sampled on one monotonic timeline, never client tick phase. */
 public final class ClientSandShapeData {
-
-    /** Sunucu tick suresi (ms). Ara deger bu pencereye yayiliyor. */
-    private static final float TICK_MS = 50f;
-
-    private static volatile Map<Integer, SandShapeSyncPacket.Shape> previous = Collections.emptyMap();
-    private static volatile Map<Integer, SandShapeSyncPacket.Shape> current = Collections.emptyMap();
-    private static volatile long currentTime = 0L;
-
+    private static final long DELAY_NS=100_000_000L;
+    private static final long STALE_NS=800_000_000L;
+    private static final TimedSnapshotBuffer<Map<Integer,SandShapeSyncPacket.Shape>> history=
+            new TimedSnapshotBuffer<>(8);
+    private static long lastPacket;
     private ClientSandShapeData() {}
 
     public static void set(List<SandShapeSyncPacket.Shape> list) {
-        Map<Integer, SandShapeSyncPacket.Shape> next = new HashMap<>();
-        for (SandShapeSyncPacket.Shape s : list) next.put(s.id(), s);
-
-        previous = current;
-        current = next;
-        currentTime = System.currentTimeMillis();
+        Map<Integer,SandShapeSyncPacket.Shape> next=new HashMap<>();
+        for(var shape:list)next.put(shape.id(),shape);
+        long now=System.nanoTime();
+        if(lastPacket!=0 && now-lastPacket>STALE_NS)history.clear();
+        history.add(now,Map.copyOf(next));
+        lastPacket=now;
     }
 
-    /**
-     * O an cizilecek sekiller, ara degerleri uygulanmis halde.
-     *
-     * Bir onceki karede olmayan sekil ara degere girmiyor: yeni beliren bir
-     * sekli sifirdan suruklemek onu haritanin oteki ucundan ucurur.
-     */
     public static List<SandShapeSyncPacket.Shape> get() {
-        Map<Integer, SandShapeSyncPacket.Shape> cur = current;
-        if (cur.isEmpty()) return Collections.emptyList();
-
-        long age = System.currentTimeMillis() - currentTime;
-
-        // Sunucu susarsa sekiller ekranda asili kalmasin
-        if (age > 800L) return Collections.emptyList();
-
-        // ARA DEGER OYUNUN KENDI KARE ZAMANINDAN.
-        //
-        // Duvar saati kullanilinca istemcinin cizim dongusuyle sunucunun
-        // tick'i birbirini tutmuyordu: bazi karelerde sekil ayni yerde
-        // kaliyor, bazilarinda iki adim birden atliyordu -- gozle
-        // "takiliyor" gibi gorunen sey buydu. getFrameTime() oyunun
-        // kendi tick icindeki ilerlemesi, yani her kare duzgun artiyor.
-        float t = Mth.clamp(net.minecraft.client.Minecraft.getInstance().getFrameTime(),
-                0f, 1f);
-
-        // Paket gecikirse son degere kilitlen; yoksa sekil geri sarardi
-        if (age > TICK_MS * 1.6f) t = 1f;
-
-        Map<Integer, SandShapeSyncPacket.Shape> prev = previous;
-        List<SandShapeSyncPacket.Shape> out = new ArrayList<>(cur.size());
-
-        for (SandShapeSyncPacket.Shape now : cur.values()) {
-            SandShapeSyncPacket.Shape before = prev.get(now.id());
-            out.add(before == null ? now : lerp(before, now, t));
+        long now=System.nanoTime();
+        if(lastPacket==0 || now-lastPacket>STALE_NS)return Collections.emptyList();
+        var blend=history.sample(now-DELAY_NS);
+        if(blend==null)return Collections.emptyList();
+        List<SandShapeSyncPacket.Shape> out=new ArrayList<>(blend.to().size());
+        for(var current:blend.to().values()) {
+            var previous=blend.from().get(current.id());
+            out.add(previous==null || previous.type()!=current.type()
+                    ?current:lerp(previous,current,blend.fraction()));
         }
         return out;
     }
@@ -103,8 +61,9 @@ public final class ClientSandShapeData {
         return a + delta * t;
     }
 
+
     public static void clear() {
-        previous = Collections.emptyMap();
-        current = Collections.emptyMap();
+        history.clear();
+        lastPacket=0;
     }
 }

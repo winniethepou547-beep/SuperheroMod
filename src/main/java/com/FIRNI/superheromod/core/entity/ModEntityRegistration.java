@@ -36,6 +36,8 @@ public final class ModEntityRegistration {
 
         @SubscribeEvent
         public static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
+            event.registerEntityRenderer(ModEntities.SETTLED_SAND_BALL.get(),
+                    com.FIRNI.superheromod.client.render.colossus.SettledSandBallRenderer::new);
             event.registerEntityRenderer(ModEntities.SAND_SOLDIER.get(),
                     ctx -> new SandSoldierRenderer<>(ctx, 1.0f, 0.4f));
             // Dev asker ayni modeli kullanir, sadece olcegi buyuk

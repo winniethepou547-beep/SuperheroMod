@@ -34,11 +34,19 @@ public class SandSpearFieldAbility extends Ability {
     public boolean canActivate(ServerPlayer player) {
         if (!super.canActivate(player)) return false;
         // Colossus formunda alan yetenekleri devre disi
-        return !SandColossusController.isColossus(player.getUUID());
+        return !SandColossusController.isColossus(player.getUUID())
+                || (!SandColossusController.isStaggered(player.getUUID())
+                && !ColossusSwordController.isActive(player.getUUID())
+                && !ColossusMaceController.isSwinging(player.getUUID())
+                && !ColossusRockController.isThrowing(player.getUUID()));
     }
 
     @Override
     protected void onActivate(ServerPlayer player) {
+        if (SandColossusController.isColossus(player.getUUID())) {
+            ColossusSwordController.start(player);
+            return;
+        }
         SandSpearFieldController.cast(player, getConfig());
     }
 }

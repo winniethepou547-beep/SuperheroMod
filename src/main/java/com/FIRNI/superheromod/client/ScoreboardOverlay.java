@@ -53,10 +53,10 @@ public final class ScoreboardOverlay {
         showEndMessage = true;
         if (youWon) {
             endMessage = "KAZANDIN!";
-            endMessageColor = 0x55FF55; // yesil
+            endMessageColor = 0xFFC27A;
         } else {
             endMessage = winnerName + " kazandi";
-            endMessageColor = 0xFF5555; // kirmizi
+            endMessageColor = 0xD8CFC4;
         }
         endMessageStartMs = Util.getMillis();
     }
@@ -71,6 +71,7 @@ public final class ScoreboardOverlay {
 
     @SubscribeEvent
     public static void onRenderGui(RenderGuiEvent.Post event) {
+        if (com.FIRNI.superheromod.client.render.cinematic.CinematicClient.shouldDrive()) return;
         if (!active && !showEndMessage) return;
 
         Minecraft mc = Minecraft.getInstance();
@@ -94,52 +95,21 @@ public final class ScoreboardOverlay {
         }
     }
 
+    /** Names as quiet captions either side, the score large in the middle, on a soft wash. */
     private static void renderScoreboard(GuiGraphics graphics, Font font, int screenW) {
-        // "PlayerA  3 - 1  PlayerB" formatinda metin
-        String scoreText = leftName + "  " + leftKills + " - " + rightKills + "  " + rightName;
-        int textWidth = font.width(scoreText);
-
-        int paddingH = 8;
-        int paddingV = 4;
-        int boxWidth = textWidth + paddingH * 2;
-        int boxHeight = font.lineHeight + paddingV * 2;
-        int boxX = (screenW - boxWidth) / 2;
-        int boxY = 4; // ekranin ust kenarinda, 4px bosluk
-
-        // Arka plan (koyu, yari-saydam)
-        graphics.fill(boxX, boxY, boxX + boxWidth, boxY + boxHeight, 0xAA000000);
-
-        // Ince cizgi kenarligi
-        graphics.fill(boxX, boxY, boxX + boxWidth, boxY + 1, 0xFF444444);
-        graphics.fill(boxX, boxY + boxHeight - 1, boxX + boxWidth, boxY + boxHeight, 0xFF444444);
-        graphics.fill(boxX, boxY, boxX + 1, boxY + boxHeight, 0xFF444444);
-        graphics.fill(boxX + boxWidth - 1, boxY, boxX + boxWidth, boxY + boxHeight, 0xFF444444);
-
-        // Sol oyuncu ismi (beyaz)
-        int textX = boxX + paddingH;
-        int textY = boxY + paddingV;
-        graphics.drawString(font, leftName + "  ", textX, textY, 0xFFFFFF, true);
-        int afterLeftName = textX + font.width(leftName + "  ");
-
-        // Sol skor (sari)
-        String leftScore = String.valueOf(leftKills);
-        graphics.drawString(font, leftScore, afterLeftName, textY, 0xFFFF55, true);
-        int afterLeftScore = afterLeftName + font.width(leftScore);
-
-        // Tire (gri)
-        String separator = " - ";
-        graphics.drawString(font, separator, afterLeftScore, textY, 0xAAAAAA, true);
-        int afterSep = afterLeftScore + font.width(separator);
-
-        // Sag skor (sari)
-        String rightScore = String.valueOf(rightKills);
-        graphics.drawString(font, rightScore, afterSep, textY, 0xFFFF55, true);
-        int afterRightScore = afterSep + font.width(rightScore);
-
-        // Sag oyuncu ismi (beyaz)
-        graphics.drawString(font, "  " + rightName, afterRightScore, textY, 0xFFFFFF, true);
+        int cx = screenW / 2, y = 8;
+        String score = leftKills + "  " + rightKills;
+        int scoreW = (int) (font.width(score) * 1.8f);
+        int nameW = Math.max(com.FIRNI.superheromod.client.hud.HudStyle.captionWidth(font, leftName),
+                com.FIRNI.superheromod.client.hud.HudStyle.captionWidth(font, rightName));
+        int half = scoreW / 2 + 12 + nameW;
+        com.FIRNI.superheromod.client.hud.HudStyle.shade(graphics, cx - half - 14, y - 4, (half + 14) * 2, 24, 1f);
+        com.FIRNI.superheromod.client.hud.HudStyle.value(graphics, font, score, cx, y, 1.8f, com.FIRNI.superheromod.client.hud.HudStyle.TEXT, 0);
+        graphics.fill(cx, y + 2, cx + 1, y + 13, com.FIRNI.superheromod.client.hud.HudStyle.alpha(com.FIRNI.superheromod.client.hud.HudStyle.TEXT, .4f));
+        com.FIRNI.superheromod.client.hud.HudStyle.caption(graphics, font, leftName, cx - scoreW / 2 - 12, y + 4, com.FIRNI.superheromod.client.hud.HudStyle.MUTED, 1);
+        com.FIRNI.superheromod.client.hud.HudStyle.caption(graphics, font, rightName, cx + scoreW / 2 + 12, y + 4, com.FIRNI.superheromod.client.hud.HudStyle.MUTED, -1);
+        graphics.fill(cx - scoreW / 2, y + 18, cx + scoreW / 2, y + 19, com.FIRNI.superheromod.client.hud.HudStyle.ACCENT);
     }
-
     private static void renderEndMessage(GuiGraphics graphics, Font font, int screenW, long elapsed) {
         float alpha;
         if (elapsed < 300) {
@@ -161,7 +131,7 @@ public final class ScoreboardOverlay {
         graphics.pose().translate(cx, cy, 0);
         graphics.pose().scale(3f, 3f, 1f);
         int msgWidth = font.width(endMessage);
-        graphics.drawString(font, endMessage, -(msgWidth / 2), -(font.lineHeight / 2), color, true);
+        graphics.drawString(font, endMessage, -(msgWidth / 2), -(font.lineHeight / 2), color, false);
         graphics.pose().popPose();
     }
 }

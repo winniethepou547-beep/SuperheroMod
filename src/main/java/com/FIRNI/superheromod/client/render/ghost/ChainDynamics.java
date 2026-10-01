@@ -21,6 +21,8 @@ public final class ChainDynamics {
     public static final Tuning LASH=new Tuning(2600,320,.988,1.8);
     /** Fast twin-chain spin: stays on its ring but trails, sags and drags on the ground. */
     public static final Tuning SPIN=new Tuning(9000,2600,.99,.35);
+    /** Heavy hoist: a slow, visible wave from the hands to the load. */
+    public static final Tuning HEAVE=new Tuning(2200,420,.985,3.0);
     private static final int COUNT=33;
     private static final double STEP=1.0/120, GRAVITY=-9.8*STEP*STEP;
     private static final double ROPE_DRAG=.993;
@@ -48,7 +50,9 @@ public final class ChainDynamics {
         if(steps==12)pending=0;
         return steps;
     }
-    public void update(Vec3 from,Vec3 to,double tickTime) {
+    public void update(Vec3 from,Vec3 to,double tickTime) { update(from,to,tickTime,1.025); }
+    /** slack: chain length over the straight distance; 1 is taut, larger sags. */
+    public void update(Vec3 from,Vec3 to,double tickTime,double slack) {
         if(needsReset(from,tickTime)) {
             for(int i=0;i<COUNT;i++)nodes[i]=old[i]=from.lerp(to,i/(double)(COUNT-1));
             clock=tickTime; pending=0;
@@ -59,7 +63,7 @@ public final class ChainDynamics {
                 Vec3 current=nodes[i];
                 nodes[i]=current.add(current.subtract(old[i]).scale(ROPE_DRAG)).add(0,GRAVITY,0);old[i]=current;
             }
-            double length=Math.max(.015,from.distanceTo(to)*1.025/(COUNT-1));
+            double length=Math.max(.015,from.distanceTo(to)*slack/(COUNT-1));
             for(int pass=0;pass<12;pass++) {
                 nodes[0]=from;nodes[COUNT-1]=to;
                 for(int i=0;i<COUNT-1;i++) {

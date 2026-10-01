@@ -8,6 +8,7 @@ import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.network.NetworkEvent;
 
 import java.util.function.Supplier;
+import java.util.UUID;
 
 /**
  * Sinematik senkronu. Cekim tanimlari istemcide zaten var; agdan sadece
@@ -20,7 +21,10 @@ public class CinematicSyncPacket {
 
     private final boolean active;
     private final int cinematicIndex;
-    private final int tick;
+    private final float tick;
+    private final float rate;
+    private final int revision;
+    private final UUID sessionId;
     private final int attackerId;
     private final int targetId;
     private final Vec3 stageOrigin;
@@ -28,10 +32,10 @@ public class CinematicSyncPacket {
     private final float darkness;
     private final float span;
 
-    public CinematicSyncPacket(boolean active, int cinematicIndex, int tick,
+    public CinematicSyncPacket(boolean active, int cinematicIndex, float tick,
                                int attackerId, int targetId,
                                Vec3 stageOrigin, Vec3 stageForward,
-                               float darkness, float span) {
+                               float darkness, float span, float rate, int revision, UUID sessionId) {
         this.active = active;
         this.cinematicIndex = cinematicIndex;
         this.tick = tick;
@@ -41,11 +45,14 @@ public class CinematicSyncPacket {
         this.stageForward = stageForward;
         this.darkness = darkness;
         this.span = span;
+        this.rate = rate;
+        this.revision = revision;
+        this.sessionId = sessionId;
     }
 
     public static CinematicSyncPacket inactive() {
         return new CinematicSyncPacket(false, -1, 0, -1, -1,
-                Vec3.ZERO, Vec3.ZERO, 0f, 1.5f);
+                Vec3.ZERO, Vec3.ZERO, 0f, 1.5f, 0, 0, new UUID(0, 0));
     }
 
     public static void encode(CinematicSyncPacket msg, FriendlyByteBuf buf) {
@@ -53,7 +60,10 @@ public class CinematicSyncPacket {
         if (!msg.active) return;
 
         buf.writeVarInt(msg.cinematicIndex);
-        buf.writeVarInt(msg.tick);
+        buf.writeFloat(msg.tick);
+        buf.writeFloat(msg.rate);
+        buf.writeVarInt(msg.revision);
+        buf.writeUUID(msg.sessionId);
         buf.writeVarInt(msg.attackerId);
         buf.writeVarInt(msg.targetId);
         buf.writeDouble(msg.stageOrigin.x);
@@ -69,7 +79,10 @@ public class CinematicSyncPacket {
         if (!buf.readBoolean()) return inactive();
 
         int index = buf.readVarInt();
-        int tick = buf.readVarInt();
+        float tick = buf.readFloat();
+        float rate = buf.readFloat();
+        int revision = buf.readVarInt();
+        UUID sessionId = buf.readUUID();
         int attacker = buf.readVarInt();
         int target = buf.readVarInt();
         Vec3 origin = new Vec3(buf.readDouble(), buf.readDouble(), buf.readDouble());
@@ -79,7 +92,7 @@ public class CinematicSyncPacket {
         float span = buf.readFloat();
 
         return new CinematicSyncPacket(true, index, tick, attacker, target,
-                origin, new Vec3(fx, 0, fz), dark, span);
+                origin, new Vec3(fx, 0, fz), dark, span, rate, revision, sessionId);
     }
 
     public static void handle(CinematicSyncPacket msg, Supplier<NetworkEvent.Context> ctx) {
@@ -89,7 +102,7 @@ public class CinematicSyncPacket {
                         CinematicClient.update(msg.cinematicIndex, msg.tick,
                                 msg.attackerId, msg.targetId,
                                 msg.stageOrigin, msg.stageForward,
-                                msg.darkness, msg.span);
+                                msg.darkness, msg.span, msg.rate, msg.revision, msg.sessionId);
                     } else {
                         CinematicClient.stop();
                     }

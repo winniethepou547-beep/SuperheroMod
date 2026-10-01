@@ -52,7 +52,8 @@ import java.util.*;
 public final class SandColossusController {
 
     /** Govdeye gelen hasarin ne kadari emilir. */
-    private static final float BODY_REDUCTION = 0.86f;
+    private static final float BODY_REDUCTION = 0.65f;
+    private static final UUID HEALTH_BONUS = UUID.fromString("2e719314-8a0e-4fbc-a63c-cd7b5db30af2");
     /** Kristale gelen hasar carpani. */
     private static final float CRYSTAL_MULTIPLIER = 2.0f;
 
@@ -105,6 +106,8 @@ public final class SandColossusController {
     public static boolean isColossus(UUID playerId) {
         return active.containsKey(playerId);
     }
+    public static boolean isForming(UUID id) { var c=active.get(id); return c!=null&&c.isForming(); }
+    public static float formProgress(UUID id) { var c=active.get(id); return c==null?1:c.formProgress(); }
 
     public static boolean isStaggered(UUID playerId) {
         Colossus c = active.get(playerId);
@@ -122,6 +125,7 @@ public final class SandColossusController {
         if (active.containsKey(player.getUUID())) return;
 
         active.put(player.getUUID(), new Colossus(player.getUUID(), DEFAULT_DURATION));
+        setBossHealth(player, true);
 
         ServerLevel level = (ServerLevel) player.level();
 
@@ -137,6 +141,7 @@ public final class SandColossusController {
 
     public static void stop(ServerPlayer player) {
         if (active.remove(player.getUUID()) == null) return;
+        setBossHealth(player, false);
 
         ServerLevel level = (ServerLevel) player.level();
         level.sendParticles(sand(),
@@ -167,6 +172,7 @@ public final class SandColossusController {
             ServerPlayer player = server.getPlayerList().getPlayer(colossus.player);
 
             if (player == null || !player.isAlive()) {
+                if (player != null) setBossHealth(player, false);
                 it.remove();
                 continue;
             }
@@ -214,16 +220,17 @@ public final class SandColossusController {
 
         emitFormParticles(level, player, progress, stage);
 
-        // Olusma tamamlandi — dev yere caklir
-        if (!colossus.isForming()) {
+        // Palm contact happens before the push back upright.
+        if (colossus.formTicks == 60) {
             level.playSound(null, player.blockPosition(),
                     SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 2.0f, 0.32f);
             level.playSound(null, player.blockPosition(),
                     SoundEvents.SAND_PLACE, SoundSource.PLAYERS, 2.0f, 0.25f);
 
-            groundSlam(level, player, player.position(), 7.0, 5.0f);
+            Vec3 hand=ColossusCrystal.handPosition(player,true);
+            groundSlam(level, player, new Vec3(hand.x,player.getY(),hand.z), 7.0, 5.0f);
             broadcast(player);
-        } else if (colossus.formTicks % 3 == 0) {
+        } else if (!colossus.isForming() || colossus.formTicks % 3 == 0) {
             broadcast(player);
         }
     }
@@ -270,7 +277,7 @@ public final class SandColossusController {
         // Son asamada kristaller belirir
         if (stage == 4 && player.tickCount % 2 == 0) {
             for (ColossusCrystal crystal : ColossusCrystal.values()) {
-                Vec3 pos = crystal.worldPosition(player.position(), player.getYRot());
+                Vec3 pos = crystal.worldPosition(player);
                 level.sendParticles(ParticleTypes.CRIT,
                         pos.x, pos.y, pos.z, 2, 0.15, 0.15, 0.15, 0.02);
             }
@@ -361,6 +368,7 @@ public final class SandColossusController {
     }
 
     private static void stopVisualsOnly(ServerPlayer player) {
+        setBossHealth(player, false);
         ServerLevel level = (ServerLevel) player.level();
         level.sendParticles(sand(),
                 player.getX(), player.getY() + 1.5, player.getZ(),
@@ -370,6 +378,22 @@ public final class SandColossusController {
 
         ModNetworking.CHANNEL.send(PacketDistributor.ALL.noArg(),
                 ColossusSyncPacket.inactive(player.getUUID()));
+    }
+
+    /** Preserve health percentage: entering/leaving the form cannot be used as a heal. */
+    private static void setBossHealth(ServerPlayer player, boolean enabled) {
+        var attribute=player.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_HEALTH);
+        if(attribute==null)return;
+        float fraction=player.getHealth()/player.getMaxHealth();
+        attribute.removeModifier(HEALTH_BONUS);
+        if(enabled)attribute.addTransientModifier(new net.minecraft.world.entity.ai.attributes.AttributeModifier(
+                HEALTH_BONUS,"Sand colossus vitality",1,
+                net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.MULTIPLY_TOTAL));
+        player.setHealth(Math.min(player.getMaxHealth(),fraction*player.getMaxHealth()));
+    }
+
+    @SubscribeEvent public static void onLogout(net.minecraftforge.event.entity.player.PlayerEvent.PlayerLoggedOutEvent event) {
+        if(event.getEntity() instanceof ServerPlayer player)stop(player);
     }
 
     // ------------------------------------------------------------------
@@ -438,7 +462,7 @@ public final class SandColossusController {
         for (ColossusCrystal crystal : ColossusCrystal.values()) {
             if (colossus.isBroken(crystal)) continue;
 
-            Vec3 center = crystal.worldPosition(base, yaw);
+            Vec3 center = crystal.worldPosition(victim);
 
             // Isinin kristale en yakin gectigi nokta
             Vec3 toCenter = center.subtract(eye);
@@ -465,7 +489,7 @@ public final class SandColossusController {
 
         if (!(victim.level() instanceof ServerLevel level)) return;
 
-        Vec3 pos = crystal.worldPosition(victim.position(), victim.getYRot());
+        Vec3 pos = crystal.worldPosition(victim);
 
         // Kristal isabeti govde isabetinden BELIRGIN sekilde farkli duymali
         level.playSound(null, BlockPos.containing(pos),
@@ -543,12 +567,18 @@ public final class SandColossusController {
     /** Yere agir inis — cevredekilere hasar ve savurma. */
     static void groundSlam(ServerLevel level, Player source, Vec3 center,
                            double radius, float damage) {
+        groundSlam(level, source, center, radius, damage, .62);
+    }
+
+    static void groundSlam(ServerLevel level, Player source, Vec3 center,
+                           double radius, float damage, double upwardSpeed) {
         AABB area = new AABB(center, center).inflate(radius);
 
         for (LivingEntity target : level.getEntitiesOfClass(LivingEntity.class, area,
                 e -> e != source && e.isAlive())) {
 
             double dist = target.position().distanceTo(center);
+            if (dist > radius) continue;
             double falloff = Math.max(0.3, 1.0 - dist / radius);
 
             target.hurt(source.damageSources().playerAttack(source),
@@ -558,7 +588,7 @@ public final class SandColossusController {
             Vec3 flat = new Vec3(push.x, 0, push.z);
             flat = flat.lengthSqr() < 1.0E-4 ? Vec3.ZERO : flat.normalize();
 
-            target.setDeltaMovement(flat.x * 1.1, 0.62, flat.z * 1.1);
+            target.setDeltaMovement(flat.x * 1.1, upwardSpeed, flat.z * 1.1);
             target.hurtMarked = true;
         }
 

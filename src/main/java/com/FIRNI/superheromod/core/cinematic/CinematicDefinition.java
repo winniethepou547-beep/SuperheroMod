@@ -37,6 +37,13 @@ public final class CinematicDefinition {
 
     /** Aktorlerin poz anahtarlari — sirali. */
     public final List<PoseKey> poseKeys;
+    public final List<CinematicActorTrack> actorTracks;
+    /** Zero keeps the legacy distance; authored scenes can use a fixed virtual stage. */
+    public final double stageSpan;
+    public final boolean isolatedStage;
+    public final List<CinematicSetPiece> setPieces;
+    public final List<CinematicHandContact> handContacts;
+    public final List<CinematicImpact> impacts;
 
     /** Sahnedeki iki aktor. */
     public enum Actor { ATTACKER, TARGET }
@@ -51,7 +58,18 @@ public final class CinematicDefinition {
 
     private CinematicDefinition(Builder b) {
         this.id = b.id;
-        this.shots = Collections.unmodifiableList(b.shots);
+        this.actorTracks = List.copyOf(b.actorTracks);
+        this.stageSpan = b.stageSpan;
+        this.isolatedStage = b.isolatedStage;
+        this.setPieces = List.copyOf(b.setPieces);
+        this.handContacts = List.copyOf(b.handContacts);
+        this.impacts = List.copyOf(b.impacts);
+        for(var contact:handContacts) {
+            if(actorTracks.stream().noneMatch(t->t.role.equals(contact.sourceRole()))
+                    ||actorTracks.stream().noneMatch(t->t.role.equals(contact.targetRole())))
+                throw new IllegalArgumentException("Unknown contact actor");
+        }
+        this.shots = List.copyOf(b.shots);
         this.beats = Collections.unmodifiableList(sorted(b.beats));
         this.letterbox = b.letterbox;
         this.targetAnchor = b.targetAnchor;
@@ -108,6 +126,40 @@ public final class CinematicDefinition {
         private float baseFogFar = Shot.NO_FOG;
         private int baseFogColor = Shot.NO_COLOR;
         private final List<PoseKey> poseKeys = new ArrayList<>();
+        private final List<CinematicActorTrack> actorTracks = new ArrayList<>();
+        private double stageSpan;
+        private boolean isolatedStage;
+        public Builder isolatedStage() { isolatedStage=true;return this; }
+        private final List<CinematicSetPiece> setPieces=new ArrayList<>();
+        private final List<CinematicHandContact> handContacts=new ArrayList<>();
+        private final List<CinematicImpact> impacts=new ArrayList<>();
+        public Builder impact(CinematicImpact impact) {
+            if(impacts.size()>=32)throw new IllegalArgumentException("Impact budget exceeded");
+            impacts.add(java.util.Objects.requireNonNull(impact));return this;
+        }
+        public Builder contact(CinematicHandContact contact) {
+            if(handContacts.size()>=64)throw new IllegalArgumentException("Contact budget exceeded");
+            handContacts.add(java.util.Objects.requireNonNull(contact));return this;
+        }
+
+        public Builder setPiece(CinematicSetPiece piece) {
+            if(setPieces.size()>=4) throw new IllegalArgumentException("Set piece budget exceeded");
+            setPieces.add(java.util.Objects.requireNonNull(piece));return this;
+        }
+
+        public Builder stageSpan(double span) {
+            if(!Double.isFinite(span)||span<1.5) throw new IllegalArgumentException("Invalid stage span");
+            stageSpan=span; return this;
+        }
+
+        public Builder actor(CinematicActorTrack track) {
+            if(actorTracks.size()>=32) throw new IllegalArgumentException("Actor budget exceeded");
+            for(var existing:actorTracks) {
+                if(existing.role.equals(track.role) || (track.binding!=CinematicActorTrack.Binding.SAND
+                        &&existing.binding==track.binding)) throw new IllegalArgumentException("Duplicate actor binding");
+            }
+            actorTracks.add(track); return this;
+        }
 
         private Builder(String id) {
             this.id = id;

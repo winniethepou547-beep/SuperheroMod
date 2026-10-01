@@ -1,6 +1,8 @@
 package com.FIRNI.superheromod.network;
+import com.FIRNI.superheromod.network.packet.GhostSlamPacket;
 
 import com.FIRNI.superheromod.SuperheroMod;
+import com.FIRNI.superheromod.network.packet.HellfireBreathPacket;
 import com.FIRNI.superheromod.network.packet.AbilityInputPacket;
 import com.FIRNI.superheromod.network.packet.BeamSyncPacket;
 import com.FIRNI.superheromod.network.packet.CameraStatePacket;
@@ -14,6 +16,7 @@ import com.FIRNI.superheromod.network.packet.SandGraspActionPacket;
 import com.FIRNI.superheromod.network.packet.SandGraspPreviewPacket;
 import com.FIRNI.superheromod.network.packet.SandPillarPacket;
 import com.FIRNI.superheromod.network.packet.SandArmSyncPacket;
+import com.FIRNI.superheromod.network.packet.SandTravelPacket;
 import com.FIRNI.superheromod.network.packet.SandShapeSyncPacket;
 import com.FIRNI.superheromod.network.packet.SandWallSyncPacket;
 import com.FIRNI.superheromod.network.packet.CinematicSyncPacket;
@@ -43,7 +46,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
  */
 public final class ModNetworking {
 
-    private static final String PROTOCOL_VERSION = "1";
+    private static final String PROTOCOL_VERSION = "11";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(SuperheroMod.MODID, "main"),
@@ -56,6 +59,11 @@ public final class ModNetworking {
 
     public static void register() {
         int id = 0;
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.HellCycleInputPacket.class,
+                com.FIRNI.superheromod.network.packet.HellCycleInputPacket::encode,
+                com.FIRNI.superheromod.network.packet.HellCycleInputPacket::decode,
+                com.FIRNI.superheromod.network.packet.HellCycleInputPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
         CHANNEL.registerMessage(id++, OpenModeSelectPacket.class,
                 OpenModeSelectPacket::encode, OpenModeSelectPacket::decode, OpenModeSelectPacket::handle);
         CHANNEL.registerMessage(id++, ModeSelectedPacket.class,
@@ -126,5 +134,53 @@ public final class ModNetworking {
         CHANNEL.registerMessage(id++, SandArmSyncPacket.class,
                 SandArmSyncPacket::encode, SandArmSyncPacket::decode,
                 SandArmSyncPacket::handle);
+        CHANNEL.registerMessage(id++, SandTravelPacket.class,
+                SandTravelPacket::encode, SandTravelPacket::decode, SandTravelPacket::handle);
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.CinematicPreviewRequestPacket.class,
+                com.FIRNI.superheromod.network.packet.CinematicPreviewRequestPacket::encode,
+                com.FIRNI.superheromod.network.packet.CinematicPreviewRequestPacket::decode,
+                com.FIRNI.superheromod.network.packet.CinematicPreviewRequestPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.CinematicPreparePacket.class,
+                com.FIRNI.superheromod.network.packet.CinematicPreparePacket::encode,
+                com.FIRNI.superheromod.network.packet.CinematicPreparePacket::decode,
+                com.FIRNI.superheromod.network.packet.CinematicPreparePacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.CinematicReadyPacket.class,
+                com.FIRNI.superheromod.network.packet.CinematicReadyPacket::encode,
+                com.FIRNI.superheromod.network.packet.CinematicReadyPacket::decode,
+                com.FIRNI.superheromod.network.packet.CinematicReadyPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.GhostChainPacket.class,
+                com.FIRNI.superheromod.network.packet.GhostChainPacket::encode,
+                com.FIRNI.superheromod.network.packet.GhostChainPacket::decode,
+                com.FIRNI.superheromod.network.packet.GhostChainPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, GhostSlamPacket.class,
+                GhostSlamPacket::encode,GhostSlamPacket::decode,GhostSlamPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, HellfireBreathPacket.class,
+                HellfireBreathPacket::encode,HellfireBreathPacket::decode,HellfireBreathPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.GhostBindPacket.class,
+                com.FIRNI.superheromod.network.packet.GhostBindPacket::encode,
+                com.FIRNI.superheromod.network.packet.GhostBindPacket::decode,
+                com.FIRNI.superheromod.network.packet.GhostBindPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.GhostPenancePacket.class,
+                com.FIRNI.superheromod.network.packet.GhostPenancePacket::encode,
+                com.FIRNI.superheromod.network.packet.GhostPenancePacket::decode,
+                com.FIRNI.superheromod.network.packet.GhostPenancePacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.GhostEscapePacket.class,
+                com.FIRNI.superheromod.network.packet.GhostEscapePacket::encode,
+                com.FIRNI.superheromod.network.packet.GhostEscapePacket::decode,
+                com.FIRNI.superheromod.network.packet.GhostEscapePacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.FilmSessionPacket.class,
+                com.FIRNI.superheromod.network.packet.FilmSessionPacket::encode,
+                com.FIRNI.superheromod.network.packet.FilmSessionPacket::decode,
+                com.FIRNI.superheromod.network.packet.FilmSessionPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
     }
 }

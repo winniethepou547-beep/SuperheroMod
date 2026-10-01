@@ -80,7 +80,8 @@ public final class MaximumPowerCinematic {
                         .fog(1.5f, 45.0f, 3.0f, 30.0f).fogColor(FOG_BLOOD)
                         .build())
                 .shot(Shot.of(8).smooth().ease(Easing.OUT)
-                        .move(new Vec3(1.30, 1.50, 1.90), new Vec3(0.60, 1.55, 2.10))
+                        .curve(new Vec3(1.30, 1.50, 1.90), new Vec3(1.12, 1.51, 2.02),
+                                new Vec3(0.83, 1.54, 2.10), new Vec3(0.60, 1.55, 2.10))
                         .lookAtTarget(1.25)
                         .fov(56f).breath(0.4f)
                         .build())
@@ -159,7 +160,8 @@ public final class MaximumPowerCinematic {
 
                 // S12 — MAXIMUM POWER (280-295)
                 .shot(Shot.of(16).smooth().ease(Easing.IN)
-                        .move(new Vec3(-0.55, 1.66, 0.55), new Vec3(-0.16, 1.66, 0.26))
+                        .curve(new Vec3(-0.55, 1.66, 0.55), new Vec3(-0.43, 1.68, 0.48),
+                                new Vec3(-0.21, 1.67, 0.35), new Vec3(-0.16, 1.66, 0.26))
                         .lookAtAttacker(1.66)
                         .fov(38f, 26f).roll(0f, 5f).breath(0.3f)
                         .fog(1.0f, 8.0f, 1.0f, 26.0f).fogColor(FOG_HOT)

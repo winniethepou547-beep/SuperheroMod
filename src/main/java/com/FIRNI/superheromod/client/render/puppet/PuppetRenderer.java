@@ -32,8 +32,11 @@ public final class PuppetRenderer {
 
     private static final List<CinematicPuppet> puppets = new ArrayList<>();
 
-    private static PuppetModel wideModel;
-    private static PuppetModel slimModel;
+    private static final java.util.Map<String,ImportedPuppetModel> models=new java.util.HashMap<>();
+    private static boolean drawingProxy;
+    @SubscribeEvent public static void onLiving(net.minecraftforge.client.event.RenderLivingEvent.Pre<?,?> event) {
+        if(!drawingProxy && isHidden(event.getEntity().getUUID()))event.setCanceled(true);
+    }
 
     private PuppetRenderer() {}
 
@@ -82,22 +85,23 @@ public final class PuppetRenderer {
         }
     }
 
-    private static PuppetModel model(boolean slim) {
-        Minecraft mc = Minecraft.getInstance();
+    public static void preload(com.FIRNI.superheromod.core.cinematic.CinematicDefinition definition) {
+        var prefixes = new java.util.HashSet<String>();
+        prefixes.add("puppet");
+        for (var track : definition.actorTracks) prefixes.add(track.modelPrefix);
+        for (String prefix : prefixes) for (String suffix : new String[]{"_wide", "_slim"})
+            models.computeIfAbsent(prefix + suffix, ImportedPuppetModel::new).warmUp(null);
+        for (var track : definition.actorTracks) for (String suffix : new String[]{"_wide", "_slim"})
+            models.get(track.modelPrefix + suffix).warmUp(track.rigClip);
+    }
 
-        if (slim) {
-            if (slimModel == null) {
-                ModelPart root = mc.getEntityModels().bakeLayer(PuppetModel.LAYER_SLIM);
-                slimModel = new PuppetModel(root);
-            }
-            return slimModel;
-        }
+    private static ImportedPuppetModel model(CinematicPuppet puppet) {
+        String prefix=puppet.track==null?"puppet":puppet.track.modelPrefix;
+        return models.computeIfAbsent(prefix+(puppet.slim?"_slim":"_wide"),ImportedPuppetModel::new);
+    }
 
-        if (wideModel == null) {
-            ModelPart root = mc.getEntityModels().bakeLayer(PuppetModel.LAYER);
-            wideModel = new PuppetModel(root);
-        }
-        return wideModel;
+    public static void prepareRigPose(CinematicPuppet puppet) {
+        if(puppet.sourceEntity==null)model(puppet).preparePose(puppet);
     }
 
     // ------------------------------------------------------------------
@@ -127,7 +131,7 @@ public final class PuppetRenderer {
 
         synchronized (puppets) {
             for (CinematicPuppet puppet : puppets) {
-                if (!puppet.visible) continue;
+                if (!puppet.visible || puppet.scale < 0.001f) continue;
                 draw(pose, buffer, cam, puppet);
             }
         }
@@ -135,10 +139,19 @@ public final class PuppetRenderer {
         buffer.endBatch();
     }
 
+    /** Draws a puppet that is not part of the world scene (a film stage); its position is already in pose space. */
+    public static void drawStaged(PoseStack pose, MultiBufferSource buffer, CinematicPuppet puppet) {
+        if (puppet.visible && puppet.scale >= 0.001f) draw(pose, buffer, Vec3.ZERO, puppet);
+    }
+
     private static void draw(PoseStack pose, MultiBufferSource buffer,
                              Vec3 cam, CinematicPuppet puppet) {
-        PuppetModel model = model(puppet.slim);
-        model.apply(puppet.pose);
+        if(puppet.sourceEntity!=null) {
+            drawMob(pose,buffer,cam,puppet);
+            return;
+        }
+        ImportedPuppetModel model = model(puppet);
+        model.apply(puppet);
 
         pose.pushPose();
         pose.translate(
@@ -149,6 +162,7 @@ public final class PuppetRenderer {
         // Model uzayi ters: entity modelleri bas asagi cizilir ve ayak
         // hizasi 1.5 blok yukaridadir
         pose.mulPose(Axis.YP.rotationDegrees(180.0f - puppet.yaw));
+        pose.scale(puppet.scale, puppet.scale, puppet.scale);
         if (puppet.pose.bodyRoll != 0f) {
             pose.mulPose(Axis.ZP.rotationDegrees(puppet.pose.bodyRoll));
         }
@@ -166,5 +180,20 @@ public final class PuppetRenderer {
         model.render(pose, consumer, light, OverlayTexture.NO_OVERLAY);
 
         pose.popPose();
+    }
+
+    private static void drawMob(PoseStack pose,MultiBufferSource buffer,Vec3 cam,CinematicPuppet puppet) {
+        pose.pushPose();
+        try {
+            pose.translate(puppet.position.x-cam.x,puppet.position.y-cam.y,puppet.position.z-cam.z);
+            pose.scale(puppet.scale,puppet.scale,puppet.scale);
+            pose.mulPose(Axis.ZP.rotationDegrees(puppet.pose.bodyRoll));
+            pose.mulPose(Axis.XP.rotationDegrees(puppet.pose.bodyPitch));
+            drawingProxy=true;
+            var entity=puppet.sourceEntity;
+            var renderer=Minecraft.getInstance().getEntityRenderDispatcher().getRenderer(entity);
+            renderer.render(entity,puppet.yaw,Minecraft.getInstance().getFrameTime(),pose,buffer,
+                    LightTexture.pack(puppet.lightLevel,puppet.lightLevel));
+        } finally { drawingProxy=false;pose.popPose(); }
     }
 }
