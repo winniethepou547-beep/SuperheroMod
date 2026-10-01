@@ -1,6 +1,6 @@
 # SuperheroMod — notes for Claude
 
-Forge 1.20.1 mod (Java 17, package `com.FIRNI.superheromod`). Heroes: **Ghost Rider**, **Cyclops**, **Sandman**.
+Forge 1.20.1 mod (Java 17, package `com.FIRNI.superheromod`). Heroes: **Ghost Rider**, **Cyclops**, **Sandman**, **Thor**.
 Older background and per-feature notes live in `docs/` (Turkish); `docs/PROJE_DEVIR_DOKUMANI.md` is the original handover.
 
 ## Working with the user
@@ -69,6 +69,21 @@ rise, two attack and the defender breaks both (straight right, spinning backhand
 one arm, not the guard), the rest seize and beat them, mound, pillar lifts them, a giant sand soldier rises behind
 and slams them into the sand, the giant then **crumbles into sand** clumps. The user said this one is nearly perfect;
 the defender's body language matters most.
+
+**Thor — God of Thunder (X), `client/render/film/GodOfThunderFilm.java`, 16.5 s.** Shot in the real world: quiet, face
+and eye spark, Mjolnir raised, sky vortex + giant bolt into him, power-up and cry, the target with electricity round
+them, spin + leap (his body is drawn in the air by `ThorFx.leaping`, the real one is held), two-hand overhead, silence,
+plunge, cracked ground with lightning pillars, hammer on shoulder. Server: `heroes/thor/GodOfThunderSession` (70% max
+health at the impact, Thor teleported to the landing spot at the same tick).
+
+## Thor (PvP hero, `heroes/thor/`, `client/render/thor/`)
+- `ThorAction` = every action id and tuning number. `ThorController` (server) decides; clients animate from the synced
+  clock (`ThorStatePacket`) and draw effects from `ThorFxPacket`. Flight and the R rise/dive are steered by the flying
+  player's own client (`ThorClient`).
+- Keys: LMB 3-hit combo (L→R, R→L, uppercut launches), RMB throw/recall, SHIFT spin flight toggle, **E** whirling guard
+  with a 5-tick perfect parry (E does not open the inventory while Thor), R Wakanda strike, X film.
+- `ThorLayer` draws his whole body (the player model is hidden in `HeroArmPose`); `ThorMotion` is the pure pose math;
+  `Mjolnir` the hammer mesh; `ThorBolts` the branching lightning; `ThorFx` world effects, thrown hammer, first person.
 
 ## Other state
 - Ghost Rider gameplay: chain combos with real chain physics, R hellfire breath (damage every second), Hell Cycle

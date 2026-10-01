@@ -46,7 +46,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
  */
 public final class ModNetworking {
 
-    private static final String PROTOCOL_VERSION = "11";
+    private static final String PROTOCOL_VERSION = "12";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(SuperheroMod.MODID, "main"),
@@ -181,6 +181,16 @@ public final class ModNetworking {
                 com.FIRNI.superheromod.network.packet.FilmSessionPacket::encode,
                 com.FIRNI.superheromod.network.packet.FilmSessionPacket::decode,
                 com.FIRNI.superheromod.network.packet.FilmSessionPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.ThorStatePacket.class,
+                com.FIRNI.superheromod.network.packet.ThorStatePacket::encode,
+                com.FIRNI.superheromod.network.packet.ThorStatePacket::decode,
+                com.FIRNI.superheromod.network.packet.ThorStatePacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.ThorFxPacket.class,
+                com.FIRNI.superheromod.network.packet.ThorFxPacket::encode,
+                com.FIRNI.superheromod.network.packet.ThorFxPacket::decode,
+                com.FIRNI.superheromod.network.packet.ThorFxPacket::handle,
                 java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
     }
 }

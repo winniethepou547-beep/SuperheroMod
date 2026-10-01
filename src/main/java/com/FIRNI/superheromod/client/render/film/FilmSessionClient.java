@@ -26,7 +26,8 @@ public final class FilmSessionClient {
     private static final Map<Integer, State> STATES = new HashMap<>();
     private static final Map<String, IntFunction<Film>> FILMS = Map.of(
             MaximumPowerFilm.ID, MaximumPowerFilm::new,
-            SandArmyFilm.ID, SandArmyFilm::new);
+            SandArmyFilm.ID, SandArmyFilm::new,
+            GodOfThunderFilm.ID, GodOfThunderFilm::new);
 
     public static void receive(FilmSessionPacket p) {
         var mc = Minecraft.getInstance();
