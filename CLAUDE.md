@@ -14,12 +14,17 @@ Older background and per-feature notes live in `docs/` (Turkish); `docs/PROJE_DE
   Never push straight to `main`. The user tests the branch locally; merging is their "yes".
   Explain at the end of each request, in Turkish, how to try it (branch name) — see "How the user tests" below.
 
-## How the user tests (explain this to them when relevant)
-1. In IntelliJ: `Git → Fetch`, then the branch widget bottom right → `origin/<branch>` → **Checkout**.
-2. Run `runClient`, try it.
-3. Likes it → merge the PR on GitHub (or ask Claude to). Then in IntelliJ checkout `main` and `Git → Pull`.
-4. Doesn't like it → just checkout `main` again; the PR stays unmerged or is closed. Nothing on `main` changed.
-   If something was already merged and they want the old version back, revert that PR (GitHub "Revert" button).
+## How the user tests — give them ONLY copy-paste terminal lines
+The user does not want menus or steps. At the end of every request, give exactly these three blocks (in
+Turkish labels), with the real branch name filled in. They paste them into IntelliJ's Terminal (PowerShell,
+project folder), then press Run in IntelliJ as usual. Their PC never has local edits, so forced switches are safe.
+- **Denemek için** (try the new branch):
+  `git fetch origin; git switch -f -C deneme origin/<branch>`
+- **Beğenmedim, eski hale dön:**
+  `git switch -f main`
+- **Beğendim:** the user just writes "beğendim" in chat; YOU merge the PR into `main` on GitHub, then give them:
+  `git fetch origin; git switch -f -C main origin/main`
+If they want an already-merged change undone, revert it on GitHub yourself and give them the "Beğendim" line again.
 
 ## Checks to run before handing anything over
 ```
