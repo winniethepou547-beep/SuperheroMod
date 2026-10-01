@@ -12,16 +12,30 @@ import net.minecraft.world.phys.Vec3;
 public final class ChainDynamics {
     /** Choreographed chain shape: t in [0,1] from hand to tip, time in game ticks. */
     public interface Target { Vec3 at(double t, double time); }
-    private static final int COUNT=25;
+    /**
+     * rootStiffness/tipStiffness: spring toward the authored shape, 1/s^2.
+     * drag: velocity kept per 120 Hz step. waveDelay: ticks for the hand's motion to reach the tip.
+     */
+    public record Tuning(double rootStiffness,double tipStiffness,double drag,double waveDelay) {}
+    /** Heavy whip: hand leads, the tip trails, overshoots and settles. */
+    public static final Tuning LASH=new Tuning(2600,320,.988,1.8);
+    /** Fast twin-chain spin: stays on its ring but trails, sags and drags on the ground. */
+    public static final Tuning SPIN=new Tuning(9000,2600,.99,.35);
+    private static final int COUNT=33;
     private static final double STEP=1.0/120, GRAVITY=-9.8*STEP*STEP;
-    // Driven lash tuning.
-    private static final double ROOT_STIFFNESS=2600, TIP_STIFFNESS=320; // 1/s^2
-    private static final double DRIVEN_DRAG=.988, ROPE_DRAG=.993;      // velocity kept per step
-    private static final double WAVE_DELAY=1.8;                          // ticks for the motion to reach the tip
+    private static final double ROPE_DRAG=.993;
     private static final double TIP_INV_MASS=.45;                        // heavier end link carries momentum
+    private static final double LINK_RADIUS=.03, GROUND_FRICTION=.08;
     private final Vec3[] nodes=new Vec3[COUNT], old=new Vec3[COUNT], targets=new Vec3[COUNT];
     private final double[] rest=new double[COUNT-1];
-    private double clock=Double.NaN, pending;
+    private final boolean[] touching=new boolean[COUNT];
+    private double clock=Double.NaN, pending, floor=Double.NEGATIVE_INFINITY;
+    /** Ground height under the chain; links rest on it and drag with friction. */
+    public void floor(double y) { floor=y; }
+    /** Links lying on the ground after the last update, with their sliding speed in blocks/tick. */
+    public void contacts(java.util.function.BiConsumer<Vec3,Vec3> sink) {
+        for(int i=1;i<COUNT;i++)if(touching[i])sink.accept(nodes[i],nodes[i].subtract(old[i]).scale(1/(STEP*20)));
+    }
 
     private boolean needsReset(Vec3 from,double tickTime) {
         return Double.isNaN(clock) || tickTime<clock || tickTime-clock>10 || nodes[0].distanceTo(from)>5;
@@ -59,12 +73,14 @@ public final class ChainDynamics {
         }
         nodes[0]=from;nodes[COUNT-1]=to;
     }
-    public void drive(Target target,double tickTime) {
+    public void drive(Target target,double tickTime) { drive(target,tickTime,LASH); }
+    public void drive(Target target,double tickTime,Tuning tuning) {
         Vec3 hand=target.at(0,tickTime);
         if(needsReset(hand,tickTime)) {
-            for(int i=0;i<COUNT;i++)nodes[i]=old[i]=target.at(i/(double)(COUNT-1),tickTime-WAVE_DELAY*i/(COUNT-1));
+            for(int i=0;i<COUNT;i++)nodes[i]=old[i]=target.at(i/(double)(COUNT-1),tickTime-tuning.waveDelay()*i/(COUNT-1));
             clock=tickTime; pending=0;
         }
+        java.util.Arrays.fill(touching,false);
         int steps=advance(tickTime);
         for(int step=1;step<=steps;step++) {
             // Exact fixed-step time of this substep, so every frame rate samples the same moments.
@@ -73,16 +89,16 @@ public final class ChainDynamics {
             Vec3 previous=target.at(0,time);
             for(int i=0;i<COUNT;i++) {
                 double t=i/(double)(COUNT-1);
-                targets[i]=target.at(t,time-WAVE_DELAY*t);
+                targets[i]=target.at(t,time-tuning.waveDelay()*t);
                 if(i>0){Vec3 now=target.at(t,time);rest[i-1]=Math.max(.004,now.distanceTo(previous));previous=now;}
             }
             nodes[0]=old[0]=targets[0];
             for(int i=1;i<COUNT;i++) {
                 double t=i/(double)(COUNT-1);
-                double k=TIP_STIFFNESS+(ROOT_STIFFNESS-TIP_STIFFNESS)*Math.pow(1-t,1.5);
+                double k=tuning.tipStiffness()+(tuning.rootStiffness()-tuning.tipStiffness())*Math.pow(1-t,1.5);
                 Vec3 current=nodes[i];
                 Vec3 pull=targets[i].subtract(current).scale(k*STEP*STEP);
-                nodes[i]=current.add(current.subtract(old[i]).scale(DRIVEN_DRAG)).add(pull).add(0,GRAVITY,0);
+                nodes[i]=current.add(current.subtract(old[i]).scale(tuning.drag())).add(pull).add(0,GRAVITY,0);
                 old[i]=current;
             }
             // Links are inextensible but go slack under compression, like a real chain.
@@ -100,6 +116,15 @@ public final class ChainDynamics {
             for(int i=1;i<COUNT;i++) {
                 Vec3 d=nodes[i].subtract(nodes[i-1]);double len=d.length();
                 if(len>rest[i-1])nodes[i]=nodes[i-1].add(d.scale(rest[i-1]/len));
+            }
+            // Ground: links cannot sink; sliding links lose speed to friction.
+            for(int i=1;i<COUNT;i++) {
+                double lowest=floor+LINK_RADIUS;
+                if(nodes[i].y>=lowest)continue;
+                nodes[i]=new Vec3(nodes[i].x,lowest,nodes[i].z);
+                Vec3 slide=nodes[i].subtract(old[i]);
+                old[i]=new Vec3(old[i].x+slide.x*GROUND_FRICTION,lowest,old[i].z+slide.z*GROUND_FRICTION);
+                touching[i]=true;
             }
         }
         nodes[0]=hand;

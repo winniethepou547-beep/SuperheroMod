@@ -47,6 +47,28 @@ public final class GhostChainPhysicsCheck {
         Vec3 settled=a.point(1).subtract(a.point(0));
         if(Math.abs(angleOf(settled)-75)>6)throw new AssertionError("Tip did not settle on the lash: "+angleOf(settled));
         System.out.printf("PASS: driven whip lag %.1f deg, overshoot %.1f deg, settled, anchored, inextensible%n",lagSeen,overshoot);
+        spin();
+    }
+    private static void spin() {
+        ChainDynamics d=new ChainDynamics();d.floor(0);
+        ChainDynamics.Target ring=(t,time)->{
+            double angle=com.FIRNI.superheromod.heroes.ghostrider.GhostComboMotion.chargePhase((float)time)-(1-t)*Math.PI*1.75;
+            return new Vec3(0,1.1,0).add(new Vec3(0,(.5+Math.sin(angle)*1.7)*t,(.75+Math.cos(angle)*1.7)*t));
+        };
+        double worst=0;int[] touches={0};
+        for(int i=0;i<=60*3;i++) {
+            double time=i/3.0;
+            d.drive(ring,time,ChainDynamics.SPIN);
+            for(int n=0;n<=32;n++)if(d.point(n/32.0).y<-1e-6)throw new AssertionError("Chain sank into the ground");
+            if(time>20)for(int n=0;n<=8;n++) {
+                Vec3 target=ring.at(n/8.0,time);
+                if(target.y>.3)worst=Math.max(worst,d.point(n/8.0).distanceTo(target));
+            }
+            d.contacts((point,velocity)->touches[0]++);
+        }
+        if(worst>2.2)throw new AssertionError("Spinning chain left its ring: "+worst);
+        if(touches[0]==0)throw new AssertionError("Spinning chain never scraped the ground");
+        System.out.printf("PASS: fast spin follows its ring (max trail %.2f), rests on and scrapes the ground (%d contacts)%n",worst,touches[0]);
     }
     private static ChainDynamics run(int fps,Vec3 a,Vec3 b) {
         ChainDynamics d=new ChainDynamics();

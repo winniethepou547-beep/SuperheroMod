@@ -3,6 +3,7 @@ package com.FIRNI.superheromod.client.render.ghost;
 import com.FIRNI.superheromod.SuperheroMod;
 import com.FIRNI.superheromod.network.packet.GhostChainPacket;
 import com.FIRNI.superheromod.heroes.ghostrider.GhostComboMotion;
+import com.FIRNI.superheromod.heroes.ghostrider.GhostChainController;
 import com.mojang.blaze3d.vertex.*;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
@@ -27,6 +28,29 @@ public final class GhostChainRenderer {
     private static final Map<Integer, ChainDynamics> CHAINS = new HashMap<>();
     private record TrailFrame(double tick, Vec3[] points, float heat) {}
     private static final Map<Integer,Deque<TrailFrame>> TRAILS=new HashMap<>();
+    private static final Map<Integer,Vec3> SHIFT=new HashMap<>();
+    private static double lastFrameClock;
+    private static double groundUnder(Minecraft mc,Player player,Vec3 feet) {
+        var hit=mc.level.clip(new net.minecraft.world.level.ClipContext(feet.add(0,.5,0),feet.add(0,-3,0),
+                net.minecraft.world.level.ClipContext.Block.COLLIDER,net.minecraft.world.level.ClipContext.Fluid.NONE,player));
+        return hit.getType()==net.minecraft.world.phys.HitResult.Type.BLOCK?hit.getLocation().y:Double.NEGATIVE_INFINITY;
+    }
+    /** Light sparks where links scrape the ground, scaled by how fast they slide. */
+    private static void sparks(Minecraft mc,ChainDynamics dynamics) {
+        var random=mc.level.getRandom();
+        dynamics.contacts((point,velocity)->{
+            double speed=velocity.horizontalDistance();
+            if(speed<.35 || random.nextFloat()>Math.min(.22,speed*.06))return;
+            Vec3 kick=velocity.scale(.06).add((random.nextDouble()-.5)*.08,.06+random.nextDouble()*.12,(random.nextDouble()-.5)*.08);
+            mc.level.addParticle(random.nextFloat()<.7f?net.minecraft.core.particles.ParticleTypes.ELECTRIC_SPARK
+                    :net.minecraft.core.particles.ParticleTypes.SMALL_FLAME,point.x,point.y+.03,point.z,kick.x,kick.y,kick.z);
+        });
+    }
+    private static final int MODE_PUNCH=GhostChainController.Mode.PUNCH.ordinal();
+    private static final int TRAIL_POINTS=21, TRAIL_FIRST=6;
+    private static final double TRAIL_INTERVAL=.25, TRAIL_LIFE=2.2;
+    // Link half-length, half-width and wire radius in blocks.
+    private static final double LINK_LENGTH=.088, LINK_WIDTH=.047, LINK_WIRE=.015, LINK_SPACING=.12;
     private static final Map<net.minecraft.client.model.PlayerModel<?>,boolean[]> HIDDEN = new WeakHashMap<>();
     public static boolean pose(net.minecraft.client.model.PlayerModel<?> model, Player player, float age) {
         restore(model);
@@ -70,10 +94,16 @@ public final class GhostChainRenderer {
         return samplePose(s.packet,motionTick(s,partial));
     }
     private static GhostComboMotion.Pose samplePose(GhostChainPacket p,float tick) {
-        if(p.mode()==8)return GhostComboMotion.pose(2,14);
+        if(p.mode()==8)return GhostComboMotion.pose(2,GhostComboMotion.impactTick(2)+2);
         if(p.mode()==7)return GhostComboMotion.chargePose(tick);
         if(p.mode()==6)return GhostComboMotion.pose(0,0);
+        if(p.mode()==MODE_PUNCH)return GhostComboMotion.punch(tick,GhostChainController.PUNCH_CONTACT,GhostChainController.PUNCH_DURATION);
+        if(p.mode()==5)return GhostComboMotion.reel(tick);
         return p.mode()==1?GhostComboMotion.pose(p.combo(),tick):GhostComboMotion.grapple(tick,p.mode()==4);
+    }
+    /** Hands yielding to the spinning chain's pull (model space), shared by the arm mesh and chain anchor. */
+    public static Vec3 chargeShift(Player player,int side) {
+        return SHIFT.getOrDefault(player.getId()*2+(side<0?0:1),Vec3.ZERO);
     }
     public static float chargeTick(Player player,float partial) {
         Sample s=DATA.get(player.getId());
@@ -103,10 +133,21 @@ public final class GhostChainRenderer {
         var old = DATA.get(p.player());
         if(old!=null && (old.packet.mode()!=p.mode() || old.packet.combo()!=p.combo())) {
             TRAILS.remove(p.player()*2);TRAILS.remove(p.player()*2+1);CHAINS.remove(p.player()*2);CHAINS.remove(p.player()*2+1);
+            SHIFT.remove(p.player()*2);SHIFT.remove(p.player()*2+1);
         }
         DATA.put(p.player(), new Sample(p, old == null ? p.tip() : old.packet.tip(), level.getGameTime()));
+        var self=Minecraft.getInstance().player;
+        // Weight lands with the chain: a short kick on the swinging player's own camera.
+        if(self!=null && self.getId()==p.player() && p.mode()==1 && p.age()==GhostComboMotion.impactTick(p.combo()))
+            com.FIRNI.superheromod.client.render.ClientScreenShake.add(p.combo()==2?.34f:.17f);
+        if(p.mode()==MODE_PUNCH && p.age()==GhostChainController.PUNCH_CONTACT
+                && level.getEntity(p.player()) instanceof Player puncher) {
+            Vec3 direction=p.tip().subtract(puncher.getEyePosition()).multiply(1,0,1);
+            GhostSlamEffects.punch(p.tip(),direction.lengthSqr()<1e-4?puncher.getLookAngle():direction.normalize());
+            com.FIRNI.superheromod.client.render.ClientScreenShake.addFromSource(p.tip(),.45f,4);
+        }
     }
-    @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) { DATA.clear(); CHAINS.clear(); TRAILS.clear(); }
+    @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) { DATA.clear(); CHAINS.clear(); TRAILS.clear(); SHIFT.clear(); }
     @SubscribeEvent public static void hud(RenderGuiOverlayEvent.Post e) {
         var mc = Minecraft.getInstance();
         if (mc.player == null || !e.getOverlay().id().getPath().equals("hotbar")) return;
@@ -133,7 +174,8 @@ public final class GhostChainRenderer {
         DATA.entrySet().removeIf(v -> mc.level.getGameTime() - v.getValue().tick > 20);
         CHAINS.keySet().removeIf(id -> !DATA.containsKey(Math.floorDiv(id,2)));
         double clock=mc.level.getGameTime()+mc.getFrameTime();
-        for(var history:TRAILS.values())while(!history.isEmpty() && clock-history.peekFirst().tick>4)history.removeFirst();
+        double frameDt=Math.max(0,Math.min(2,clock-lastFrameClock));lastFrameClock=clock;
+        for(var history:TRAILS.values())while(!history.isEmpty() && clock-history.peekFirst().tick>TRAIL_LIFE)history.removeFirst();
         TRAILS.entrySet().removeIf(v->v.getValue().isEmpty());
         if (DATA.isEmpty()) return;
         PoseStack pose = e.getPoseStack();
@@ -147,7 +189,7 @@ public final class GhostChainRenderer {
         List<Vec3> burning = new ArrayList<>();
         for (Sample sample : DATA.values()) {
             GhostChainPacket p = sample.packet;
-            if(p.mode()==0 || p.mode()==6) { CHAINS.remove(p.player()*2); CHAINS.remove(p.player()*2+1); continue; }
+            if(p.mode()==0 || p.mode()==6 || p.mode()==MODE_PUNCH) { CHAINS.remove(p.player()*2); CHAINS.remove(p.player()*2+1); continue; }
             if (!(mc.level.getEntity(p.player()) instanceof Player player)) continue;
             if (!"ghost_rider".equals(com.FIRNI.superheromod.client.ClientHeroRegistry.get(player.getUUID()))) continue;
             if (player.distanceToSqr(cam) > 96 * 96) continue;
@@ -168,38 +210,59 @@ public final class GhostChainRenderer {
                 continue;
             }
             if(p.mode()==7) {
+                Vec3 feet=player.getPosition(partial);
+                double now=mc.level.getGameTime()+partial, ground=groundUnder(mc,player,feet);
+                double spin=GhostComboMotion.chargeSpin(motionTick);
                 for(int sideSign:new int[]{-1,1}) {
-                    final int sign=sideSign;
-                    java.util.function.DoubleFunction<Vec3> curve=t->GhostComboMotion.chargePoint(player.getPosition(partial),yaw,motionTick,sign,t);
+                    final int sign=sideSign, key=p.player()*2+(sign<0?0:1);
+                    // The anchor uses the same hand shift the arm mesh was drawn with this frame.
+                    Vec3 shift=SHIFT.getOrDefault(key,Vec3.ZERO);
+                    ChainDynamics.Target ring=(t,time)->GhostComboMotion.chargePoint(feet,yaw,(float)(motionTick-(now-time)),sign,t,shift);
+                    ChainDynamics dynamics=CHAINS.computeIfAbsent(key,id->new ChainDynamics());
+                    dynamics.floor(ground);
+                    dynamics.drive(ring,now,ChainDynamics.SPIN);
+                    java.util.function.DoubleFunction<Vec3> curve=dynamics::point;
                     drawLinks(b,pose,curve,110,p.heat(),burning);
                     if(p.heat()>=4)for(int i=0;i<8;i++)HellfireBreathRenderer.contact(curve.apply(i/8.0),.3);
-                    captureTrail(p.player()*2+(sign<0?0:1),curve,clock,p.heat()/10f);
+                    captureTrail(key,curve,clock,p.heat()/10f);
+                    sparks(mc,dynamics);
+                    // Reaction: the chain's pull drags the hands toward it, harder as the spin builds.
+                    Vec3 pull=curve.apply(.08).subtract(curve.apply(0));
+                    Vec3 wanted=Vec3.ZERO;
+                    if(pull.lengthSqr()>1e-6) {
+                        Vec3 local=pull.normalize().yRot((float)Math.toRadians(yaw));
+                        wanted=new Vec3(local.x,-local.y,-local.z).scale(Math.min(.11,.02+.065*spin));
+                    }
+                    double blend=1-Math.exp(-frameDt*2.5);
+                    SHIFT.put(key,shift.lerp(wanted,blend));
                 }
                 continue;
             }
             if(p.mode()==1) {
                 Vec3 feet=player.getPosition(partial);
                 boolean riding=player.getVehicle() instanceof com.FIRNI.superheromod.heroes.ghostrider.HellCycleEntity;
-                double now=mc.level.getGameTime()+partial;
+                double now=mc.level.getGameTime()+partial, ground=groundUnder(mc,player,feet);
                 int[] sides=p.combo()==2?new int[]{-1,1}:new int[]{GhostComboMotion.pose(p.combo(),motionTick).handSide()};
                 for(int slot=0;slot<sides.length;slot++) {
                     int handSide=sides[slot];
                     // Physics time -> choreography time; the hand is the only pinned link.
                     ChainDynamics.Target lash=(t,time)->comboShape(feet,yaw,p.combo(),handSide,riding,(float)(motionTick-(now-time)),t);
                     ChainDynamics dynamics=CHAINS.computeIfAbsent(p.player()*2+slot,id->new ChainDynamics());
+                    dynamics.floor(ground);
                     dynamics.drive(lash,now);
+                    sparks(mc,dynamics);
                     java.util.function.DoubleFunction<Vec3> curve=dynamics::point;
                     double length=0;Vec3 last=curve.apply(0);
                     for(int n=1;n<=12;n++){Vec3 next=curve.apply(n/12.0);length+=next.distanceTo(last);last=next;}
                     if(length<.04)continue;
                     if(motionTick>2 && motionTick<GhostComboMotion.duration(p.combo())-2)
                         captureTrail(p.player()*2+slot,curve,clock,p.heat()/10f);
-                    drawLinks(b,pose,curve,Math.min(240,Math.max(1,(int)(length/.10))),p.heat(),burning);
+                    drawLinks(b,pose,curve,Math.min(240,Math.max(1,(int)(length/LINK_SPACING))),p.heat(),burning);
                     if(p.heat()>=4)for(int i=0;i<8;i++)HellfireBreathRenderer.contact(curve.apply(i/8.0),.3);
                 }
                 continue;
             }
-            Vec3 from = GhostComboMotion.hand(player.getPosition(partial),yaw,GhostComboMotion.grapple(motionTick,p.mode()==4));
+            Vec3 from = GhostComboMotion.hand(player.getPosition(partial),yaw,samplePose(p,motionTick));
             Vec3 to = sample.previous.lerp(p.tip(), partial);
             double length = from.distanceTo(to);
             if (length < 0.04) continue;
@@ -212,16 +275,21 @@ public final class GhostChainRenderer {
         Tesselator.getInstance().end(); RenderSystem.enableCull();
         if(GhostFireMaterial.ready() && !TRAILS.isEmpty()) {
             var buffers=mc.renderBuffers().bufferSource();var ribbon=buffers.getBuffer(GhostFireMaterial.TYPE);
+            // Swept surface between consecutive chain snapshots: a motion smear that is only
+            // visible where the chain actually travels fast, strongest toward the tip.
             for(var history:TRAILS.values()) {
                 TrailFrame previous=null;
                 for(var frame:history) {
-                    if(previous!=null)for(int n=10;n<14;n++) {
+                    if(previous!=null)for(int n=TRAIL_FIRST;n<TRAIL_POINTS-1;n++) {
                         Vec3[] corners={previous.points[n],frame.points[n],frame.points[n+1],previous.points[n+1]};
-                        float opacity=(float)Math.pow(Math.max(0,1-(clock-frame.tick)/3),2)*(.42f+.2f*frame.heat);
+                        double travel=frame.points[n+1].distanceTo(previous.points[n+1])/Math.max(.05,frame.tick-previous.tick);
+                        float speed=(float)Math.min(1,Math.max(0,(travel-.6)/1.8));
+                        float opacity=(float)Math.pow(Math.max(0,1-(clock-frame.tick)/TRAIL_LIFE),1.5)*(.5f+.25f*frame.heat)*speed;
+                        if(opacity<.01f)continue;
                         for(int c=0;c<4;c++) {
                             Vec3 pos=corners[c];
-                            GhostFireMaterial.vertex(ribbon,pose,pos.x,pos.y,pos.z,(float)Math.max(.001,Math.min(.999,1-(clock-(c==0 || c==3?previous.tick:frame.tick))/4)),
-                                    (n-10+(c>=2?1:0))/4f,frame.heat<.4f?.46f:0,.37f,1,opacity);
+                            GhostFireMaterial.vertex(ribbon,pose,pos.x,pos.y,pos.z,(float)Math.max(.001,Math.min(.999,1-(clock-(c==0 || c==3?previous.tick:frame.tick))/TRAIL_LIFE)),
+                                    (n-TRAIL_FIRST+(c>=2?1:0))/(float)(TRAIL_POINTS-1-TRAIL_FIRST),frame.heat<.4f?.46f:0,.37f,1,opacity);
                         }
                     }
                     previous=frame;
@@ -246,9 +314,9 @@ public final class GhostChainRenderer {
     }
     private static void captureTrail(int key,java.util.function.DoubleFunction<Vec3> curve,double clock,float heat) {
         var history=TRAILS.computeIfAbsent(key,id->new ArrayDeque<>());
-        if(history.isEmpty() || clock-history.peekLast().tick>=.5) {
-            Vec3[] points=new Vec3[15];for(int n=0;n<points.length;n++)points[n]=curve.apply(n/14.0);
-            history.addLast(new TrailFrame(clock,points,heat));while(history.size()>9)history.removeFirst();
+        if(history.isEmpty() || clock-history.peekLast().tick>=TRAIL_INTERVAL) {
+            Vec3[] points=new Vec3[TRAIL_POINTS];for(int n=0;n<points.length;n++)points[n]=curve.apply(n/(double)(TRAIL_POINTS-1));
+            history.addLast(new TrailFrame(clock,points,heat));while(history.size()>12)history.removeFirst();
         }
     }
     private static void drawLinks(BufferBuilder b,PoseStack pose,java.util.function.DoubleFunction<Vec3> curve,
@@ -263,16 +331,16 @@ public final class GhostChainRenderer {
             side=side.normalize();Vec3 width=i%2==0?side:axis.cross(side).normalize();Vec3 normal=axis.cross(width);
             for(int a=0;a<10;a++) {
                 double u=a*Math.PI/5,v=(a+1)*Math.PI/5;
-                Vec3 c1=center.add(axis.scale(Math.cos(u)*.072)).add(width.scale(Math.sin(u)*.038));
-                Vec3 c2=center.add(axis.scale(Math.cos(v)*.072)).add(width.scale(Math.sin(v)*.038));
+                Vec3 c1=center.add(axis.scale(Math.cos(u)*LINK_LENGTH)).add(width.scale(Math.sin(u)*LINK_WIDTH));
+                Vec3 c2=center.add(axis.scale(Math.cos(v)*LINK_LENGTH)).add(width.scale(Math.sin(v)*LINK_WIDTH));
                 Vec3 r1=axis.scale(Math.cos(u)).add(width.scale(Math.sin(u))).normalize();
                 Vec3 r2=axis.scale(Math.cos(v)).add(width.scale(Math.sin(v))).normalize();
                 for(int face=0;face<4;face++) {
                     double f=face*Math.PI/2,g=(face+1)*Math.PI/2;
-                    vertex(b,pose.last().pose(),c1.add(r1.scale(Math.cos(f)*.012)).add(normal.scale(Math.sin(f)*.012)),heat,face);
-                    vertex(b,pose.last().pose(),c2.add(r2.scale(Math.cos(f)*.012)).add(normal.scale(Math.sin(f)*.012)),heat,face);
-                    vertex(b,pose.last().pose(),c2.add(r2.scale(Math.cos(g)*.012)).add(normal.scale(Math.sin(g)*.012)),heat,face);
-                    vertex(b,pose.last().pose(),c1.add(r1.scale(Math.cos(g)*.012)).add(normal.scale(Math.sin(g)*.012)),heat,face);
+                    vertex(b,pose.last().pose(),c1.add(r1.scale(Math.cos(f)*LINK_WIRE)).add(normal.scale(Math.sin(f)*LINK_WIRE)),heat,face);
+                    vertex(b,pose.last().pose(),c2.add(r2.scale(Math.cos(f)*LINK_WIRE)).add(normal.scale(Math.sin(f)*LINK_WIRE)),heat,face);
+                    vertex(b,pose.last().pose(),c2.add(r2.scale(Math.cos(g)*LINK_WIRE)).add(normal.scale(Math.sin(g)*LINK_WIRE)),heat,face);
+                    vertex(b,pose.last().pose(),c1.add(r1.scale(Math.cos(g)*LINK_WIRE)).add(normal.scale(Math.sin(g)*LINK_WIRE)),heat,face);
                 }
             }
         }
