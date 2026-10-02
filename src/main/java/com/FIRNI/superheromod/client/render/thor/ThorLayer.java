@@ -181,7 +181,14 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
                     Quaternionf fix = new Quaternionf(now).conjugate().mul(want);
                     p.mulPose(new Quaternionf().slerp(fix, Math.min(1, pose.upright)));
                 }
-                if (pose.lever > .01f) lever(p, root, rootInverse, pose.lever);
+                if (pose.lever > .01f) {
+                    lever(p, root, rootInverse, pose.lever);
+                    if (pose.lever > .3f) {
+                        // Remember where the head is (in the body's frame) for its trail.
+                        var head = new org.joml.Matrix4f(rootInverse).mul(p.last().pose()).transformPosition(new org.joml.Vector3f(0, 11 / 16f, 0));
+                        trail(e.getId(), time).addFirst(new float[]{head.x, head.y, head.z, time});
+                    }
+                }
                 boolean whirling = pose.spinRing > .02f;
                 if (whirling) spinRing(p, b, pose.spinRing, pose.spinMode >= 2);
                 Mjolnir.draw(p, b, light, whirling ? 0 : Math.max(power, pose.eyes > .9f ? .5f : 0), time);
@@ -199,6 +206,35 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
 
         if (power > .05f) aura(p, b, power, time);
         p.popPose();
+        drawTrail(p, b, e.getId(), time);
+    }
+
+    /** Where the hammer head has been over the last few ticks of a swing, per player (body frame). */
+    private final Map<Integer, java.util.ArrayDeque<float[]>> trails = new HashMap<>();
+    private static final float TRAIL_LIFE = 3.5f;
+    private java.util.ArrayDeque<float[]> trail(int id, float time) {
+        if (trails.size() > 64) trails.clear();
+        var t = trails.computeIfAbsent(id, k -> new java.util.ArrayDeque<>());
+        while (!t.isEmpty() && (time - t.peekLast()[3] > TRAIL_LIFE || t.peekLast()[3] > time)) t.removeLast();
+        while (t.size() > 24) t.removeLast();
+        return t;
+    }
+    /** A very thin white streak behind the hammer head, fading within a few ticks. */
+    private void drawTrail(PoseStack p, MultiBufferSource b, int id, float time) {
+        var t = trails.get(id);
+        if (t == null) return;
+        while (!t.isEmpty() && time - t.peekLast()[3] > TRAIL_LIFE) t.removeLast();
+        if (t.size() < 2) return;
+        var m = p.last().pose();
+        float[] last = null;
+        for (float[] pt : t) {
+            if (last != null) {
+                float fade = Math.max(0, 1 - (time - pt[3]) / TRAIL_LIFE);
+                ThorBolts.cross(b.getBuffer(FilmFx.ADD), m, new Vec3(last[0], last[1], last[2]), new Vec3(pt[0], pt[1], pt[2]),
+                        .045 * fade, 0xffffff, .45f * fade);
+            }
+            last = pt;
+        }
     }
 
     /**
@@ -231,8 +267,8 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
     }
 
     /**
-     * A swing: the hammer is turned in the fist so the handle points out away from his body and 45
-     * degrees up, the head out at the end of it leading the blow with its striking face, so it is the
+     * A swing: the hammer is turned in the fist so the handle points straight out away from his body,
+     * nearly level, the head out at the end of it leading the blow with its striking face, so it is the
      * head that lands, not the handle.
      */
     private static void lever(PoseStack p, Quaternionf root, org.joml.Matrix4f rootInverse, float weight) {
@@ -243,7 +279,8 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
         if (out.lengthSquared() < 1e-6f) out.set(0, 0, -1);
         out.normalize();
         org.joml.Vector3f up = new org.joml.Vector3f(0, -1, 0);
-        org.joml.Vector3f handle = new org.joml.Vector3f(out).mul(.7071f).add(new org.joml.Vector3f(up).mul(.7071f)).normalize();
+        // Nearly level, straight out along the line of the swing, like the classic swing: only a slight lift.
+        org.joml.Vector3f handle = new org.joml.Vector3f(out).mul(.985f).add(new org.joml.Vector3f(up).mul(.17f)).normalize();
         // The head's long axis runs along the swing (round the body), so its end face meets the target.
         org.joml.Vector3f along = new org.joml.Vector3f(up).cross(out).normalize();
         org.joml.Vector3f third = new org.joml.Vector3f(along).cross(handle).normalize();
