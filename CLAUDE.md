@@ -1,6 +1,6 @@
 # SuperheroMod — notes for Claude
 
-Forge 1.20.1 mod (Java 17, package `com.FIRNI.superheromod`). Heroes: **Ghost Rider**, **Cyclops**, **Sandman**, **Thor**, **Hulk**.
+Forge 1.20.1 mod (Java 17, package `com.FIRNI.superheromod`). Heroes: **Ghost Rider**, **Cyclops**, **Sandman**, **Thor**, **Hulk**, **Zed**.
 Older background and per-feature notes live in `docs/` (Turkish); `docs/PROJE_DEVIR_DOKUMANI.md` is the original handover.
 
 ## Working with the user
@@ -145,6 +145,19 @@ landing spot and the target to the crater.
 - F split: 1 block/tick, sides wander in and out and the line drifts (`waveLeft/waveRight/waveDrift`), top 3 layers
   thrown, deeper layers cleared a tick or two later (`splitPos/splitAt`) so it opens as the earth flies; `splitDepth` 15.
 - Hulk runs at double speed (attribute); `HulkClient.fov` keeps the view from stretching.
+
+## Zed (PvP assassin, `heroes/zed/`, `client/render/zed/`) — League of Legends reference
+- `ZedAction` = every action id and tuning number; `ZedController` (server) decides everything; `ZedStatePacket`
+  (action/clock, Q/W/E/R cooldowns, W shadow pos/yaw/mimic action/age/left, R shadow, mark target/left/stored) and
+  `ZedFxPacket` drive the clients.
+- Keys: LMB quick slashes (passive Contempt for the Weak), **Q** (ULTIMATE slot) Razor Shuriken, **F** Living Shadow
+  (LoL W; recast swaps), **E** (inventory key, like Thor's guard; slot SKILL_V) Shadow Slash, **R** (SKILL_E slot)
+  Death Mark (recast returns to the R shadow).
+- The W shadow copies Q (its own shuriken from its own spot at the same aim point) and E (its own ring, slows);
+  the R shadow only waits. Mark stores Zed's damage to the target (LivingHurtEvent), pops after `MARK_LIFE`.
+- `ZedBody` draws him from boxes (normal, or SHADOW: near-black translucent + emissive red/violet lines);
+  `ZedLayer` for himself (dissolves during the R dash), `ZedFx` the shadows in the world, shurikens, slash rings,
+  swap trails, the seal on the marked target and its pop, first-person gauntlets. `docs/ZED.md` for the user.
 
 ## Other state
 - Ghost Rider gameplay: chain combos with real chain physics, R hellfire breath (damage every second), Hell Cycle

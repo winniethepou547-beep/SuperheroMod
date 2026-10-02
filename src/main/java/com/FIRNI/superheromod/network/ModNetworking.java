@@ -46,7 +46,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
  */
 public final class ModNetworking {
 
-    private static final String PROTOCOL_VERSION = "13";
+    private static final String PROTOCOL_VERSION = "14";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(SuperheroMod.MODID, "main"),
@@ -207,5 +207,15 @@ public final class ModNetworking {
                 com.FIRNI.superheromod.network.packet.HulkInputPacket::decode,
                 com.FIRNI.superheromod.network.packet.HulkInputPacket::handle,
                 java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.ZedStatePacket.class,
+                com.FIRNI.superheromod.network.packet.ZedStatePacket::encode,
+                com.FIRNI.superheromod.network.packet.ZedStatePacket::decode,
+                com.FIRNI.superheromod.network.packet.ZedStatePacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.ZedFxPacket.class,
+                com.FIRNI.superheromod.network.packet.ZedFxPacket::encode,
+                com.FIRNI.superheromod.network.packet.ZedFxPacket::decode,
+                com.FIRNI.superheromod.network.packet.ZedFxPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
     }
 }
