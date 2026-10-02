@@ -1,4 +1,5 @@
 {
+  "key.superheromod.champion_select": "Champion Select",
   "key.categories.superheromod": "Superhero Mod",
   "key.superheromod.rapid_fire": "Rapid Fire (Optic Burst)",
   "key.superheromod.optic_ascent": "Optic Ascent",
@@ -8,7 +9,7 @@
   "key.superheromod.cine_anchor": "Cinematic: Set Stage Anchor",
   "key.superheromod.cine_capture": "Cinematic: Capture Shot",
   "key.superheromod.cine_export": "Cinematic: Export Shots",
-  "key.superheromod.pose_studio": "Pose Studio (Model Animator)",
+  "key.superheromod.pose_studio_tool": "Pose Studio (Model Animator)",
   "entity.superheromod.sand_soldier": "Sand Soldier",
   "entity.superheromod.giant_sand_soldier": "Giant Sand Soldier",
   "key.superheromod.skill_g": "Skill G (Sand Burst)",

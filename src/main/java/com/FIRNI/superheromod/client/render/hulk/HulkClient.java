@@ -86,6 +86,13 @@ public final class HulkClient {
     public static int smashTick(Entity e) { return ULT_PUNCH; }
 
     /** The pose to draw this frame, eased from the last one so nothing snaps. */
+    /** For a preview (the champion select screen): runs draw with this player as the full Hulk, then puts his real state back. */
+    public static void asHulk(Player p, Runnable draw) {
+        State s = STATES.computeIfAbsent(p.getId(), id -> new State());
+        int flags = s.flags; HulkMotion.Pose shown = s.shown; float shownTime = s.shownTime;
+        s.flags |= FLAG_HULK; s.shown = null;
+        try { draw.run(); } finally { s.flags = flags; s.shown = shown; s.shownTime = shownTime; }
+    }
     public static HulkMotion.Pose pose(Player e, float partial, float time) {
         State s = STATES.computeIfAbsent(e.getId(), id -> new State());
         int action = s.action;

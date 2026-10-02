@@ -173,6 +173,14 @@ landing spot and the target to the crater.
   (70% max health at `ULT_FLASH`, plays on if the target dies — `FilmSessions.Script.outlivesTarget`; Zed teleported
   to `ULT_REVEAL_X/Z` at the end). `docs/ZED.md` for the user.
 
+## Champion select (P)
+- `client/gui/ChampionSelectScreen` (key P; the dev Pose Studio moved to F8 under a new key id) + roster data
+  `client/gui/Champions` (name, title, accent, skills per hero; `MIN_SLOTS` "?" cards for future heroes).
+  Splash art PNGs in `textures/gui/champions/<id>.png`, drawn by `tools/splash/make_all.py` (Pillow; comic-poster
+  style). The preview renders the player's real model as the chosen hero (temporary `ClientHeroRegistry` override;
+  Hulk via `HulkClient.asHulk`). LOCK IN sends `ChampionLockPacket` (server: same as `/superhero hero`, no op needed).
+  New hero = add a `Champion` entry + a splash script.
+
 ## Other state
 - Ghost Rider gameplay: chain combos with real chain physics, R hellfire breath (damage every second), Hell Cycle
   bike, F hell-pit slam. Keep the physics checks passing.
