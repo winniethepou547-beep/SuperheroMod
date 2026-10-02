@@ -61,6 +61,8 @@ public final class ZedController {
         final Map<Integer, Long> passiveReady = new HashMap<>();
         int markTarget = -1, markLeft; float markStored;
         LivingEntity dashTarget; Vec3 dashFrom = Vec3.ZERO, dashTo = Vec3.ZERO;
+        /** He made himself invisible for the Death Mark (and must show himself again). */
+        boolean hidden;
     }
     private static final Map<UUID, State> STATES = new HashMap<>();
 
@@ -70,7 +72,13 @@ public final class ZedController {
     private static State state(ServerPlayer p) { return STATES.computeIfAbsent(p.getUUID(), id -> new State()); }
     private static void set(State s, int action) { s.action = action; s.age = 0; }
     private static boolean busy(State s) {
-        return s.action == MARK_LOCK || s.action == MARK_DASH || s.action == SWAP || s.action == MARK_RETURN;
+        return s.action == MARK_LOCK || s.action == MARK_DASH || s.action == MARK_HIDDEN || s.action == SWAP || s.action == MARK_RETURN
+                || s.action == ULTIMATE;
+    }
+    /** Gone from the world (or back): invisible to everyone, no name over his head. */
+    private static void hide(ServerPlayer p, State s, boolean on) {
+        s.hidden = on;
+        p.setInvisible(on);
     }
     private static void tell(ServerPlayer p, String text) { p.displayClientMessage(Component.literal("§c" + text), true); }
     private static boolean ready(ServerPlayer p, State s, int slot, String name) {
@@ -89,6 +97,7 @@ public final class ZedController {
             case SKILL_F -> shadow(p, s);
             case SKILL_V -> spin(p, s);
             case SKILL_E -> deathMark(p, s);
+            case SKILL_X -> execution(p, s);
             default -> {}
         }
     }
@@ -275,7 +284,7 @@ public final class ZedController {
         if (busy(s)) return;
         if (s.r.alive) { swap(p, s, s.r, true); return; }
         if (!ready(p, s, CD_R, "Ölüm İşareti")) return;
-        LivingEntity target = findTarget(p);
+        LivingEntity target = findTarget(p, R_RANGE);
         if (target == null) { tell(p, "Ölüm İşareti: menzilde hedef yok"); return; }
         s.cooldowns[CD_R] = R_COOLDOWN;
         s.dashTarget = target;
@@ -285,23 +294,23 @@ public final class ZedController {
         sound(p, SoundEvents.WARDEN_HEARTBEAT, 1f, 1.4f);
         sound(p, SoundEvents.ENDERMAN_STARE, .4f, 1.6f);
     }
-    private static LivingEntity findTarget(ServerPlayer p) {
+    static LivingEntity findTarget(ServerPlayer p, double range) {
         Vec3 eye = p.getEyePosition(), look = p.getLookAngle();
         LivingEntity best = null;
         double bestScore = -1;
-        for (LivingEntity e : targets(p, new AABB(eye, eye).inflate(R_RANGE))) {
+        for (LivingEntity e : targets(p, new AABB(eye, eye).inflate(range))) {
             Vec3 to = e.getBoundingBox().getCenter().subtract(eye);
             double d = to.length(), dot = to.normalize().dot(look);
-            if (d > R_RANGE || dot < .8) continue;
+            if (d > range || dot < .8) continue;
             if (p.level().clip(new ClipContext(eye, e.getEyePosition(), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, p)).getType() != HitResult.Type.MISS) continue;
-            double score = dot * 2 - d / R_RANGE;
+            double score = dot * 2 - d / range;
             if (score > bestScore) { bestScore = score; best = e; }
         }
         return best;
     }
     /** Behind the target (or beside, if behind is blocked), facing them. */
-    private static Vec3 behind(ServerPlayer p, LivingEntity t) {
-        Vec3 away = t.position().subtract(p.position());
+    private static Vec3 behind(ServerPlayer p, State s, LivingEntity t) {
+        Vec3 away = t.position().subtract(s.dashFrom);
         away = new Vec3(away.x, 0, away.z).lengthSqr() < 1e-4 ? Vec3.directionFromRotation(0, p.getYRot()) : new Vec3(away.x, 0, away.z).normalize();
         Vec3 side = away.cross(new Vec3(0, 1, 0));
         double gap = t.getBbWidth() * .5 + .9;
@@ -311,20 +320,53 @@ public final class ZedController {
         }
         return t.position();
     }
+    /** He is gone: two shadow copies of him leave for the target; the R shadow stays where he stood. */
+    private static void vanish(ServerPlayer p, State s) {
+        LivingEntity t = s.dashTarget;
+        hide(p, s, true);
+        s.r.alive = true; s.r.pos = s.dashFrom; s.r.yaw = p.getYRot(); s.r.left = R_SHADOW_LIFE + DASH_TICKS + HIDDEN_TICKS; s.r.age = 0;
+        fx(p, FX_MARK_VANISH, s.dashFrom, Vec3.ZERO, 1, p.getId());
+        fx(p, FX_MARK_DASH, s.dashFrom, t.position().subtract(s.dashFrom), 1, t.getId());
+        sound(p, SoundEvents.TRIDENT_RIPTIDE_3, .8f, 1.6f);
+        sound(p, SoundEvents.SOUL_ESCAPE, 1f, .7f);
+        set(s, MARK_DASH);
+    }
+    /** The copies go into the target: the X burns on them. */
+    private static void arrive(ServerPlayer p, State s) {
+        LivingEntity t = s.dashTarget;
+        hurt(p, t, MARK_HIT);
+        s.markTarget = t.getId(); s.markLeft = MARK_LIFE; s.markStored = 0;
+        Vec3 chest = t.position().add(0, t.getBbHeight() * .55, 0);
+        fx(p, FX_MARK_ARRIVE, chest, chest.subtract(s.dashFrom.add(0, 1, 0)), 1, t.getId());
+        p.level().playSound(null, chest.x, chest.y, chest.z, SoundEvents.WITHER_SHOOT, SoundSource.PLAYERS, .5f, 1.9f);
+        p.level().playSound(null, chest.x, chest.y, chest.z, SoundEvents.PLAYER_ATTACK_CRIT, SoundSource.PLAYERS, 1f, .8f);
+        set(s, MARK_HIDDEN);
+    }
+    /** He steps out of the shadow behind them and the X bursts. */
     private static void strike(ServerPlayer p, State s) {
         LivingEntity t = s.dashTarget;
-        if (t == null || !t.isAlive()) { set(s, IDLE); return; }
-        Vec3 to = t.position().subtract(s.dashTo);
-        float yaw = (float) Math.toDegrees(Math.atan2(-to.x, to.z));
-        p.connection.teleport(s.dashTo.x, s.dashTo.y, s.dashTo.z, yaw, 0);
-        p.fallDistance = 0;
-        // The R shadow waits where he started.
-        s.r.alive = true; s.r.pos = s.dashFrom; s.r.yaw = yaw + 180; s.r.left = R_SHADOW_LIFE; s.r.age = 0;
-        s.markTarget = t.getId(); s.markLeft = MARK_LIFE; s.markStored = 0;
-        hurt(p, t, MARK_HIT);
-        fx(p, FX_MARK_APPLY, t.position().add(0, t.getBbHeight() * .55, 0), Vec3.ZERO, 1, t.getId());
+        hide(p, s, false);
+        if (t != null && t.isAlive()) {
+            Vec3 at = behind(p, s, t);
+            Vec3 to = t.position().subtract(at);
+            float yaw = (float) Math.toDegrees(Math.atan2(-to.x, to.z));
+            p.connection.teleport(at.x, at.y, at.z, yaw, 0);
+            p.fallDistance = 0;
+            // The burst: a base, a share of their health, and part of everything he did to them while it burned.
+            float damage = MARK_POP + t.getMaxHealth() * MARK_POP_SHARE + s.markStored * MARK_SHARE;
+            s.markTarget = -1;
+            t.invulnerableTime = 0;
+            t.hurt(p.damageSources().indirectMagic(p, p), damage);
+            Vec3 chest = t.position().add(0, t.getBbHeight() * .55, 0);
+            fx(p, FX_MARK_POP, chest, at.subtract(t.position()), Math.min(1, damage / 20f), t.getId());
+            p.level().playSound(null, chest.x, chest.y, chest.z, SoundEvents.WITHER_BREAK_BLOCK, SoundSource.PLAYERS, .6f, 1.6f);
+            p.level().playSound(null, chest.x, chest.y, chest.z, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, .5f, 1.8f);
+        }
+        s.markTarget = -1;
+        s.r.left = Math.max(s.r.left, R_SHADOW_LIFE);
+        fx(p, FX_MARK_VANISH, p.position(), Vec3.ZERO, -1, p.getId());
         sound(p, SoundEvents.TRIDENT_RIPTIDE_1, .9f, 1.5f);
-        sound(p, SoundEvents.WITHER_SHOOT, .3f, 1.9f);
+        sound(p, SoundEvents.ILLUSIONER_MIRROR_MOVE, .8f, .8f);
         set(s, MARK_STRIKE);
     }
     private static void tickMark(ServerPlayer p, State s) {
@@ -332,23 +374,27 @@ public final class ZedController {
         Entity e = p.level().getEntity(s.markTarget);
         if (!(e instanceof LivingEntity t) || !t.isAlive()) { s.markTarget = -1; return; }
         if (s.markLeft == 12) p.level().playSound(null, t.getX(), t.getY(), t.getZ(), SoundEvents.WARDEN_HEARTBEAT, SoundSource.PLAYERS, 1.2f, .8f);
-        if (--s.markLeft > 0) return;
-        // The seal triggers: part of everything he did to them while it was on them, all at once.
-        float damage = 4 + s.markStored * MARK_SHARE;
-        s.markTarget = -1;
-        t.invulnerableTime = 0;
-        t.hurt(p.damageSources().indirectMagic(p, p), damage);
-        Vec3 at = t.position().add(0, t.getBbHeight() * .55, 0);
-        fx(p, FX_MARK_POP, at, Vec3.ZERO, Math.min(1, damage / 20f), t.getId());
-        p.level().playSound(null, at.x, at.y, at.z, SoundEvents.WITHER_BREAK_BLOCK, SoundSource.PLAYERS, .6f, 1.6f);
-        p.level().playSound(null, at.x, at.y, at.z, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, .5f, 1.8f);
+        if (s.markLeft > 0) s.markLeft--;
+    }
+
+    // ------------------------------------------------------------------ X: Shadow Execution
+    private static void execution(ServerPlayer p, State s) {
+        if (busy(s) || !ready(p, s, CD_X, "Gölge İnfazı")) return;
+        LivingEntity target = findTarget(p, ULT_RANGE);
+        if (target == null || com.FIRNI.superheromod.core.film.FilmSessions.busy(target.getUUID())) { tell(p, "Gölge İnfazı: önünde hedef yok"); return; }
+        if (ZedExecutionSession.start(p, target)) {
+            s.cooldowns[CD_X] = ULT_COOLDOWN;
+            if (s.w.alive) { s.w.alive = false; fx(p, FX_SHADOW_END, s.w.pos, Vec3.ZERO, 1, -1); }
+            set(s, ULTIMATE);
+        }
     }
 
     // ------------------------------------------------------------------ every tick
     @SubscribeEvent public static void tick(TickEvent.PlayerTickEvent e) {
         if (e.phase != TickEvent.Phase.END || !(e.player instanceof ServerPlayer p)) return;
         if (!isHero(p)) {
-            if (STATES.remove(p.getUUID()) != null) send(p, new State());
+            State gone = STATES.remove(p.getUUID());
+            if (gone != null) { if (gone.hidden) p.setInvisible(false); send(p, new State()); }
             return;
         }
         State s = state(p);
@@ -362,15 +408,19 @@ public final class ZedController {
             case SPIN -> { if (s.age == SPIN_HIT) spinHit(p, s); if (s.age >= SPIN_TICKS) set(s, IDLE); }
             case MARK_LOCK -> {
                 if (s.dashTarget == null || !s.dashTarget.isAlive()) { set(s, IDLE); break; }
-                if (s.age >= LOCK_TICKS) {
-                    s.dashTo = behind(p, s.dashTarget);
-                    fx(p, FX_MARK_DASH, s.dashFrom, s.dashTo.subtract(s.dashFrom), 1, s.dashTarget.getId());
-                    sound(p, SoundEvents.TRIDENT_RIPTIDE_3, .8f, 1.6f);
-                    set(s, MARK_DASH);
-                }
+                if (s.age >= LOCK_TICKS) vanish(p, s);
             }
-            case MARK_DASH -> { if (s.age >= DASH_TICKS) strike(p, s); }
+            case MARK_DASH -> {
+                p.setDeltaMovement(Vec3.ZERO);
+                if (s.dashTarget == null || !s.dashTarget.isAlive()) { strike(p, s); break; }
+                if (s.age >= DASH_TICKS) arrive(p, s);
+            }
+            case MARK_HIDDEN -> {
+                p.setDeltaMovement(Vec3.ZERO);
+                if (s.age >= HIDDEN_TICKS || s.dashTarget == null || !s.dashTarget.isAlive()) strike(p, s);
+            }
             case MARK_STRIKE -> { if (s.age >= STRIKE_TICKS) set(s, IDLE); }
+            case ULTIMATE -> { if (!com.FIRNI.superheromod.core.film.FilmSessions.playing(p.getUUID(), ZedExecutionSession.ID)) set(s, IDLE); }
             default -> {}
         }
         tickShadow(p, s, s.w, false);
@@ -417,15 +467,23 @@ public final class ZedController {
         if (s == null || s.markTarget != e.getEntity().getId() || e.getSource().is(net.minecraft.world.damagesource.DamageTypes.INDIRECT_MAGIC)) return;
         s.markStored += e.getAmount();
     }
-    /** Untouchable for the blink of the Death Mark dash. */
+    /** Untouchable while he is gone into shadow for the Death Mark, and while his execution plays. */
     @SubscribeEvent public static void untouchable(LivingAttackEvent e) {
         if (!(e.getEntity() instanceof ServerPlayer p) || !isHero(p)) return;
         State s = STATES.get(p.getUUID());
-        if (s != null && (s.action == MARK_LOCK || s.action == MARK_DASH)) e.setCanceled(true);
+        if (s != null && (s.action == MARK_LOCK || s.action == MARK_DASH || s.action == MARK_HIDDEN || s.action == ULTIMATE)) e.setCanceled(true);
     }
     /** His slashes are his left click; the vanilla punch would hit twice. */
     @SubscribeEvent public static void plainAttack(AttackEntityEvent e) { if (isHero(e.getEntity())) e.setCanceled(true); }
-    @SubscribeEvent public static void logout(PlayerEvent.PlayerLoggedOutEvent e) { STATES.remove(e.getEntity().getUUID()); }
+    @SubscribeEvent public static void logout(PlayerEvent.PlayerLoggedOutEvent e) {
+        State s = STATES.remove(e.getEntity().getUUID());
+        if (s != null && s.hidden) e.getEntity().setInvisible(false);
+    }
+    @SubscribeEvent public static void died(net.minecraftforge.event.entity.living.LivingDeathEvent e) {
+        if (!(e.getEntity() instanceof ServerPlayer p)) return;
+        State s = STATES.get(p.getUUID());
+        if (s != null && s.hidden) hide(p, s, false);
+    }
 
     // ------------------------------------------------------------------ sync
     private static void send(ServerPlayer p, State s) {

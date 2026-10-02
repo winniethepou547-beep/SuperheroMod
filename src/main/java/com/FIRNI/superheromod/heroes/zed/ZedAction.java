@@ -4,17 +4,17 @@ package com.FIRNI.superheromod.heroes.zed;
  * Everything Zed can be doing, shared by the server (which decides) and the clients (which animate
  * it from the synced clock), with every timing and tuning number of his kit in one place.
  * Keys: Q shuriken, F living shadow (his "W": W is the walk key), E shadow slash, R death mark,
- * left click quick slashes (the passive rides on them).
+ * X the Shadow Execution film, left click quick slashes (the passive rides on them).
  */
 public final class ZedAction {
     public static final String ID = "zed";
 
     // ------------------------------------------------------------------ actions (his own and his shadow's)
     public static final int IDLE = 0, SLASH_RIGHT = 1, SLASH_LEFT = 2, THROW = 3, SHADOW_CAST = 4, SWAP = 5, SPIN = 6,
-            MARK_LOCK = 7, MARK_DASH = 8, MARK_STRIKE = 9, MARK_RETURN = 10;
+            MARK_LOCK = 7, MARK_DASH = 8, MARK_STRIKE = 9, MARK_RETURN = 10, MARK_HIDDEN = 11, ULTIMATE = 12;
 
     // ------------------------------------------------------------------ cooldown slots
-    public static final int CD_Q = 0, CD_W = 1, CD_E = 2, CD_R = 3;
+    public static final int CD_Q = 0, CD_W = 1, CD_E = 2, CD_R = 3, CD_X = 4;
 
     // ------------------------------------------------------------------ left click: quick slashes (+ passive)
     public static final int SLASH_TICKS = 7, SLASH_HIT = 3;
@@ -42,14 +42,60 @@ public final class ZedAction {
     public static final float SPIN_DAMAGE = 7;
 
     // ------------------------------------------------------------------ R: Death Mark
-    public static final int LOCK_TICKS = 5, DASH_TICKS = 5, STRIKE_TICKS = 10, MARK_LIFE = 60, R_SHADOW_LIFE = 140,
-            R_COOLDOWN = 900, RETURN_TICKS = 4;
+    /**
+     * He sinks into shadow (LOCK), two shadow copies of him run to the target and into it (DASH), the X
+     * burns on the target while he is gone from the world (HIDDEN, 1.5 s), then he steps out behind
+     * them and the X bursts (STRIKE). The R shadow waits where he started; R again returns to it.
+     */
+    public static final int LOCK_TICKS = 5, DASH_TICKS = 10, HIDDEN_TICKS = 30, STRIKE_TICKS = 10, MARK_LIFE = HIDDEN_TICKS,
+            R_SHADOW_LIFE = 140, R_COOLDOWN = 900, RETURN_TICKS = 4;
     public static final double R_RANGE = 13;
-    public static final float MARK_HIT = 6, MARK_SHARE = .45f;
+    /** The copies going in; the burst: a base, a share of their max health, and a share of what he dealt while it burned. */
+    public static final float MARK_HIT = 4, MARK_POP = 8, MARK_POP_SHARE = .15f, MARK_SHARE = .45f;
+
+    // ------------------------------------------------------------------ X: Shadow Execution (film, see ShadowExecutionFilm)
+    public static final int ULT_COOLDOWN = 1400;
+    public static final double ULT_RANGE = 12;
+    /** Share of the target's max health taken at the red flash. */
+    public static final float ULT_DAMAGE_SHARE = .7f;
+    /** The duel spacing: he faces the target from this far before the victim swings. */
+    public static final double ULT_SPACING = 3;
+    /** Where he stands again at the end, from the victim: x to the side (his right at the start), z along the line. */
+    public static final double ULT_REVEAL_X = -2.4, ULT_REVEAL_Z = -3.4;
+    public static final int
+            ULT_STEP_END = 9,        // if he started further away, a shadow step brings him in
+            ULT_WINDUP = 12,         // the victim draws back a bare-handed hook
+            ULT_DODGE = 18,          // his head and shoulders start to slip it
+            ULT_SWING = 24,          // the fist goes over where his head was
+            ULT_LOW = 25,            // fully compressed under it
+            ULT_BURST = 28,          // the stored compression releases
+            ULT_CUT1 = 33,           // first contact: his blade across their flank, passing round them
+            ULT_LAND1 = 39,
+            ULT_LEAP2 = 44,
+            ULT_CUT2 = 50,           // over the top: the blade down across their shoulders
+            ULT_LAND2 = 56,
+            ULT_DASH3 = 60,
+            ULT_CUT3 = 64,           // the final fast pass
+            ULT_FADE = 70,           // his form starts to lose its solidity
+            ULT_GONE = 84,           // only the two red eyes are left in the moving shadow
+            ULT_EYES_OUT = 92,
+            ULT_CIRCLE = 88,         // the shadow starts circling the victim
+            ULT_POOL = 100,          // the ground under them darkens into a pool
+            ULT_RISE = 124,          // the first soldier starts to pull itself out of the dark
+            ULT_PAUSE = 198,         // a held breath: everything slows
+            ULT_ATTACK = 212,        // every shadow collapses onto the victim
+            ULT_STORM = 220,
+            ULT_FLASH = 236,         // red light bursting inside the storm
+            ULT_COLLAPSE = 242,      // the shadow sinks back into the ground
+            ULT_REVEAL = 252,
+            ULT_REFORM = 280,        // two red eyes in a knot of shadow, at a distance
+            ULT_SOLID = 300,         // his armour readable again
+            ULT_TOTAL = 336;
 
     // ------------------------------------------------------------------ effects
     public static final int FX_SHURIKEN = 0, FX_SHURIKEN_HIT = 1, FX_SPIN = 2, FX_SHADOW_CAST = 3, FX_SWAP = 4, FX_MARK_LOCK = 5,
-            FX_MARK_DASH = 6, FX_MARK_APPLY = 7, FX_MARK_POP = 8, FX_SLASH_HIT = 9, FX_PASSIVE = 10, FX_RETURN = 11, FX_SHADOW_END = 12;
+            FX_MARK_DASH = 6, FX_MARK_APPLY = 7, FX_MARK_POP = 8, FX_SLASH_HIT = 9, FX_PASSIVE = 10, FX_RETURN = 11, FX_SHADOW_END = 12,
+            FX_MARK_VANISH = 13, FX_MARK_ARRIVE = 14;
 
     private ZedAction() {}
 }

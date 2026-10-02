@@ -22,6 +22,8 @@ public interface Film {
     /** One segment: its shots, the scene (null = game world) and the colour it fades through on entry. */
     record Segment(float start, float end, FilmShot[] shots, Scene scene, int fadeColor, float fadeTicks) {}
     record Cue(float time, SoundEvent sound, float volume, float pitch) {}
+    /** A camera the film places itself, moment by moment (stage space), instead of its shots. */
+    record View(Vec3 pos, Vec3 aim, float fov, float roll) {}
 
     Vec3 origin();
     Vec3 forward();
@@ -36,6 +38,10 @@ public interface Film {
     default int grade(float t) { return 0; }
     /** The film's own on-screen text (drawn over the picture, under the impact frames). */
     default void overlay(GuiGraphics g, float t, int width, int height) {}
+    /** The camera at time t if the film drives it itself (lag, overshoot, anything a spline can't do), or null. */
+    default View view(float t) { return null; }
+    /** Event-driven kicks at time t: yaw, pitch, roll and field-of-view offsets in degrees, or null. */
+    default float[] kick(float t) { return null; }
     default float blendIn() { return 6; }
     default float blendOut() { return 10; }
 

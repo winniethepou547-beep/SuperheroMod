@@ -46,7 +46,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
  */
 public final class ModNetworking {
 
-    private static final String PROTOCOL_VERSION = "14";
+    private static final String PROTOCOL_VERSION = "15";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(SuperheroMod.MODID, "main"),

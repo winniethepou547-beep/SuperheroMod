@@ -18,6 +18,7 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.ComputeFovModifierEvent;
 import net.minecraftforge.client.event.InputEvent;
+import net.minecraftforge.client.event.MovementInputUpdateEvent;
 import net.minecraftforge.client.event.RenderGuiEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -71,7 +72,7 @@ public final class ZedClient {
         }
         // The view kicks for the local Zed when he blinks somewhere.
         if (mc.player != null && p.entity() == mc.player.getId() && p.action() != s.action
-                && (p.action() == SWAP || p.action() == MARK_RETURN || p.action() == MARK_DASH)) fovKick = 1;
+                && (p.action() == SWAP || p.action() == MARK_RETURN || p.action() == MARK_DASH || p.action() == MARK_STRIKE)) fovKick = 1;
         s.action = p.action(); s.age = p.age(); s.side = p.flags(); s.cooldowns = p.cooldowns();
         s.wAlive = p.wAlive(); s.wPos = p.wPos(); s.wYaw = p.wYaw(); s.wAction = p.wAction(); s.wAge = p.wAge(); s.wLeft = p.wLeft();
         s.rAlive = p.rAlive(); s.rPos = p.rPos(); s.rYaw = p.rYaw(); s.rLeft = p.rLeft();
@@ -123,6 +124,14 @@ public final class ZedClient {
         e.setCanceled(true);
         e.setSwingHand(false);
     }
+    /** Gone into shadow for the Death Mark: he cannot move until he steps out behind the target. */
+    @SubscribeEvent public static void held(MovementInputUpdateEvent e) {
+        State s = get(e.getEntity());
+        if (s == null || s.action != MARK_DASH && s.action != MARK_HIDDEN) return;
+        var input = e.getInput();
+        input.forwardImpulse = 0; input.leftImpulse = 0; input.jumping = false; input.shiftKeyDown = false;
+        input.up = input.down = input.left = input.right = false;
+    }
     @SubscribeEvent public static void fov(ComputeFovModifierEvent e) {
         if (fovKick < .01f || FilmDirector.playing() || !isHero(e.getPlayer())) return;
         e.setNewFovModifier(e.getNewFovModifier() * (1 + .12f * fovKick));
@@ -140,11 +149,12 @@ public final class ZedClient {
         int h = e.getWindow().getGuiScaledHeight(), w = e.getWindow().getGuiScaledWidth();
         int red = 0xFFE0303A;
         HudStyle.caption(g, font, "ZED", 10, h - 46, red, -1);
-        int row = h - 94;
+        int row = h - 106;
         hint(g, font, AbilityKeyHandler.KEY_ULTIMATE, "Shuriken", s.cooldowns[CD_Q], 10, row);
         hint(g, font, AbilityKeyHandler.KEY_SKILL_F, s.wAlive ? "Gölgeyle Yer Değiştir" : "Canlı Gölge", s.wAlive ? 0 : s.cooldowns[CD_W], 10, row + 12);
         hint(g, font, mc.options.keyInventory, "Gölge Darbesi", s.cooldowns[CD_E], 10, row + 24);
         hint(g, font, AbilityKeyHandler.KEY_RAPID_FIRE, s.rAlive ? "R Gölgesine Dön" : "Ölüm İşareti", s.rAlive ? 0 : s.cooldowns[CD_R], 10, row + 36);
+        hint(g, font, AbilityKeyHandler.KEY_XRAY, "Gölge İnfazı", s.cooldowns[CD_X], 10, row + 48);
         // The shadows' time left, and the mark's.
         int y = h / 2 + 26;
         if (s.wAlive) { HudStyle.caption(g, font, "Gölge", w / 2 - 60, y, HudStyle.MUTED, -1); HudStyle.bar(g, w / 2 - 60, y + 10, 50, s.wLeft / (float) SHADOW_LIFE, 0xFF7A3AD0); }

@@ -7,14 +7,14 @@ import net.minecraft.server.level.ServerPlayer;
 /**
  * Zed, Master of Shadows. Left click: quick slashes (Contempt for the Weak rides on them); Q: Razor
  * Shuriken; F: Living Shadow (send, then swap); E: Shadow Slash; R: Death Mark (recast to return to its
- * shadow). Everything lives per player in ZedController.
+ * shadow); X: Shadow Execution, a film. Everything lives per player in ZedController.
  */
 public final class ZedCharacter extends SuperCharacter {
     public static final String ID = ZedAction.ID;
 
     public ZedCharacter() {
         super(ID, "Zed — Gölgelerin Efendisi");
-        for (AbilitySlot slot : new AbilitySlot[]{AbilitySlot.LMB, AbilitySlot.ULTIMATE, AbilitySlot.SKILL_F, AbilitySlot.SKILL_V, AbilitySlot.SKILL_E})
+        for (AbilitySlot slot : new AbilitySlot[]{AbilitySlot.LMB, AbilitySlot.ULTIMATE, AbilitySlot.SKILL_F, AbilitySlot.SKILL_V, AbilitySlot.SKILL_E, AbilitySlot.SKILL_X})
             registerAbility(new Press(slot));
     }
 

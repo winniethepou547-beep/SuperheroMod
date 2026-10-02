@@ -18,6 +18,11 @@ public final class ZedMotion {
         /** 0 solid .. 1 dissolved into shadow (the Death Mark dash); blades glowing with the passive. */
         public float vanish, glow;
 
+        public Pose right(float x, float y, float z, float elbow) { rArmX = x; rArmY = y; rArmZ = z; rElbow = elbow; return this; }
+        public Pose left(float x, float y, float z, float elbow) { lArmX = x; lArmY = y; lArmZ = z; lElbow = elbow; return this; }
+        public Pose legs(float rx, float rz, float rKnee, float lx, float lz, float lKnee) {
+            rLegX = rx; rLegZ = rz; this.rKnee = rKnee; lLegX = lx; lLegZ = lz; this.lKnee = lKnee; return this;
+        }
         public Pose copy() {
             Pose p = new Pose();
             p.crouch = crouch; p.bodyPitch = bodyPitch; p.torsoYaw = torsoYaw; p.torsoPitch = torsoPitch; p.torsoRoll = torsoRoll; p.headPitch = headPitch; p.headYaw = headYaw;
@@ -66,7 +71,7 @@ public final class ZedMotion {
             case SWAP, MARK_RETURN -> swap(p, t);
             case SPIN -> spin(p, t);
             case MARK_LOCK -> lock(p, t);
-            case MARK_DASH -> dash(p, t);
+            case MARK_DASH, MARK_HIDDEN, ULTIMATE -> gone(p);
             case MARK_STRIKE -> strike(p, t);
             default -> p;
         };
@@ -124,23 +129,26 @@ public final class ZedMotion {
         p.rLegZ += .2f * w; p.lLegZ -= .2f * w; p.rKnee += .5f * w; p.lKnee += .5f * w;
         return p;
     }
-    /** The lock: dead still, square to the target, arms a little out, blades ready. */
+    /** The lock: dead still, square to the target, arms a little out, blades ready; he sinks into his own shadow. */
     static Pose lock(Pose p, float t) {
         float w = snap(t, 0, 2);
         p.crouch += 1.5f * w; p.torsoPitch += .15f * w; p.headPitch = lerp(p.headPitch, -.1f, w); p.torsoYaw = lerp(p.torsoYaw, 0, w);
         p.rArmZ = lerp(p.rArmZ, .5f, w); p.lArmZ = lerp(p.lArmZ, -.5f, w); p.rArmX = lerp(p.rArmX, .25f, w); p.lArmX = lerp(p.lArmX, .25f, w);
         p.glow = w;
+        p.vanish = k(t, 1, LOCK_TICKS);
         return p;
     }
-    /** The lunge: thrown forward, one arm back, one ahead; he melts into shadow on the way. */
-    static Pose dash(Pose p, float t) {
+    /** The lunge his shadow copies run in: thrown forward, one arm back, one ahead. */
+    public static Pose dash(float time) {
+        Pose p = idle(time);
         p.bodyPitch = .55f; p.crouch = 2;
         p.rArmX = .9f; p.rElbow = .2f; p.lArmX = -1.2f; p.lElbow = .2f;
         p.rLegX = .9f; p.rKnee = .5f; p.lLegX = -.9f; p.lKnee = .2f;
-        p.vanish = clamp(t / 2f);
         p.glow = 1;
         return p;
     }
+    /** Not in the world at all (gone into shadow; or a film draws him). */
+    static Pose gone(Pose p) { p.vanish = 1; return p; }
     /** Arriving behind them: crouched, blades crossed out, then up, calm. */
     static Pose strike(Pose p, float t) {
         float w = 1 - k(t, 3, STRIKE_TICKS);
@@ -150,6 +158,12 @@ public final class ZedMotion {
         p.rKnee += .7f * w; p.lKnee += .9f * w; p.lLegX -= .4f * w;
         p.vanish = 1 - k(t, 0, 2);
         p.glow = w;
+        return p;
+    }
+    /** A key pose built by hand (the films): crouch, lean; torso yaw, pitch, roll; head pitch. */
+    public static Pose of(float crouch, float bodyPitch, float torsoYaw, float torsoPitch, float torsoRoll, float headPitch) {
+        Pose p = new Pose();
+        p.crouch = crouch; p.bodyPitch = bodyPitch; p.torsoYaw = torsoYaw; p.torsoPitch = torsoPitch; p.torsoRoll = torsoRoll; p.headPitch = headPitch;
         return p;
     }
 }

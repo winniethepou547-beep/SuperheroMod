@@ -9,14 +9,14 @@ import java.util.function.Supplier;
 
 /**
  * What a Zed is doing: his action and its age, which hand the last slash used, the cooldowns of
- * Q/W/E/R, his two shadows (the W shadow: where, facing, what it is mimicking and since when, ticks
+ * Q/W/E/R/X, his two shadows (the W shadow: where, facing, what it is mimicking and since when, ticks
  * left; the R shadow: where, facing, ticks left) and the Death Mark (who, ticks left, damage stored).
  */
 public record ZedStatePacket(int entity, int action, int age, int flags, int[] cooldowns,
                              boolean wAlive, Vec3 wPos, float wYaw, int wAction, int wAge, int wLeft,
                              boolean rAlive, Vec3 rPos, float rYaw, int rLeft,
                              int markTarget, int markLeft, float markStored) {
-    public static final int COOLDOWNS = 4;
+    public static final int COOLDOWNS = 5;
     private static void vec(FriendlyByteBuf b, Vec3 v) { b.writeFloat((float) v.x); b.writeFloat((float) v.y); b.writeFloat((float) v.z); }
     private static Vec3 vec(FriendlyByteBuf b) { return new Vec3(b.readFloat(), b.readFloat(), b.readFloat()); }
     public static void encode(ZedStatePacket p, FriendlyByteBuf b) {

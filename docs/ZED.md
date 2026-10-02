@@ -2,13 +2,34 @@
 
 Kahramanı seçmek için: `/superhero hero zed`.
 
+## Görünüş
+Klasik Zed: altın tepelikli gümüş miğfer, V kaşın altında kırmızı parlayan iki göz (hareket edince gözlerden ince kırmızı iz),
+ağızda dikey ızgara, kırmızı başlık; boynu saran ve göğse inen kırmızı örtü; altın kenarlı gümüş zırh; yukarı-dışa açılan
+katmanlı omuzluklar; sırtta iki büyük shuriken (bıçakları omuzların üstünden görünür); kısa kırmızı pelerin; her kolda
+yumruğu geçen üç uzun bıçak; altın şeritli, ucu altın dikenli kırmızı etek; koyu bol pantolon; sivri dizli gümüş tozluklar.
+Etrafında hep hafif bir gölge dumanı tüter.
+
 ## Tuşlar
 | Tuş | Ne yapar |
 |---|---|
-| **Sol tık** | Hızlı sağ–sol kesikler. **Pasif (Düşene Tekme):** canı yarının altındaki hedefe ek hasar (maks. canın %8'i), aynı hedefte 10 sn'de bir |
-| **Q** | Keskin Shuriken: baktığın hedefe shuriken; delip geçer (arkadakilere daha az). **W gölgesi varsa o da kendi yerinden aynı hedefe atar** |
-| **F** | Canlı Gölge (LoL'deki W; W yürüme tuşu olduğu için F): gölgeyi ileri gönderir (~9 blok, duvarda durur), 5,5 sn kalır. **Tekrar F: gölgeyle yer değiştir** |
-| **E** | Gölge Darbesi: çevresine dönerek kesme. **W gölgesi de kendi yerinde keser** ve gölgenin vurdukları yavaşlar. Oyuncuya isabet W bekleme süresini 1,5 sn kısaltır. Zed iken E envanteri açmaz |
-| **R** | Ölüm İşareti: önündeki hedefe kilitlenir, gölgeye dönüşüp arkasında belirir, işaretler; başladığı yerde R gölgesi kalır (7 sn). 3 sn içinde hedefe verdiğin hasarın %45'i + 4 işaret patlayınca tekrar vurulur. **Tekrar R: R gölgesine geri dön** |
+| **Sol tık** | Hızlı sağ–sol kesikler. **Pasif:** canı yarının altındaki hedefe ek hasar (maks. canın %8'i), aynı hedefte 10 sn'de bir |
+| **Q** | Keskin Shuriken: dört kıvrık bıçaklı shuriken; arkasında ince kırmızı iz ve onu saran gölge dumanı. Delip geçer. **W gölgesi varsa o da kendi yerinden aynı hedefe atar** |
+| **F** | Canlı Gölge (LoL'deki W; W yürüme tuşu olduğu için F): gölgeyi ileri gönderir (~9 blok), 5,5 sn kalır. **Tekrar F: yer değiştir** |
+| **E** | Gölge Darbesi: yerde karanlık bir halka, kenarında kırmızı hilal kesikler, etrafa saçılan gölge parçacıkları. **W gölgesi de kendi yerinde keser** ve vurdukları yavaşlar. Zed iken E envanteri açmaz |
+| **R** | Ölüm İşareti: önündeki hedefe kilitlenir, gölgeye gömülür; **iki gölge kopyası** arkalarında gölge izi bırakarak hedefe koşup **içine girer**; hedefte **1,5 sn kırmızı X** yanar ve sen o sürede **haritadan kaybolursun** (görünmez, hasar almazsın, kıpırdayamazsın). Sonra hedefin arkasında belirirsin ve X patlar. Başladığın yerde R gölgesi kalır. **Tekrar R: R gölgesine geri dön** |
+| **X** | **GÖLGE İNFAZI** (sinematik, önünde bir hedef ister, 70 sn bekleme) |
 
-W gölgesi Q ve E'yi taklit eder; R gölgesi taklit etmez, sadece geri dönüş noktasıdır. İkisi ayrı ayrı çalışır.
+## X — Gölge İnfazı (16,8 sn, gerçek dünyada)
+1. Okunur bir düello: kurban çıplak elle sert bir kroşe savurur.
+2. Zed önce kafası ve omuzlarıyla, sonra kalçası, en son bacaklarıyla yumruğun altına kayar; iyice sıkışır.
+3. Sıkışma patlar: kurbanın yanından çapraz geçerken bıçağıyla keser (beyaz-sarı kıvılcım, kısa ışık); arkasına iner.
+4. Burgulu bir taklayla kurbanın üstünden geçip omuzlarına iner; önüne düşer.
+5. Son hızlı geçiş: kurbanın yanından, kameranın hemen yanından geçer ve gölgeye dönüşür; bir an sadece iki kırmızı göz kalır.
+6. Gölge kurbanın etrafında düzensiz döner, kameranın önünden geçer, yer kapkara bir gölge havuzuna döner.
+7. Gölge askerleri karanlıktan tek tek doğar (kimi yerden, kimi dumanın içinden); gözleri tek tek yanar. Aralarında gerçek Zed de var.
+8. Kısa bir nefes tutma (her şey yavaşlar, sessizlik), sonra hepsi aynı anda kurbanın üstüne çöker; kurban fırtınanın içinde kaybolur.
+9. Fırtınanın İÇİNDE kırmızı bir ışık patlar (bulutun içinde çakan şimşek gibi), kısa kırmızı parlama ve derin bir kamera darbesi. **Hasar: maks. canın %70'i.**
+10. Gölgeler aşağı akıp yere emilir; kurban yavaş yavaş, yerde yatarken görünür.
+11. Biraz ötede kalan son duman topağından önce gözler, sonra Zed belirir; kıpırdamadan durur. Kontrol yumuşakça geri gelir.
+
+Sesler sadece Minecraft'ın kendi sesleri. Sinematikten sonra Zed son göründüğü yerde durur, kurban kısa bir süre yavaşlar.

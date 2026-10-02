@@ -90,7 +90,8 @@ public final class FilmDirector {
         FilmShot s = shot(seg, t);
         float k = progress(s, t);
         boolean virtual = seg.scene() != null;
-        Vec3 localPos = s.position(k), localAim = s.aim(k);
+        Film.View view = film.view(t);
+        Vec3 localPos = view != null ? view.pos() : s.position(k), localAim = view != null ? view.aim() : s.aim(k);
         Vec3 pos = virtual ? localPos : film.toWorld(localPos), target = virtual ? localAim : film.toWorld(localAim);
         if (!virtual) {
             var hit = mc.level.clip(new ClipContext(target, pos, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, mc.player));
@@ -98,15 +99,18 @@ public final class FilmDirector {
         }
         Vec3 dir = target.subtract(pos).normalize();
         float yaw = (float) Math.toDegrees(Math.atan2(-dir.x, dir.z)), pitch = (float) Math.toDegrees(-Math.asin(Mth.clamp(dir.y, -1, 1)));
-        float shake = Mth.lerp(k, s.shakeA(), s.shakeB());
+        float shake = view != null ? 0 : Mth.lerp(k, s.shakeA(), s.shakeB());
         for (float impact : film.impacts()) if (t >= impact) shake += Math.max(0, 1.1f - (t - impact) * .12f);
         float n1 = noise(t * .55f), n2 = noise(t * .55f + 37), n3 = noise(t * .4f + 91);
         Camera camera = e.getCamera();
         if (virtual) { stageCamera = pos; stageYaw = yaw + n1 * shake * 1.6f; stagePitch = pitch + n2 * shake * 1.2f; w = 1; }
         else setCameraPosition(camera, camera.getPosition().lerp(pos, w));
-        e.setYaw(Mth.rotLerp(w, e.getYaw(), yaw) + n1 * shake * 1.6f * w);
-        e.setPitch(Mth.lerp(w, e.getPitch(), pitch) + n2 * shake * 1.2f * w);
-        e.setRoll(Mth.lerp(w, e.getRoll(), Mth.lerp(k, s.rollA(), s.rollB())) + n3 * shake * 1.4f * w);
+        float[] kick = film.kick(t);
+        float ky = kick == null ? 0 : kick[0], kp = kick == null ? 0 : kick[1], kr = kick == null ? 0 : kick[2];
+        float roll = view != null ? view.roll() : Mth.lerp(k, s.rollA(), s.rollB());
+        e.setYaw(Mth.rotLerp(w, e.getYaw(), yaw) + (n1 * shake * 1.6f + ky) * w);
+        e.setPitch(Mth.lerp(w, e.getPitch(), pitch) + (n2 * shake * 1.2f + kp) * w);
+        e.setRoll(Mth.lerp(w, e.getRoll(), roll) + (n3 * shake * 1.4f + kr) * w);
     }
     @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void fov(ComputeFovModifierEvent e) {
@@ -116,7 +120,11 @@ public final class FilmDirector {
         FilmShot s = shot(segment(film, t), t);
         float punch = 0;
         for (float impact : film.impacts()) if (t >= impact && t < impact + 6) punch += 9 * (1 - (t - impact) / 6);
-        float wanted = (Mth.lerp(progress(s, t), s.fovA(), s.fovB()) + punch) / Math.max(30, mc.options.fov().get());
+        float[] kick = film.kick(t);
+        if (kick != null && kick.length > 3) punch += kick[3];
+        Film.View view = film.view(t);
+        float base = view != null ? view.fov() : Mth.lerp(progress(s, t), s.fovA(), s.fovB());
+        float wanted = (base + punch) / Math.max(30, mc.options.fov().get());
         e.setNewFovModifier(Mth.lerp(w, e.getNewFovModifier(), wanted));
     }
     private static float noise(float x) {
