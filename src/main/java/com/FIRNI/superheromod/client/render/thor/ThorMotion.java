@@ -326,8 +326,8 @@ public final class ThorMotion {
         // The hammer straight out in line with the arm, head first (toward() leaves the wrist alone).
         float hold = out * (1 - end);
         p.wristX = lerp(p.wristX, 0, hold); p.wristY = lerp(p.wristY, 0, hold); p.wristZ = lerp(p.wristZ, 0, hold);
-        // Mjolnir stays upright in the outstretched fist, as when he stands.
-        p.upright = 1; p.holdRise = 1.5708f;
+        // Mjolnir in line with the outstretched arm, head first, pulling him along (as in the comics).
+        p.upright = 1 - hold;
         return p;
     }
     /** F: Mjolnir straight up to the sky, then levelled at what he looks at while the lightning pours out. */
