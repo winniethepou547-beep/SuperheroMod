@@ -61,7 +61,7 @@ public final class ZedLayer extends RenderLayer<AbstractClientPlayer, PlayerMode
         var model = getParentModel();
         if (pose.vanish >= .98f) return;
         ZedBody.capture = true;
-        ZedBody.eyeRight = ZedBody.eyeLeft = ZedBody.tipRight = ZedBody.tipLeft = null;
+        ZedBody.eyeRight = ZedBody.eyeLeft = ZedBody.tipRight = ZedBody.tipLeft = ZedBody.baseRight = ZedBody.baseLeft = null;
         try {
             if (pose.vanish > .02f) ZedBody.draw(p, b, light, pose, walk, amount, model.head.yRot, model.head.xRot, time, ZedBody.SHADOW, .8f * (1 - pose.vanish));
             else ZedBody.draw(p, b, light, pose, walk, amount, model.head.yRot, model.head.xRot, time, ZedBody.NORMAL, 1);
@@ -71,7 +71,7 @@ public final class ZedLayer extends RenderLayer<AbstractClientPlayer, PlayerMode
         // Only a draw in the world counts (not the one in the inventory screen).
         if (ZedBody.eyeRight != null && ZedBody.eyeRight.distanceTo(e.getPosition(partial)) < 3.5) {
             ZedEyes.record(e.getId(), ZedBody.eyeRight, ZedBody.eyeLeft, now, 1);
-            ZedBlades.record(e.getId(), ZedBody.tipRight, ZedBody.tipLeft, now);
+            ZedBlades.record(e.getId(), ZedBody.tipRight, ZedBody.tipLeft, ZedBody.baseRight, ZedBody.baseLeft, now);
         }
     }
 }

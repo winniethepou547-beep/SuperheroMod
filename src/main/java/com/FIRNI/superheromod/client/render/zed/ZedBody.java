@@ -49,7 +49,7 @@ public final class ZedBody {
     public static boolean capture;
     public static Vec3 eyeRight, eyeLeft;
     /** With capture on: where the tips of his main blades are (for their motion trails). */
-    public static Vec3 tipRight, tipLeft;
+    public static Vec3 tipRight, tipLeft, baseRight, baseLeft;
 
     private ZedBody() {}
 
@@ -354,8 +354,8 @@ public final class ZedBody {
         }
         if (mode == SHADOW) glow(p, b, side * 2.5f - .1f, 2, -.2f, .2f, 13, .2f, .35f, .04f, .3f);
         if (capture) {
-            Vec3 tip = world(p, side * 2.8f, 16.2f, -.15f);
-            if (side < 0) tipRight = tip; else tipLeft = tip;
+            Vec3 tip = world(p, side * 2.8f, 16.2f, -.15f), base = world(p, side * 2.5f, 5f, 0);
+            if (side < 0) { tipRight = tip; baseRight = base; } else { tipLeft = tip; baseLeft = base; }
         }
     }
 
