@@ -115,6 +115,8 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
         boolean flying = state != null && state.flying();
         float power = Math.max(pose.aura, state != null && state.powered() ? .5f : 0);
         Cloth c = cloth(e, time, flying);
+        // The model's own frame, to stand the hammer upright against it later.
+        Quaternionf root = p.last().pose().getNormalizedRotation(new Quaternionf());
 
         p.pushPose();
         px(p, 0, -pose.rise, 0);
@@ -150,7 +152,7 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
         p.mulPose(Axis.YP.rotation(pose.torsoYaw)); p.mulPose(Axis.XP.rotation(pose.torsoPitch)); p.mulPose(Axis.ZP.rotation(pose.torsoRoll));
         px(p, 0, -12, 0);
         torso(p, b, light, time, power);
-        cape(p, b, light, c, time);
+        cape(p, b, light, c, time, pose.bodyPitch);
 
         float swingArms = walking && state != null && state.action == 0 ? amount : 0;
         for (int side = -1; side <= 1; side += 2) {
@@ -169,6 +171,13 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
                 px(p, 0, 5.9, 0);
                 p.mulPose(Axis.YP.rotation(pose.wristY));
                 p.mulPose(Axis.XP.rotation(pose.wristX));
+                if (pose.upright > .01f) {
+                    // Turn the hammer, about the fist, until its handle stands straight up in the model's frame.
+                    Quaternionf now = p.last().pose().getNormalizedRotation(new Quaternionf());
+                    Quaternionf want = new Quaternionf(root).rotateX((float) Math.PI);
+                    Quaternionf fix = new Quaternionf(now).conjugate().mul(want);
+                    p.mulPose(new Quaternionf().slerp(fix, Math.min(1, pose.upright)));
+                }
                 boolean whirling = pose.spinRing > .02f;
                 if (whirling) spinRing(p, b, pose.spinRing, pose.spinMode >= 2);
                 Mjolnir.draw(p, b, light, whirling ? 0 : Math.max(power, pose.eyes > .9f ? .5f : 0), time);
@@ -293,15 +302,19 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
     }
 
     /** Four rows of cloth from the shoulders, each bending a little further: it drapes, flows and flaps. */
-    private void cape(PoseStack p, MultiBufferSource b, int light, Cloth c, float time) {
+    private void cape(PoseStack p, MultiBufferSource b, int light, Cloth c, float time, float bodyPitch) {
         p.pushPose();
         px(p, 0, .2, 2.6);
         for (int side = -1; side <= 1; side += 2) {
             p.pushPose(); px(p, side * 3.9, .6, -.1); draw(CAPE_CLASP, p, b, light, SILVER); p.popPose();
         }
-        float lift = Math.max(0, c.lift());
-        float flap = .02f + .06f * lift + .04f * Math.abs(c.speed());
-        p.mulPose(Axis.XP.rotation(.06f + c.lift() * .7f));
+        // Leaning into a launch, the body itself is already lying along the flight: the cape then streams
+        // straight out behind it (and flutters) instead of being lifted up off the back like a sail.
+        float lying = Mth.clamp(bodyPitch / 1.3f, 0, 1);
+        float speedFlap = Math.max(0, c.lift());
+        float lift = speedFlap * (1 - lying);
+        float flap = .02f + .06f * speedFlap + .04f * Math.abs(c.speed()) + .05f * lying;
+        p.mulPose(Axis.XP.rotation(.06f * (1 - lying) + c.lift() * .7f * (1 - lying)));
         p.mulPose(Axis.ZP.rotation(Mth.clamp(c.side(), -.3f, .3f) * .4f));
         for (int row = 0; row < 4; row++) {
             // The wave runs down the cloth: the lower rows answer later and swing further.
@@ -362,11 +375,10 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
         p.pushPose();
         // Rests on the outside of the cape: always tipped back at least as far as the cape is, so the
         // cloth never swings out through it.
-        px(p, 0, .1, 3.75);
-        p.mulPose(Axis.XP.rotation(.22f + Math.max(0, lift) * .85f + (float) Math.sin(time * .25) * .03f * (1 + lift)));
-        draw(HAIR_FLOW, p, b, light, HAIR);
-        px(p, 0, 4.4, .2);
-        p.mulPose(Axis.XP.rotation(lift * .4f + (float) Math.sin(time * .31 + 1) * .08f * (.3f + lift)));
+        // The back of the hair ends at the nape, so nothing hangs over (or through) the cape;
+        // only a short fringe of it moves with the speed.
+        px(p, 0, .2, 3.6);
+        p.mulPose(Axis.XP.rotation(.35f + Math.max(0, lift) * .6f + (float) Math.sin(time * .25) * .03f * (1 + lift)));
         draw(HAIR_TIP, p, b, light, HAIR_DARK);
         p.popPose();
         for (int side = -1; side <= 1; side += 2) {

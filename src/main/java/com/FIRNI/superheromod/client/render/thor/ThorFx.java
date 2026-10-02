@@ -47,6 +47,15 @@ public final class ThorFx {
                         double jag, double branches) {}
     private record Flash(Vec3 at, double size, long start, float life, float alpha) {}
     private record Ring(Vec3 at, double radius, long start, float life) {}
+    /** A tiny shock ring where the hammer lands, facing the way the blow travels. */
+    private record Shock(Vec3 at, Vec3 dir, long start, double size) {}
+    private static final List<Shock> SHOCKS = new ArrayList<>();
+    private static final float SHOCK_LIFE = 5;
+    static void shock(Vec3 at, Vec3 dir, double size) {
+        if (dir.lengthSqr() < 1e-6) dir = new Vec3(0, 1, 0);
+        if (SHOCKS.size() > 24) SHOCKS.remove(0);
+        SHOCKS.add(new Shock(at, dir.normalize(), now(), size));
+    }
     private static final class Cracks {
         Vec3 centre; double radius; long start; float life; boolean ultimate;
         final List<List<Vec3>> lines = new ArrayList<>();
@@ -115,16 +124,19 @@ public final class ThorFx {
         float power = p.power();
         switch (p.kind()) {
             case FX_SWING_HIT -> {
+                shock(at, dir, .8);
                 burst(at, dir, 3, 1.2, .045); flash(at, .9, 4, .7f); sparks(at, 8, .5);
                 shake(at, .12f, 6);
             }
             case FX_UPPER -> {
+                shock(at, new Vec3(0, 1, 0), .9);
                 bolt(at.add(0, -1, 0), at.add(0, 2.8, 0), .07, 5, 3, .3, .5);
                 burst(at, new Vec3(0, 1, 0), 3, 1.4, .045);
                 flash(at, 1.6, 5, .8f); ring(at.add(0, -1, 0), 2.2, 10); sparks(at, 14, .7);
                 shake(at, .32f, 8);
             }
             case FX_HAMMER_HIT -> {
+                shock(at, dir, .8 * power);
                 burst(at, dir.scale(-1), 5, 2.2 * power, .05); flash(at, 1.9 * power, 6, .85f); sparks(at, 18, .8);
                 ring(at, 1.6 * power, 9);
                 shake(at, .38f * power, 10);
@@ -333,11 +345,20 @@ public final class ThorFx {
             if (view != null) { ultimateTick(view, before == null ? -1 : before, ult, r); LAST_ULT.put(p.getId(), ult); }
             else { LAST_ULT.remove(p.getId()); VIEWS.remove(p.getId()); }
         }
+        Map<Integer, Integer> was = new HashMap<>(CARRIED);
         CARRIED.clear();
         for (Player p : mc.level.players()) {
             var s = ThorClient.isThor(p) ? ThorClient.get(p) : null;
             if (s != null && s.action == DASH && s.carried >= 0) CARRIED.put(s.carried, p.getId());
         }
+        // Let go of the hammer: thrown on, tumbling head over heels before landing on their feet.
+        for (var gone : was.entrySet()) {
+            if (CARRIED.containsKey(gone.getKey())) continue;
+            var thor = mc.level.getEntity(gone.getValue());
+            FLUNG.put(gone.getKey(), new Fling(now, thor == null ? 0 : thor.getYRot() + 180));
+        }
+        FLUNG.entrySet().removeIf(f -> now - f.getValue().start() > FLING_TICKS || mc.level.getEntity(f.getKey()) == null);
+        SHOCKS.removeIf(k -> now - k.start() > SHOCK_LIFE);
         HAMMER_TRAILS.keySet().removeIf(id -> mc.level.getEntity(id) == null);
         FLIGHT_TRAILS.keySet().removeIf(id -> mc.level.getEntity(id) == null);
     }
@@ -417,13 +438,16 @@ public final class ThorFx {
         Vec3 target = v.world(path.target(t)), chest = target.add(0, 1.1, 0);
         Vec3 thor = v.world(path.thor(t));
         if (crossed(before, t, ULT_HIT1)) {
+            shock(chest, v.right, .9);
             burst(chest, v.right, 4, 1.4, .05); flash(chest, 1.4, 5, .8f); sparks(chest, 14, .7); ring(chest, 1.2, 8);
         }
         if (crossed(before, t, ULT_HIT2)) {
+            shock(chest, v.forward, 1.0);
             burst(chest, v.forward, 6, 1.8, .06); flash(chest, 2.0, 6, .9f); sparks(chest, 26, 1.0); ring(chest, 1.8, 10);
         }
         if (crossed(before, t, ULT_UPPER)) {
             Vec3 feet = v.world(path.target(ULT_UPPER));
+            shock(feet.add(0, 1.4, 0), new Vec3(0, 1, 0), 1.0);
             bolt(feet, feet.add(0, 6, 0), .1, 6, 3, .25, .6);
             flash(feet.add(0, 1.2, 0), 2.4, 7, 1f); ring(feet.add(0, .05, 0), 3.2, 14); sparks(feet.add(0, 1, 0), 24, 1.1);
             var level = Minecraft.getInstance().level;
@@ -556,7 +580,7 @@ public final class ThorFx {
             var s = ThorClient.get(p);
             if (ThorClient.ultimateTime(p, 0) >= 0 || s != null && s.action == BEAM) storm = true;
         }
-        if (BOLTS.isEmpty() && FLASHES.isEmpty() && RINGS.isEmpty() && CRACKS.isEmpty() && HAMMER_TRAILS.isEmpty() && FLIGHT_TRAILS.isEmpty() && !storm) return;
+        if (BOLTS.isEmpty() && SHOCKS.isEmpty() && FLASHES.isEmpty() && RINGS.isEmpty() && CRACKS.isEmpty() && HAMMER_TRAILS.isEmpty() && FLIGHT_TRAILS.isEmpty() && !storm) return;
         float partial = e.getPartialTick();
         long now = now();
         float time = now + partial;
@@ -572,6 +596,7 @@ public final class ThorFx {
         Matrix4f m = p.last().pose();
         try {
             for (Cracks k : CRACKS) drawCracks(c, m, k, time);
+            for (Shock k : SHOCKS) drawShock(c, m, k, time);
             for (Ring ring : RINGS) {
                 float age = (time - ring.start()) / ring.life();
                 if (age < 0 || age > 1) continue;
@@ -632,6 +657,24 @@ public final class ThorFx {
         }
         if (age < 30) FilmFx.glow(c, k.centre.add(0, .3, 0), k.radius * .25 * (1 - age / 30), ThorBolts.BODY, .5f * (1 - age / 30));
     }
+    /** The shock ring: grows fast from nothing to its size and fades as it goes; thin and faint. */
+    private static void drawShock(FilmContext c, Matrix4f m, Shock k, float time) {
+        float age = (time - k.start()) / SHOCK_LIFE;
+        if (age < 0 || age > 1) return;
+        double radius = k.size() * (.15 + .85 * (1 - (1 - age) * (1 - age))), width = .06 + .05 * age;
+        float alpha = .32f * (1 - age);
+        Vec3 u = ThorBolts.perpendicular(k.dir()), w = k.dir().cross(u);
+        var v = c.buffers().getBuffer(FilmFx.ADD);
+        int n = 24;
+        for (int i = 0; i < n; i++) {
+            double a0 = Math.PI * 2 * i / n, a1 = Math.PI * 2 * (i + 1) / n;
+            Vec3 d0 = u.scale(Math.cos(a0)).add(w.scale(Math.sin(a0))), d1 = u.scale(Math.cos(a1)).add(w.scale(Math.sin(a1)));
+            ThorBolts.put(v, m, k.at().add(d0.scale(radius - width)), 0xdfeaff, 0); ThorBolts.put(v, m, k.at().add(d1.scale(radius - width)), 0xdfeaff, 0);
+            ThorBolts.put(v, m, k.at().add(d1.scale(radius)), 0xdfeaff, alpha); ThorBolts.put(v, m, k.at().add(d0.scale(radius)), 0xdfeaff, alpha);
+            ThorBolts.put(v, m, k.at().add(d0.scale(radius)), 0xdfeaff, alpha); ThorBolts.put(v, m, k.at().add(d1.scale(radius)), 0xdfeaff, alpha);
+            ThorBolts.put(v, m, k.at().add(d1.scale(radius + width)), 0xdfeaff, 0); ThorBolts.put(v, m, k.at().add(d0.scale(radius + width)), 0xdfeaff, 0);
+        }
+    }
     /** A strip lying on the ground from a to b. */
     private static void flat(VertexConsumer v, Matrix4f m, Vec3 a, Vec3 b, double width, int rgb, float alpha) {
         Vec3 side = b.subtract(a).cross(new Vec3(0, 1, 0));
@@ -660,60 +703,81 @@ public final class ThorFx {
      * One clump of storm cloud, dense enough to read against any sky: a solid core, a body and soft
      * edges, slightly lighter on top where the sky lights it.
      */
-    private static int lighten(int rgb, int by) {
-        int r = Math.min(255, (rgb >> 16 & 255) + by), g = Math.min(255, (rgb >> 8 & 255) + by), b = Math.min(255, (rgb & 255) + by);
-        return r << 16 | g << 8 | b;
+    /** A solid block of cloud, its faces shaded by which way they face so it reads as a 3D mass. */
+    private static void block(FilmContext c, Matrix4f m, Vec3 lo, Vec3 hi, int rgb, float bright) {
+        VertexConsumer v = c.buffers().getBuffer(FilmFx.SOLID);
+        float x0 = (float) lo.x, y0 = (float) lo.y, z0 = (float) lo.z, x1 = (float) hi.x, y1 = (float) hi.y, z1 = (float) hi.z;
+        float[][] faces = {
+                {x0, y0, z1, x1, y0, z1, x1, y1, z1, x0, y1, z1}, {x1, y0, z0, x0, y0, z0, x0, y1, z0, x1, y1, z0},
+                {x0, y0, z0, x0, y0, z1, x0, y1, z1, x0, y1, z0}, {x1, y0, z1, x1, y0, z0, x1, y1, z0, x1, y1, z1},
+                {x0, y1, z1, x1, y1, z1, x1, y1, z0, x0, y1, z0}, {x0, y0, z0, x1, y0, z0, x1, y0, z1, x0, y0, z1}};
+        // Sides a step darker than the top, the underside darkest but still lit by the storm's glow.
+        float[] shade = {.8f, .66f, .74f, .74f, 1f, .6f};
+        float r = (rgb >> 16 & 255) / 255f * bright, g = (rgb >> 8 & 255) / 255f * bright, b = (rgb & 255) / 255f * bright;
+        for (int f = 0; f < 6; f++) for (int k = 0; k < 4; k++)
+            v.vertex(m, faces[f][k * 3], faces[f][k * 3 + 1], faces[f][k * 3 + 2])
+                    .color(Math.min(1, r * shade[f]), Math.min(1, g * shade[f]), Math.min(1, b * shade[f]), 1).endVertex();
     }
-    private static void cloud(FilmContext c, Vec3 at, double size, int colour, float alpha) {
-        if (alpha <= .01f) return;
-        int top = lighten(colour, 18);
-        FilmFx.puff(c, at, size * 1.15, colour, alpha);
-        FilmFx.puff(c, at, size * .8, colour, alpha);
-        FilmFx.puff(c, at.add(0, size * .18, 0), size * .55, top, alpha);
+    /** One cloud: a big flat slab with a couple of lumps on it, all solid. */
+    private static void cloudMass(FilmContext c, Matrix4f m, Vec3 centre, double half, double height, double seed, float grown, float bright) {
+        if (grown <= .02f) return;
+        int[] palette = {0x3b404c, 0x464c5a, 0x525a6a};
+        int colour = palette[(int) (FilmFx.hash(seed * 1.7) * 2.99)];
+        double h = height * grown;
+        block(c, m, centre.add(-half, -h / 2, -half * .9), centre.add(half, h / 2, half * .9), colour, bright);
+        for (int i = 0; i < 2; i++) {
+            double s = seed * 3.1 + i * 7.7;
+            double lump = half * (.35 + .25 * FilmFx.hash(s));
+            Vec3 at = centre.add((FilmFx.hash(s + 1) - .5) * half, (i == 0 ? 1 : -1) * h * .45, (FilmFx.hash(s + 2) - .5) * half);
+            block(c, m, at.add(-lump, -lump * .45 * grown, -lump), at.add(lump, lump * .45 * grown, lump), colour, bright * (i == 0 ? 1.08f : .92f));
+        }
     }
 
     /**
-     * The storm: a low ceiling of dark cloud closing over the whole place, wheeling slowly, and banks
-     * of it drifting round the two of them up at the height of the fight. Lightning lights it from inside.
+     * The storm: a low ceiling of solid dark cloud closing over the whole place from the edges in,
+     * turning slowly, and masses of it drifting round the two of them at the height of the fight.
+     * Lightning inside it lights it up.
      */
     private static void storm(FilmContext c, Ult v, float t) {
-        float build = FilmFx.ease((t - (ULT_UPPER + 8)) / 45f) * (1 - .35f * FilmFx.ease((t - ULT_LANDED) / 20f));
+        float build = FilmFx.ease((t - (ULT_UPPER + 8)) / 45f);
         if (build <= .01f) return;
+        Matrix4f m = c.pose().last().pose();
         Vec3 eye = v.world(new Vec3(0, ULT_CLOUDS + 2, v.path.distance()));
-        double spin = t * (.004 + .008 * FilmFx.ease((t - ULT_STORM) / 30f));
-        int[] counts = {1, 9, 15, 21, 27, 33};
-        for (int ring = 0; ring < counts.length; ring++) {
-            int n = counts[ring];
-            double radius = ring * 8.5;
-            // The ceiling closes in from the outside first.
-            float here = FilmFx.ease((t - (ULT_UPPER + 8) - (5 - ring) * 5) / 30f) * (1 - .35f * FilmFx.ease((t - ULT_LANDED) / 20f));
-            for (int i = 0; i < n; i++) {
-                double a = i * Math.PI * 2 / n + spin * (ring % 2 == 0 ? 1 : -.7) + ring * .7;
-                double wobble = FilmFx.hash(i * 7.1 + ring * 3.3);
-                Vec3 at = eye.add(Math.cos(a) * radius, (wobble - .5) * 3 + Math.sin(t * .03 + i) * .4, Math.sin(a) * radius);
-                int colour = wobble < .33 ? 0x30343e : wobble < .66 ? 0x3d424e : 0x4b5160;
-                cloud(c, at, 12 + wobble * 7, colour, here);
-            }
+        float fade = 1 - .3f * FilmFx.ease((t - ULT_LANDED) / 20f);
+        // A flash inside the clouds every so often brightens the whole ceiling for a moment.
+        float bright = (FilmFx.hash(Math.floor(t * .6) * 1.37) > .7 ? 1.45f : 1f) * fade;
+        double spin = t * .004;
+        double cos = Math.cos(spin), sin = Math.sin(spin);
+        int cells = 8;
+        double step = 6.2;
+        for (int i = -cells; i <= cells; i++) for (int j = -cells; j <= cells; j++) {
+            double seed = i * 31.7 + j * 17.3;
+            if (FilmFx.hash(seed) < .14) continue;   // a few gaps
+            double x = i * step + (FilmFx.hash(seed + 5) - .5) * 2.5, z = j * step + (FilmFx.hash(seed + 9) - .5) * 2.5;
+            double dist = Math.sqrt(x * x + z * z);
+            if (dist > cells * step) continue;
+            // Closes in from the edge toward the middle.
+            float grown = FilmFx.ease((t - (ULT_UPPER + 8) - (1 - dist / (cells * step)) * 28) / 22f);
+            Vec3 at = eye.add(x * cos - z * sin, (FilmFx.hash(seed + 3) - .5) * 2.4, x * sin + z * cos);
+            cloudMass(c, m, at, step * .62 + FilmFx.hash(seed + 4) * 1.2, 2.2 + FilmFx.hash(seed + 6) * 2.6, seed, grown, bright);
         }
-        // Banks at the height of the fight, sliding past.
+        // Masses at the height of the fight, sliding round.
         float banks = FilmFx.ease((t - (ULT_UPPER + 20)) / 30f) * (1 - FilmFx.ease((t - ULT_LET_GO) / 30f));
-        if (banks > .01f) {
+        if (banks > .02f) {
             Vec3 mid = v.world(new Vec3(0, ULT_HEIGHT - 2, v.path.distance()));
             for (int ring = 0; ring < 3; ring++) {
-                int n = 12 + ring * 4;
-                double radius = 11 + ring * 8;
+                int n = 9 + ring * 3;
+                double radius = 13 + ring * 8;
                 for (int i = 0; i < n; i++) {
-                    double a = i * Math.PI * 2 / n + t * .01 * (ring + 1) + ring;
-                    double wobble = FilmFx.hash(i * 3.7 + ring * 9.1);
-                    Vec3 at = mid.add(Math.cos(a) * radius, (ring - 1) * 5 + (wobble - .5) * 4, Math.sin(a) * radius);
-                    cloud(c, at, 8 + wobble * 5, wobble < .5 ? 0x353a45 : 0x454b58, .85f * banks);
+                    double seed = i * 3.7 + ring * 9.1;
+                    double a = i * Math.PI * 2 / n + t * .006 * (ring + 1) + ring;
+                    Vec3 at = mid.add(Math.cos(a) * radius, (ring - 1) * 5 + (FilmFx.hash(seed) - .5) * 4, Math.sin(a) * radius);
+                    cloudMass(c, m, at, 2.5 + FilmFx.hash(seed + 1) * 2, 1.6 + FilmFx.hash(seed + 2) * 1.8, seed, banks, bright * .95f);
                 }
             }
         }
-        // Lightning inside the clouds lighting them up from within.
-        float flicker = FilmFx.hash(Math.floor(t * .7) * 1.37) > .55 ? 1 : .25f;
-        FilmFx.glow(c, eye.add(0, -3, 0), 26, ThorBolts.HAZE, .14f * build * flicker);
-        if (t >= ULT_VANISH && t < ULT_RECALL) FilmFx.glow(c, v.world(v.path.cloudPoint()), 10, ThorBolts.BODY, .3f * flicker);
+        FilmFx.glow(c, eye.add(0, -3.5, 0), 22, ThorBolts.HAZE, .12f * build * (bright > 1.2f ? 1 : .3f));
+        if (t >= ULT_VANISH && t < ULT_RECALL) FilmFx.glow(c, v.world(v.path.cloudPoint()).add(0, -2, 0), 9, ThorBolts.BODY, bright > 1.2f ? .45f : .15f);
     }
 
     // ------------------------------------------------------------------ drawing: the thrown hammer and the leap
@@ -740,6 +804,7 @@ public final class ThorFx {
             }
         }
         for (var entry : CARRIED.entrySet()) { if (carried(pose, buffers, cam, entry.getKey(), entry.getValue(), partial)) any = true; }
+        for (var entry : FLUNG.entrySet()) { if (flung(pose, buffers, cam, entry.getKey(), entry.getValue(), partial)) any = true; }
         if (any) buffers.endBatch();
     }
     private static void thrownHammer(PoseStack pose, MultiBufferSource.BufferSource buffers, Vec3 cam, Player p, ThorClient.State s, float partial) {
@@ -808,7 +873,51 @@ public final class ThorFx {
         FilmContext c = new FilmContext(pose, buffers, cam, new Vec3(r.x, r.y, r.z), new Vec3(u.x, u.y, u.z), time, 0, partial);
         drawingCast = true;
         try {
-            cast.draw(c, body.getPosition(partial), thor.getViewYRot(partial) + 180, p, 1, 0xffffff);
+            Vec3 look = thor.getViewVector(partial);
+            Vec3 at = thor.getPosition(partial).add(look.scale(CARRY_AHEAD)).add(0, Math.max(-.6, look.y * .4), 0);
+            cast.draw(c, at, thor.getViewYRot(partial) + 180, p, 1, 0xffffff);
+        } finally {
+            drawingCast = false;
+            pose.popPose();
+        }
+        return true;
+    }
+
+    private record Fling(long start, float yaw) {}
+    private static final int FLING_TICKS = 18;
+    private static final Map<Integer, Fling> FLUNG = new HashMap<>();
+    /** Thrown off the hammer: one full backward flip through the air, limbs flung out, ending upright. */
+    private static boolean flung(PoseStack pose, MultiBufferSource.BufferSource buffers, Vec3 cam, int id, Fling f, float partial) {
+        var mc = Minecraft.getInstance();
+        var body = mc.level.getEntity(id);
+        if (!(body instanceof net.minecraft.world.entity.LivingEntity)) return false;
+        var cast = CASTS.get(id);
+        if (cast == null || cast.entity() != body) { cast = com.FIRNI.superheromod.client.render.film.FilmCast.of(body); CASTS.put(id, cast); }
+        if (cast == null) return false;
+        float age = mc.level.getGameTime() - f.start() + partial, k = Math.min(1, age / FLING_TICKS);
+        float spin = 1 - (1 - k) * (1 - k);
+        float open = (float) Math.sin(Math.PI * k);
+        float flail = (float) Math.sin(age * 1.4) * 14 * open;
+        var p = com.FIRNI.superheromod.core.cinematic.ActorPose.of()
+                .j(com.FIRNI.superheromod.core.cinematic.ActorPose.CHEST, -30 * open, 0, 0)
+                .j(com.FIRNI.superheromod.core.cinematic.ActorPose.HEAD, -25 * open, 0, 0)
+                .j(com.FIRNI.superheromod.core.cinematic.ActorPose.RIGHT_UPPER_ARM, -140 * open + flail, 0, 40 * open)
+                .j(com.FIRNI.superheromod.core.cinematic.ActorPose.LEFT_UPPER_ARM, -130 * open - flail, 0, -40 * open)
+                .j(com.FIRNI.superheromod.core.cinematic.ActorPose.RIGHT_UPPER_LEG, -40 * open + flail, 0, 10 * open)
+                .j(com.FIRNI.superheromod.core.cinematic.ActorPose.RIGHT_LOWER_LEG, 50 * open, 0, 0)
+                .j(com.FIRNI.superheromod.core.cinematic.ActorPose.LEFT_UPPER_LEG, -20 * open - flail, 0, -10 * open)
+                .j(com.FIRNI.superheromod.core.cinematic.ActorPose.LEFT_LOWER_LEG, 40 * open, 0, 0)
+                .body(0, 360 * spin);
+        // The flip turns about the feet; lift the body by its own height mid-flip so it turns about its middle.
+        Vec3 at = body.getPosition(partial).add(0, .9 * Math.sin(Math.PI * spin), 0);
+        pose.pushPose();
+        pose.translate(-cam.x, -cam.y, -cam.z);
+        var rotation = mc.gameRenderer.getMainCamera().rotation();
+        var r = new org.joml.Vector3f(1, 0, 0).rotate(rotation); var u = new org.joml.Vector3f(0, 1, 0).rotate(rotation);
+        FilmContext c = new FilmContext(pose, buffers, cam, new Vec3(r.x, r.y, r.z), new Vec3(u.x, u.y, u.z), age, 0, partial);
+        drawingCast = true;
+        try {
+            cast.draw(c, at, f.yaw(), p, 1, 0xffffff);
         } finally {
             drawingCast = false;
             pose.popPose();
@@ -866,7 +975,7 @@ public final class ThorFx {
     @SubscribeEvent public static void hideTarget(RenderLivingEvent.Pre<?, ?> e) {
         if (drawingCast || drawingProxy) return;
         int id = e.getEntity().getId();
-        if (CARRIED.containsKey(id)) { e.setCanceled(true); return; }
+        if (CARRIED.containsKey(id) || FLUNG.containsKey(id)) { e.setCanceled(true); return; }
         for (Ult v : VIEWS.values()) if (v.target == id) { e.setCanceled(true); return; }
     }
 

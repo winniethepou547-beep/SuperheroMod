@@ -167,7 +167,10 @@ public final class ThorController {
         Entity e = p.level().getEntity(s.carried);
         if (!(e instanceof LivingEntity t) || !t.isAlive()) { s.carried = -1; s.dirty = true; return; }
         Vec3 dir = p.getLookAngle();
-        Vec3 at = p.position().add(dir.scale(CARRY_AHEAD)).add(0, Math.max(-.6, dir.y * .4), 0);
+        // The server hears where he is a tick late; lead by one tick of the launch so the body sits on
+        // the hammer's head, not behind him.
+        double lead = s.age <= dashTicks(s.charge) ? dashSpeed(s.charge) : 0;
+        Vec3 at = p.position().add(dir.scale(CARRY_AHEAD + lead)).add(0, Math.max(-.6, dir.y * .4), 0);
         t.fallDistance = 0;
         if (letGo) {
             Vec3 fling = dir.scale(dashSpeed(s.charge) * CARRY_FLING).add(0, .35, 0);

@@ -25,6 +25,8 @@ public final class ThorMotion {
         public float twoHands;
         /** 1 while Mjolnir is not in his hand at all (thrown away in the film). */
         public float noHammer;
+        /** 1 = the hammer is held dead upright whatever the arm does (standing stances). */
+        public float upright;
 
         public Pose copy() { Pose p = new Pose(); p.set(this); return p; }
         public void set(Pose o) {
@@ -33,7 +35,7 @@ public final class ThorMotion {
             rArmX = o.rArmX; rArmY = o.rArmY; rArmZ = o.rArmZ; rElbow = o.rElbow; lArmX = o.lArmX; lArmY = o.lArmY; lArmZ = o.lArmZ; lElbow = o.lElbow;
             rLegX = o.rLegX; rLegZ = o.rLegZ; rKnee = o.rKnee; lLegX = o.lLegX; lLegZ = o.lLegZ; lKnee = o.lKnee;
             wristX = o.wristX; wristY = o.wristY; spinRing = o.spinRing; spinMode = o.spinMode;
-            eyes = o.eyes; mouth = o.mouth; aura = o.aura; twoHands = o.twoHands; noHammer = o.noHammer;
+            eyes = o.eyes; mouth = o.mouth; aura = o.aura; twoHands = o.twoHands; noHammer = o.noHammer; upright = o.upright;
         }
         /** Blend toward another pose by k (0..1). Spin angles are not blended here (see ThorLayer). */
         public void toward(Pose o, float k) {
@@ -46,7 +48,7 @@ public final class ThorMotion {
             lLegX += (o.lLegX - lLegX) * k; lLegZ += (o.lLegZ - lLegZ) * k; lKnee += (o.lKnee - lKnee) * k;
             spinRing += (o.spinRing - spinRing) * k; spinMode = o.spinMode;
             eyes += (o.eyes - eyes) * k; mouth += (o.mouth - mouth) * k; aura += (o.aura - aura) * k; twoHands += (o.twoHands - twoHands) * k;
-            noHammer = o.noHammer;
+            noHammer = o.noHammer; upright += (o.upright - upright) * k; upright = o.upright;
         }
     }
 
@@ -74,7 +76,7 @@ public final class ThorMotion {
         p.torsoPitch = .05f + breathe; p.headPitch = -.06f - breathe;
         p.rLegZ = .07f; p.lLegZ = -.07f;
         // Mjolnir held up off the ground: forearm forward, the handle rising out of the fist, head on top.
-        p.rArmX = -.3f - breathe; p.rArmZ = .3f; p.rArmY = .05f; p.rElbow = 1.05f; p.wristX = -1.79f;
+        p.rArmX = -.3f - breathe; p.rArmZ = .3f; p.rArmY = .05f; p.rElbow = 1.05f; p.wristX = -1.79f; p.upright = 1;
         p.lArmX = .02f - breathe; p.lArmZ = -.11f; p.lElbow = .22f;
         // Every so often: settles the hammer in his grip, rolls a shoulder, glances aside.
         float cycle = time % 220;
@@ -93,7 +95,7 @@ public final class ThorMotion {
         p.crouch = .35f + breathe * 3; p.torsoPitch = .1f; p.headPitch = -.1f;
         p.rLegZ = .14f; p.lLegZ = -.14f; p.rLegX = .08f; p.lLegX = -.14f; p.rKnee = .1f; p.lKnee = .08f;
         p.torsoYaw = -.12f;
-        p.rArmX = -.62f + breathe; p.rArmZ = .3f; p.rArmY = .1f; p.rElbow = .95f; p.wristX = -1.57f;
+        p.rArmX = -.62f + breathe; p.rArmZ = .3f; p.rArmY = .1f; p.rElbow = .95f; p.wristX = -1.57f; p.upright = 1;
         p.lArmX = -.5f - breathe; p.lArmZ = -.32f; p.lArmY = -.15f; p.lElbow = .7f;
         return p;
     }
@@ -139,6 +141,8 @@ public final class ThorMotion {
             p.bodyPitch = f.bodyPitch; p.rLegX = f.rLegX; p.lLegX = f.lLegX; p.rKnee = f.rKnee; p.lKnee = f.lKnee; p.crouch = 0;
         }
         if (in.powered()) p.eyes = Math.max(p.eyes, .75f);
+        // Only a still stance holds the hammer dead upright; any action steers it with the wrist.
+        if (in.action() != IDLE && in.action() != CATCH) p.upright = 0;
         return p;
     }
     /** Hammer away: the right hand open and a little forward, ready for it to come back. */
