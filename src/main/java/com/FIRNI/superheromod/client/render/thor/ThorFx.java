@@ -560,7 +560,7 @@ public final class ThorFx {
     /** Where the hammer is while the arm holds it out at full stretch, the charged spin out to his right. */
     static Vec3 chargedHammer(Player p) {
         Vec3 f = Vec3.directionFromRotation(0, p.getYRot()), right = f.cross(new Vec3(0, 1, 0)).normalize();
-        return p.position().add(0, 1.35, 0).add(right.scale(.95)).add(f.scale(.55));
+        return p.position().add(0, 1.4, 0).add(right.scale(.45)).add(f.scale(.75));
     }
     /** Hammer head and where the beam stops (a wall, a body or full range), for this frame. */
     static Vec3[] beam(Player p, float partial) {

@@ -279,7 +279,7 @@ public final class ThorMotion {
         p.crouch = lerp(p.crouch, 2.2f, in); p.torsoPitch = lerp(p.torsoPitch, .22f, in); p.headPitch = lerp(p.headPitch, -.25f, in);
         p.rLegZ = .2f; p.lLegZ = -.2f; p.rLegX = .2f; p.lLegX = -.35f; p.rKnee = .5f; p.lKnee = .45f;
         p.torsoYaw = lerp(p.torsoYaw, .1f, in);
-        p.rArmX = lerp(p.rArmX, -1.35f, in); p.rArmY = lerp(p.rArmY, .3f, in); p.rArmZ = lerp(p.rArmZ, .1f, in); p.rElbow = lerp(p.rElbow, .2f, in);
+        p.rArmX = lerp(p.rArmX, -1.35f, in); p.rArmY = lerp(p.rArmY, .05f, in); p.rArmZ = lerp(p.rArmZ, .05f, in); p.rElbow = lerp(p.rElbow, .45f, in);
         p.wristX = -1.5708f;
         p.wristY = spin(t, 2.9f, 3);
         p.spinRing = k(t, .5f, 3); p.spinMode = 2;
@@ -292,13 +292,14 @@ public final class ThorMotion {
         return speed * (t - rampTicks / 2);
     }
 
-    /** Shift held: arm out to his right, Mjolnir whirling there faster and faster. */
+    /** Shift held: Mjolnir whirling close in front of him, faster and faster. */
     static Pose charging(Pose p, float t) {
         float in = k(t, 0, 4), c = clamp(t / CHARGE_FULL);
         p.crouch = lerp(p.crouch, 1.8f + 1.2f * c, in); p.torsoPitch = lerp(p.torsoPitch, .15f, in);
         p.torsoYaw = lerp(p.torsoYaw, .3f, in); p.headPitch = lerp(p.headPitch, -.15f, in);
         p.rLegZ = .2f; p.lLegZ = -.2f; p.rLegX = .25f; p.lLegX = -.35f; p.rKnee = .45f; p.lKnee = .5f;
-        p.rArmX = lerp(p.rArmX, -1.15f, in); p.rArmY = lerp(p.rArmY, .55f, in); p.rArmZ = lerp(p.rArmZ, .4f, in); p.rElbow = lerp(p.rElbow, .2f, in);
+        // Arm forward and a little to his right, elbow soft: the wheel turns close in front of him, facing the way he faces.
+        p.rArmX = lerp(p.rArmX, -1.25f, in); p.rArmY = lerp(p.rArmY, .1f, in); p.rArmZ = lerp(p.rArmZ, .15f, in); p.rElbow = lerp(p.rElbow, .45f, in);
         p.lArmX = lerp(p.lArmX, .25f, in); p.lArmZ = lerp(p.lArmZ, -.45f, in); p.lElbow = lerp(p.lElbow, .5f, in);
         p.wristX = -1.5708f;
         // Speeds up with the charge; at full charge it holds the top speed.
@@ -319,6 +320,9 @@ public final class ThorMotion {
         f.rLegX = .18f; f.lLegX = .05f; f.rKnee = .3f; f.lKnee = .12f; f.rLegZ = .04f; f.lLegZ = -.04f;
         f.eyes = .4f + .6f * charge; f.aura = charge;
         p.toward(f, out * (1 - end));
+        // The hammer straight out in line with the arm, head first (toward() leaves the wrist alone).
+        float hold = out * (1 - end);
+        p.wristX = lerp(p.wristX, 0, hold); p.wristY = lerp(p.wristY, 0, hold); p.wristZ = lerp(p.wristZ, 0, hold);
         return p;
     }
     /** F: Mjolnir straight up to the sky, then levelled at what he looks at while the lightning pours out. */
