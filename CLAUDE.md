@@ -70,13 +70,16 @@ one arm, not the guard), the rest seize and beat them, mound, pillar lifts them,
 and slams them into the sand, the giant then **crumbles into sand** clumps. The user said this one is nearly perfect;
 the defender's body language matters most.
 
-**Thor — God of Thunder: Aerial Punishment (X), `client/render/film/GodOfThunderFilm.java`, 17 s.** Shot in the real
+**Thor — God of Thunder: Aerial Punishment (X), `client/render/film/GodOfThunderFilm.java`, 18 s.** Shot in the real
 world. Both bodies follow `AerialPath` (stage space); `ThorFx.performers` draws Thor (proxy render, real body held)
-and the target as a jointed `FilmCast` puppet (`AerialPath.targetPose`). Beats in `ThorAction.ULT_*`: lunge, L→R hit
-(body bends), R→L hit breaks the X guard, crouch + uppercut sends the target straight up, storm gathers, Thor whirls
-and flies up, catches them at the apex (lock), cry with lightning out of his eyes, lightning columns, whiteout +
-silence, let go, target driven into the ground (crater, 70% max health), Thor glides down beside it.
-Server `GodOfThunderSession` holds both to the end, then teleports Thor to the landing spot and the target to the crater.
+and the target as a jointed `FilmCast` puppet (`AerialPath.targetPose`). Beats in `ThorAction.ULT_*`: lunge, two quick
+hits back to back (L→R bends the body, R→L breaks the X guard), crouch + uppercut sends the target straight up, a real
+cloud ceiling closes in (no darkening filter — the user disliked it), Thor whirls and flies up, flings Mjolnir on into
+the clouds (it sprays lightning and vanishes; the clouds keep flashing there), catches the target empty-handed in a
+two-arm lock (forearms folded behind their back), cry with lightning out of his eyes, columns, whiteout + silence,
+let go, the hammer falls back out of the clouds into his raised hand, target driven into the ground (crater, 70% max
+health), Thor glides down beside it. Server `GodOfThunderSession` holds both to the end, then teleports Thor to the
+landing spot and the target to the crater.
 
 ## Thor (PvP hero, `heroes/thor/`, `client/render/thor/`)
 - `ThorAction` = every action id and tuning number. `ThorController` (server) decides; clients animate from the synced
@@ -84,10 +87,11 @@ Server `GodOfThunderSession` holds both to the end, then teleports Thor to the l
   Thor's own client (`ThorClient`).
 - Keys: LMB 3-hit combo (L→R, R→L, uppercut launches; small camera kick), RMB throw/recall, **SHIFT hold** = hammer
   whirls at his side (Marvel Rivals style), release = launched where he looks, distance by hold time (sparks at full
-  charge), **E** whirling guard with a 5-tick perfect parry (E does not open the inventory while Thor), R Wakanda strike
+  charge); the first body hit sticks to the hammer head and is carried along (drawn as a folded puppet), then flung, **E** whirling guard with a 5-tick perfect parry (E does not open the inventory while Thor), R Wakanda strike
   (bolts lash out of him in the air), **F** hammer to the sky then a 2 s lightning beam (damage + slowness), X film.
-- Look: grey plate with trim and lamellar bands, six silver discs, scale-mail left sleeve, red leather right bracer,
-  red cape with folds (spring-damped lift), shoulder-length hair; hammer held handle-up like the films.
+- Look (Endgame reference): near-black plates, dark gunmetal discs, black scale-mail sleeves, red cape with folds
+  (spring-damped lift), shoulder-length hair; Mjolnir after the prop (silver head, dark engraved end panels, brown
+  handle with silver criss-cross cord, tan strap loop), held upright.
 - `ThorLayer` draws his whole body (the player model is hidden in `HeroArmPose`); `ThorMotion` is the pure pose math;
   `Mjolnir` the hammer mesh; `ThorBolts` the branching lightning; `ThorFx` world effects, thrown hammer, first person.
 

@@ -17,8 +17,10 @@ import static com.FIRNI.superheromod.heroes.thor.ThorAction.*;
  *   driven into the ground, Thor glides down a few blocks away.
  */
 public final class AerialPath {
-    /** The target relative to Thor while he has them locked: a little above him and in front. */
-    public static final Vec3 LOCK = new Vec3(0, .35, .6);
+    /** The target relative to Thor while he has them locked: chest to chest, a little above him. */
+    public static final Vec3 LOCK = new Vec3(0, .3, .31);
+    /** How long the hammer takes to come back down out of the clouds into his hand. */
+    public static final float RECALL_FALL = 14;
     private final double d;
 
     public AerialPath(double distance) { d = distance; }
@@ -70,10 +72,11 @@ public final class AerialPath {
         if (t < ULT_RISE) return new Vec3(0, 0, (d - 1.75) * ease((t - ULT_LUNGE) / 10f));
         Vec3 lock = target(ULT_CATCH).subtract(LOCK);
         if (t < ULT_APEX) {
-            // Thrown upward by the whirl: fast off the ground, still climbing hard as he comes up under them.
+            // Thrown upward by the whirl; he lets the hammer fly on into the storm and keeps climbing on the
+            // momentum, slowing as he comes up under them.
             float k = clamp((t - ULT_RISE) / (ULT_APEX - ULT_RISE));
             Vec3 under = new Vec3(0, ULT_HEIGHT - 3.2, lock.z);
-            double up = Math.pow(k, 1.3);
+            double up = 1 - Math.pow(1 - k, 1.6);
             return new Vec3(0, under.y * up, strike.z + (under.z - strike.z) * ease(k));
         }
         if (t < ULT_CATCH) {
@@ -91,6 +94,32 @@ public final class AerialPath {
         y *= 1 - ease((k - .2f) / .8f);
         double h = ease((k - .1f) / .7f);
         return new Vec3(release.x + (land.x - release.x) * h, Math.max(0, y), release.z + (land.z - release.z) * h);
+    }
+
+    /** True while Mjolnir is out of his hand: thrown up into the storm until it comes back down to him. */
+    public static boolean hammerAway(float t) { return t >= ULT_TOSS && t < ULT_RECALL; }
+
+    /** Where in the clouds the hammer disappears (and where its lightning keeps flashing). */
+    public Vec3 cloudPoint() { return new Vec3(.8, ULT_CLOUDS, d + ULT_KNOCK + .6); }
+
+    /**
+     * Where the thrown hammer is, or null when it is in his hand or lost in the clouds: flung up out
+     * of his hand, faster and faster, past the target and into the storm; later, falling back down
+     * out of it into his raised hand.
+     */
+    public Vec3 hammer(float t) {
+        if (t >= ULT_TOSS && t < ULT_VANISH) {
+            float k = clamp((t - ULT_TOSS) / (ULT_VANISH - ULT_TOSS));
+            Vec3 from = thor(ULT_TOSS).add(.3, 2.3, .1), to = cloudPoint().add(0, 1.5, 0);
+            double along = Math.pow(k, 1.4);
+            return from.lerp(to, along).add(.6 * Math.sin(Math.PI * k), 0, 0);
+        }
+        if (t >= ULT_RECALL - RECALL_FALL && t < ULT_RECALL) {
+            float k = clamp((t - (ULT_RECALL - RECALL_FALL)) / RECALL_FALL);
+            Vec3 from = cloudPoint(), to = thor(ULT_RECALL).add(.36, 2.25, 0);
+            return from.lerp(to, k * k);
+        }
+        return null;
     }
 
     /** Which way Thor faces, in Minecraft yaw degrees added to the stage's own facing. */
@@ -117,6 +146,10 @@ public final class AerialPath {
             float a = (float) Math.sin(t * .55) * .35f * f, b = (float) Math.sin(t * .41 + 1.3) * .3f * f;
             p.rot[RIGHT_UPPER_ARM][0] += a; p.rot[LEFT_UPPER_ARM][0] -= b;
             p.rot[RIGHT_UPPER_LEG][0] += b * .6f; p.rot[LEFT_UPPER_LEG][0] -= a * .6f;
+        }
+        if (t >= ULT_APEX - 4 && t < ULT_CATCH + 2) {
+            // Hanging at the top as he comes up under them: head lolls, arms drift.
+            p.rot[HEAD][0] += (float) Math.sin(t * .2) * .08f;
         }
         if (t >= ULT_CATCH && t < ULT_LET_GO) {
             // Held in the lock while the lightning runs through both of them.
@@ -169,8 +202,8 @@ public final class AerialPath {
         ActorPose down = of().j(HEAD, 8, 20, 0).j(RIGHT_UPPER_ARM, -10, 0, 75).j(RIGHT_LOWER_ARM, -20, 0, 0).j(LEFT_UPPER_ARM, -5, 0, -70)
                 .j(LEFT_LOWER_ARM, -15, 0, 0).j(RIGHT_UPPER_LEG, -6, 0, 10).j(LEFT_UPPER_LEG, -14, 0, -8).j(LEFT_LOWER_LEG, 30, 0, 0).body(0, 88);
         return new FilmCast.Track().key(0, 0, ready).key(ULT_LUNGE + 6, 8, wary, noticeChain())
-                .key(ULT_HIT1 + 2, 3, bent, impactChain()).key(ULT_HIT1 + 10, 8, wary)
-                .key(ULT_HIT2 - 4, 5, block, noticeChain()).key(ULT_HIT2 + 2, 3, broken, impactChain())
+                .key(ULT_HIT1 + 2, 3, bent, impactChain()).key(ULT_HIT1 + 7, 5, wary)
+                .key(ULT_HIT2 - 2, 4, block, noticeChain()).key(ULT_HIT2 + 2, 3, broken, impactChain())
                 .key(ULT_HIT2 + 12, 10, reeling).key(ULT_UPPER - 2, 6, reeling)
                 .key(ULT_UPPER + 2, 3, launched, launchChain()).key(ULT_UPPER + 30, 25, rising)
                 .key(ULT_APEX + 2, 10, apex).key(ULT_CATCH + 3, 4, locked, impactChain()).key(ULT_LET_GO - 2, 10, locked)

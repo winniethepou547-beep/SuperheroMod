@@ -53,14 +53,21 @@ public final class ThorAction {
     public static final float WK_DAMAGE = 14;
 
     // ------------------------------------------------------------------ God of Thunder — Aerial Punishment (X)
-    public static final int ULT_TOTAL = 340, ULT_COOLDOWN = 900;
+    public static final int ULT_TOTAL = 362, ULT_COOLDOWN = 900;
     public static final float ULT_DAMAGE_SHARE = .7f;
     /** Beats of the film, in ticks. */
-    public static final int ULT_LUNGE = 14, ULT_HIT1 = 34, ULT_HIT2 = 54, ULT_LOAD = 64, ULT_UPPER = 79, ULT_SPIN = 110,
-            ULT_RISE = 130, ULT_APEX = 150, ULT_CATCH = 156, ULT_SCREAM = 172, ULT_EYEBOLT = 180, ULT_STORM = 186,
-            ULT_WHITE = 206, ULT_BLAST = 228, ULT_FADE = 246, ULT_LET_GO = 256, ULT_CRASH = 288, ULT_LANDED = 320;
-    /** How high the uppercut sends the target, and where Thor lands (stage: right of the line, short of the crater). */
-    public static final double ULT_HEIGHT = 22, ULT_LAND_X = 2.6, ULT_LAND_SHORT = 1.3, ULT_KNOCK = .55;
+    public static final int ULT_LUNGE = 14, ULT_HIT1 = 31, ULT_HIT2 = 45, ULT_LOAD = 52, ULT_UPPER = 67, ULT_SPIN = 104,
+            ULT_RISE = 124, ULT_TOSS = 146, ULT_VANISH = 166, ULT_APEX = 168, ULT_CATCH = 178, ULT_SCREAM = 192,
+            ULT_EYEBOLT = 200, ULT_STORM = 206, ULT_WHITE = 226, ULT_BLAST = 248, ULT_FADE = 266, ULT_LET_GO = 276,
+            ULT_RECALL = 292, ULT_CRASH = 308, ULT_LANDED = 340;
+    /** The two opening hits play this much faster than the gameplay swings (1 = same speed). */
+    public static final float ULT_SWING_PACE = .85f;
+    /** How high the uppercut sends the target, where the hammer vanishes into the clouds above it, and where Thor lands. */
+    public static final double ULT_HEIGHT = 22, ULT_CLOUDS = 33, ULT_LAND_X = 2.6, ULT_LAND_SHORT = 1.3, ULT_KNOCK = .55;
+
+    // ------------------------------------------------------------------ Shift launch: whoever the hammer hits rides on it
+    /** How far in front of Thor the carried body sits, and how hard it is thrown when the launch ends. */
+    public static final double CARRY_AHEAD = 1.45, CARRY_FLING = .7;
 
     // ------------------------------------------------------------------ effects (ThorFxPacket kinds)
     public static final int FX_SWING_HIT = 0, FX_UPPER = 1, FX_HAMMER_HIT = 2, FX_CATCH = 3, FX_CLANG = 4, FX_COUNTER = 5,

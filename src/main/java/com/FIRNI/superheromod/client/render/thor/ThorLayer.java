@@ -86,9 +86,10 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
     private static final ModelPart CAPE_CLASP = GhostMaterials.box(-1.0f, -1.0f, -.6f, 2.0f, 2.0f, 1.0f);
 
     private static final float[] SKIN = {.86f, .66f, .52f}, HAIR = {.86f, .69f, .36f}, HAIR_DARK = {.7f, .53f, .25f}, BEARD_C = {.72f, .52f, .26f},
-            PLATE_C = {.34f, .35f, .38f}, PLATE_DARK = {.2f, .205f, .225f}, PLATE_LIGHT = {.5f, .51f, .55f}, SILVER = {.8f, .82f, .86f},
-            SUIT = {.11f, .11f, .125f}, SCALE_A = {.4f, .41f, .44f}, SCALE_B = {.27f, .28f, .3f},
-            LEATHER = {.2f, .14f, .1f}, LEATHER_RED = {.38f, .1f, .08f},
+            // Endgame armour: near-black plates with a cold sheen, dark gunmetal discs, black scale-mail sleeves.
+            PLATE_C = {.13f, .135f, .15f}, PLATE_DARK = {.07f, .072f, .08f}, PLATE_LIGHT = {.22f, .23f, .25f}, SILVER = {.33f, .345f, .37f},
+            SUIT = {.075f, .075f, .085f}, SCALE_A = {.17f, .175f, .19f}, SCALE_B = {.1f, .1f, .11f},
+            LEATHER = {.09f, .085f, .085f}, LEATHER_RED = {.12f, .115f, .12f},
             CAPE = {.6f, .045f, .055f}, CAPE_FOLD_LIT = {.72f, .07f, .08f}, CAPE_FOLD_DARK = {.44f, .03f, .04f},
             CAPE_HEM_C = {.32f, .02f, .03f}, CAPE_IN = {.3f, .02f, .03f};
     private static final int FULL = Mjolnir.FULL_BRIGHT;
@@ -164,7 +165,7 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
             px(p, 0, 4.2, 0);
             p.mulPose(Axis.XP.rotation(-elbow));
             forearm(p, b, light, right);
-            if (right && !hammerOut) {
+            if (right && !hammerOut && pose.noHammer < .5f) {
                 px(p, 0, 5.9, 0);
                 p.mulPose(Axis.YP.rotation(pose.wristY));
                 p.mulPose(Axis.XP.rotation(pose.wristX));
@@ -192,8 +193,8 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
      * (alternating rings), the right a dark sleeve.
      */
     private void arm(PoseStack p, MultiBufferSource b, int light, boolean right) {
-        draw(UPPER_ARM, p, b, light, right ? SUIT : SCALE_B);
-        if (!right) for (int i = 0; i < 5; i++) {
+        draw(UPPER_ARM, p, b, light, SCALE_B);
+        for (int i = 0; i < 5; i++) {
             p.pushPose(); px(p, 0, -.3 + i * 1.0, 0);
             draw(SLEEVE_RING, p, b, light, i % 2 == 0 ? SCALE_A : SCALE_B);
             p.popPose();
@@ -206,12 +207,11 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
     }
     /** Forearm: a red-brown leather bracer with straps on the right, a grey scaled vambrace on the left. */
     private void forearm(PoseStack p, MultiBufferSource b, int light, boolean right) {
-        draw(FOREARM, p, b, light, right ? SUIT : SCALE_B);
-        draw(BRACER, p, b, light, right ? LEATHER_RED : PLATE_C);
+        draw(FOREARM, p, b, light, SCALE_B);
+        draw(BRACER, p, b, light, PLATE_C);
         for (int i = 0; i < 3; i++) {
             p.pushPose(); px(p, 0, 1.4 + i * 1.25, 0);
-            if (right) draw(STRAP, p, b, light, LEATHER);
-            else draw(SLEEVE_RING, p, b, light, i % 2 == 0 ? PLATE_LIGHT : SCALE_A);
+            draw(SLEEVE_RING, p, b, light, i % 2 == 0 ? SCALE_A : PLATE_DARK);
             p.popPose();
         }
         draw(FIST, p, b, light, LEATHER);

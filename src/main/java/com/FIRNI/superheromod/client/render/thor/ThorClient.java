@@ -40,6 +40,8 @@ public final class ThorClient {
         float spinX, spinY, lastSpinTime = -1;
         /** How wound-up the last hammer launch was (0..1), taken from how long the charge lasted. */
         public float dashCharge;
+        /** The body stuck on his hammer during a launch, or -1. */
+        public int carried = -1;
         long shookFor = -1;
         public boolean flying() { return (flags & FLAG_FLYING) != 0; }
         public boolean hammerOut() { return (flags & FLAG_HAMMER_OUT) != 0; }
@@ -64,6 +66,7 @@ public final class ThorClient {
         s.action = p.action(); s.age = p.age(); s.flags = p.flags(); s.received = now;
         s.hammerPrev = wasOut && s.hammerOut() ? s.hammer : p.hammer();
         s.hammer = p.hammer();
+        s.carried = p.carried();
     }
     public static State get(Entity e) { return e == null ? null : STATES.get(e.getId()); }
 

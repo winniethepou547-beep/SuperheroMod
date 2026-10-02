@@ -57,6 +57,8 @@ public final class ThorController {
         int guardCooldown, wakandaCooldown, ultimateCooldown, dashCooldown, beamCooldown;
         float charge;
         final Set<Integer> dashHits = new HashSet<>();
+        /** The body stuck on the hammer's head during a launch (-1: none). */
+        int carried = -1;
         int poweredTicks;
         boolean dirty = true;
     }
@@ -133,23 +135,54 @@ public final class ThorController {
         set(s, DASH);
         s.safeFall = true;
         s.dashHits.clear();
+        s.carried = -1;
         fx(p, FX_TAKEOFF, p.position(), p.getLookAngle(), .5f + .5f * s.charge);
         sound(p, SoundEvents.TRIDENT_RIPTIDE_3, .7f + .4f * s.charge, 1.2f - .3f * s.charge);
         if (s.charge >= 1) sound(p, SoundEvents.LIGHTNING_BOLT_IMPACT, .5f, 1.6f);
     }
-    /** Anyone he flies through is struck by the hammer leading him. */
+    /**
+     * The first body the hammer meets is struck and stays stuck to its head: carried along in
+     * front of him for the rest of the launch, then thrown off where it ends.
+     */
     private static void dashHits(ServerPlayer p, State s) {
-        for (LivingEntity t : p.level().getEntitiesOfClass(LivingEntity.class, p.getBoundingBox().inflate(1.2),
-                t -> t != p && t.isAlive() && !t.isSpectator() && !s.dashHits.contains(t.getId()))) {
-            s.dashHits.add(t.getId());
-            Vec3 dir = p.getDeltaMovement().lengthSqr() > 1e-4 ? p.getDeltaMovement().normalize() : p.getLookAngle();
-            t.invulnerableTime = 0;
-            t.hurt(p.damageSources().playerAttack(p), 3 + 4 * s.charge);
-            t.knockback(.6 + .8 * s.charge, -dir.x, -dir.z);
-            t.hurtMarked = true;
-            fx(p, FX_HAMMER_HIT, t.position().add(0, t.getBbHeight() * .55, 0), dir, .6f + .4f * s.charge);
-            sound(p, SoundEvents.ANVIL_LAND, .5f, 1.4f);
+        Vec3 dir = p.getLookAngle();
+        if (s.carried < 0) {
+            for (LivingEntity t : p.level().getEntitiesOfClass(LivingEntity.class, p.getBoundingBox().inflate(1.3).expandTowards(dir.scale(1.2)),
+                    t -> t != p && t.isAlive() && !t.isSpectator() && !s.dashHits.contains(t.getId()))) {
+                s.dashHits.add(t.getId());
+                t.invulnerableTime = 0;
+                t.hurt(p.damageSources().playerAttack(p), 3 + 4 * s.charge);
+                fx(p, FX_HAMMER_HIT, t.position().add(0, t.getBbHeight() * .55, 0), dir, .6f + .4f * s.charge);
+                sound(p, SoundEvents.ANVIL_LAND, .6f, 1.2f);
+                sound(p, SoundEvents.PLAYER_ATTACK_KNOCKBACK, 1f, .7f);
+                s.carried = t.getId(); s.dirty = true;
+                break;
+            }
         }
+        carry(p, s, false);
+    }
+    /** Keeps the carried body on the hammer's head; at the end of the launch flings it on. */
+    private static void carry(ServerPlayer p, State s, boolean letGo) {
+        if (s.carried < 0) return;
+        Entity e = p.level().getEntity(s.carried);
+        if (!(e instanceof LivingEntity t) || !t.isAlive()) { s.carried = -1; s.dirty = true; return; }
+        Vec3 dir = p.getLookAngle();
+        Vec3 at = p.position().add(dir.scale(CARRY_AHEAD)).add(0, Math.max(-.6, dir.y * .4), 0);
+        t.fallDistance = 0;
+        if (letGo) {
+            Vec3 fling = dir.scale(dashSpeed(s.charge) * CARRY_FLING).add(0, .35, 0);
+            t.setDeltaMovement(fling);
+            t.hurtMarked = true;
+            t.invulnerableTime = 0;
+            t.hurt(p.damageSources().playerAttack(p), 2 + 3 * s.charge);
+            fx(p, FX_HAMMER_HIT, t.position().add(0, t.getBbHeight() * .55, 0), dir, .8f);
+            s.carried = -1; s.dirty = true;
+            return;
+        }
+        float facing = p.getYRot() + 180;
+        if (t instanceof ServerPlayer other) other.connection.teleport(at.x, at.y, at.z, facing, 0);
+        else { t.teleportTo(at.x, at.y, at.z); t.setYRot(facing); t.yBodyRot = facing; t.yHeadRot = facing; }
+        t.setDeltaMovement(p.getDeltaMovement());
     }
 
     /** F: hammer to the sky, a bolt comes down into it, then two seconds of lightning where he looks. */
@@ -257,6 +290,7 @@ public final class ThorController {
             case DASH -> {
                 p.fallDistance = 0;
                 if (s.age <= dashTicks(s.charge)) dashHits(p, s);
+                else if (s.carried >= 0) carry(p, s, true);
                 if (s.age >= dashTicks(s.charge) + 3) { set(s, IDLE); s.dashCooldown = DASH_COOLDOWN; s.poweredTicks = 0; }
             }
             case BEAM -> tickBeam(p, s);
@@ -510,7 +544,7 @@ public final class ThorController {
         if (quiet && !s.dirty) return;
         s.dirty = false;
         ModNetworking.CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> p),
-                new ThorStatePacket(p.getId(), s.action, s.age, flags, s.hammerPos));
+                new ThorStatePacket(p.getId(), s.action, s.age, flags, s.hammerPos, s.carried));
     }
     static void fx(ServerPlayer p, int kind, Vec3 pos, Vec3 dir, float power) {
         ModNetworking.CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> p),
