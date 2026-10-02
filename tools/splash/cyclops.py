@@ -23,8 +23,11 @@ def make(path):
     img = paint(img, visor, (120, 10, 20))
     beam_core = poly(mask(), [(c - 200, 860), (c + 200, 860), (c + 200, 890), (c - 200, 890)])
     img = glow(img, beam_core, (255, 30, 40), 70, 2.2); img = paint(img, beam_core, (255, 220, 210))
+    # The beam fans out of both ends of the visor, to the right and to the left.
     beam = poly(mask(), [(c + 220, 850), (S + 50, 700), (S + 50, 1050), (c + 220, 900)])
     img = glow(img, beam, (255, 40, 40), 40, 1.3)
+    beam_left = poly(mask(), [(c - 220, 850), (-50, 700), (-50, 1050), (c - 220, 900)])
+    img = glow(img, beam_left, (255, 40, 40), 40, 1.3)
     img = outline(img, visor, 10)
     img = misprint(img, cowl, 12)
     img = vignette(img, .7); img = grain(img, 8)

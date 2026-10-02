@@ -287,12 +287,15 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
      */
     /**
      * The rotation of the current frame. A mirrored frame (the inventory and menu screens draw entities
-     * mirrored) is unmirrored first, or the hammer's corrections come out as wild scaling.
+     * mirrored) is unmirrored first, and the frame's scale (a menu draws a block a hundred pixels tall) is
+     * divided out, or the hammer's corrections come out as wild scaling.
      */
     private static Quaternionf rotationOf(PoseStack p) {
         org.joml.Matrix4f m = p.last().pose();
-        if (m.determinant() < 0) m = new org.joml.Matrix4f().scaling(1, 1, -1).mul(m);
-        return m.getNormalizedRotation(new Quaternionf());
+        // In the world the frame is left exactly as it always was (the look there is approved as it is).
+        if (m.determinant() > 0) return m.getNormalizedRotation(new Quaternionf());
+        m = new org.joml.Matrix4f().scaling(1, 1, -1).mul(m);
+        return m.getUnnormalizedRotation(new Quaternionf());
     }
 
     private static void orient(PoseStack p, Quaternionf root, org.joml.Vector3f handle, org.joml.Vector3f out, float weight, boolean headStanding) {

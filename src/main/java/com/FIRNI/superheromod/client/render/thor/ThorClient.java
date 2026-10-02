@@ -101,7 +101,9 @@ public final class ThorClient {
         boolean combat = now - s.lastCombat < 50;
         float charge = action == CHARGE ? Math.min(1, t / CHARGE_FULL) : s.dashCharge;
         float look = e.getViewXRot(partial) * (float) Math.PI / 180;
-        var in = new ThorMotion.Input(action, t, false, s.hammerOut(), s.powered(), combat, speed, time, e.onGround(), charge, look);
+        boolean shown = com.FIRNI.superheromod.client.gui.Showcase.is(e);
+        boolean away = shown ? com.FIRNI.superheromod.client.gui.Showcase.emptyHanded() : s.hammerOut();
+        var in = new ThorMotion.Input(action, t, false, away, s.powered(), combat, speed, time, e.onGround(), charge, look);
         ThorMotion.Pose target = ThorMotion.sample(in);
         // Spins are angles that keep growing; they are carried separately and never eased.
         float spinX = target.wristX, spinY = target.wristY;
@@ -123,6 +125,12 @@ public final class ThorClient {
         s.shownTime = time;
         ThorMotion.Pose out = s.shown.copy();
         out.spinMode = target.spinMode;
+        if (shown) {
+            // The champion select's show: eyes and power lit as it asks, the hammer gone while it flies.
+            float eyes = com.FIRNI.superheromod.client.gui.Showcase.eyes();
+            if (eyes >= 0) { out.eyes = Math.max(out.eyes, eyes); out.aura = Math.max(out.aura, com.FIRNI.superheromod.client.gui.Showcase.aura()); }
+            if (away) out.noHammer = 1;
+        }
         return out;
     }
     private static float unwind(float from, float to, float k) {

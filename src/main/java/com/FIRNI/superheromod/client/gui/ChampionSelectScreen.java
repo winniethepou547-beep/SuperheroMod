@@ -78,7 +78,14 @@ public final class ChampionSelectScreen extends Screen {
     @Override public void tick() {
         ticks++;
         stage.tick();
-        if (lockedAt >= 0 && ticks - lockedAt > ChampionStage.SHOW + 6) onClose();
+        if (lockedAt >= 0) {
+            String hero = Champions.ALL.get(selected).id();
+            int n = ticks - lockedAt, show = ChampionStage.length(hero);
+            ChampionStage.cues(hero, n);
+            // The show first; LOCKED IN only once it has finished.
+            if (n == show) Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.PLAYER_LEVELUP, 1.4f, .5f));
+            if (n > show + ChampionStage.BANNER) onClose();
+        }
     }
     @Override public void removed() { stage.close(); super.removed(); }
     /** Ticks since LOCK IN, or -1. */
@@ -103,7 +110,8 @@ public final class ChampionSelectScreen extends Screen {
             float dim = ease(st / 6f) * .55f;
             g.fill(0, 0, rightX() - 4, height, alpha(0xFF030208, dim));
             g.fill(rightX() - 4, barY() - 36, width, height, alpha(0xFF030208, dim));
-            banner(g, hero, st);
+            float after = st - ChampionStage.length(hero.id());
+            if (after >= 0) banner(g, hero, after);
         }
     }
 
@@ -116,7 +124,7 @@ public final class ChampionSelectScreen extends Screen {
     private void banner(GuiGraphics g, Champions.Champion c, float st) {
         int x0 = rightX() - 6, x1 = width - pad() + 6;
         float cy = panelBottom() - 34;
-        float in = 1 - (float) Math.pow(1 - Mth.clamp(st / 6f, 0, 1), 3), out = ease((st - ChampionStage.SHOW + 4) / 6f);
+        float in = 1 - (float) Math.pow(1 - Mth.clamp(st / 6f, 0, 1), 3), out = ease((st - ChampionStage.BANNER + 4) / 6f);
         float shift = (1 - in) * -(x1 - x0) * 1.2f + out * (x1 - x0) * 1.2f;
         float h = 30, slant = 14;
         g.pose().pushPose();
@@ -342,8 +350,7 @@ public final class ChampionSelectScreen extends Screen {
         if (my >= barY() && my < barY() + barH() && mx >= width - pad() - lockW() && mx < width - pad()) {
             ModNetworking.CHANNEL.sendToServer(new ChampionLockPacket(c.id()));
             lockedAt = ticks;
-            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.PLAYER_LEVELUP, 1.4f, .5f));
-            ChampionStage.sounds(c.id());
+            ChampionStage.cues(c.id(), 0);
             return true;
         }
         return super.mouseClicked(mx, my, button);
