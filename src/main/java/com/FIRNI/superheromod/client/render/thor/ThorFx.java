@@ -159,6 +159,16 @@ public final class ThorFx {
             case FX_CRACKS -> impact(at, power, false, p.seed());
             case FX_ULT_IMPACT -> impact(at, power, true, p.seed());
             case FX_RELEASE -> { flash(at, .7, 3, .6f); sparks(at, 6, .4); burst(at, dir, 2, .8, .03); }
+            case FX_BLOCK_HIT -> {
+                // The head meets a block: a tiny ring off the surface, a few sparks and chips.
+                shock(at.subtract(dir.scale(.15)), dir, .6);
+                sparks(at, 6, .4);
+                var hitState = mc.level.getBlockState(BlockPos.containing(at.add(dir.scale(.1))));
+                if (!hitState.isAir()) for (int i = 0; i < 8; i++)
+                    mc.level.addParticle(new BlockParticleOption(ParticleTypes.BLOCK, hitState), at.x, at.y, at.z,
+                            -dir.x * .15 + (Math.random() - .5) * .2, .1 + Math.random() * .15, -dir.z * .15 + (Math.random() - .5) * .2);
+                shake(at, .08f, 4);
+            }
             case FX_BEAM_HIT -> { sparks(at, 6, .6); flash(at, 1.1, 3, .6f); shake(at, .22f, 3); }
             case FX_CHARGED -> {
                 var mc2 = Minecraft.getInstance();
@@ -327,14 +337,6 @@ public final class ThorFx {
                     bolt(h.add(d.scale(.3)), h.add(d.scale(.8 + r.nextDouble() * .6)), .025, 2 + r.nextInt(2), 1, .4, .3);
                 }
                 sparks(h, 1, .25);
-            }
-            // Every swing, hit or miss, leaves a tiny shock ring in the air where the head passes at the blow.
-            int hitTick = action == SWING_RIGHT || action == SWING_LEFT ? SWING_HIT : action == UPPERCUT ? UPPER_HIT : -1;
-            if (hitTick >= 0 && t >= hitTick && !Long.valueOf(s.actionStart).equals(SWUNG.get(p.getId()))) {
-                SWUNG.put(p.getId(), s.actionStart);
-                Vec3 f = Vec3.directionFromRotation(0, p.getYRot()), side = f.cross(new Vec3(0, 1, 0)).normalize();
-                Vec3 at = p.position().add(0, action == UPPERCUT ? 1.9 : 1.25, 0).add(f.scale(1.9));
-                shock(at, action == UPPERCUT ? new Vec3(0, 1, 0) : side.scale(action == SWING_RIGHT ? 1 : -1), .75);
             }
             // The thunder beam: sparks where it lands.
             if (action == BEAM && t >= BM_AIM && t < BM_END) {
@@ -916,8 +918,7 @@ public final class ThorFx {
     private record Fling(long start, float yaw) {}
     private static final int FLING_TICKS = 18;
     private static final Map<Integer, Fling> FLUNG = new HashMap<>();
-    /** The swing (by its start tick) each Thor last left a shock ring for. */
-    private static final Map<Integer, Long> SWUNG = new HashMap<>();
+
     /** Thrown off the hammer: one full backward flip through the air, limbs flung out, ending upright. */
     private static boolean flung(PoseStack pose, MultiBufferSource.BufferSource buffers, Vec3 cam, int id, Fling f, float partial) {
         var mc = Minecraft.getInstance();

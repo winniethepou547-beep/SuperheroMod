@@ -72,7 +72,7 @@ public final class ThorAction {
     // ------------------------------------------------------------------ effects (ThorFxPacket kinds)
     public static final int FX_SWING_HIT = 0, FX_UPPER = 1, FX_HAMMER_HIT = 2, FX_CATCH = 3, FX_CLANG = 4, FX_COUNTER = 5,
             FX_SKY_BOLT = 6, FX_CRACKS = 7, FX_TAKEOFF = 8, FX_SHOUT = 9, FX_ULT_IMPACT = 10, FX_RELEASE = 11,
-            FX_BEAM_HIT = 12, FX_CHARGED = 13;
+            FX_BEAM_HIT = 12, FX_CHARGED = 13, FX_BLOCK_HIT = 14;
 
     /** Wakanda: once he lands, the age restarts from here so every client knows when he touched down. */
     public static final int LANDED = 1000;

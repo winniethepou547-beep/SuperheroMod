@@ -343,6 +343,15 @@ public final class ThorController {
             sound(p, upper ? SoundEvents.ANVIL_LAND : SoundEvents.PLAYER_ATTACK_KNOCKBACK, upper ? .5f : .9f, upper ? 1.4f : .7f);
             if (upper) sound(p, SoundEvents.LIGHTNING_BOLT_IMPACT, .7f, 1.5f);
             s.poweredTicks = 30;
+        } else {
+            // Nobody in reach: does the head meet a block (a wall, the ground for the uppercut) instead?
+            Vec3 aim = upper ? look.add(0, .55, 0).normalize() : look;
+            Vec3 from = chest, to = chest.add(aim.scale(SWING_REACH));
+            var block = p.level().clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, p));
+            if (block.getType() == HitResult.Type.BLOCK) {
+                fx(p, FX_BLOCK_HIT, block.getLocation(), aim, 1);
+                p.level().playSound(null, block.getBlockPos(), p.level().getBlockState(block.getBlockPos()).getSoundType().getHitSound(), SoundSource.PLAYERS, 1f, .7f);
+            }
         }
     }
 
