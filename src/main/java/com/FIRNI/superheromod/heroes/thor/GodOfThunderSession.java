@@ -23,35 +23,37 @@ public final class GodOfThunderSession implements FilmSessions.Script {
 
     public static boolean start(ServerPlayer player, LivingEntity target) { return FilmSessions.start(player, target, INSTANCE); }
 
-    /** Where the hammer comes down: this far short of the target, along the line between them. */
-    public static final double LAND_SHORT = 1.3;
-
     @Override public String film() { return ID; }
     @Override public int total() { return ULT_TOTAL; }
-    @Override public int release() { return ULT_IMPACT; }
+    /** Both stay held for the whole film; at its last tick they are put where the film left them. */
+    @Override public int release() { return ULT_TOTAL; }
     @Override public void tick(ServerPlayer p, LivingEntity target, int age, Vec3 forward) {
-        var level = p.serverLevel();
-        if (age == ULT_STRIKE) {
-            level.playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.PLAYERS, 1.5f, .8f);
-            ThorController.fx(p, FX_SKY_BOLT, p.position().add(0, 1.2, 0), new Vec3(0, 1, 0), 2f);
+        if (age != ULT_CRASH && age != ULT_TOTAL) return;
+        Vec3 anchor = p.position(), right = forward.cross(new Vec3(0, 1, 0)).normalize();
+        Vec3 line = target.position().subtract(anchor);
+        double distance = Math.sqrt(line.x * line.x + line.z * line.z);
+        Vec3 crater = anchor.add(forward.scale(distance + ULT_KNOCK));
+        crater = new Vec3(crater.x, target.getY(), crater.z);
+        if (age == ULT_CRASH) {
+            // The target is driven into the ground from the sky.
+            if (target.isAlive()) {
+                target.invulnerableTime = 0;
+                target.hurt(p.damageSources().playerAttack(p), target.getMaxHealth() * ULT_DAMAGE_SHARE);
+            }
+            ThorController.fx(p, FX_ULT_IMPACT, crater, Vec3.ZERO, 7);
+            var level = p.serverLevel();
+            level.playSound(null, crater.x, crater.y, crater.z, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 1.6f, .55f);
+            level.playSound(null, crater.x, crater.y, crater.z, SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.PLAYERS, 1.4f, .7f);
+            return;
         }
-        if (age != ULT_IMPACT) return;
-        // The film flew him over the target; the real Thor arrives at the same spot.
-        Vec3 line = target.position().subtract(p.position());
-        Vec3 flat = new Vec3(line.x, 0, line.z);
-        Vec3 land = flat.lengthSqr() < 1e-4 ? p.position() : p.position().add(flat.scale(Math.max(0, 1 - LAND_SHORT / flat.length())));
-        land = new Vec3(land.x, target.getY(), land.z);
-        p.connection.teleport(land.x, land.y, land.z, p.getYRot(), 0);
+        // The end: Thor where he landed, the target in its crater.
+        Vec3 land = anchor.add(forward.scale(distance - ULT_LAND_SHORT)).add(right.scale(ULT_LAND_X));
+        float face = (float) Math.toDegrees(Math.atan2(-(crater.x - land.x), crater.z - land.z));
+        p.connection.teleport(land.x, crater.y, land.z, face, 0);
         p.fallDistance = 0;
         if (target.isAlive()) {
-            target.invulnerableTime = 0;
-            target.hurt(p.damageSources().playerAttack(p), target.getMaxHealth() * ULT_DAMAGE_SHARE);
-        }
-        ThorController.impact(p, land, 11, 10, true);
-        if (target.isAlive()) {
-            Vec3 away = flat.lengthSqr() < 1e-4 ? forward : flat.normalize();
-            target.setDeltaMovement(away.scale(1.6).add(0, .9, 0));
-            target.hurtMarked = true;
+            if (target instanceof ServerPlayer other) other.connection.teleport(crater.x, crater.y, crater.z, other.getYRot(), 0);
+            else target.teleportTo(crater.x, crater.y, crater.z);
         }
     }
 

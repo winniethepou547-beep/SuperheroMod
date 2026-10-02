@@ -16,6 +16,8 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.projectile.Projectile;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
@@ -37,7 +39,7 @@ import static com.FIRNI.superheromod.heroes.thor.ThorAction.*;
 /**
  * Thor on the server: what each key does, when a swing connects, where the thrown hammer is,
  * the guard and its parry, and the Wakanda strike. Clients only animate what this decides;
- * the flight and the strike's rise and dive are steered by the flying player's own client.
+ * the hammer launch and the strike's rise and dive are steered by Thor's own client.
  */
 @Mod.EventBusSubscriber(modid = SuperheroMod.MODID)
 public final class ThorController {
@@ -52,7 +54,9 @@ public final class ThorController {
         Vec3 hammerPos = Vec3.ZERO, hammerVel = Vec3.ZERO;
         final Set<Integer> hammerHits = new HashSet<>();
         boolean guardHeld;
-        int guardCooldown, wakandaCooldown, ultimateCooldown;
+        int guardCooldown, wakandaCooldown, ultimateCooldown, dashCooldown, beamCooldown;
+        float charge;
+        final Set<Integer> dashHits = new HashSet<>();
         int poweredTicks;
         boolean dirty = true;
     }
@@ -72,7 +76,8 @@ public final class ThorController {
         switch (slot) {
             case LMB -> swing(p, s);
             case RMB -> throwOrRecall(p, s);
-            case SHIFT -> toggleFlight(p, s);
+            case SHIFT -> charge(p, s);
+            case SKILL_F -> beam(p, s);
             case SKILL_V -> guard(p, s);
             case SKILL_E -> wakanda(p, s);
             case SKILL_X -> ultimate(p, s);
@@ -82,6 +87,7 @@ public final class ThorController {
     public static void release(ServerPlayer p, AbilitySlot slot) {
         State s = STATES.get(p.getUUID());
         if (s == null) return;
+        if (slot == AbilitySlot.SHIFT && s.action == CHARGE) launch(p, s);
         if (slot == AbilitySlot.SKILL_V) {
             s.guardHeld = false;
             if (s.action == GUARD) { set(s, IDLE); s.guardCooldown = GUARD_COOLDOWN; }
@@ -89,7 +95,7 @@ public final class ThorController {
     }
 
     private static void swing(ServerPlayer p, State s) {
-        if (busy(s) || s.action == GUARD || s.action == COUNTER || s.action == TAKEOFF) return;
+        if (busy(s) || s.action == GUARD || s.action == COUNTER || s.action == CHARGE || s.action == DASH || s.action == BEAM) return;
         if (s.hammer != HAND) { recall(s); return; }
         if (s.action == SWING_RIGHT || s.action == SWING_LEFT) { if (s.age >= 3) s.queued = true; return; }
         if (s.action == UPPERCUT || s.action == THROW) return;
@@ -105,7 +111,7 @@ public final class ThorController {
 
     private static void throwOrRecall(ServerPlayer p, State s) {
         if (s.hammer != HAND) { recall(s); return; }
-        if (busy(s) || s.action == GUARD || s.throwCooldown > 0 || s.action == THROW) return;
+        if (busy(s) || s.action == GUARD || s.throwCooldown > 0 || s.action == THROW || s.action == CHARGE || s.action == DASH || s.action == BEAM) return;
         set(s, THROW);
         s.comboStep = 0;
     }
@@ -113,22 +119,77 @@ public final class ThorController {
         if (s.hammer == OUT || s.hammer == HOLD) { s.hammer = RETURN; s.hammerAge = 0; s.dirty = true; }
     }
 
-    private static void toggleFlight(ServerPlayer p, State s) {
-        if (busy(s)) return;
-        if (s.flying) {
-            s.flying = false; s.safeFall = true; s.dirty = true;
-            if (s.action == TAKEOFF) set(s, IDLE);
-            return;
+    /** Shift held: Mjolnir whirls at his side, winding up; the longer, the further the launch. */
+    private static void charge(ServerPlayer p, State s) {
+        if (busy(s) || s.dashCooldown > 0 || s.action == CHARGE || s.action == DASH || s.action == GUARD || s.action == BEAM) return;
+        if (s.hammer != HAND) { recall(s); return; }
+        set(s, CHARGE);
+        s.comboStep = 0;
+        sound(p, SoundEvents.TRIDENT_RIPTIDE_1, .6f, 1.5f);
+    }
+    /** Shift let go: the hammer is thrown forward at arm's length and pulls him after it. */
+    private static void launch(ServerPlayer p, State s) {
+        s.charge = Math.min(1, s.age / (float) CHARGE_FULL);
+        set(s, DASH);
+        s.safeFall = true;
+        s.dashHits.clear();
+        fx(p, FX_TAKEOFF, p.position(), p.getLookAngle(), .5f + .5f * s.charge);
+        sound(p, SoundEvents.TRIDENT_RIPTIDE_3, .7f + .4f * s.charge, 1.2f - .3f * s.charge);
+        if (s.charge >= 1) sound(p, SoundEvents.LIGHTNING_BOLT_IMPACT, .5f, 1.6f);
+    }
+    /** Anyone he flies through is struck by the hammer leading him. */
+    private static void dashHits(ServerPlayer p, State s) {
+        for (LivingEntity t : p.level().getEntitiesOfClass(LivingEntity.class, p.getBoundingBox().inflate(1.2),
+                t -> t != p && t.isAlive() && !t.isSpectator() && !s.dashHits.contains(t.getId()))) {
+            s.dashHits.add(t.getId());
+            Vec3 dir = p.getDeltaMovement().lengthSqr() > 1e-4 ? p.getDeltaMovement().normalize() : p.getLookAngle();
+            t.invulnerableTime = 0;
+            t.hurt(p.damageSources().playerAttack(p), 3 + 4 * s.charge);
+            t.knockback(.6 + .8 * s.charge, -dir.x, -dir.z);
+            t.hurtMarked = true;
+            fx(p, FX_HAMMER_HIT, t.position().add(0, t.getBbHeight() * .55, 0), dir, .6f + .4f * s.charge);
+            sound(p, SoundEvents.ANVIL_LAND, .5f, 1.4f);
         }
-        s.flying = true; s.safeFall = true; s.dirty = true;
-        if (p.onGround() && s.action == IDLE) {
-            set(s, TAKEOFF);
-            sound(p, SoundEvents.TRIDENT_RIPTIDE_1, .7f, 1.3f);
+    }
+
+    /** F: hammer to the sky, a bolt comes down into it, then two seconds of lightning where he looks. */
+    private static void beam(ServerPlayer p, State s) {
+        if (busy(s) || s.beamCooldown > 0 || s.action == BEAM || s.action == GUARD || s.action == CHARGE || s.action == DASH) return;
+        if (s.hammer != HAND) { recall(s); return; }
+        set(s, BEAM);
+        s.comboStep = 0;
+        s.poweredTicks = BM_TOTAL;
+        sound(p, SoundEvents.TRIDENT_RIPTIDE_2, .8f, .7f);
+    }
+    private static void tickBeam(ServerPlayer p, State s) {
+        if (s.age == BM_SKY) {
+            fx(p, FX_SKY_BOLT, p.position().add(0, 2.9, 0), new Vec3(0, 1, 0), .7f);
+            sound(p, SoundEvents.LIGHTNING_BOLT_THUNDER, 1f, 1.1f);
+        }
+        if (s.age >= BM_AIM && s.age < BM_END) {
+            if ((s.age - BM_AIM) % 8 == 0) sound(p, SoundEvents.LIGHTNING_BOLT_IMPACT, .8f, .7f + p.getRandom().nextFloat() * .3f);
+            if (s.age == BM_AIM) sound(p, SoundEvents.LIGHTNING_BOLT_THUNDER, .8f, 1.5f);
+            if ((s.age - BM_AIM) % BM_HIT_EVERY == 0) beamHits(p);
+        }
+        if (s.age >= BM_TOTAL) { set(s, IDLE); s.beamCooldown = BM_COOLDOWN; }
+    }
+    private static void beamHits(ServerPlayer p) {
+        Vec3 from = p.getEyePosition(), look = p.getLookAngle(), to = from.add(look.scale(BM_RANGE));
+        var block = p.level().clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, p));
+        if (block.getType() != HitResult.Type.MISS) to = block.getLocation();
+        Vec3 end = to;
+        for (LivingEntity t : p.level().getEntitiesOfClass(LivingEntity.class, new AABB(from, end).inflate(BM_RADIUS),
+                t -> t != p && t.isAlive() && !t.isSpectator())) {
+            if (t.getBoundingBox().inflate(BM_RADIUS).clip(from, end).isEmpty()) continue;
+            t.invulnerableTime = 0;
+            t.hurt(p.damageSources().playerAttack(p), BM_DAMAGE);
+            t.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 30, 2));
+            fx(p, FX_BEAM_HIT, t.position().add(0, t.getBbHeight() * .55, 0), look, 1);
         }
     }
 
     private static void guard(ServerPlayer p, State s) {
-        if (busy(s) || s.hammer != HAND || s.guardCooldown > 0 || s.action == GUARD || s.action == THROW) return;
+        if (busy(s) || s.hammer != HAND || s.guardCooldown > 0 || s.action == GUARD || s.action == THROW || s.action == CHARGE || s.action == DASH || s.action == BEAM) return;
         set(s, GUARD);
         s.guardHeld = true;
         s.comboStep = 0;
@@ -166,9 +227,11 @@ public final class ThorController {
         if (s.guardCooldown > 0) s.guardCooldown--;
         if (s.wakandaCooldown > 0) s.wakandaCooldown--;
         if (s.ultimateCooldown > 0) s.ultimateCooldown--;
+        if (s.dashCooldown > 0) s.dashCooldown--;
+        if (s.beamCooldown > 0) s.beamCooldown--;
         if (s.poweredTicks > 0) s.poweredTicks--;
         if (s.flying || s.safeFall) p.fallDistance = 0;
-        if (s.safeFall && !s.flying && p.onGround() && s.action != WAKANDA) s.safeFall = false;
+        if (s.safeFall && !s.flying && p.onGround() && s.action != WAKANDA && s.action != DASH) s.safeFall = false;
 
         switch (s.action) {
             case SWING_RIGHT, SWING_LEFT -> {
@@ -187,10 +250,16 @@ public final class ThorController {
                 if (s.age >= THROW_WINDUP + 6) set(s, IDLE);
             }
             case CATCH -> { if (s.age >= CATCH_TICKS) set(s, IDLE); }
-            case TAKEOFF -> {
-                if (s.age == TAKEOFF_TICKS - 2) fx(p, FX_TAKEOFF, p.position(), new Vec3(0, 1, 0), 1);
-                if (s.age >= TAKEOFF_TICKS) set(s, IDLE);
+            case CHARGE -> {
+                if (s.age == CHARGE_FULL) { fx(p, FX_CHARGED, p.position(), Vec3.ZERO, 1); sound(p, SoundEvents.BEACON_POWER_SELECT, .7f, 1.8f); s.poweredTicks = 999; }
+                else if (s.age % 7 == 0) sound(p, SoundEvents.TRIDENT_RIPTIDE_1, .25f + .2f * Math.min(1, s.age / (float) CHARGE_FULL), 1.4f + .4f * Math.min(1, s.age / (float) CHARGE_FULL));
             }
+            case DASH -> {
+                p.fallDistance = 0;
+                if (s.age <= dashTicks(s.charge)) dashHits(p, s);
+                if (s.age >= dashTicks(s.charge) + 3) { set(s, IDLE); s.dashCooldown = DASH_COOLDOWN; s.poweredTicks = 0; }
+            }
+            case BEAM -> tickBeam(p, s);
             case GUARD -> {
                 if (!s.guardHeld || s.age >= GUARD_MAX) { set(s, IDLE); s.guardCooldown = GUARD_COOLDOWN; }
                 else if (s.age % 6 == 0) sound(p, SoundEvents.TRIDENT_RIPTIDE_1, .25f, 1.9f);

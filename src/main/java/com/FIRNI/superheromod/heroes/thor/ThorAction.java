@@ -9,7 +9,7 @@ public final class ThorAction {
 
     // ------------------------------------------------------------------ actions
     public static final int IDLE = 0, SWING_RIGHT = 1, SWING_LEFT = 2, UPPERCUT = 3, THROW = 4, CATCH = 5,
-            TAKEOFF = 6, GUARD = 7, COUNTER = 8, WAKANDA = 9, ULTIMATE = 10;
+            TAKEOFF = 6, GUARD = 7, COUNTER = 8, WAKANDA = 9, ULTIMATE = 10, CHARGE = 11, DASH = 12, BEAM = 13;
     /** Flags sent with the state. */
     public static final int FLAG_FLYING = 1, FLAG_HAMMER_OUT = 2, FLAG_POWERED = 4;
 
@@ -26,10 +26,20 @@ public final class ThorAction {
     public static final double THROW_SPEED = 2.2, THROW_RANGE = 30, RETURN_SPEED_MAX = 2.6;
     public static final float THROW_DAMAGE = 8;
 
-    // ------------------------------------------------------------------ flight (shift)
-    /** Spin-up on the ground before lift-off. */
+    // ------------------------------------------------------------------ hammer launch (shift: hold to spin, release to fly)
+    /** Spin-up length of a whirl (also used by the film). */
     public static final int TAKEOFF_TICKS = 14;
-    public static final double FLY_SPEED = 1.05, FLY_SPRINT = 1.55, FLY_STEER = .22;
+    /** Ticks of holding for a full charge; the launch scales between the min and max below. */
+    public static final int CHARGE_FULL = 30, DASH_MIN_TICKS = 6, DASH_MAX_TICKS = 14, DASH_COOLDOWN = 16;
+    public static final double DASH_MIN_SPEED = 1.0, DASH_MAX_SPEED = 2.2;
+    public static int dashTicks(float charge) { return Math.round(DASH_MIN_TICKS + (DASH_MAX_TICKS - DASH_MIN_TICKS) * charge); }
+    public static double dashSpeed(float charge) { return DASH_MIN_SPEED + (DASH_MAX_SPEED - DASH_MIN_SPEED) * charge; }
+
+    // ------------------------------------------------------------------ thunder beam (F)
+    /** Hammer up to the sky (a bolt comes down into it), then pointed ahead: two seconds of lightning. */
+    public static final int BM_SKY = 8, BM_AIM = 16, BM_END = 56, BM_TOTAL = 64, BM_COOLDOWN = 160, BM_HIT_EVERY = 4;
+    public static final double BM_RANGE = 22, BM_RADIUS = .9;
+    public static final float BM_DAMAGE = 1.5f;
 
     // ------------------------------------------------------------------ guard (E)
     public static final int GUARD_MAX = 60, GUARD_PERFECT = 5, GUARD_COOLDOWN = 40, COUNTER_TICKS = 12;
@@ -42,17 +52,20 @@ public final class ThorAction {
     public static final double WK_RISE_SPEED = 1.05, WK_DIVE_SPEED = 2.6, WK_RADIUS = 8;
     public static final float WK_DAMAGE = 14;
 
-    // ------------------------------------------------------------------ God of Thunder (X)
-    public static final int ULT_TOTAL = 330, ULT_IMPACT = 300, ULT_COOLDOWN = 900;
+    // ------------------------------------------------------------------ God of Thunder — Aerial Punishment (X)
+    public static final int ULT_TOTAL = 340, ULT_COOLDOWN = 900;
     public static final float ULT_DAMAGE_SHARE = .7f;
     /** Beats of the film, in ticks. */
-    public static final int ULT_CLOSE = 40, ULT_EYE_SPARK = 62, ULT_EYES = 70, ULT_HAMMER = 80, ULT_RAISE = 100,
-            ULT_SKY = 120, ULT_STRIKE = 150, ULT_POWER = 160, ULT_SHOUT = 172, ULT_BOOM = 196, ULT_TARGET = 200,
-            ULT_FLIGHT = 240, ULT_LAUNCH = 250, ULT_HOVER = 280, ULT_PLUNGE = 296;
+    public static final int ULT_LUNGE = 14, ULT_HIT1 = 34, ULT_HIT2 = 54, ULT_LOAD = 64, ULT_UPPER = 79, ULT_SPIN = 110,
+            ULT_RISE = 130, ULT_APEX = 150, ULT_CATCH = 156, ULT_SCREAM = 172, ULT_EYEBOLT = 180, ULT_STORM = 186,
+            ULT_WHITE = 206, ULT_BLAST = 228, ULT_FADE = 246, ULT_LET_GO = 256, ULT_CRASH = 288, ULT_LANDED = 320;
+    /** How high the uppercut sends the target, and where Thor lands (stage: right of the line, short of the crater). */
+    public static final double ULT_HEIGHT = 22, ULT_LAND_X = 2.6, ULT_LAND_SHORT = 1.3, ULT_KNOCK = .55;
 
     // ------------------------------------------------------------------ effects (ThorFxPacket kinds)
     public static final int FX_SWING_HIT = 0, FX_UPPER = 1, FX_HAMMER_HIT = 2, FX_CATCH = 3, FX_CLANG = 4, FX_COUNTER = 5,
-            FX_SKY_BOLT = 6, FX_CRACKS = 7, FX_TAKEOFF = 8, FX_SHOUT = 9, FX_ULT_IMPACT = 10, FX_RELEASE = 11;
+            FX_SKY_BOLT = 6, FX_CRACKS = 7, FX_TAKEOFF = 8, FX_SHOUT = 9, FX_ULT_IMPACT = 10, FX_RELEASE = 11,
+            FX_BEAM_HIT = 12, FX_CHARGED = 13;
 
     /** Wakanda: once he lands, the age restarts from here so every client knows when he touched down. */
     public static final int LANDED = 1000;

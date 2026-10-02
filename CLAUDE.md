@@ -70,18 +70,24 @@ one arm, not the guard), the rest seize and beat them, mound, pillar lifts them,
 and slams them into the sand, the giant then **crumbles into sand** clumps. The user said this one is nearly perfect;
 the defender's body language matters most.
 
-**Thor — God of Thunder (X), `client/render/film/GodOfThunderFilm.java`, 16.5 s.** Shot in the real world: quiet, face
-and eye spark, Mjolnir raised, sky vortex + giant bolt into him, power-up and cry, the target with electricity round
-them, spin + leap (his body is drawn in the air by `ThorFx.leaping`, the real one is held), two-hand overhead, silence,
-plunge, cracked ground with lightning pillars, hammer on shoulder. Server: `heroes/thor/GodOfThunderSession` (70% max
-health at the impact, Thor teleported to the landing spot at the same tick).
+**Thor — God of Thunder: Aerial Punishment (X), `client/render/film/GodOfThunderFilm.java`, 17 s.** Shot in the real
+world. Both bodies follow `AerialPath` (stage space); `ThorFx.performers` draws Thor (proxy render, real body held)
+and the target as a jointed `FilmCast` puppet (`AerialPath.targetPose`). Beats in `ThorAction.ULT_*`: lunge, L→R hit
+(body bends), R→L hit breaks the X guard, crouch + uppercut sends the target straight up, storm gathers, Thor whirls
+and flies up, catches them at the apex (lock), cry with lightning out of his eyes, lightning columns, whiteout +
+silence, let go, target driven into the ground (crater, 70% max health), Thor glides down beside it.
+Server `GodOfThunderSession` holds both to the end, then teleports Thor to the landing spot and the target to the crater.
 
 ## Thor (PvP hero, `heroes/thor/`, `client/render/thor/`)
 - `ThorAction` = every action id and tuning number. `ThorController` (server) decides; clients animate from the synced
-  clock (`ThorStatePacket`) and draw effects from `ThorFxPacket`. Flight and the R rise/dive are steered by the flying
-  player's own client (`ThorClient`).
-- Keys: LMB 3-hit combo (L→R, R→L, uppercut launches), RMB throw/recall, SHIFT spin flight toggle, **E** whirling guard
-  with a 5-tick perfect parry (E does not open the inventory while Thor), R Wakanda strike, X film.
+  clock (`ThorStatePacket`) and draw effects from `ThorFxPacket`. The Shift launch and the R rise/dive are steered by
+  Thor's own client (`ThorClient`).
+- Keys: LMB 3-hit combo (L→R, R→L, uppercut launches; small camera kick), RMB throw/recall, **SHIFT hold** = hammer
+  whirls at his side (Marvel Rivals style), release = launched where he looks, distance by hold time (sparks at full
+  charge), **E** whirling guard with a 5-tick perfect parry (E does not open the inventory while Thor), R Wakanda strike
+  (bolts lash out of him in the air), **F** hammer to the sky then a 2 s lightning beam (damage + slowness), X film.
+- Look: grey plate with trim and lamellar bands, six silver discs, scale-mail left sleeve, red leather right bracer,
+  red cape with folds (spring-damped lift), shoulder-length hair; hammer held handle-up like the films.
 - `ThorLayer` draws his whole body (the player model is hidden in `HeroArmPose`); `ThorMotion` is the pure pose math;
   `Mjolnir` the hammer mesh; `ThorBolts` the branching lightning; `ThorFx` world effects, thrown hammer, first person.
 

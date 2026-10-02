@@ -6,8 +6,8 @@ import net.minecraft.server.level.ServerPlayer;
 
 /**
  * Thor, God of Thunder. Built for 1v1: a three-hit Mjolnir combo (left click), the throw and
- * recall (right click), spin flight (shift), the whirling guard with a parry (E), the Wakanda
- * strike (R) and the God of Thunder film (X). Every timer lives per player in ThorController.
+ * recall (right click), the hammer launch (hold shift to whirl, let go to fly), the whirling
+ * guard with a parry (E), the Wakanda strike (R), the thunder beam (F) and the film (X). Every timer lives per player in ThorController.
  */
 public final class ThorCharacter extends SuperCharacter {
     public static final String ID = ThorAction.ID;
@@ -19,6 +19,7 @@ public final class ThorCharacter extends SuperCharacter {
         registerAbility(new Press(AbilitySlot.SHIFT));
         registerAbility(new Press(AbilitySlot.SKILL_V));   // E key: whirling guard
         registerAbility(new Press(AbilitySlot.SKILL_E));   // R key: Wakanda strike
+        registerAbility(new Press(AbilitySlot.SKILL_F));   // F key: thunder beam
         registerAbility(new Press(AbilitySlot.SKILL_X));   // X key: God of Thunder
     }
 

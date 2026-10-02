@@ -38,6 +38,9 @@ public final class ThorClient {
         ThorMotion.Pose shown;
         float shownTime = -1;
         float spinX, spinY, lastSpinTime = -1;
+        /** How wound-up the last hammer launch was (0..1), taken from how long the charge lasted. */
+        public float dashCharge;
+        long shookFor = -1;
         public boolean flying() { return (flags & FLAG_FLYING) != 0; }
         public boolean hammerOut() { return (flags & FLAG_HAMMER_OUT) != 0; }
         public boolean powered() { return (flags & FLAG_POWERED) != 0; }
@@ -55,8 +58,9 @@ public final class ThorClient {
         State s = STATES.computeIfAbsent(p.entity(), id -> new State());
         long now = level.getGameTime();
         if (p.action() != s.action || p.age() < s.age) s.actionStart = now - p.age();
-        if (p.action() != IDLE && p.action() != TAKEOFF && p.action() != CATCH) s.lastCombat = now;
+        if (p.action() != IDLE && p.action() != CATCH) s.lastCombat = now;
         boolean wasOut = s.hammerOut();
+        if (p.action() == DASH && s.action == CHARGE) s.dashCharge = Math.min(1, (s.age + 1) / (float) CHARGE_FULL);
         s.action = p.action(); s.age = p.age(); s.flags = p.flags(); s.received = now;
         s.hammerPrev = wasOut && s.hammerOut() ? s.hammer : p.hammer();
         s.hammer = p.hammer();
@@ -91,7 +95,9 @@ public final class ThorClient {
         if (e != Minecraft.getInstance().player) v = new Vec3(e.getX() - e.xo, e.getY() - e.yo, e.getZ() - e.zo);
         float speed = (float) v.length();
         boolean combat = now - s.lastCombat < 120;
-        var in = new ThorMotion.Input(action, t, s.flying() && ult < 0, s.hammerOut(), s.powered(), combat, speed, time, e.onGround());
+        float charge = action == CHARGE ? Math.min(1, t / CHARGE_FULL) : s.dashCharge;
+        float look = e.getViewXRot(partial) * (float) Math.PI / 180;
+        var in = new ThorMotion.Input(action, t, false, s.hammerOut(), s.powered(), combat, speed, time, e.onGround(), charge, look);
         ThorMotion.Pose target = ThorMotion.sample(in);
         // Spins are angles that keep growing; they are carried separately and never eased.
         float spinX = target.wristX, spinY = target.wristY;
@@ -150,25 +156,26 @@ public final class ThorClient {
         if (com.FIRNI.superheromod.client.render.film.FilmDirector.playing()) return;
         float t = clock(s, 0);
         if (s.action == WAKANDA) { wakandaMove(player, t); return; }
-        if (s.flying()) fly(mc, player, s, t);
+        if (s.action == DASH) dashMove(player, s, t);
+        if (s.action == CHARGE) player.setDeltaMovement(player.getDeltaMovement().multiply(.6, 1, .6));
+        swingShake(s, t);
     }
-    private static void fly(Minecraft mc, net.minecraft.client.player.LocalPlayer player, State s, float t) {
-        if (s.action == TAKEOFF) {
-            // Planted while the hammer winds up; then off the ground in one push.
-            if (t < TAKEOFF_TICKS - 3) { player.setDeltaMovement(0, Math.min(0, player.getDeltaMovement().y), 0); return; }
-            if (t < TAKEOFF_TICKS) { player.setDeltaMovement(player.getDeltaMovement().x, .95, player.getDeltaMovement().z); return; }
-        }
+    /** A small kick of the camera every time one of his swings lands its weight. */
+    private static void swingShake(State s, float t) {
+        int hit = s.action == SWING_RIGHT || s.action == SWING_LEFT ? SWING_HIT : s.action == UPPERCUT ? UPPER_HIT : -1;
+        if (hit < 0 || t < hit || s.shookFor == s.actionStart) return;
+        s.shookFor = s.actionStart;
+        com.FIRNI.superheromod.client.render.ClientScreenShake.add(s.action == UPPERCUT ? .2f : .1f);
+    }
+    /** The launch: pulled along where he looks, as fast and as far as the charge allows, then let go. */
+    private static void dashMove(net.minecraft.client.player.LocalPlayer player, State s, float t) {
         player.fallDistance = 0;
-        var input = player.input;
-        Vec3 look = player.getLookAngle();
-        Vec3 flat = Vec3.directionFromRotation(0, player.getYRot());
-        Vec3 right = flat.cross(new Vec3(0, 1, 0)).normalize();
-        double speed = mc.options.keySprint.isDown() ? FLY_SPRINT : FLY_SPEED;
-        Vec3 want = look.scale(input.forwardImpulse * speed).add(right.scale(-input.leftImpulse * speed * .6));
-        if (input.jumping) want = want.add(0, .55, 0);
-        if (want.lengthSqr() < 1e-4) want = new Vec3(0, Math.sin(t * .1) * .015, 0);   // hover, breathing in the air
+        if (t > dashTicks(s.dashCharge)) return;
+        Vec3 want = player.getLookAngle().scale(dashSpeed(s.dashCharge));
+        // Eases in over the first two ticks so it reads as the hammer pulling, not a teleport.
+        float k = Math.min(1, (t + 1) / 3f);
         Vec3 now = player.getDeltaMovement();
-        player.setDeltaMovement(now.add(want.subtract(now).scale(FLY_STEER)));
+        player.setDeltaMovement(now.add(want.subtract(now).scale(k)));
     }
     private static void wakandaMove(net.minecraft.client.player.LocalPlayer player, float t) {
         player.fallDistance = 0;

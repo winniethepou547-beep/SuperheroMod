@@ -143,6 +143,13 @@ public final class ThorFx {
             case FX_CRACKS -> impact(at, power, false, p.seed());
             case FX_ULT_IMPACT -> impact(at, power, true, p.seed());
             case FX_RELEASE -> { flash(at, .7, 3, .6f); sparks(at, 6, .4); burst(at, dir, 2, .8, .03); }
+            case FX_BEAM_HIT -> { sparks(at, 6, .6); flash(at, 1.1, 3, .6f); shake(at, .22f, 3); }
+            case FX_CHARGED -> {
+                var mc2 = Minecraft.getInstance();
+                var who = mc2.level.getNearestPlayer(at.x, at.y, at.z, 2, false);
+                Vec3 hammer = who == null ? at.add(0, 1.3, 0) : chargedHammer(who);
+                flash(hammer, 1.2, 5, .8f); burst(hammer, Vec3.ZERO, 4, .9, .03); sparks(hammer, 10, .5);
+            }
             default -> {}
         }
     }
@@ -280,18 +287,47 @@ public final class ThorFx {
             Deque<Vec3> trail = HAMMER_TRAILS.computeIfAbsent(p.getId(), id -> new ArrayDeque<>());
             if (s != null && s.hammerOut()) { trail.addFirst(s.hammer); while (trail.size() > 10) trail.removeLast(); }
             else if (!trail.isEmpty()) trail.removeLast();
-            // Flight: a fine electric trail, and now and then a fork of lightning dropping from him.
+            float t = s == null ? 0 : ThorClient.clock(s, 0);
+            int action = s == null ? IDLE : s.action;
+            // Wakanda strike: up in the air, lightning lashes out of him in every direction.
+            if (action == WAKANDA && t >= WK_RISE && t < LANDED) {
+                Vec3 c = p.position().add(0, 1.2, 0);
+                if (r.nextFloat() < .55f) {
+                    double a = r.nextDouble() * Math.PI * 2, up = (r.nextDouble() - .35) * 1.2, l = 4 + r.nextDouble() * 6;
+                    Vec3 d = new Vec3(Math.cos(a), up, Math.sin(a)).normalize();
+                    bolt(c.add(d.scale(.5)), c.add(d.scale(l)), .07 + r.nextDouble() * .05, 3 + r.nextInt(3), 2, .3, .8);
+                }
+                if (r.nextFloat() < .12f) bolt(c.add((r.nextDouble() - .5) * 10, 22, (r.nextDouble() - .5) * 10), c.add((r.nextDouble() - .5) * 3, 1, (r.nextDouble() - .5) * 3), .12, 5, 3, .25, .7);
+            }
+            // Full charge: the whirling hammer spits small sparks.
+            if (action == CHARGE && t >= CHARGE_FULL) {
+                Vec3 h = chargedHammer(p);
+                if (r.nextFloat() < .6f) {
+                    Vec3 d = new Vec3(r.nextGaussian(), r.nextGaussian(), r.nextGaussian()).normalize();
+                    bolt(h.add(d.scale(.3)), h.add(d.scale(.8 + r.nextDouble() * .6)), .025, 2 + r.nextInt(2), 1, .4, .3);
+                }
+                sparks(h, 1, .25);
+            }
+            // The thunder beam: sparks where it lands.
+            if (action == BEAM && t >= BM_AIM && t < BM_END) {
+                Vec3[] beam = beam(p, 0);
+                sparks(beam[1], 3, .5);
+            }
+            // The God of Thunder film.
             float ult = ThorClient.ultimateTime(p, 0);
-            Vec3 body = ultimateBody(p, 0);
-            boolean flying = s != null && s.flying() && !p.onGround() || ult >= ULT_LAUNCH && ult < ULT_IMPACT;
             Deque<Vec3> fly = FLIGHT_TRAILS.computeIfAbsent(p.getId(), id -> new ArrayDeque<>());
+            Ult view = ult >= 0 ? ult(p) : null;
+            boolean flying = view != null && ult >= ULT_RISE && ult < ULT_CATCH || action == DASH && t <= dashTicks(s.dashCharge) + 1;
+            Vec3 body = view != null ? view.world(view.path.thor(ult)) : p.position();
             if (flying) { fly.addFirst(body.add(0, 1.1, 0)); while (fly.size() > 16) fly.removeLast(); }
             else if (!fly.isEmpty()) fly.removeLast();
-            if (flying && r.nextFloat() < (ult >= 0 ? .5f : .07f)) {
+            if (flying && r.nextFloat() < (view != null ? .5f : .25f)) {
                 Vec3 from = body.add(0, .8, 0);
-                bolt(from, from.add((r.nextDouble() - .5) * 2, -1.5 - r.nextDouble() * 2.5, (r.nextDouble() - .5) * 2), ult >= 0 ? .06 : .03, 4, 2, .4, .5);
+                bolt(from, from.add((r.nextDouble() - .5) * 2, -1.5 - r.nextDouble() * 2.5, (r.nextDouble() - .5) * 2), view != null ? .06 : .035, 4, 2, .4, .5);
             }
-            if (ult >= 0) ultimateTick(p, ult, r);
+            Float before = LAST_ULT.get(p.getId());
+            if (view != null) { ultimateTick(view, before == null ? -1 : before, ult, r); LAST_ULT.put(p.getId(), ult); }
+            else { LAST_ULT.remove(p.getId()); VIEWS.remove(p.getId()); }
         }
         HAMMER_TRAILS.keySet().removeIf(id -> mc.level.getEntity(id) == null);
         FLIGHT_TRAILS.keySet().removeIf(id -> mc.level.getEntity(id) == null);
@@ -337,50 +373,142 @@ public final class ThorFx {
     }
 
     // ------------------------------------------------------------------ God of Thunder in the world
-    /** Where this Thor's body is drawn: during the film's leap, up in the air above the real one. */
-    public static Vec3 ultimateBody(Player p, float partial) {
-        Vec3 pos = p.getPosition(partial);
-        float t = ThorClient.ultimateTime(p, partial);
-        if (t < ULT_LAUNCH || t >= ULT_IMPACT) return pos;
-        var film = FilmSessionClient.get(p.getId());
-        var level = Minecraft.getInstance().level;
-        if (film == null || level == null) return pos;
-        Vec3 forward = FilmSessionClient.forward(film);
-        var target = level.getEntity(film.target);
-        double land = 5;
-        if (target != null) {
-            Vec3 d = target.position().subtract(film.anchor);
-            land = Math.max(0, Math.sqrt(d.x * d.x + d.z * d.z) - GodOfThunderSession.LAND_SHORT);
+    /** One Thor's running film: his stage (anchor, facing) and the path both bodies follow on it. */
+    static final class Ult {
+        final Player thor; final AerialPath path; final Vec3 anchor, forward, right; final float yaw; final int target;
+        Ult(Player thor, AerialPath path, Vec3 anchor, Vec3 forward, float yaw, int target) {
+            this.thor = thor; this.path = path; this.anchor = anchor; this.forward = forward; this.yaw = yaw; this.target = target;
+            right = forward.cross(new Vec3(0, 1, 0)).normalize();
         }
-        double[] o = ThorMotion.ultimateOffset(t, land);
-        return pos.add(forward.scale(o[2])).add(0, o[1], 0);
+        Vec3 world(Vec3 stage) { return anchor.add(right.scale(stage.x)).add(0, stage.y, 0).add(forward.scale(stage.z)); }
     }
-    private static void ultimateTick(Player p, float t, Random r) {
+    private static final Map<Integer, Ult> VIEWS = new HashMap<>();
+    private static final Map<Integer, Float> LAST_ULT = new HashMap<>();
+    /** The film this Thor is in, or null; the target's distance is read once and kept for the whole film. */
+    static Ult ult(Player p) {
         var film = FilmSessionClient.get(p.getId());
         var level = Minecraft.getInstance().level;
-        if (film == null || level == null) return;
-        Vec3 at = p.position();
-        // Bolts inside the turning storm, more and closer as it builds.
-        if (t > ULT_SKY - 10 && t < ULT_IMPACT + 20 && r.nextFloat() < .35f) {
-            double a = r.nextDouble() * Math.PI * 2, d = 6 + r.nextDouble() * 16;
-            Vec3 a0 = at.add(Math.cos(a) * d, 24 + r.nextDouble() * 6, Math.sin(a) * d);
-            bolt(a0, a0.add((r.nextDouble() - .5) * 14, -3 - r.nextDouble() * 5, (r.nextDouble() - .5) * 14), .12, 5, 2, .3, .8);
-        }
-        // The power-up: lightning crawling up and down him.
-        if (t > ULT_STRIKE && t < ULT_TARGET && r.nextFloat() < .5f) {
-            Vec3 c = at.add(0, 1, 0);
-            bolt(c.add((r.nextDouble() - .5), -1, (r.nextDouble() - .5)), c.add((r.nextDouble() - .5) * 2, 1.6, (r.nextDouble() - .5) * 2), .05, 3, 2, .4, .5);
-        }
-        // The target: electricity gathering round them.
+        if (film == null || level == null || !GodOfThunderSession.ID.equals(film.film)) return null;
+        Ult known = VIEWS.get(p.getId());
+        if (known != null && known.anchor.distanceToSqr(film.anchor) < 1e-4) return known;
         var target = level.getEntity(film.target);
-        if (target != null && t > ULT_TARGET + 8 && t < ULT_IMPACT && r.nextFloat() < .55f) {
-            Vec3 c = target.position().add(0, target.getBbHeight() * .5, 0);
-            double a = r.nextDouble() * Math.PI * 2;
-            Vec3 a0 = c.add(Math.cos(a) * 1.4, (r.nextDouble() - .5) * 2, Math.sin(a) * 1.4);
-            bolt(a0, a0.add((r.nextDouble() - .5) * 1.5, (r.nextDouble() - .5) * 1.5, (r.nextDouble() - .5) * 1.5), .03, 3, 2, .5, .3);
-            if (r.nextFloat() < .1f) bolt(c.add(0, 18, 0), c.add((r.nextDouble() - .5) * 3, -.9, (r.nextDouble() - .5) * 3), .07, 4, 2, .3, .5);
+        double d = 5;
+        if (target != null) {
+            Vec3 to = target.position().subtract(film.anchor);
+            d = Math.max(2.5, Math.min(20, Math.sqrt(to.x * to.x + to.z * to.z)));
         }
-        if (Math.abs(t - ULT_BOOM) < .6f) { flash(at.add(0, 18, 0), 26, 12, .5f); shake(at, .6f, 30); }
+        Ult view = new Ult(p, new AerialPath(d), film.anchor, FilmSessionClient.forward(film), film.yaw, film.target);
+        VIEWS.put(p.getId(), view);
+        return view;
+    }
+    private static boolean crossed(float before, float now, float beat) { return before < beat && now >= beat; }
+    /** The film's lightning, fired as the clock passes each beat; the storm thickens toward the whiteout. */
+    private static void ultimateTick(Ult v, float before, float t, Random r) {
+        AerialPath path = v.path;
+        Vec3 target = v.world(path.target(t)), chest = target.add(0, 1.1, 0);
+        Vec3 thor = v.world(path.thor(t));
+        if (crossed(before, t, ULT_HIT1)) {
+            burst(chest, v.right, 4, 1.4, .05); flash(chest, 1.4, 5, .8f); sparks(chest, 14, .7); ring(chest, 1.2, 8);
+        }
+        if (crossed(before, t, ULT_HIT2)) {
+            burst(chest, v.forward, 6, 1.8, .06); flash(chest, 2.0, 6, .9f); sparks(chest, 26, 1.0); ring(chest, 1.8, 10);
+        }
+        if (crossed(before, t, ULT_UPPER)) {
+            Vec3 feet = v.world(path.target(ULT_UPPER));
+            bolt(feet, feet.add(0, 6, 0), .1, 6, 3, .25, .6);
+            flash(feet.add(0, 1.2, 0), 2.4, 7, 1f); ring(feet.add(0, .05, 0), 3.2, 14); sparks(feet.add(0, 1, 0), 24, 1.1);
+            var level = Minecraft.getInstance().level;
+            if (level != null) for (int i = 0; i < 20; i++) {
+                double a = i * Math.PI * 2 / 20;
+                level.addParticle(ParticleTypes.CLOUD, feet.x + Math.cos(a) * .5, feet.y + .1, feet.z + Math.sin(a) * .5, Math.cos(a) * .3, .03, Math.sin(a) * .3);
+            }
+        }
+        // Climbing into the storm: great bolts tear past, the sky starts to crawl with light.
+        for (int beat : new int[]{118, 128, 138})
+            if (crossed(before, t, beat)) {
+                double side = (beat % 20 == 18 ? 1 : -1) * (3 + r.nextDouble() * 2);
+                Vec3 at = chest.add(v.right.scale(side));
+                bolt(at.add(0, 26, 0), at.add(v.forward.scale(r.nextDouble() * 4 - 2)).add(0, -18, 0), .3, 7, 3, .18, .8);
+                flash(at, 5, 6, .6f);
+            }
+        if (t > 100 && t < ULT_FADE && r.nextFloat() < (t < ULT_STORM ? .35f : .7f)) {
+            Vec3 sky = v.world(new Vec3(0, ULT_HEIGHT + 9, path.distance()));
+            double a = r.nextDouble() * Math.PI * 2, d = 4 + r.nextDouble() * 18;
+            Vec3 a0 = sky.add(Math.cos(a) * d, r.nextDouble() * 5, Math.sin(a) * d);
+            bolt(a0, a0.add((r.nextDouble() - .5) * 16, -2 - r.nextDouble() * 5, (r.nextDouble() - .5) * 16), .12, 5, 2, .3, .8);
+        }
+        if (crossed(before, t, ULT_CATCH)) { flash(thor.add(0, 1.3, 0), 1.8, 6, .9f); sparks(thor.add(0, 1.3, 0), 18, .8); }
+        // The cry: lightning out of his eyes, thick and branching, up into the clouds.
+        if (t >= ULT_EYEBOLT && t < ULT_BLAST && (crossed(before, t, ULT_EYEBOLT) || (int) t != (int) before && (int) t % 3 == 0)) {
+            Vec3 eyes = thor.add(0, 1.65, 0).add(v.forward.scale(.25));
+            for (int side = -1; side <= 1; side += 2) {
+                Vec3 eye = eyes.add(v.right.scale(side * .12));
+                Vec3 up = eye.add(v.right.scale(side * (2 + r.nextDouble() * 10))).add(0, 18 + r.nextDouble() * 14, 0).add(v.forward.scale(r.nextDouble() * 10 - 3));
+                bolt(eye, up, t < ULT_STORM ? .2 : .14, 6, 3, .22, .9);
+            }
+            if (crossed(before, t, ULT_EYEBOLT)) { flash(eyes, 3, 8, 1f); flash(eyes.add(0, 20, 0), 20, 10, .5f); }
+        }
+        // Then the columns: one great strike after another all round them, ever more.
+        if (t >= ULT_STORM && t < ULT_BLAST) {
+            float density = (t - ULT_STORM) / (ULT_BLAST - ULT_STORM);
+            int strikes = r.nextFloat() < .4f + .6f * density ? 1 + (density > .6f ? 1 : 0) : 0;
+            for (int i = 0; i < strikes; i++) {
+                double a = r.nextDouble() * Math.PI * 2, d = 2.5 + r.nextDouble() * (14 - 8 * density);
+                Vec3 col = thor.add(Math.cos(a) * d, 0, Math.sin(a) * d);
+                bolt(col.add(0, 30, 0), col.add(0, -26, 0), .28 + .2 * density, 6, 3, .15, .7);
+                flash(col.add(0, 1, 0), 3 + 4 * density, 5, .6f);
+            }
+        }
+        if (crossed(before, t, ULT_BLAST)) flash(thor.add(0, 1, 0), 40, 18, 1f);
+        if (crossed(before, t, ULT_LET_GO)) { flash(target.add(0, 1, 0), 1.6, 5, .7f); burst(target.add(0, 1, 0), new Vec3(0, -1, 0), 3, 1.5, .05); }
+        if (crossed(before, t, ULT_LANDED)) takeoff(thor, .7f);
+        // Afterwards: small arcs still running over the ground round him.
+        if (t > ULT_LANDED && r.nextFloat() < .3f) {
+            double a = r.nextDouble() * Math.PI * 2;
+            Vec3 at = thor.add(Math.cos(a) * (.5 + r.nextDouble()), .05, Math.sin(a) * (.5 + r.nextDouble()));
+            bolt(at, at.add((r.nextDouble() - .5) * 1.4, .1 + r.nextDouble() * .5, (r.nextDouble() - .5) * 1.4), .025, 3, 1, .4, .3);
+        }
+    }
+
+    // ------------------------------------------------------------------ the thunder beam (F)
+    /** Where the hammer is while the arm holds it out at full stretch, the charged spin out to his right. */
+    static Vec3 chargedHammer(Player p) {
+        Vec3 f = Vec3.directionFromRotation(0, p.getYRot()), right = f.cross(new Vec3(0, 1, 0)).normalize();
+        return p.position().add(0, 1.35, 0).add(right.scale(.95)).add(f.scale(.55));
+    }
+    /** Hammer head and where the beam stops (a wall, a body or full range), for this frame. */
+    static Vec3[] beam(Player p, float partial) {
+        Vec3 look = p.getViewVector(partial);
+        Vec3 f = Vec3.directionFromRotation(0, p.getViewYRot(partial)), right = f.cross(new Vec3(0, 1, 0)).normalize();
+        Vec3 shoulder = p.getPosition(partial).add(0, 1.38, 0).add(right.scale(.36));
+        Vec3 head = shoulder.add(look.scale(1.25));
+        Vec3 eye = p.getEyePosition(partial), far = eye.add(look.scale(BM_RANGE));
+        var level = Minecraft.getInstance().level;
+        var hit = level.clip(new ClipContext(eye, far, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, p));
+        Vec3 end = hit.getType() == HitResult.Type.MISS ? far : hit.getLocation();
+        double best = eye.distanceToSqr(end);
+        for (var e : level.getEntities(p, new net.minecraft.world.phys.AABB(eye, end).inflate(BM_RADIUS))) {
+            if (!(e instanceof net.minecraft.world.entity.LivingEntity)) continue;
+            var clip = e.getBoundingBox().inflate(.3).clip(eye, end);
+            if (clip.isPresent() && clip.get().distanceToSqr(eye) < best) { best = clip.get().distanceToSqr(eye); end = clip.get(); }
+        }
+        return new Vec3[]{head, end};
+    }
+    private static void drawBeam(FilmContext c, Matrix4f m, Player p, float t, float partial) {
+        float alpha = FilmFx.ease((t - BM_AIM + 1) / 2f) * (1 - FilmFx.ease((t - BM_END) / 3f));
+        if (alpha <= .01f) return;
+        Vec3[] ends = beam(p, partial);
+        Vec3 head = ends[0], end = ends[1];
+        int frame = (int) (c.time() * .75f);
+        // A straight bright core with the lightning twisting round it, re-formed every tick or so.
+        ThorBolts.ribbon(c.buffers().getBuffer(FilmFx.ADD), m, head, end, c.camera(), .55, ThorBolts.GLOW, .25f * alpha);
+        ThorBolts.ribbon(c.buffers().getBuffer(FilmFx.ADD), m, head, end, c.camera(), .14, ThorBolts.BODY, .55f * alpha);
+        for (int i = 0; i < 3; i++)
+            ThorBolts.draw(c.buffers().getBuffer(FilmFx.ADD), m, ThorBolts.bolt(head, end, frame * 97L + i * 13L + p.getId(), .14 + .05 * i, .45, 1), c.camera(), i == 0 ? .14 : .08, alpha);
+        FilmFx.glow(c, head, .9, ThorBolts.BODY, .8f * alpha);
+        FilmFx.glow(c, head, .35, ThorBolts.CORE, alpha);
+        FilmFx.glow(c, end, 1.5, ThorBolts.BODY, .7f * alpha);
+        FilmFx.glow(c, end, .5, ThorBolts.CORE, .9f * alpha);
     }
 
     // ------------------------------------------------------------------ drawing: light
@@ -389,7 +517,11 @@ public final class ThorFx {
         var mc = Minecraft.getInstance();
         if (mc.level == null) return;
         boolean storm = false;
-        for (Player p : mc.level.players()) if (ThorClient.isThor(p) && ThorClient.ultimateTime(p, 0) >= 0) storm = true;
+        for (Player p : mc.level.players()) {
+            if (!ThorClient.isThor(p)) continue;
+            var s = ThorClient.get(p);
+            if (ThorClient.ultimateTime(p, 0) >= 0 || s != null && s.action == BEAM) storm = true;
+        }
         if (BOLTS.isEmpty() && FLASHES.isEmpty() && RINGS.isEmpty() && CRACKS.isEmpty() && HAMMER_TRAILS.isEmpty() && FLIGHT_TRAILS.isEmpty() && !storm) return;
         float partial = e.getPartialTick();
         long now = now();
@@ -432,7 +564,10 @@ public final class ThorFx {
             for (Player pl : mc.level.players()) {
                 if (!ThorClient.isThor(pl)) continue;
                 float t = ThorClient.ultimateTime(pl, partial);
-                if (t >= 0) storm(c, pl, t);
+                Ult view = t >= 0 ? ult(pl) : null;
+                if (view != null) storm(c, view, t);
+                var s = ThorClient.get(pl);
+                if (s != null && s.action == BEAM) drawBeam(c, m, pl, ThorClient.clock(s, partial), partial);
             }
             buffers.endBatch();
         } finally {
@@ -488,21 +623,22 @@ public final class ThorFx {
             ThorBolts.draw(c.buffers().getBuffer(FilmFx.ADD), m, ThorBolts.bolt(head, tail, frame * 31L + salt, .25, .3, 1), c.camera(), width * .35, alpha * .8f);
     }
     /** The sky turning over the battlefield: dark cloud wheeling round, faster and faster. */
-    private static void storm(FilmContext c, Player p, float t) {
-        float build = FilmFx.ease((t - (ULT_SKY - 30)) / 40f) * (1 - FilmFx.ease((t - (ULT_IMPACT + 10)) / 20f));
+    private static void storm(FilmContext c, Ult v, float t) {
+        float build = FilmFx.ease((t - 90) / 40f) * (1 - FilmFx.ease((t - (ULT_LANDED + 10)) / 20f)) * .8f + FilmFx.ease((t - ULT_STORM) / 20f) * .2f;
         if (build <= .01f) return;
-        Vec3 eye = p.position().add(0, 26, 0);
-        double spin = t * (.02 + .05 * FilmFx.ease((t - ULT_SKY) / 30f));
-        for (int ring = 0; ring < 4; ring++) {
+        Vec3 eye = v.world(new Vec3(0, ULT_HEIGHT + 10, v.path.distance()));
+        // The storm gathers fast: the wheel turns quicker and quicker as it builds.
+        double spin = t * (.02 + .05 * FilmFx.ease((t - 110) / 40f) + .04 * FilmFx.ease((t - ULT_STORM) / 30f));
+        for (int ring = 0; ring < 5; ring++) {
             int n = 18 + ring * 4;
-            double radius = 7 + ring * 7;
+            double radius = 6 + ring * 7;
             for (int i = 0; i < n; i++) {
-                double a = i * Math.PI * 2 / n + spin * (1.6 - ring * .3) + ring;
-                Vec3 at = eye.add(Math.cos(a) * radius, -ring * 1.2 + Math.sin(a * 3 + t * .05) * .8, Math.sin(a) * radius);
-                FilmFx.puff(c, at, 6 + ring * 1.5, ring % 2 == 0 ? 0x1c1f28 : 0x262a36, .55f * build);
+                double a = i * Math.PI * 2 / n + spin * (1.6 - ring * .25) + ring;
+                Vec3 at = eye.add(Math.cos(a) * radius, -ring * 1.4 + Math.sin(a * 3 + t * .05) * .8, Math.sin(a) * radius);
+                FilmFx.puff(c, at, 6 + ring * 1.6, ring % 2 == 0 ? 0x1c1f28 : 0x262a36, .6f * build);
             }
         }
-        FilmFx.glow(c, eye.add(0, -2, 0), 9, ThorBolts.HAZE, .18f * build * (.6f + .4f * (float) Math.sin(t * .7)));
+        FilmFx.glow(c, eye.add(0, -2, 0), 12, ThorBolts.HAZE, .2f * build * (.6f + .4f * (float) Math.sin(t * .7)));
     }
 
     // ------------------------------------------------------------------ drawing: the thrown hammer and the leap
@@ -520,7 +656,8 @@ public final class ThorFx {
             ThorClient.State s = ThorClient.get(p);
             float ult = ThorClient.ultimateTime(p, partial);
             if (s != null && s.hammerOut() && ult < 0) { thrownHammer(pose, buffers, cam, p, s, partial); any = true; }
-            if (ult >= ULT_LAUNCH && ult < ULT_IMPACT) { leaping(pose, buffers, cam, p, partial); any = true; }
+            Ult view = ult >= 0 ? ult(p) : null;
+            if (view != null) { performers(pose, buffers, cam, view, ult, partial); any = true; }
         }
         if (any) buffers.endBatch();
     }
@@ -543,11 +680,20 @@ public final class ThorFx {
         Mjolnir.draw(pose, buffers, light, .6f, time);
         pose.popPose();
     }
-    private static void leaping(PoseStack pose, MultiBufferSource.BufferSource buffers, Vec3 cam, Player p, float partial) {
+    private static final Map<Integer, com.FIRNI.superheromod.client.render.film.FilmCast> CASTS = new HashMap<>();
+    private static boolean drawingCast;
+    /**
+     * The film's two bodies in the world: Thor where the path puts him (his real body stays held at
+     * the start), and the target as a jointed puppet that can bend, block, fly and fall.
+     */
+    private static void performers(PoseStack pose, MultiBufferSource.BufferSource buffers, Vec3 cam, Ult v, float t, float partial) {
         var mc = Minecraft.getInstance();
-        Vec3 at = ultimateBody(p, partial);
+        Player p = v.thor;
+        Vec3 at = v.world(v.path.thor(t));
         var dispatcher = mc.getEntityRenderDispatcher();
-        float yaw = p.getViewYRot(partial);
+        float yaw = v.yaw + v.path.thorYaw(t);
+        float body = p.yBodyRot, bodyO = p.yBodyRotO, head = p.yHeadRot, headO = p.yHeadRotO;
+        p.yBodyRot = p.yBodyRotO = p.yHeadRot = p.yHeadRotO = yaw;
         drawingProxy = true;
         dispatcher.setRenderShadow(false);
         try {
@@ -555,13 +701,36 @@ public final class ThorFx {
         } finally {
             drawingProxy = false;
             dispatcher.setRenderShadow(mc.options.entityShadows().get());
+            p.yBodyRot = body; p.yBodyRotO = bodyO; p.yHeadRot = head; p.yHeadRotO = headO;
+        }
+        var target = mc.level.getEntity(v.target);
+        if (target == null) return;
+        var cast = CASTS.get(v.target);
+        if (cast == null || cast.entity() != target) { cast = com.FIRNI.superheromod.client.render.film.FilmCast.of(target); CASTS.put(v.target, cast); }
+        if (CASTS.size() > 8) CASTS.clear();
+        if (cast == null) return;
+        pose.pushPose();
+        pose.translate(-cam.x, -cam.y, -cam.z);
+        var rotation = mc.gameRenderer.getMainCamera().rotation();
+        var r = new org.joml.Vector3f(1, 0, 0).rotate(rotation); var u = new org.joml.Vector3f(0, 1, 0).rotate(rotation);
+        FilmContext c = new FilmContext(pose, buffers, cam, new Vec3(r.x, r.y, r.z), new Vec3(u.x, u.y, u.z), t, t, partial);
+        drawingCast = true;
+        try {
+            cast.draw(c, v.world(v.path.target(t)), v.yaw + 180, AerialPath.targetPose(t), 1, 0xffffff);
+        } finally {
+            drawingCast = false;
+            pose.popPose();
         }
     }
-    /** During the film's leap the real body stays where it is held; only the flying one is drawn. */
+    /** During the film the real bodies stay held at the start; only the performers are drawn. */
     @SubscribeEvent public static void hideHeld(RenderPlayerEvent.Pre e) {
-        if (drawingProxy || !ThorClient.isThor(e.getEntity())) return;
-        float t = ThorClient.ultimateTime(e.getEntity(), e.getPartialTick());
-        if (t >= ULT_LAUNCH && t < ULT_IMPACT) e.setCanceled(true);
+        if (drawingProxy || drawingCast || !ThorClient.isThor(e.getEntity())) return;
+        if (ThorClient.ultimateTime(e.getEntity(), e.getPartialTick()) >= 0) e.setCanceled(true);
+    }
+    @SubscribeEvent public static void hideTarget(RenderLivingEvent.Pre<?, ?> e) {
+        if (drawingCast || drawingProxy || VIEWS.isEmpty()) return;
+        int id = e.getEntity().getId();
+        for (Ult v : VIEWS.values()) if (v.target == id) { e.setCanceled(true); return; }
     }
 
     // ------------------------------------------------------------------ first person
@@ -612,11 +781,28 @@ public final class ThorFx {
                 p.mulPose(Axis.ZP.rotation(action == GUARD ? t * 1.3f + .06f * t * t / (1 + t * .1f) : 0));
                 power = Math.max(power, .5f);
             }
+            case CHARGE -> {
+                // Whirling out to the right, a blur in the corner of the view.
+                float in = ThorMotion.k(t, 0, 4);
+                p.translate(.25 * in, .25 * in, -.15 * in);
+                p.mulPose(Axis.ZP.rotation(ThorMotion.spin(t, 2.9f, 8)));
+                power = 0;
+            }
+            case DASH -> {
+                float out = ThorMotion.snap(t, 0, 2);
+                p.translate(-.35 * out, .3 * out, -.3 * out);
+                p.mulPose(Axis.XP.rotationDegrees(-95 * out));
+            }
+            case BEAM -> {
+                float up = ThorMotion.k(t, 0, 8), aim = ThorMotion.snap(t, BM_AIM - 5, BM_AIM), done = ThorMotion.k(t, BM_END, BM_TOTAL);
+                float raise = up * (1 - aim);
+                p.translate(-.1 * raise, .9 * raise, 0);
+                p.translate(-.3 * aim * (1 - done), .25 * aim * (1 - done), -.2 * aim * (1 - done));
+                p.mulPose(Axis.XP.rotationDegrees(-95 * aim * (1 - done)));
+                if (t >= BM_AIM && t < BM_END) p.translate(Math.sin(time * 3.1) * .01, Math.sin(time * 7.3) * .01, 0);
+                power = Math.max(power, up);
+            }
             default -> {}
-        }
-        if (s != null && s.flying() && action == IDLE) {
-            p.translate(.05, .35, .1);
-            p.mulPose(Axis.XP.rotation(time * 1.4f));
         }
         p.scale(.9f, .9f, .9f);
         p.translate(0, -2 / 16f, 0);

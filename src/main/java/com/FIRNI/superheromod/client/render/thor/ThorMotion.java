@@ -48,8 +48,9 @@ public final class ThorMotion {
     }
 
     /** What the pose depends on besides the action and its clock. */
+    /** charge: how wound-up the hammer launch is (0..1); lookPitch: where he looks, radians, negative is up. */
     public record Input(int action, float t, boolean flying, boolean hammerOut, boolean powered, boolean combat,
-                        float speed, float idleTime, boolean grounded) {}
+                        float speed, float idleTime, boolean grounded, float charge, float lookPitch) {}
 
     private ThorMotion() {}
 
@@ -69,7 +70,8 @@ public final class ThorMotion {
         float breathe = (float) Math.sin(time * .08) * .025f;
         p.torsoPitch = .05f + breathe; p.headPitch = -.06f - breathe;
         p.rLegZ = .07f; p.lLegZ = -.07f;
-        p.rArmX = .04f - breathe; p.rArmZ = .14f; p.rElbow = .16f; p.wristX = .12f;
+        // Mjolnir held up off the ground: forearm forward, the handle rising out of the fist, head on top.
+        p.rArmX = -.1f - breathe; p.rArmZ = .16f; p.rArmY = .08f; p.rElbow = .9f; p.wristX = -1.3f;
         p.lArmX = .02f - breathe; p.lArmZ = -.11f; p.lElbow = .22f;
         // Every so often: settles the hammer in his grip, rolls a shoulder, glances aside.
         float cycle = time % 220;
@@ -120,6 +122,9 @@ public final class ThorMotion {
             case CATCH -> caught(base.copy(), t);
             case TAKEOFF -> takeoff(base.copy(), t);
             case GUARD -> guard(base.copy(), t);
+            case CHARGE -> charging(base.copy(), t);
+            case DASH -> dash(base.copy(), t, in.charge(), in.lookPitch());
+            case BEAM -> beam(base.copy(), t, in.lookPitch());
             case COUNTER -> counter(base.copy(), t);
             case WAKANDA -> wakanda(base.copy(), t);
             case ULTIMATE -> ultimate(base.copy(), t);
@@ -240,13 +245,71 @@ public final class ThorMotion {
         p.crouch = lerp(p.crouch, 2.2f, in); p.torsoPitch = lerp(p.torsoPitch, .22f, in); p.headPitch = lerp(p.headPitch, -.25f, in);
         p.rLegZ = .2f; p.lLegZ = -.2f; p.rLegX = .2f; p.lLegX = -.35f; p.rKnee = .5f; p.lKnee = .45f;
         p.torsoYaw = lerp(p.torsoYaw, .1f, in);
-        p.rArmX = lerp(p.rArmX, -1.4f, in); p.rArmY = lerp(p.rArmY, -.25f, in); p.rArmZ = lerp(p.rArmZ, .05f, in); p.rElbow = lerp(p.rElbow, .35f, in);
+        p.rArmX = lerp(p.rArmX, -1.35f, in); p.rArmY = lerp(p.rArmY, .3f, in); p.rArmZ = lerp(p.rArmZ, .1f, in); p.rElbow = lerp(p.rElbow, .2f, in);
         p.wristX = -1.5708f;
-        p.wristY = .8f * t + .07f * Math.min(t, 8) * Math.min(t, 8);
-        p.spinRing = k(t, 1, 5); p.spinMode = 2;
+        p.wristY = spin(t, 2.9f, 3);
+        p.spinRing = k(t, .5f, 3); p.spinMode = 2;
         p.lArmX = lerp(p.lArmX, -.85f, in); p.lArmZ = lerp(p.lArmZ, -.15f, in); p.lElbow = lerp(p.lElbow, 1.35f, in);
         return p;
     }
+    /** Angle of a whirl that reaches full speed (rad/tick) over rampTicks, smoothly. */
+    static float spin(float t, float speed, float rampTicks) {
+        if (t <= rampTicks) return speed * t * t / (2 * rampTicks);
+        return speed * (t - rampTicks / 2);
+    }
+
+    /** Shift held: arm out to his right, Mjolnir whirling there faster and faster. */
+    static Pose charging(Pose p, float t) {
+        float in = k(t, 0, 4), c = clamp(t / CHARGE_FULL);
+        p.crouch = lerp(p.crouch, 1.8f + 1.2f * c, in); p.torsoPitch = lerp(p.torsoPitch, .15f, in);
+        p.torsoYaw = lerp(p.torsoYaw, .3f, in); p.headPitch = lerp(p.headPitch, -.15f, in);
+        p.rLegZ = .2f; p.lLegZ = -.2f; p.rLegX = .25f; p.lLegX = -.35f; p.rKnee = .45f; p.lKnee = .5f;
+        p.rArmX = lerp(p.rArmX, -1.15f, in); p.rArmY = lerp(p.rArmY, .55f, in); p.rArmZ = lerp(p.rArmZ, .4f, in); p.rElbow = lerp(p.rElbow, .2f, in);
+        p.lArmX = lerp(p.lArmX, .25f, in); p.lArmZ = lerp(p.lArmZ, -.45f, in); p.lElbow = lerp(p.lElbow, .5f, in);
+        p.wristX = -1.5708f;
+        // Speeds up with the charge; at full charge it holds the top speed.
+        float full = CHARGE_FULL;
+        p.wristY = t <= full ? 1.2f * t + 1.7f * t * t / (2 * full) : 1.2f * full + 1.7f * full / 2 + 2.9f * (t - full);
+        p.spinRing = k(t, 1, 5); p.spinMode = 2;
+        p.eyes = c * c * .8f;
+        return p;
+    }
+    /** Let go: the hammer flung out at arm's length, head first, and he rides it where he looks. */
+    static Pose dash(Pose p, float t, float charge, float lookPitch) {
+        float out = snap(t, 0, 2), end = k(t, dashTicks(charge) - 2, dashTicks(charge) + 3);
+        Pose f = new Pose();
+        f.bodyPitch = Math.max(.15f, Math.min(2.6f, 1.45f + lookPitch));
+        f.headPitch = -.25f;
+        f.rArmX = -3.0f; f.rArmZ = .08f; f.rArmY = 0; f.rElbow = .05f; f.wristX = 0;
+        f.lArmX = .3f; f.lArmZ = -.2f; f.lElbow = .25f;
+        f.rLegX = .18f; f.lLegX = .05f; f.rKnee = .3f; f.lKnee = .12f; f.rLegZ = .04f; f.lLegZ = -.04f;
+        f.eyes = .4f + .6f * charge; f.aura = charge;
+        p.toward(f, out * (1 - end));
+        return p;
+    }
+    /** F: Mjolnir straight up to the sky, then levelled at what he looks at while the lightning pours out. */
+    static Pose beam(Pose p, float t, float lookPitch) {
+        float up = k(t, 0, 8), aim = snap(t, BM_AIM - 5, BM_AIM), done = k(t, BM_END, BM_TOTAL);
+        p.rLegZ = lerp(p.rLegZ, .24f, up); p.lLegZ = lerp(p.lLegZ, -.24f, up); p.crouch = lerp(p.crouch, .8f, up);
+        p.rArmX = lerp(p.rArmX, -3.1f, up); p.rArmZ = lerp(p.rArmZ, .1f, up); p.rArmY = lerp(p.rArmY, 0, up); p.rElbow = lerp(p.rElbow, .05f, up); p.wristX = lerp(p.wristX, 0, up);
+        p.lArmX = lerp(p.lArmX, .08f, up); p.lArmZ = lerp(p.lArmZ, -.4f, up); p.lElbow = lerp(p.lElbow, .3f, up);
+        p.torsoPitch = lerp(p.torsoPitch, -.18f, up); p.headPitch = lerp(p.headPitch, -.65f, up);
+        p.eyes = up;
+        // Levelled at the target; the left hand comes over to steady the right arm against the recoil.
+        float tremble = t >= BM_AIM && t < BM_END ? (float) Math.sin(t * 3.1) * .035f + (float) Math.sin(t * 7.3) * .02f : 0;
+        p.rArmX = lerp(p.rArmX, -1.57f + lookPitch + tremble, aim); p.rArmY = lerp(p.rArmY, .05f, aim);
+        p.lArmX = lerp(p.lArmX, -1.25f + lookPitch * .8f, aim); p.lArmY = lerp(p.lArmY, -.45f, aim); p.lArmZ = lerp(p.lArmZ, .05f, aim); p.lElbow = lerp(p.lElbow, .85f, aim);
+        p.torsoPitch = lerp(p.torsoPitch, .12f, aim); p.headPitch = lerp(p.headPitch, 0, aim);
+        p.crouch = lerp(p.crouch, 1.8f, aim); p.rLegX = lerp(p.rLegX, .25f, aim); p.lLegX = lerp(p.lLegX, -.4f, aim);
+        p.rKnee = lerp(p.rKnee, .5f, aim); p.lKnee = lerp(p.lKnee, .45f, aim);
+        p.torsoYaw = lerp(p.torsoYaw, tremble * 2, aim);
+        p.aura = Math.max(up * .5f, aim) * (1 - done);
+        Pose rest = combat(t);
+        p.toward(rest, done);
+        p.eyes *= 1 - done * .7f;
+        return p;
+    }
+
     /** Perfect parry: the whirl stops dead and the hammer is driven back into the attacker. */
     static Pose counter(Pose p, float t) {
         Pose g = guard(p.copy(), 8);
@@ -329,77 +392,92 @@ public final class ThorMotion {
         return p;
     }
 
-    /** X: the film's choreography for Thor himself (the camera is the film's business). */
+    /**
+     * X, "Aerial Punishment": Thor's own performance (where his body is comes from AerialPath).
+     * Lunge, the two hits and the uppercut at the film's slower tempo; the whirl and the flight up;
+     * the lock and the cry; letting go; the glide down and the soft landing.
+     */
     static Pose ultimate(Pose p, float t) {
-        p.set(idle(t * .5f));
-        p.rLegZ = .12f; p.lLegZ = -.12f;
-        // Quiet: still, head a little bowed.
-        p.headPitch = lerp(.25f, -.12f, k(t, ULT_CLOSE + 6, ULT_EYE_SPARK));
-        p.eyes = t >= ULT_EYE_SPARK && t < ULT_EYE_SPARK + 2 ? .6f : k(t, ULT_EYES, ULT_EYES + 4);
-        // Mjolnir to the sky.
-        float raise = k(t, ULT_RAISE, ULT_RAISE + 14);
-        p.rArmX = lerp(p.rArmX, -3.05f, raise); p.rArmZ = lerp(p.rArmZ, .12f, raise); p.rElbow = lerp(p.rElbow, .05f, raise); p.wristX = lerp(p.wristX, 0, raise);
-        p.headPitch = lerp(p.headPitch, -.55f, raise); p.torsoPitch = lerp(p.torsoPitch, -.12f, raise);
-        p.lArmZ = lerp(p.lArmZ, -.35f, raise);
-        // The bolt hits him: he takes it, braced.
-        float struck = k(t, ULT_STRIKE, ULT_STRIKE + 3) * (1 - k(t, ULT_POWER, ULT_POWER + 10));
-        p.crouch = 2.5f * struck; p.rKnee = p.lKnee = .5f * struck;
-        // Power: wide, low, chest out, then the cry.
-        float power = k(t, ULT_POWER, ULT_POWER + 10);
-        p.crouch = lerp(p.crouch, 2.2f, power); p.rLegZ = lerp(p.rLegZ, .25f, power); p.lLegZ = lerp(p.lLegZ, -.25f, power);
-        p.rKnee = lerp(p.rKnee, .45f, power); p.lKnee = lerp(p.lKnee, .45f, power);
-        p.rArmX = lerp(p.rArmX, -2.4f, power); p.rArmZ = lerp(p.rArmZ, .85f, power); p.rElbow = lerp(p.rElbow, .5f, power);
-        p.lArmX = lerp(p.lArmX, -.4f, power); p.lArmZ = lerp(p.lArmZ, -.9f, power); p.lElbow = lerp(p.lElbow, .5f, power);
-        p.torsoPitch = lerp(p.torsoPitch, -.2f, power); p.headPitch = lerp(p.headPitch, -.2f, power);
-        float cry = k(t, ULT_SHOUT, ULT_SHOUT + 4) * (1 - k(t, ULT_BOOM, ULT_BOOM + 6));
-        float shake = (float) Math.sin(t * 2.9) * .05f * cry;
-        p.headPitch = lerp(p.headPitch, -.65f, cry) + shake; p.mouth = cry; p.lArmZ = lerp(p.lArmZ, -1.2f, cry) + shake; p.rArmZ += shake;
-        p.aura = Math.max(k(t, ULT_STRIKE, ULT_STRIKE + 2), 0) * (t < ULT_IMPACT + 20 ? 1 : 1 - k(t, ULT_IMPACT + 20, ULT_TOTAL));
-        // Facing the enemy: Mjolnir comes down to point at them, then up again.
-        float point = k(t, ULT_TARGET + 4, ULT_TARGET + 14) * (1 - k(t, ULT_FLIGHT - 10, ULT_FLIGHT));
-        p.rArmX = lerp(p.rArmX, -1.55f, point); p.rArmZ = lerp(p.rArmZ, .1f, point); p.rElbow = lerp(p.rElbow, .05f, point); p.wristX = lerp(p.wristX, -.1f, point);
-        p.headPitch = lerp(p.headPitch, -.05f, point); p.torsoPitch = lerp(p.torsoPitch, .1f, point);
-        // The whirl and the leap.
-        if (t >= ULT_FLIGHT && t < ULT_HOVER) {
-            Pose spin = takeoff(p.copy(), Math.min(TAKEOFF_TICKS, t - ULT_FLIGHT));
-            if (t >= ULT_LAUNCH) { spin = flight(t, 1.4f); spin.wristX = t * 1.5f; spin.headPitch = -.6f; }
-            spin.eyes = 1; spin.aura = 1;
-            p.set(spin);
+        p.set(combat(t));
+        if (t >= ULT_LUNGE && t < ULT_LUNGE + 10) {
+            // Closing the distance: low, driving strides, the hammer drawn back.
+            float k = (t - ULT_LUNGE) / 10f, stride = (float) Math.sin(k * Math.PI * 2.2);
+            p.bodyPitch = .35f * (float) Math.sin(Math.PI * k);
+            p.rLegX = -.7f * stride; p.lLegX = .7f * stride; p.rKnee = .5f + .4f * Math.max(0, stride); p.lKnee = .5f + .4f * Math.max(0, -stride);
+            p.rArmX = .35f; p.rElbow = .6f; p.wristX = -.6f; p.lArmX = -.6f * stride;
         }
-        if (t >= ULT_HOVER && t < ULT_IMPACT) {
-            p.set(idle(0)); p.eyes = 1; p.aura = 1;
-            p.rLegX = .25f; p.lLegX = -.15f; p.rKnee = .55f; p.lKnee = .35f;
-            overhead(p, k(t, ULT_HOVER, ULT_HOVER + 6));
-            slam(p, snap(t, ULT_PLUNGE, ULT_IMPACT));
+        if (t >= ULT_LUNGE + 10 && t < ULT_HIT2 - 10) return swingRight(p, (t - (ULT_HIT1 - 10)) * .6f);
+        if (t >= ULT_HIT2 - 10 && t < ULT_LOAD) return swingLeft(p, (t - (ULT_HIT2 - 10)) * .6f);
+        if (t >= ULT_LOAD && t < 95) {
+            Pose u = uppercut(p, Math.min(UPPER_TICKS, (t - ULT_LOAD) * UPPER_HIT / (float) (ULT_UPPER - ULT_LOAD)));
+            u.headPitch = lerp(u.headPitch, -.95f, k(t, ULT_UPPER + 4, 95));
+            return u;
         }
-        if (t >= ULT_IMPACT) {
-            p.set(idle(t)); p.eyes = 1;
-            slam(p, 1); kneel(p, snap(t, ULT_IMPACT, ULT_IMPACT + 2));
-            float up = k(t, ULT_IMPACT + 12, ULT_IMPACT + 22);
-            p.toward(idle(t), up);
-            // Mjolnir onto his shoulder.
-            float shoulder = k(t, ULT_IMPACT + 18, ULT_IMPACT + 26);
-            p.rArmX = lerp(p.rArmX, -1.05f, shoulder); p.rArmZ = lerp(p.rArmZ, .05f, shoulder); p.rElbow = lerp(p.rElbow, 2.3f, shoulder);
-            p.wristX = lerp(p.wristX, -1.1f, shoulder); p.twoHands = p.twoHands * (1 - up);
-            p.aura = .6f * (1 - k(t, ULT_IMPACT + 10, ULT_TOTAL));
+        if (t >= 95 && t < ULT_SPIN) {
+            // Watching them go up.
+            p.headPitch = -1.0f; p.torsoPitch = -.15f; p.eyes = k(t, 95, ULT_SPIN) * .7f;
+            return p;
+        }
+        if (t >= ULT_SPIN && t < ULT_RISE) {
+            Pose w = takeoff(p, (t - ULT_SPIN) * TAKEOFF_TICKS / (float) (ULT_RISE - ULT_SPIN));
+            w.headPitch = -.7f; w.eyes = .8f; w.aura = .3f;
+            // The body draws back a little before the whirl throws him up.
+            w.torsoPitch = lerp(w.torsoPitch, -.2f, k(t, ULT_RISE - 6, ULT_RISE));
+            return w;
+        }
+        if (t >= ULT_RISE && t < ULT_CATCH) {
+            Pose f = new Pose();
+            f.bodyPitch = .2f; f.headPitch = -.6f;
+            f.rArmX = -2.95f; f.rArmZ = .3f; f.rElbow = .3f; f.wristX = spin(t - ULT_RISE, 2.2f, 1) + 20; f.spinRing = 1; f.spinMode = 1;
+            f.lArmX = .5f; f.lArmZ = -.45f; f.lElbow = .35f;
+            float sway = (float) Math.sin(t * .4) * .08f;
+            f.rLegX = .35f + sway; f.lLegX = .15f - sway; f.rKnee = .55f; f.lKnee = .3f;
+            f.eyes = .9f; f.aura = .5f;
+            // Reaching for them as he arrives.
+            float reach = k(t, ULT_APEX + 1, ULT_CATCH);
+            f.rArmX = lerp(f.rArmX, -1.4f, reach); f.rArmY = lerp(0, -.5f, reach); f.rElbow = lerp(f.rElbow, 1.2f, reach);
+            f.spinRing *= 1 - reach; if (reach > 0) f.wristX = lerp(-.3f, -1.2f, reach);
+            f.lArmX = lerp(f.lArmX, -1.2f, reach); f.lArmY = lerp(0, .5f, reach); f.lElbow = lerp(f.lElbow, 1.3f, reach);
+            return f;
+        }
+        if (t >= ULT_CATCH && t < ULT_LET_GO) {
+            Pose g = new Pose();
+            // The lock: one arm round the body, the other over the shoulders, squeezing.
+            float squeeze = (float) Math.sin(Math.PI * clamp((t - ULT_CATCH) / 6f)) * .15f;
+            g.rArmX = -1.4f; g.rArmY = -.55f; g.rArmZ = -.05f; g.rElbow = 1.3f + squeeze; g.wristX = -1.2f;
+            g.lArmX = -1.25f; g.lArmY = .55f; g.lArmZ = .05f; g.lElbow = 1.4f + squeeze;
+            g.torsoPitch = -.1f; g.rKnee = .55f; g.lKnee = .4f; g.rLegX = .2f; g.lLegX = -.1f;
+            g.eyes = .9f; g.aura = .5f;
+            // The cry: the whole body tightens, head thrown back.
+            float cry = k(t, ULT_SCREAM, ULT_SCREAM + 6);
+            float shake = (float) Math.sin(t * 2.9) * .04f * cry;
+            g.headPitch = lerp(0, -.8f, cry) + shake; g.mouth = cry; g.torsoPitch = lerp(g.torsoPitch, -.3f, cry);
+            g.rElbow += .12f * cry; g.lElbow += .12f * cry;
+            g.rKnee = lerp(g.rKnee, .8f, cry); g.lKnee = lerp(g.lKnee, .7f, cry);
+            g.eyes = Math.max(g.eyes, cry); g.aura = Math.max(g.aura, cry);
+            return g;
+        }
+        if (t >= ULT_LET_GO && t < ULT_LANDED) {
+            // Arms thrown open as he lets go, then the glide: upright, hammer at his side, legs hanging.
+            Pose g = new Pose();
+            float open = 1 - k(t, ULT_LET_GO + 4, ULT_LET_GO + 16);
+            g.rArmX = lerp(-.35f, -1.0f, open); g.rArmZ = lerp(.25f, 1.0f, open); g.rElbow = lerp(.5f, .2f, open); g.wristX = lerp(-1.3f, -.2f, open);
+            g.lArmX = lerp(-.1f, -1.0f, open); g.lArmZ = lerp(-.35f, -1.0f, open); g.lElbow = .3f;
+            g.headPitch = lerp(.35f, -.3f, open); g.rKnee = .35f; g.lKnee = .2f; g.rLegX = .15f; g.lLegX = -.05f;
+            g.eyes = 1; g.aura = .5f * open + .2f;
+            // The landing: the knees take him.
+            float touch = (float) Math.sin(Math.PI * clamp((t - (ULT_LANDED - 4)) / 10f));
+            g.crouch = 3.5f * touch; g.rKnee += .7f * touch; g.lKnee += .8f * touch; g.torsoPitch = .2f * touch;
+            return g;
+        }
+        if (t >= ULT_LANDED) {
+            Pose g = combat(t);
+            float settle = k(t, ULT_LANDED, ULT_LANDED + 14);
+            g.toward(idle(t), settle);
+            g.headPitch = .1f;
+            g.eyes = 1 - .7f * k(t, ULT_LANDED + 6, ULT_TOTAL); g.aura = .3f * (1 - settle);
+            return g;
         }
         return p;
-    }
-
-    /**
-     * Where the film shows his body, relative to where he really stands (stage space: x right, y up,
-     * z toward the target at distance land): still until the leap, an arc up and over, a hang, the plunge.
-     */
-    public static double[] ultimateOffset(float t, double land) {
-        if (t < ULT_LAUNCH || t >= ULT_IMPACT) return new double[]{0, 0, 0};
-        double height = 8.5;
-        if (t < ULT_HOVER) {
-            float k = clamp((t - ULT_LAUNCH) / (ULT_HOVER - ULT_LAUNCH));
-            double up = 1 - Math.pow(1 - k, 3), along = ease(k);
-            return new double[]{0, height * up, land * along};
-        }
-        if (t < ULT_PLUNGE) return new double[]{0, height + .15 * Math.sin((t - ULT_HOVER) * .3), land};
-        float k = clamp((t - ULT_PLUNGE) / (ULT_IMPACT - ULT_PLUNGE));
-        return new double[]{0, height * (1 - k * k), land};
     }
 }

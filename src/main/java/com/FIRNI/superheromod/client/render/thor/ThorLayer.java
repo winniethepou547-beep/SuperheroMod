@@ -65,20 +65,36 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
     private static final ModelPart HAIR_BACK = GhostMaterials.box(-4.45f, -7.2f, 2.1f, 8.9f, 7.6f, 2.5f);
     private static final ModelPart HAIR_SIDE = GhostMaterials.box(-4.7f, -7.4f, -2.6f, .95f, 6.0f, 5.0f);
     private static final ModelPart HAIR_FRINGE = GhostMaterials.box(-4.3f, -8.2f, -4.6f, 3.4f, 1.6f, 1.0f);
-    private static final ModelPart HAIR_FLOW = GhostMaterials.box(-4.2f, 0, -1.1f, 8.4f, 4.6f, 2.0f);
-    private static final ModelPart HAIR_TIP = GhostMaterials.box(-3.6f, 0, -.8f, 7.2f, 2.6f, 1.4f);
-    private static final ModelPart HAIR_LOCK = GhostMaterials.box(-.9f, 0, -1.0f, 1.8f, 5.0f, 2.0f);
+    // Shoulder length: the hair ends just below the shoulders.
+    private static final ModelPart HAIR_FLOW = GhostMaterials.box(-4.2f, 0, -1.1f, 8.4f, 2.9f, 2.0f);
+    private static final ModelPart HAIR_TIP = GhostMaterials.box(-3.6f, 0, -.8f, 7.2f, 1.3f, 1.4f);
+    private static final ModelPart HAIR_LOCK = GhostMaterials.box(-.9f, 0, -1.0f, 1.8f, 3.3f, 2.0f);
     // Cape
     private static final ModelPart CAPE_ROW = GhostMaterials.box(-5.2f, 0, 0, 10.4f, 4.5f, .55f);
+    /** One vertical fold of the cape; alternate folds sit a little further out and catch the light. */
+    private static final ModelPart CAPE_FOLD = GhostMaterials.box(-1.3f, 0, 0, 2.6f, 4.5f, .5f);
+    private static final ModelPart CAPE_HEM = GhostMaterials.box(-5.25f, 3.6f, -.05f, 10.5f, .9f, .65f);
+    // Armour detail
+    private static final ModelPart PLATE_TRIM = GhostMaterials.box(-5.05f, .1f, -3.1f, 10.1f, .55f, .3f);
+    private static final ModelPart PLATE_BAND = GhostMaterials.box(-4.6f, 0, -3.08f, 9.2f, .3f, .2f);
+    private static final ModelPart PLATE_EDGE = GhostMaterials.box(-.25f, .4f, -3.1f, .5f, 7.4f, .3f);
+    private static final ModelPart DISC_CORE = GhostMaterials.box(-.35f, -.35f, -.42f, .7f, .7f, .2f);
+    private static final ModelPart SLEEVE_RING = GhostMaterials.box(-2.35f, 0, -2.35f, 4.7f, .6f, 4.7f);
+    private static final ModelPart STRAP = GhostMaterials.box(-2.5f, 0, -2.5f, 5.0f, .5f, 5.0f);
+    private static final ModelPart PAD_DISC = GhostMaterials.box(-.95f, -.95f, -.25f, 1.9f, 1.9f, .5f);
+    private static final ModelPart BELT_PLATE = GhostMaterials.box(-.8f, 9.55f, -3.0f, 1.6f, 1.7f, .3f);
     private static final ModelPart CAPE_CLASP = GhostMaterials.box(-1.0f, -1.0f, -.6f, 2.0f, 2.0f, 1.0f);
 
     private static final float[] SKIN = {.86f, .66f, .52f}, HAIR = {.86f, .69f, .36f}, HAIR_DARK = {.7f, .53f, .25f}, BEARD_C = {.72f, .52f, .26f},
-            PLATE_C = {.2f, .21f, .25f}, PLATE_DARK = {.13f, .135f, .16f}, SILVER = {.78f, .8f, .85f}, SUIT = {.1f, .1f, .12f},
-            LEATHER = {.2f, .14f, .1f}, CAPE = {.62f, .05f, .06f}, CAPE_IN = {.42f, .03f, .04f};
+            PLATE_C = {.34f, .35f, .38f}, PLATE_DARK = {.2f, .205f, .225f}, PLATE_LIGHT = {.5f, .51f, .55f}, SILVER = {.8f, .82f, .86f},
+            SUIT = {.11f, .11f, .125f}, SCALE_A = {.4f, .41f, .44f}, SCALE_B = {.27f, .28f, .3f},
+            LEATHER = {.2f, .14f, .1f}, LEATHER_RED = {.38f, .1f, .08f},
+            CAPE = {.6f, .045f, .055f}, CAPE_FOLD_LIT = {.72f, .07f, .08f}, CAPE_FOLD_DARK = {.44f, .03f, .04f},
+            CAPE_HEM_C = {.32f, .02f, .03f}, CAPE_IN = {.3f, .02f, .03f};
     private static final int FULL = Mjolnir.FULL_BRIGHT;
 
     /** Cape and hair lag behind the body: lift per player, eased over time. */
-    private record Cloth(float lift, float side, float time) {}
+    private record Cloth(float lift, float speed, float side, float time) {}
     private final Map<Integer, Cloth> cloth = new HashMap<>();
 
     public ThorLayer(RenderLayerParent<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> parent) { super(parent); }
@@ -144,20 +160,17 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
             p.pushPose();
             px(p, side * 5.75, 2, 0);
             rot(p, ax, ay, az);
-            draw(UPPER_ARM, p, b, light, SKIN);
-            draw(PAD, p, b, light, PLATE_C);
-            draw(PAD_RIM, p, b, light, SILVER);
+            arm(p, b, light, right);
             px(p, 0, 4.2, 0);
             p.mulPose(Axis.XP.rotation(-elbow));
-            draw(FOREARM, p, b, light, SKIN);
-            draw(BRACER, p, b, light, SILVER[0] * .8f, SILVER[1] * .8f, SILVER[2] * .82f);
-            draw(FIST, p, b, light, LEATHER);
+            forearm(p, b, light, right);
             if (right && !hammerOut) {
                 px(p, 0, 5.9, 0);
                 p.mulPose(Axis.YP.rotation(pose.wristY));
                 p.mulPose(Axis.XP.rotation(pose.wristX));
-                if (pose.spinRing > .02f) spinRing(p, b, pose.spinRing, pose.spinMode >= 2, time);
-                Mjolnir.draw(p, b, light, Math.max(power, pose.eyes > .9f ? .5f : 0), time);
+                boolean whirling = pose.spinRing > .02f;
+                if (whirling) spinRing(p, b, pose.spinRing, pose.spinMode >= 2);
+                Mjolnir.draw(p, b, light, whirling ? 0 : Math.max(power, pose.eyes > .9f ? .5f : 0), time);
             }
             p.popPose();
         }
@@ -174,20 +187,59 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
         p.popPose();
     }
 
+    /**
+     * Upper arm: shoulder plate with a silver disc on it; the left sleeve is grey scale-mail
+     * (alternating rings), the right a dark sleeve.
+     */
+    private void arm(PoseStack p, MultiBufferSource b, int light, boolean right) {
+        draw(UPPER_ARM, p, b, light, right ? SUIT : SCALE_B);
+        if (!right) for (int i = 0; i < 5; i++) {
+            p.pushPose(); px(p, 0, -.3 + i * 1.0, 0);
+            draw(SLEEVE_RING, p, b, light, i % 2 == 0 ? SCALE_A : SCALE_B);
+            p.popPose();
+        }
+        draw(PAD, p, b, light, PLATE_C);
+        draw(PAD_RIM, p, b, light, SILVER);
+        p.pushPose(); px(p, right ? -2.8 : 2.8, -1.2, 0); p.mulPose(Axis.YP.rotationDegrees(right ? 90 : -90));
+        draw(PAD_DISC, p, b, light, SILVER);
+        p.popPose();
+    }
+    /** Forearm: a red-brown leather bracer with straps on the right, a grey scaled vambrace on the left. */
+    private void forearm(PoseStack p, MultiBufferSource b, int light, boolean right) {
+        draw(FOREARM, p, b, light, right ? SUIT : SCALE_B);
+        draw(BRACER, p, b, light, right ? LEATHER_RED : PLATE_C);
+        for (int i = 0; i < 3; i++) {
+            p.pushPose(); px(p, 0, 1.4 + i * 1.25, 0);
+            if (right) draw(STRAP, p, b, light, LEATHER);
+            else draw(SLEEVE_RING, p, b, light, i % 2 == 0 ? PLATE_LIGHT : SCALE_A);
+            p.popPose();
+        }
+        draw(FIST, p, b, light, LEATHER);
+    }
+
     /** Lift of cape and hair: speed through the air pushes them back, falling lifts them, they sway. */
     private Cloth cloth(AbstractClientPlayer e, float time, boolean flying) {
         Vec3 v = new Vec3(e.getX() - e.xo, e.getY() - e.yo, e.getZ() - e.zo);
         double yaw = Math.toRadians(e.yBodyRot);
         double forward = -v.x * Math.sin(yaw) + v.z * Math.cos(yaw), sideways = v.x * Math.cos(yaw) + v.z * Math.sin(yaw);
-        float want = (float) Mth.clamp(Math.max(0, forward) * 2.6 + Math.max(0, -v.y) * 1.4 + Math.abs(sideways) * .8 + (flying ? .35 : 0), 0, 1.45);
+        // Walking barely lifts it, running a little more, only real speed (the launch, a fall) throws it back.
+        double moving = Math.max(0, forward);
+        float want = (float) Mth.clamp(moving * moving * 1.6 + moving * .9 + Math.max(0, -v.y) * .7 + Math.abs(sideways) * .4, 0, 1.3);
         Cloth last = cloth.get(e.getId());
         if (cloth.size() > 64) cloth.clear();
-        if (last == null || time - last.time > 10) last = new Cloth(want, 0, time);
+        if (last == null || time - last.time > 10) last = new Cloth(want, 0, 0, time);
         float dt = Mth.clamp(time - last.time, 0, 2);
-        float rate = want > last.lift ? .35f : .12f;   // whips up fast, settles slowly
-        float lift = last.lift + (want - last.lift) * (1 - (float) Math.exp(-dt * rate * 3));
+        // A damped spring: it overshoots a little when he stops or turns, then settles.
+        float lift = last.lift, speed = last.speed;
+        int steps = Math.max(1, (int) Math.ceil(dt / .25f));
+        float h = dt / steps, stiffness = .32f, damping = .38f;
+        for (int i = 0; i < steps; i++) {
+            speed += (stiffness * (want - lift) - damping * speed) * h;
+            lift += speed * h;
+        }
+        lift = Mth.clamp(lift, -.15f, 1.4f);
         float side = last.side + ((float) sideways * 2 - last.side) * (1 - (float) Math.exp(-dt * .4f));
-        Cloth now = new Cloth(lift, side, time);
+        Cloth now = new Cloth(lift, speed, side, time);
         cloth.put(e.getId(), now);
         return now;
     }
@@ -197,16 +249,28 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
         draw(PLATE, p, b, light, PLATE_C);
         draw(PLATE_LOW, p, b, light, PLATE_DARK);
         draw(COLLAR, p, b, light, PLATE_DARK);
-        draw(SEAM, p, b, light, SILVER[0] * .7f, SILVER[1] * .7f, SILVER[2] * .7f);
+        draw(SEAM, p, b, light, PLATE_DARK);
+        // Raised trim along the top of the plate and down its sides, and lamellar bands across it.
+        draw(PLATE_TRIM, p, b, light, PLATE_LIGHT);
+        for (int side = -1; side <= 1; side += 2) {
+            p.pushPose(); px(p, side * 4.75, 0, 0); draw(PLATE_EDGE, p, b, light, PLATE_LIGHT); p.popPose();
+        }
+        for (int row = 0; row < 3; row++) {
+            p.pushPose(); px(p, 0, 3.0 + row * 2.05, 0); draw(PLATE_BAND, p, b, light, PLATE_DARK); p.popPose();
+        }
         // The six discs, three down each side of the chest.
         for (int side = -1; side <= 1; side += 2) for (int row = 0; row < 3; row++) {
             p.pushPose(); px(p, side * 2.55, 1.9 + row * 2.05, -3.0);
             draw(DISC_RIM, p, b, light, PLATE_DARK);
             draw(DISC, p, b, light, SILVER);
+            draw(DISC_CORE, p, b, light, PLATE_LIGHT);
             p.popPose();
         }
         draw(BELT, p, b, light, LEATHER);
         draw(BUCKLE, p, b, light, SILVER);
+        for (int side = -1; side <= 1; side += 2) for (int i = 1; i <= 2; i++) {
+            p.pushPose(); px(p, side * i * 2.2, 0, 0); draw(BELT_PLATE, p, b, light, PLATE_LIGHT); p.popPose();
+        }
         for (int side = -1; side <= 1; side += 2) {
             p.pushPose(); px(p, side * 2.4, 11.0, -2.75); p.mulPose(Axis.ZP.rotation(side * .08f));
             draw(TASSET, p, b, light, PLATE_DARK);
@@ -235,14 +299,23 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
         for (int side = -1; side <= 1; side += 2) {
             p.pushPose(); px(p, side * 3.9, .6, -.1); draw(CAPE_CLASP, p, b, light, SILVER); p.popPose();
         }
-        float flap = .03f + .07f * c.lift();
-        p.mulPose(Axis.XP.rotation(.07f + c.lift() * .75f));
+        float lift = Math.max(0, c.lift());
+        float flap = .02f + .06f * lift + .04f * Math.abs(c.speed());
+        p.mulPose(Axis.XP.rotation(.06f + c.lift() * .7f));
         p.mulPose(Axis.ZP.rotation(Mth.clamp(c.side(), -.3f, .3f) * .4f));
         for (int row = 0; row < 4; row++) {
-            float wave = (float) Math.sin(time * (.18 + .3 * c.lift()) - row * .9) * flap * (row + 1) * .6f;
-            p.mulPose(Axis.XP.rotation(c.lift() * .16f * row + wave));
-            draw(CAPE_ROW, p, b, light, row % 2 == 0 ? CAPE : new float[]{CAPE[0] * .9f, CAPE[1], CAPE[2]});
-            p.pushPose(); px(p, 0, 0, .5); draw(CAPE_ROW, p, b, light, CAPE_IN); p.popPose();
+            // The wave runs down the cloth: the lower rows answer later and swing further.
+            float wave = (float) Math.sin(time * (.16 + .28 * lift) - row * 1.1) * flap * (row + 1) * .55f;
+            p.mulPose(Axis.XP.rotation(lift * .15f * row + wave - c.speed() * .25f * row));
+            draw(CAPE_ROW, p, b, light, CAPE);
+            // Vertical folds: lit ridges standing off the cloth, shadowed troughs between.
+            for (int f = 0; f < 4; f++) {
+                p.pushPose(); px(p, -3.9 + f * 2.6, 0, f % 2 == 0 ? .35 : .1);
+                draw(CAPE_FOLD, p, b, light, f % 2 == 0 ? CAPE_FOLD_LIT : CAPE_FOLD_DARK);
+                p.popPose();
+            }
+            if (row == 3) draw(CAPE_HEM, p, b, light, CAPE_HEM_C);
+            p.pushPose(); px(p, 0, 0, .55); draw(CAPE_ROW, p, b, light, CAPE_IN); p.popPose();
             px(p, 0, 4.35, 0);
         }
         p.popPose();
@@ -323,27 +396,25 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
         p.popPose();
     }
 
-    /** The blur of a whirling hammer: a faint disc of metal and a ring of light where the head runs. */
-    private void spinRing(PoseStack p, MultiBufferSource b, float strength, boolean front, float time) {
+    /**
+     * The blur of a whirling hammer: a translucent grey disc where the head runs, a brighter rim at
+     * its edge and a darker hub, like a wheel spinning too fast to see. No lightning in it.
+     */
+    private void spinRing(PoseStack p, MultiBufferSource b, float strength, boolean front) {
         p.pushPose();
         p.scale(1 / 16f, 1 / 16f, 1 / 16f);
         var m = p.last().pose();
-        double radius = Mjolnir.HEAD_CENTRE.y;
-        int n = 28;
-        // Beside the head it spins about the hand's x axis (head runs in the hammer's y-z plane);
-        // in front of him about the forearm (head runs in the hammer's x-y plane).
+        double outer = Mjolnir.HEAD_CENTRE.y + 2.2, inner = Mjolnir.HEAD_CENTRE.y - 2.4;
+        int n = 32;
         for (int i = 0; i < n; i++) {
             double a0 = Math.PI * 2 * i / n, a1 = Math.PI * 2 * (i + 1) / n;
-            Vec3 p0 = ring(a0, radius, front), p1 = ring(a1, radius, front);
-            ThorBolts.cross(b.getBuffer(FilmFx.ADD), m, p0, p1, 2.6 * strength, 0x9aa6bf, .16f * strength);
-            ThorBolts.cross(b.getBuffer(FilmFx.ADD), m, p0, p1, .7 * strength, ThorBolts.BODY, .3f * strength);
-        }
-        // Electric rings riding the blur.
-        int frame = (int) (time / 2);
-        for (int i = 0; i < 2; i++) {
-            double start = FilmFx.hash(frame * 7 + i) * Math.PI * 2, span = 1.2 + FilmFx.hash(frame * 3 + i) * 1.4;
-            Vec3 a = ring(start, radius, front), z = ring(start + span, radius, front);
-            ThorBolts.crossBolt(b.getBuffer(FilmFx.ADD), m, ThorBolts.bolt(a, z, frame * 11L + i, .25, .2, 0), .25, .8f * strength);
+            var v = b.getBuffer(FilmFx.SOFT);
+            // Faint middle (the handle's blur), the dense band where the head runs.
+            ThorBolts.put(v, m, Vec3.ZERO, 0x55585e, .1f * strength); ThorBolts.put(v, m, Vec3.ZERO, 0x55585e, .1f * strength);
+            ThorBolts.put(v, m, ring(a1, inner, front), 0x6a6e76, .16f * strength); ThorBolts.put(v, m, ring(a0, inner, front), 0x6a6e76, .16f * strength);
+            ThorBolts.put(v, m, ring(a0, inner, front), 0x7c8089, .42f * strength); ThorBolts.put(v, m, ring(a1, inner, front), 0x7c8089, .42f * strength);
+            ThorBolts.put(v, m, ring(a1, outer, front), 0x8d9199, .3f * strength); ThorBolts.put(v, m, ring(a0, outer, front), 0x8d9199, .3f * strength);
+            ThorBolts.cross(b.getBuffer(FilmFx.ADD), m, ring(a0, outer - .4, front), ring(a1, outer - .4, front), .35, 0xc8ccd4, .22f * strength);
         }
         p.popPose();
     }
