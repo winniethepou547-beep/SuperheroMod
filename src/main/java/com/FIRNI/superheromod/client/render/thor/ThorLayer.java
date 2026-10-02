@@ -178,7 +178,7 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
                     Quaternionf now = p.last().pose().getNormalizedRotation(new Quaternionf());
                     // Upright, and turned a quarter about its own handle: the head points front to back, not a T.
                     // Not quite plumb: the top leans a touch forward and away from his body, as a hand naturally holds it.
-                    Quaternionf want = new Quaternionf(root).rotateX(.16f).rotateZ(pose.tilt - .1f).rotateX((float) Math.PI).rotateY((float) (Math.PI / 2));
+                    Quaternionf want = new Quaternionf(root).rotateX(.3f).rotateZ(pose.tilt).rotateX((float) Math.PI).rotateY((float) (Math.PI / 2));
                     Quaternionf fix = new Quaternionf(now).conjugate().mul(want);
                     p.mulPose(new Quaternionf().slerp(fix, Math.min(1, pose.upright)));
                 }
@@ -191,6 +191,16 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
                     }
                 }
                 boolean whirling = pose.spinRing > .02f;
+                if (whirling && pose.spinMode >= 2) {
+                    // The wheel is set square to his body, whatever the arm is doing: facing the way he faces
+                    // (guard, charge) or at his side, edge-on to the front (whirling to fly). It turns about the fist.
+                    Quaternionf now = p.last().pose().getNormalizedRotation(new Quaternionf());
+                    Quaternionf want = new Quaternionf(root);
+                    if (pose.spinMode >= 3) want.rotateY((float) (Math.PI / 2));
+                    want.rotateZ(pose.wristY).rotateX((float) Math.PI);
+                    Quaternionf fix = new Quaternionf(now).conjugate().mul(want);
+                    p.mulPose(new Quaternionf().slerp(fix, Math.min(1, pose.spinRing * 3)));
+                }
                 if (whirling) spinRing(p, b, pose.spinRing, pose.spinMode >= 2);
                 Mjolnir.draw(p, b, light, whirling ? 0 : Math.max(power, pose.eyes > .9f ? .5f : 0), time);
             }
