@@ -54,31 +54,22 @@ import static com.FIRNI.superheromod.heroes.hulk.HulkAction.*;
 public final class HulkFx {
     static final int GAMMA = 0x5aff3a, GAMMA_CORE = 0xd8ffc0, AIR = 0xeef4ff, CRACK = 0x16120e;
 
-    private static final class Chunk {
-        Vec3 pos, prev, vel; final BlockState state; final float size; final Vector3f axis; float spin, spinSpeed; final long start; final int life; boolean resting;
-        Chunk(Vec3 pos, Vec3 vel, BlockState state, float size, Random r, int life) {
-            this.pos = this.prev = pos; this.vel = vel; this.state = state; this.size = size; this.life = life; start = now();
-            axis = new Vector3f((float) r.nextGaussian(), (float) r.nextGaussian(), (float) r.nextGaussian()).normalize();
-            spinSpeed = (float) (r.nextGaussian() * .35); spin = r.nextFloat() * 6;
-        }
-    }
     private record Puff(Vec3 at, Vec3 drift, double size, long start, float life, int rgb, float alpha) {}
     private record Glow(Vec3 at, double size, long start, float life, int rgb, float alpha) {}
     /** A shock ring; normal null = flat on the ground. */
     private record Ring(Vec3 at, Vec3 normal, double radius, double width, long start, float life, int rgb, float alpha, boolean light) {}
     /** The Thunderclap's wall of air, sweeping forward along the ground in an arc. */
     private record Arc(Vec3 at, Vec3 dir, double range, double spread, double height, long start, float life, BlockState ground) {}
-    /** A slab of ground forced up out of the earth, leaning out along `lean` (radians), that sinks back after its life. */
-    private record Spike(Vec3 base, BlockState state, long start, double height, double lean, int life, float tilt) {}
+    /** The charged punch's shock front, travelling from the fist to where it bursts. */
+    private record PunchWave(Vec3 from, Vec3 dir, double range, float power, long start) {}
     private record Crack(Vec3 centre, List<List<Vec3>> lines, long start, float life, boolean gamma) {}
 
-    private static final List<Chunk> CHUNKS = new ArrayList<>();
     private static final List<Puff> PUFFS = new ArrayList<>();
     private static final List<Glow> GLOWS = new ArrayList<>();
     private static final List<Ring> RINGS = new ArrayList<>();
     private static final List<Arc> ARCS = new ArrayList<>();
     private static final List<Crack> CRACKS = new ArrayList<>();
-    private static final List<Spike> SPIKES = new ArrayList<>();
+    private static final List<PunchWave> WAVES = new ArrayList<>();
     private static float screenFlash;
     private static int flashColor = 0xFFFFFF;
 
@@ -132,26 +123,6 @@ public final class HulkFx {
             PUFFS.add(new Puff(from, drift, size * (.7 + r.nextDouble() * .6), now(), life * (.7f + r.nextFloat() * .6f), rgb, .55f + r.nextFloat() * .25f));
         }
         cap(PUFFS, 420);
-    }
-    /** Chunks of the ground thrown up: real blocks, tumbling. */
-    private static void chunks(Vec3 at, int count, double spread, double up, double out, float size, BlockState state, Vec3 bias) {
-        if (state == null || state.isAir()) state = Blocks.DIRT.defaultBlockState();
-        Random r = random();
-        for (int i = 0; i < n(count); i++) {
-            double a = r.nextDouble() * Math.PI * 2;
-            Vec3 from = at.add(Math.cos(a) * spread * r.nextDouble(), .2, Math.sin(a) * spread * r.nextDouble());
-            Vec3 vel = new Vec3(Math.cos(a) * out * (.4 + r.nextDouble()), up * (.6 + r.nextDouble() * .7), Math.sin(a) * out * (.4 + r.nextDouble())).add(bias);
-            CHUNKS.add(new Chunk(from, vel, state, size * (.5f + r.nextFloat() * .7f), r, 50 + r.nextInt(40)));
-        }
-        cap(CHUNKS, 360);
-    }
-    private static void spike(Vec3 at, BlockState state, double height, double lean, int life) {
-        if (amount() <= 0) return;
-        if (state == null || state.isAir() || !state.isSolid()) state = Blocks.DIRT.defaultBlockState();
-        Random r = random();
-        Vec3 base = new Vec3(Math.floor(at.x) + .5, Math.floor(at.y + .2), Math.floor(at.z) + .5).add((r.nextDouble() - .5) * .4, 0, (r.nextDouble() - .5) * .4);
-        SPIKES.add(new Spike(base, state, now(), height * Math.min(1.3, .7 + .3 * amount()), lean, life, .25f + r.nextFloat() * .35f));
-        cap(SPIKES, 90);
     }
     private static void particles(Vec3 at, int count, double spread, double speed, BlockState state) {
         var level = Minecraft.getInstance().level;
@@ -244,161 +215,153 @@ public final class HulkFx {
                 glow(at.add(0, 1.2, 0), 1.6, 8, GAMMA, .25f);
             }
             case FX_PUNCH -> {
-                ring(at, dir, .8 + .5 * power, .28, 6, AIR, .7f * power, true, 0);
-                glow(at, 1.3 * power, 4, AIR, .55f);
+                // A jab bursting where it lands: a small explosion of air, grit and a ring.
+                float k = Math.min(1.6f, power);
+                ring(at, dir, .9 + .7 * k, .32, 6, AIR, .75f, true, 0);
+                ring(at, dir, .5 + .4 * k, .2, 4, GAMMA_CORE, .4f * k, true, 0);
+                glow(at, 1.6 * k, 4, AIR, .7f);
                 var level = mc.level;
                 Random r = random();
-                for (int i = 0; i < n(8); i++) level.addParticle(ParticleTypes.CRIT, at.x, at.y, at.z, (r.nextDouble() - .5) * .7 + dir.x * .5, r.nextDouble() * .45, (r.nextDouble() - .5) * .7 + dir.z * .5);
-                if (p.block() != 0) { particles(at, 14, .5, .25, ground); chunks(at, 2, .2, .2, .12, .35f, ground, dir.scale(.1)); }
-                shake(at, .18f * power + .08f, 7);
+                if (k > 1.1f) level.addParticle(ParticleTypes.EXPLOSION, at.x, at.y, at.z, 0, 0, 0);
+                for (int i = 0; i < n(10); i++) level.addParticle(ParticleTypes.CRIT, at.x, at.y, at.z, (r.nextDouble() - .5) * .8 + dir.x * .6, r.nextDouble() * .5, (r.nextDouble() - .5) * .8 + dir.z * .6);
+                for (int i = 0; i < n(6); i++) level.addParticle(ParticleTypes.POOF, at.x, at.y, at.z, (r.nextDouble() - .5) * .3 + dir.x * .3, r.nextDouble() * .15, (r.nextDouble() - .5) * .3 + dir.z * .3);
+                if (p.block() != 0) particles(at.add(0, -.5, 0), 10, .6, .25, ground);
+                shake(at, .22f * k, 8);
             }
-            case FX_BLOCK -> {
-                chunks(at, 3, .3, .4, .14, .5f, ground, dir.scale(.16 * power));
-                particles(at, 10, .9, .18, ground);
-            }
+            case FX_BLOCK -> particles(at, 12, .9, .2, ground);
             case FX_WAVE_HIT -> {
                 // Someone caught by a wave: a burst of air and dust off them as they are thrown.
-                ring(at, dir, 1.1 + .6 * power, .35, 6, AIR, .6f, true, 0);
-                glow(at, 1.4 * power, 4, AIR, .5f);
+                ring(at, dir, 1.2 + .7 * power, .4, 6, AIR, .7f, true, 0);
+                glow(at, 1.5 * power, 4, AIR, .55f);
                 dust(at.add(0, -.8, 0), 6, .6, .14, 1.1, 30, ground, .05);
                 particles(at.add(0, -.9, 0), 12, .9, .3, ground);
                 shake(at, .3f * power, 9);
             }
-            case FX_CHARGED_WAVE -> {
-                // A cone of air punched straight out of his fist: rings travelling forward, a tunnel of dust behind them.
-                double length = 6 + 14 * power;
-                for (int i = 0; i < 8; i++) {
-                    double d = length * i / 8.0;
-                    ring(at.add(dir.scale(d)), dir, 1 + (2.2 + 2.8 * power) * i / 8.0, .4 + .12 * i, 7 + i, AIR, (.75f - .06f * i) * (.5f + .5f * power), true, i);
-                }
-                ring(at, dir, 1.4 + power, .5, 5, GAMMA_CORE, .5f * power, true, 0);
-                glow(at, 2.2 + 1.5 * power, 6, AIR, .8f);
-                glow(at, 1.4 + power, 7, GAMMA, .4f * power);
-                var level = mc.level;
+            case FX_PUNCH_WAVE -> {
+                // The charged punch: a burst at the fist, then a shock front travelling out to where it will burst.
+                double range = Math.max(1.5, p.block() / 10.0);
+                ring(at, dir, 1.4 + 1.4 * power, .5, 6, AIR, .85f, true, 0);
+                ring(at, dir, .8 + power, .35, 5, GAMMA_CORE, .55f * power, true, 0);
+                glow(at, 2.4 + 1.6 * power, 6, AIR, .85f);
+                glow(at, 1.4 + power, 7, GAMMA, .45f * power);
+                if (amount() > 0) { WAVES.add(new PunchWave(at, dir.normalize(), range, power, now())); cap(WAVES, 6); }
+                shake(at, .45f + .5f * power, 14);
+                screenFlash(at, .1f * power, 6, AIR);
+            }
+            case FX_BLAST -> {
+                // Where the charged punch's wave bursts: a dome of air and dust, rings over the ground, debris (the real
+                // blocks are thrown by the server), smoke, a flash.
+                float k = Math.max(.3f, power);
+                ring(at, dir, 2.5 + 3 * k, .9, 9, AIR, .9f, true, 0);
+                ring(at, new Vec3(0, 1, 0), 3 + 4 * k, 1, 12, AIR, .7f, true, 1);
+                BlockPos below = BlockPos.containing(at);
+                Vec3 floor = at;
+                for (int i = 0; i < 5; i++) if (!mc.level.getBlockState(below.below(i + 1)).isAir()) { floor = new Vec3(at.x, below.getY() - i, at.z); break; }
+                ring(floor.add(0, .1, 0), null, 4 + 6 * k, .7 + .5 * k, 12 + 6 * k, AIR, .7f, true, 0);
+                ring(floor.add(0, .15, 0), null, 2.5 + 3 * k, .5, 9, GAMMA_CORE, .45f * k, true, 2);
+                glow(at, 4 + 4 * k, 7, AIR, 1f);
+                glow(at, 2.5 + 2 * k, 10, GAMMA, .5f * k);
                 Random r = random();
                 int rgb = dustColor(ground);
-                for (int i = 0; i < n(14 * (.4 + power)); i++) {
-                    double d = r.nextDouble() * length * .8;
-                    Vec3 q = at.add(dir.scale(d)).add((r.nextDouble() - .5) * 1.6, (r.nextDouble() - .5) * 1.6, (r.nextDouble() - .5) * 1.6);
-                    PUFFS.add(new Puff(q, dir.scale(.25 + r.nextDouble() * .2), 1.1 + r.nextDouble() * .8, now() + (long) (d / 3), 26 + r.nextFloat() * 14, rgb, .35f + r.nextFloat() * .2f));
+                // The dome: puffs blown out in every direction from the burst.
+                for (int i = 0; i < n(26 + 30 * k); i++) {
+                    Vec3 d = new Vec3(r.nextGaussian(), Math.abs(r.nextGaussian()) * .7 + .1, r.nextGaussian()).normalize();
+                    PUFFS.add(new Puff(at.add(d.scale(.5)), d.scale(.35 + .3 * k), 1.4 + r.nextDouble() * 1.2 * k, now(), 34 + r.nextFloat() * 26, i % 3 == 0 ? 0xd9dde2 : rgb, .5f + r.nextFloat() * .2f));
                 }
-                for (int i = 0; i < n(40 * (.4 + power)); i++) {
-                    double sAlong = r.nextDouble() * length * .5;
-                    Vec3 q = at.add(dir.scale(sAlong)).add((r.nextDouble() - .5) * 1.6, (r.nextDouble() - .5) * 1.6, (r.nextDouble() - .5) * 1.6);
-                    Vec3 v = dir.scale(.8 + r.nextDouble() * 1.1 * (.5 + power));
-                    level.addParticle(i % 3 == 0 ? ParticleTypes.CLOUD : ParticleTypes.POOF, q.x, q.y, q.z, v.x, v.y, v.z);
-                }
-                cap(PUFFS, 420);
-                shake(at, .4f + .7f * power, 16);
-                screenFlash(at, .14f * power, 8, AIR);
+                dust(floor, (int) (14 + 20 * k), 1 + k, .2 + .2 * k, 1.6 + .6 * k, 60, ground, .04);
+                particles(floor, (int) (30 + 50 * k), 2.5 + 2 * k, .55, ground);
+                var level = mc.level;
+                level.addParticle(k > .75f ? ParticleTypes.EXPLOSION_EMITTER : ParticleTypes.EXPLOSION, at.x, at.y, at.z, 0, 0, 0);
+                for (int i = 0; i < n(6 * k); i++) level.addParticle(ParticleTypes.EXPLOSION, at.x + r.nextGaussian() * k, at.y + r.nextDouble() * k, at.z + r.nextGaussian() * k, 0, 0, 0);
+                for (int i = 0; i < n(20 * k); i++) level.addParticle(ParticleTypes.LARGE_SMOKE, at.x, at.y, at.z, r.nextGaussian() * .15, r.nextDouble() * .15, r.nextGaussian() * .15);
+                cracks(floor, 3 + 3 * k, 8, 160, false, null);
+                shake(at, .7f + .8f * k, 26);
+                screenFlash(at, .25f * k, 14, AIR);
             }
+            case FX_CHARGED_WAVE -> {}
             case FX_CLAP -> {
                 // The clap: a flash between his hands at chest height, a burst of rings, then the wall of air
                 // rolling forward across the ground (it moves exactly as fast as the server's wave).
                 Vec3 f = flatDir(dir), hands = at.add(0, 1.75, 0);
-                glow(hands, 4, 6, AIR, 1f);
-                glow(hands, 2.2, 8, GAMMA_CORE, .5f);
-                ring(hands, f, 1.8, .5, 6, AIR, .9f, true, 0);
-                ring(hands.add(f.scale(2)), f, 3.4, .6, 8, AIR, .7f, true, 1);
-                ring(hands.add(f.scale(4.5)), f, 5, .8, 10, AIR, .5f, true, 3);
-                ring(at.add(0, .1, 0), null, 4, .6, 8, AIR, .5f, true, 0);
-                if (amount() > 0) { ARCS.add(new Arc(at, f, power, Math.toRadians(CLAP_SPREAD), 4.2, now(), (float) (power / CLAP_SPEED) + 6, ground)); cap(ARCS, 8); }
+                glow(hands, 4.5, 6, AIR, 1f);
+                glow(hands, 2.4, 8, GAMMA_CORE, .55f);
+                ring(hands, f, 2, .55, 6, AIR, .95f, true, 0);
+                ring(hands.add(f.scale(2)), f, 3.6, .7, 8, AIR, .8f, true, 1);
+                ring(hands.add(f.scale(4.5)), f, 5.4, .9, 10, AIR, .6f, true, 3);
+                ring(at.add(0, .1, 0), null, 4.5, .7, 8, AIR, .6f, true, 0);
+                if (amount() > 0) { ARCS.add(new Arc(at, f, power, Math.toRadians(CLAP_SPREAD), 4.6, now(), (float) (power / CLAP_SPEED) + 6, ground)); cap(ARCS, 8); }
                 var level = mc.level;
                 Random r = random();
-                for (int i = 0; i < n(60); i++) {
+                for (int i = 0; i < n(70); i++) {
                     double a = (r.nextDouble() - .5) * Math.toRadians(CLAP_SPREAD * 2);
                     Vec3 d = rotY(f, a);
-                    Vec3 q = at.add(d.scale(1 + r.nextDouble() * 2)).add(0, r.nextDouble() * 2.4, 0);
-                    Vec3 v = d.scale(1 + r.nextDouble() * 1.2);
+                    Vec3 q = at.add(d.scale(1 + r.nextDouble() * 2)).add(0, r.nextDouble() * 2.6, 0);
+                    Vec3 v = d.scale(1.1 + r.nextDouble() * 1.3);
                     level.addParticle(i % 2 == 0 ? ParticleTypes.CLOUD : ParticleTypes.POOF, q.x, q.y, q.z, v.x, .02, v.z);
                 }
-                dust(at.add(f.scale(1.5)), 16, 1.5, .3, 1.6, 40, ground, .02);
-                shake(at, 1f, 22);
-                screenFlash(hands, .2f, 9, AIR);
+                dust(at.add(f.scale(1.5)), 18, 1.5, .32, 1.7, 44, ground, .02);
+                shake(at, 1.1f, 24);
+                screenFlash(hands, .22f, 9, AIR);
             }
             case FX_POUND_STEP -> {
-                // The ground wave: the earth heaves up in jagged slabs, chunks fly high, dust rolls out to the sides.
-                Vec3 f = flatDir(dir), side = f.cross(new Vec3(0, 1, 0)).normalize();
-                Random r = random();
-                boolean first = power > 1.5f;
-                if (first) {
-                    // Where his fists went in.
-                    ring(at.add(0, .1, 0), null, 7, .9, 12, AIR, .6f, true, 0);
-                    ring(at.add(0, .15, 0), null, 4, .6, 8, AIR, .55f, true, 2);
-                    glow(at.add(0, .5, 0), 3.5, 6, AIR, .7f);
-                    chunks(at, 26, 1.6, .9, .3, .8f, ground, Vec3.ZERO);
-                    dust(at, 26, 1.8, .26, 1.8, 60, ground, .05);
-                    particles(at, 50, 3, .45, ground);
-                    for (int i = 0; i < 6; i++) {
-                        double a = i * Math.PI / 3 + r.nextDouble() * .5;
-                        spike(at.add(Math.cos(a) * (1.6 + r.nextDouble()), 0, Math.sin(a) * (1.6 + r.nextDouble())), ground, 1.2 + r.nextDouble() * 1.2, a, 30 + r.nextInt(10));
-                    }
-                    cracks(at, 6, 10, 160, false, null);
-                    shake(at, 1.2f, 24);
-                    screenFlash(at, .12f, 8, AIR);
+                // The ground wave: the real earth is thrown up by the server; here the dust, grit, rings and cracks.
+                Vec3 f = flatDir(dir);
+                if (power > 1.5f) {
+                    ring(at.add(0, .1, 0), null, 8, 1, 12, AIR, .7f, true, 0);
+                    ring(at.add(0, .15, 0), null, 4.5, .6, 8, AIR, .6f, true, 2);
+                    ring(at.add(0, 1.2, 0), new Vec3(0, 1, 0), 3, .6, 6, GAMMA_CORE, .5f, true, 0);
+                    glow(at.add(0, .5, 0), 4, 6, AIR, .8f);
+                    dust(at, 30, 1.8, .28, 1.9, 64, ground, .05);
+                    particles(at, 70, 3.5, .5, ground);
+                    mc.level.addParticle(ParticleTypes.EXPLOSION, at.x, at.y + .5, at.z, 0, 0, 0);
+                    cracks(at, 6.5, 11, 170, false, null);
+                    shake(at, 1.3f, 26);
+                    screenFlash(at, .14f, 8, AIR);
                 } else {
-                    chunks(at, 9, .9, .78, .12, .7f, ground, f.scale(.06));
-                    dust(at, 7, 1.2, .1, 1.4, 42, ground, .04);
-                    particles(at, 22, 2.4, .32, ground);
-                    // Slabs of ground forced up along both edges of the wave, leaning outward.
-                    int count = 2 + (r.nextFloat() < .5f ? 1 : 0);
-                    for (int i = 0; i < count; i++) {
-                        double off = (r.nextBoolean() ? 1 : -1) * (.6 + r.nextDouble() * 1.8);
-                        double lean = Math.atan2(side.z * Math.signum(off), side.x * Math.signum(off));
-                        spike(at.add(side.scale(off)).add(f.scale(r.nextDouble() - .5)), ground, .9 + r.nextDouble() * 1.4, lean, 26 + r.nextInt(14));
-                    }
-                    cracks(at, 2.4, 3, 110, false, f);
-                    shake(at, .4f, 14);
+                    dust(at, 8, 1.3, .12, 1.5, 44, ground, .05);
+                    particles(at, 30, 2.8, .4, ground);
+                    ring(at.add(0, .1, 0), null, 2.6, .45, 7, AIR, .45f, true, 0);
+                    cracks(at, 2.6, 3, 120, false, f);
+                    shake(at, .45f, 15);
                 }
                 mc.level.playLocalSound(at.x, at.y, at.z, SoundEvents.ROOTED_DIRT_BREAK, SoundSource.PLAYERS, 1f, .55f, false);
             }
             case FX_LANDING -> {
-                // Landing: dust rolling out, rings, cracks, chunks and slabs - all by how hard he hit.
+                // Landing: dust rolling out, rings, cracks - all by how hard he hit (the server throws the real ground).
                 double s = Math.max(.3, power);
-                ring(at.add(0, .1, 0), null, 3 + 6 * s, .5 + .5 * s, 9 + 7 * (float) s, AIR, .6f, true, 0);
-                if (s > .5) ring(at.add(0, .15, 0), null, 2 + 3 * s, .4, 7, AIR, .5f, true, 2);
-                glow(at.add(0, .4, 0), 2 + 2 * s, 5, AIR, .5f * (float) s);
-                dust(at, (int) (14 + 30 * s), 1 + 1.5 * s, .16 + .24 * s, 1.2 + .7 * s, 40 + 24 * (float) s, ground, .03);
-                chunks(at, (int) (5 + 18 * s), 1 + 1.4 * s, .45 + .4 * s, .16 + .16 * s, .65f, ground, Vec3.ZERO);
-                particles(at, (int) (16 + 34 * s), 2 + 1.5 * s, .35, ground);
-                if (s > .55) {
-                    Random r = random();
-                    int count = (int) (3 + 5 * s);
-                    for (int i = 0; i < count; i++) {
-                        double a = i * Math.PI * 2 / count + r.nextDouble() * .4, d = 1.8 + s * 1.4 + r.nextDouble();
-                        spike(at.add(Math.cos(a) * d, 0, Math.sin(a) * d), ground, .7 + s + r.nextDouble() * .6, a, 28 + r.nextInt(10));
-                    }
+                ring(at.add(0, .1, 0), null, 3 + 7 * s, .6 + .5 * s, 9 + 7 * (float) s, AIR, .7f, true, 0);
+                if (s > .5) {
+                    ring(at.add(0, .15, 0), null, 2 + 3 * s, .45, 7, AIR, .55f, true, 2);
+                    ring(at.add(0, 1, 0), new Vec3(0, 1, 0), 2 + 2 * s, .5, 6, GAMMA_CORE, .4f, true, 0);
+                    mc.level.addParticle(ParticleTypes.EXPLOSION, at.x, at.y + .4, at.z, 0, 0, 0);
                 }
-                cracks(at, 2 + 3.5 * s, 6 + (int) (4 * s), 140, false, null);
-                shake(at, .35f + .8f * (float) s, 12 + 10 * (float) s);
+                glow(at.add(0, .4, 0), 2.5 + 2.5 * s, 5, AIR, .6f * (float) s);
+                dust(at, (int) (16 + 34 * s), 1 + 1.6 * s, .18 + .26 * s, 1.3 + .8 * s, 44 + 24 * (float) s, ground, .03);
+                particles(at, (int) (24 + 50 * s), 2.2 + 2 * s, .45, ground);
+                cracks(at, 2 + 4 * s, 6 + (int) (5 * s), 150, false, null);
+                shake(at, .4f + .9f * (float) s, 12 + 12 * (float) s);
             }
             case FX_ROCK_PULL -> {
-                chunks(at, 10, .8, .5, .14, .55f, ground, Vec3.ZERO);
-                particles(at, 30, 1.6, .35, ground);
+                particles(at, 40, 1.8, .4, ground);
                 dust(at, 12, .8, .08, 1.2, 30, ground, .05);
                 cracks(at.add(0, -.5, 0), 2.6, 6, 110, false, null);
                 shake(at, .4f, 10);
             }
             case FX_ROCK_HIT -> {
-                ring(at.add(0, .05, 0), null, 6.5, .8, 12, AIR, .6f, true, 0);
-                glow(at, 3, 6, AIR, .7f);
-                chunks(at, 24, 1, .6, .28, .7f, ground, dir.scale(.1));
-                particles(at, 46, 2.6, .4, ground);
-                dust(at, 26, 1.6, .2, 1.6, 50, ground, .04);
-                Random r = random();
-                for (int i = 0; i < 4; i++) {
-                    double a = r.nextDouble() * Math.PI * 2;
-                    spike(at.add(Math.cos(a) * 1.5, -.5, Math.sin(a) * 1.5), ground, .8 + r.nextDouble(), a, 26);
-                }
+                ring(at.add(0, .05, 0), null, 7, .9, 12, AIR, .7f, true, 0);
+                ring(at, dir, 3, .6, 7, AIR, .6f, true, 0);
+                glow(at, 3.2, 6, AIR, .8f);
+                mc.level.addParticle(ParticleTypes.EXPLOSION, at.x, at.y, at.z, 0, 0, 0);
+                particles(at, 70, 3, .5, ground);
+                dust(at, 28, 1.6, .22, 1.7, 54, ground, .04);
                 cracks(at, 4, 8, 130, false, null);
-                shake(at, .75f, 18);
+                shake(at, .8f, 18);
             }
             case FX_ULT_CRASH -> {
                 // The target hits the ground: a column of dust and a first ring.
                 ring(at.add(0, .1, 0), null, 6, .7, 10, AIR, .6f, true, 0);
                 glow(at.add(0, .5, 0), 3, 6, AIR, .7f);
                 dust(at, 30, 1.5, .18, 1.3, 50, ground, .07);
-                chunks(at, 16, 1.2, .45, .18, .5f, ground, Vec3.ZERO);
                 particles(at, 40, 2.5, .4, ground);
                 cracks(at, 4, 8, 160, false, null);
                 shake(at, .9f, 24);
@@ -412,7 +375,6 @@ public final class HulkFx {
                 glow(at.add(0, 1, 0), 5, 18, GAMMA, .6f);
                 dust(at, 70, 3, .3, 2.2, 90, ground, .05);
                 dust(at, 20, 1, .08, 2.8, 70, ground, .16);
-                chunks(at, 40, 2.5, .65, .3, .7f, ground, Vec3.ZERO);
                 particles(at, 80, 5, .55, ground);
                 cracks(at, 10, 12, 260, true, null);
                 gammaMotes(at.add(0, .2, 0), 50, 4, .2);
@@ -437,33 +399,23 @@ public final class HulkFx {
         if (mc.level == null || mc.isPaused()) { if (mc.level == null) clear(); return; }
         long now = now();
         var level = mc.level;
-        // Chunks: thrown, falling, bouncing once or twice, then settling and crumbling away.
-        for (Iterator<Chunk> it = CHUNKS.iterator(); it.hasNext(); ) {
-            Chunk c = it.next();
-            if (now - c.start > c.life) { it.remove(); continue; }
-            c.prev = c.pos;
-            if (c.resting) continue;
-            c.vel = c.vel.add(0, -.055, 0).scale(.98);
-            Vec3 next = c.pos.add(c.vel);
-            BlockPos below = BlockPos.containing(next.x, next.y - c.size * .5, next.z);
-            var bs = level.getBlockState(below);
-            if (c.vel.y < 0 && !bs.getCollisionShape(level, below).isEmpty()) {
-                double top = below.getY() + bs.getCollisionShape(level, below).max(net.minecraft.core.Direction.Axis.Y);
-                next = new Vec3(next.x, top + c.size * .5, next.z);
-                c.vel = new Vec3(c.vel.x * .45, -c.vel.y * .3, c.vel.z * .45);
-                c.spinSpeed *= .5f;
-                if (c.vel.lengthSqr() < .004) c.resting = true;
-            }
-            c.pos = next;
-            c.spin += c.spinSpeed;
-        }
         PUFFS.removeIf(p -> now - p.start() > p.life());
         GLOWS.removeIf(g -> now - g.start() > g.life());
         RINGS.removeIf(r -> now - r.start() > r.life());
         ARCS.removeIf(a -> now - a.start() > a.life());
-        SPIKES.removeIf(k -> now - k.start() > k.life());
-        // The Thunderclap's front kicks up a curtain of dust and grit wherever it is passing.
         Random dustRandom = random();
+        WAVES.removeIf(w -> now - w.start() > w.range() / PUNCH_WAVE_SPEED + 8);
+        // The punch's front tears dust off whatever it passes.
+        for (PunchWave w : WAVES) {
+            double d = Math.min(w.range(), PUNCH_WAVE_SPEED * (now - w.start()));
+            if (d >= w.range()) continue;
+            Vec3 q = w.from().add(w.dir().scale(d));
+            for (int i = 0; i < n(5); i++) {
+                Vec3 o = new Vec3(dustRandom.nextGaussian(), dustRandom.nextGaussian(), dustRandom.nextGaussian()).scale(.6 + .5 * w.power());
+                level.addParticle(i % 2 == 0 ? ParticleTypes.CLOUD : ParticleTypes.POOF, q.x + o.x, q.y + o.y, q.z + o.z, w.dir().x * 1.2, w.dir().y * 1.2, w.dir().z * 1.2);
+            }
+        }
+        // The Thunderclap's front kicks up a curtain of dust and grit wherever it is passing.
         for (Arc a : ARCS) {
             double reach = Math.min(a.range(), 1.5 + CLAP_SPEED * (now - a.start()));
             if (reach >= a.range() - .1 && now - a.start() > a.range() / CLAP_SPEED + 1) continue;
@@ -549,7 +501,6 @@ public final class HulkFx {
         if (crossed(before, t, ULT_LEAP)) {
             ring(start.add(0, .1, 0), null, 5, .7, 10, AIR, .55f, true, 0);
             dust(start, 22, 1, .2, 1.2, 50, ground, .05);
-            chunks(start, 10, 1, .5, .15, .5f, ground, Vec3.ZERO);
             cracks(start, 3, 6, 200, false, null);
             shake(start, .6f, 16);
         }
@@ -564,7 +515,6 @@ public final class HulkFx {
             BlockState under = level.getBlockState(BlockPos.containing(spot).below());
             ring(spot.add(0, .1, 0), null, 7, .9, 12, AIR, .6f, true, 0);
             dust(spot, 34, 1.4, .26, 1.4, 60, under, .06);
-            chunks(spot, 18, 1.2, .6, .2, .55f, under, Vec3.ZERO);
             cracks(spot, 5, 9, 220, false, null);
             shake(spot, 1f, 24);
         }
@@ -625,8 +575,11 @@ public final class HulkFx {
     }
     /** A ring standing in the plane across `normal`: a shock front travelling that way. */
     private static void tiltedRing(FilmContext c, Vec3 centre, Vec3 normal, double radius, double width, int rgb, float alpha) {
+        tiltedRing(c, centre, normal, radius, width, rgb, alpha, FilmFx.ADD);
+    }
+    private static void tiltedRing(FilmContext c, Vec3 centre, Vec3 normal, double radius, double width, int rgb, float alpha, net.minecraft.client.renderer.RenderType type) {
         if (alpha <= .003f || radius <= 0) return;
-        VertexConsumer v = c.buffers().getBuffer(FilmFx.ADD);
+        VertexConsumer v = c.buffers().getBuffer(type);
         Matrix4f m = c.pose().last().pose();
         Vec3 n = normal.normalize(), u = perpendicular(n), w = n.cross(u).normalize();
         int count = 36;
@@ -653,7 +606,7 @@ public final class HulkFx {
         if (e.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) return;
         var mc = Minecraft.getInstance();
         if (mc.level == null) return;
-        if (PUFFS.isEmpty() && GLOWS.isEmpty() && RINGS.isEmpty() && ARCS.isEmpty() && CRACKS.isEmpty() && VIEWS.isEmpty()) return;
+        if (PUFFS.isEmpty() && GLOWS.isEmpty() && RINGS.isEmpty() && ARCS.isEmpty() && WAVES.isEmpty() && CRACKS.isEmpty() && VIEWS.isEmpty()) return;
         float partial = e.getPartialTick();
         float time = now() + partial;
         PoseStack p = e.getPoseStack();
@@ -689,10 +642,23 @@ public final class HulkFx {
                 if (age < 0 || age > 1) continue;
                 double grow = 1 - Math.pow(1 - age, 3);
                 float alpha = k.alpha() * (1 - age) * (1 - age);
-                if (k.normal() == null) FilmFx.ring(c, k.at(), k.radius() * grow, k.width() * (.6 + .8 * age), k.rgb(), alpha, k.light());
-                else tiltedRing(c, k.at(), k.normal(), k.radius() * grow, k.width() * (.6 + .8 * age), k.rgb(), alpha);
+                double radius = k.radius() * grow, width = k.width() * (.6 + .8 * age);
+                // Light alone vanishes in daylight: every shock ring also has a body of pressed, dusty air,
+                // pale in the middle with a darker leading edge, so it reads against a bright sky too.
+                if (k.normal() == null) {
+                    FilmFx.ring(c, k.at(), radius, width, k.rgb(), alpha, k.light());
+                    if (k.light()) {
+                        FilmFx.ring(c, k.at().add(0, .05, 0), radius, width * 1.3, 0xd6dbe0, alpha * .5f, false);
+                        FilmFx.ring(c, k.at().add(0, .06, 0), radius + width * 1.1, width * .35, 0x4a4f55, alpha * .35f, false);
+                    }
+                } else {
+                    tiltedRing(c, k.at(), k.normal(), radius, width, k.rgb(), alpha);
+                    tiltedRing(c, k.at(), k.normal(), radius, width * 1.35, 0xd8dde3, alpha * .45f, FilmFx.SOFT);
+                    tiltedRing(c, k.at(), k.normal(), radius + width * 1.15, width * .35, 0x50555c, alpha * .3f, FilmFx.SOFT);
+                }
             }
             for (Arc a : ARCS) drawArc(c, m, a, time);
+            for (PunchWave w : WAVES) drawPunchWave(c, m, w, time);
             for (Glow g : GLOWS) {
                 float age = (time - g.start()) / g.life();
                 if (age < 0 || age > 1) continue;
@@ -753,6 +719,24 @@ public final class HulkFx {
                 put(v, m, p1.add(0, lh, 0), AIR, 0); put(v, m, p0.add(0, lh, 0), AIR, 0);
             }
         }
+        // The body of the wall: churned dust in the ground's colour, thick at the bottom, so it is seen by day.
+        VertexConsumer soft = c.buffers().getBuffer(FilmFx.SOFT);
+        int dustRgb = dustColor(a.ground());
+        for (int i = 0; i < count; i++) {
+            double a0 = -a.spread() + 2 * a.spread() * i / count, a1 = -a.spread() + 2 * a.spread() * (i + 1) / count;
+            Vec3 d0 = rotY(a.dir(), a0), d1 = rotY(a.dir(), a1);
+            float e0 = edge(i, count), e1 = edge(i + 1, count);
+            for (int layer = 0; layer < 2; layer++) {
+                double back = reach - .4 - layer * 1.1;
+                if (back <= .5) continue;
+                double lh = h * (layer == 0 ? .75 : .5);
+                float la = .42f * fade * (layer == 0 ? 1 : .55f);
+                int rgb = layer == 0 ? 0xdde2e6 : dustRgb;
+                Vec3 p0 = a.at().add(d0.scale(back)), p1 = a.at().add(d1.scale(back));
+                put(soft, m, p0, rgb, la * e0); put(soft, m, p1, rgb, la * e1);
+                put(soft, m, p1.add(0, lh, 0), rgb, 0); put(soft, m, p0.add(0, lh, 0), rgb, 0);
+            }
+        }
         // The seam on the ground and the wind lines streaming behind the front.
         VertexConsumer v = c.buffers().getBuffer(FilmFx.ADD);
         for (int i = 0; i < count; i++) {
@@ -766,6 +750,29 @@ public final class HulkFx {
             Vec3 d = rotY(a.dir(), ang);
             Vec3 head = a.at().add(d.scale(reach - .3)).add(0, y, 0), tail = head.subtract(d.scale(len));
             FilmFx.streak(c, tail, head, .12, AIR, 0, .35f * fade, true);
+        }
+    }
+    /** The charged punch's front: a cone of pressed air pushing out, with a bright core, until it bursts. */
+    private static void drawPunchWave(FilmContext c, Matrix4f m, PunchWave w, float time) {
+        float age = time - w.start();
+        double d = PUNCH_WAVE_SPEED * age;
+        if (age < 0 || d > w.range() + .5) return;
+        double r = (1.1 + 1.3 * w.power()) * (.7 + .3 * Math.min(1, d / 4));
+        Vec3 at = w.from().add(w.dir().scale(Math.min(d, w.range())));
+        for (int i = 0; i < 3; i++) {
+            Vec3 q = at.subtract(w.dir().scale(i * .9));
+            float a = (.9f - i * .28f);
+            tiltedRing(c, q, w.dir(), r * (1 - i * .18), .45, AIR, a * .8f);
+            tiltedRing(c, q, w.dir(), r * (1 - i * .18), .6, 0xdfe3e8, a * .45f, FilmFx.SOFT);
+        }
+        tiltedRing(c, at.add(w.dir().scale(.3)), w.dir(), r * 1.15, .18, 0x4d5259, .35f, FilmFx.SOFT);
+        FilmFx.glow(c, at, r * 1.2, AIR, .55f);
+        FilmFx.glow(c, at, r * .6, GAMMA_CORE, .35f * w.power());
+        FilmFx.streak(c, w.from(), at, .5 + .4 * w.power(), AIR, 0, .5f, true);
+        for (int i = 0; i < 10; i++) {
+            double ang = i * Math.PI * 2 / 10 + w.start();
+            Vec3 off = perpendicular(w.dir()).scale(Math.cos(ang) * r * .8).add(w.dir().cross(perpendicular(w.dir())).scale(Math.sin(ang) * r * .8));
+            FilmFx.streak(c, at.add(off).subtract(w.dir().scale(2.5)), at.add(off), .1, AIR, 0, .4f, true);
         }
     }
     private static float edge(int i, int count) { float x = Math.abs(i / (float) count * 2 - 1); return 1 - x * x; }
@@ -783,46 +790,6 @@ public final class HulkFx {
         var blocks = mc.getBlockRenderer();
         boolean any = false;
         float time = now() + partial;
-        // Chunks of ground in the air and on the ground; they shrink away at the end of their life.
-        for (Chunk c : CHUNKS) {
-            Vec3 at = c.prev.lerp(c.pos, partial);
-            float age = time - c.start;
-            float shrink = 1 - HulkMotion.clamp((age - (c.life - 12)) / 12f);
-            if (shrink <= 0) continue;
-            pose.pushPose();
-            pose.translate(at.x - cam.x, at.y - cam.y, at.z - cam.z);
-            pose.mulPose(Axis.of(c.axis).rotation(c.spin + (c.resting ? 0 : c.spinSpeed * partial)));
-            float s = c.size * shrink;
-            pose.scale(s, s, s);
-            pose.translate(-.5, -.5, -.5);
-            blocks.renderSingleBlock(c.state, pose, buffers, LevelRenderer.getLightColor(mc.level, BlockPos.containing(at)), OverlayTexture.NO_OVERLAY);
-            pose.popPose();
-            any = true;
-        }
-        // Slabs of earth forced up: they burst out in a few ticks, hold, and sink back.
-        for (Spike k : SPIKES) {
-            float age = time - k.start();
-            float up = FilmFx.ease(age / 2.5f), down = FilmFx.ease((age - (k.life() - 12)) / 12f);
-            double top = k.height() * up * (1 - down) - .15;
-            if (top <= -.9) continue;
-            pose.pushPose();
-            pose.translate(k.base().x - cam.x, k.base().y - cam.y, k.base().z - cam.z);
-            pose.mulPose(Axis.YP.rotation((float) (-k.lean() + Math.PI / 2)));
-            pose.mulPose(Axis.XP.rotation(k.tilt()));
-            int light = LevelRenderer.getLightColor(mc.level, BlockPos.containing(k.base().add(0, 1, 0)));
-            float size = .92f;
-            for (int i = 0; top - i * size > -1.2 && i < 5; i++) {
-                float w = size * (1 - Math.min(i, 2) * -.06f) * (i == 0 ? .82f : 1);
-                pose.pushPose();
-                pose.translate(-w / 2, top - (i + 1) * size, -w / 2);
-                pose.mulPose(Axis.YP.rotationDegrees(i * 9));
-                pose.scale(w, size, w);
-                blocks.renderSingleBlock(k.state(), pose, buffers, light, OverlayTexture.NO_OVERLAY);
-                pose.popPose();
-            }
-            pose.popPose();
-            any = true;
-        }
         for (Player p : mc.level.players()) {
             if (!HulkClient.isHero(p)) continue;
             HulkClient.State s = HulkClient.get(p);
@@ -1013,7 +980,7 @@ public final class HulkFx {
     }
 
     private static void clear() {
-        CHUNKS.clear(); SPIKES.clear(); PUFFS.clear(); GLOWS.clear(); RINGS.clear(); ARCS.clear(); CRACKS.clear(); VIEWS.clear(); LAST_RAGE.clear(); CASTS.clear(); screenFlash = 0;
+        WAVES.clear(); PUFFS.clear(); GLOWS.clear(); RINGS.clear(); ARCS.clear(); CRACKS.clear(); VIEWS.clear(); LAST_RAGE.clear(); CASTS.clear(); screenFlash = 0;
     }
     @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) { clear(); }
 

@@ -67,6 +67,9 @@ public final class HulkController {
         final int[] cooldowns = new int[HulkStatePacket.COOLDOWNS];
         // leap
         boolean bounced; double fallSpeed; int airTicks;
+        // charged punch: the shock wave travelling out from the fist, then bursting
+        boolean punchWave; Vec3 pwFrom = Vec3.ZERO, pwDir = Vec3.ZERO; double pwDist, pwRange; float pwCharge;
+        final Set<Integer> pwHits = new HashSet<>();
         // ground pound wave
         boolean wave; Vec3 waveAt = Vec3.ZERO, waveDir = Vec3.ZERO; int waveStep; HulkBlocks.Budget waveBudget;
         final Set<Integer> waveHits = new HashSet<>();
@@ -133,11 +136,13 @@ public final class HulkController {
         if (!isHero(p)) return;
         State s = state(p);
         s.spaceDown = down;
+        // Pressing starts the wind-up at once; the tick decides: let go quickly and it was an ordinary
+        // jump (the client already jumped), hold on and it charges the leap.
         if (down) {
             if (!s.hulk || busy(s) || !p.onGround() || s.action == GUARD || s.action == PUNCH_CHARGE) return;
             if (s.cooldowns[CD_LEAP] > 0) return;
             set(s, LEAP_CHARGE);
-        } else if (s.action == LEAP_CHARGE) leap(p, s);
+        }
     }
 
     // ------------------------------------------------------------------ Banner <-> Hulk
@@ -183,30 +188,48 @@ public final class HulkController {
         set(s, s.punchSide == 0 ? PUNCH_RIGHT : PUNCH_LEFT);
         sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, .7f, .6f);
     }
+    /** A jab: a short, heavy blow that bursts where it lands, shoving whoever stands close by and cracking weak ground. */
     private static void punchHit(ServerPlayer p, State s) {
         Vec3 look = flat(p), chest = p.position().add(0, 1.3, 0);
         double reach = HulkConfig.get(HulkConfig.PUNCH_REACH);
-        boolean any = false;
+        float damage = HulkConfig.get(HulkConfig.PUNCH_DAMAGE).floatValue();
+        LivingEntity struck = null;
+        double best = Double.MAX_VALUE;
         for (LivingEntity t : targets(p, p.getBoundingBox().inflate(reach))) {
             Vec3 to = t.position().add(0, t.getBbHeight() * .5, 0).subtract(chest);
             if (to.length() > reach + t.getBbWidth() * .5 || to.normalize().dot(look) < .35) continue;
-            hit(p, t, HulkConfig.get(HulkConfig.PUNCH_DAMAGE).floatValue(), look, HulkConfig.get(HulkConfig.PUNCH_KNOCKBACK), .25);
-            fx(p, FX_PUNCH, t.position().add(0, t.getBbHeight() * .6, 0), look, 1, 0);
-            any = true;
+            if (to.length() < best) { best = to.length(); struck = t; }
         }
-        if (any) { sound(p, SoundEvents.PLAYER_ATTACK_KNOCKBACK, 1f, .55f); sound(p, SoundEvents.IRON_GOLEM_ATTACK, .7f, .8f); return; }
-        // Nothing alive in reach: small blocks in front of the fist give way.
-        var hitBlock = p.level().clip(new ClipContext(chest, chest.add(look.scale(reach)), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, p));
-        if (hitBlock.getType() == HitResult.Type.BLOCK) {
-            BlockPos pos = hitBlock.getBlockPos();
-            BlockState was = p.level().getBlockState(pos);
-            var budget = new HulkBlocks.Budget();
-            budget.left = Math.min(budget.left, 2);
-            if (was.getDestroySpeed(p.level(), pos) <= 1.0f && HulkBlocks.breakBlock(p, pos, budget))
-                fx(p, FX_BLOCK, Vec3.atCenterOf(pos), look, .6f, HulkBlocks.id(was));
-            else fx(p, FX_PUNCH, hitBlock.getLocation(), look, .6f, HulkBlocks.id(was));
-            sound(p, SoundEvents.STONE_HIT, 1f, .6f);
+        Vec3 burst = null;
+        if (struck != null) {
+            hit(p, struck, damage, look, HulkConfig.get(HulkConfig.PUNCH_KNOCKBACK), .3);
+            burst = struck.position().add(0, struck.getBbHeight() * .5, 0).subtract(look.scale(struck.getBbWidth() * .5));
+        } else {
+            var hitBlock = p.level().clip(new ClipContext(chest, chest.add(p.getLookAngle().scale(reach)), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, p));
+            if (hitBlock.getType() == HitResult.Type.BLOCK) {
+                burst = hitBlock.getLocation();
+                // Weak ground gives way: a few blocks thrown off the way he punched.
+                var budget = new HulkBlocks.Budget();
+                budget.left = Math.min(budget.left, 3);
+                BlockPos at = hitBlock.getBlockPos();
+                for (BlockPos pos : new BlockPos[]{at, at.relative(hitBlock.getDirection().getOpposite()), at.above()}) {
+                    BlockState was = p.level().getBlockState(pos);
+                    if (was.isAir() || was.getDestroySpeed(p.level(), pos) > 1.6f || !HulkBlocks.earth(was) && !HulkBlocks.light(was)) continue;
+                    Vec3 v = look.scale(.35 + p.getRandom().nextDouble() * .2).add(0, .3 + p.getRandom().nextDouble() * .2, 0);
+                    HulkBlocks.launch(p, pos, budget, v);
+                }
+            }
         }
+        if (burst == null) return;
+        // The small blast round the fist.
+        for (LivingEntity t : targets(p, new AABB(burst, burst).inflate(1.9))) {
+            if (t == struck || t.position().add(0, t.getBbHeight() * .5, 0).distanceTo(burst) > 1.9) continue;
+            hit(p, t, damage * .4f, t.position().subtract(burst), .6, .2);
+        }
+        fx(p, FX_PUNCH, burst, look, 1.4f, HulkBlocks.id(p.level().getBlockState(BlockPos.containing(burst).below())));
+        p.level().playSound(null, burst.x, burst.y, burst.z, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, .45f, 1.7f);
+        sound(p, SoundEvents.PLAYER_ATTACK_KNOCKBACK, 1f, .55f);
+        sound(p, SoundEvents.IRON_GOLEM_ATTACK, .8f, .8f);
     }
     private static void startCharge(ServerPlayer p, State s) {
         if (!s.hulk || busy(s) || s.action == GUARD || s.action == LEAP_CHARGE) return;
@@ -220,36 +243,78 @@ public final class HulkController {
         s.cooldowns[CD_CHARGED] = HulkConfig.get(HulkConfig.CHARGED_COOLDOWN);
         sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, 1f, .4f);
     }
-    /** The charged punch: a shock wave rolls forward from the fist; it grows with the charge. */
+    /**
+     * The charged punch: the fist drives a shock wave out ahead (PUNCH_WAVE_SPEED blocks a tick),
+     * shoving aside whoever it passes; where it meets a wall or the end of its reach it bursts: the
+     * real damage in an area, bodies thrown out, a crater of ground torn up and flung.
+     */
     private static void chargedWave(ServerPlayer p, State s) {
         float c = Math.max(.15f, s.charge);
-        Vec3 look = p.getLookAngle(), from = p.getEyePosition().add(0, -.4, 0);
-        double range = 4 + (HulkConfig.get(HulkConfig.CHARGED_RANGE) - 4) * c, width = 1.3 + 2.4 * c;
-        float damage = (float) (HulkConfig.get(HulkConfig.CHARGED_DAMAGE) * (.35 + .65 * c));
-        // Drawn from where his huge fist really is (he stands half again as tall as the hitbox).
-        Vec3 fist = p.position().add(0, 1.95, 0).add(look.scale(1.7));
-        fx(p, FX_CHARGED_WAVE, fist, look, c, HulkBlocks.id(p.level().getBlockState(p.blockPosition().below())));
-        sound(p, SoundEvents.GENERIC_EXPLODE, .6f + .6f * c, 1.3f - .5f * c);
+        Vec3 look = p.getLookAngle();
+        s.punchWave = true; s.pwCharge = c; s.pwDist = 0; s.pwHits.clear(); s.pwDir = look;
+        s.pwFrom = p.position().add(0, 1.95, 0).add(look.scale(1.6));
+        s.pwRange = 5 + (HulkConfig.get(HulkConfig.CHARGED_RANGE) - 5) * c;
+        // A wall in the way: it bursts there instead.
+        var block = p.level().clip(new ClipContext(p.getEyePosition(), p.getEyePosition().add(look.scale(s.pwRange + 1.5)), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, p));
+        if (block.getType() == HitResult.Type.BLOCK) s.pwRange = Math.max(1.5, block.getLocation().distanceTo(p.getEyePosition()) - 1.2);
+        // The wave's reach travels in the block field (tenths of a block): the client draws it bursting there.
+        fx(p, FX_PUNCH_WAVE, s.pwFrom, look, c, (int) Math.round(s.pwRange * 10));
+        sound(p, SoundEvents.GENERIC_EXPLODE, .6f + .5f * c, 1.4f - .4f * c);
+        sound(p, SoundEvents.WARDEN_SONIC_BOOM, .5f + .5f * c, 1.3f);
         sound(p, SoundEvents.IRON_GOLEM_ATTACK, 1f, .5f);
-        for (LivingEntity t : targets(p, new AABB(from, from.add(look.scale(range))).inflate(width))) {
-            Vec3 to = t.position().add(0, t.getBbHeight() * .5, 0).subtract(from);
-            double along = to.dot(look);
-            if (along < 0 || along > range) continue;
-            if (to.subtract(look.scale(along)).length() > width + t.getBbWidth() * .5) continue;
-            boolean direct = along < 3.5;
-            hit(p, t, damage * (direct ? 1 : .65f), look, HulkConfig.get(HulkConfig.CHARGED_KNOCKBACK) * (.4 + .6 * c), .3 + .25 * c);
-            fx(p, FX_WAVE_HIT, t.position().add(0, t.getBbHeight() * .5, 0), look, .6f + .6f * c, HulkBlocks.id(t.level().getBlockState(t.blockPosition().below())));
+        punchWaveStep(p, s);
+    }
+    private static void punchWaveStep(ServerPlayer p, State s) {
+        double before = s.pwDist;
+        s.pwDist = Math.min(s.pwRange, s.pwDist + PUNCH_WAVE_SPEED);
+        double width = 1.2 + 1.4 * s.pwCharge;
+        Vec3 a = s.pwFrom.add(s.pwDir.scale(before)), b = s.pwFrom.add(s.pwDir.scale(s.pwDist));
+        // Passing through: a shove (the burst ahead does the real damage).
+        for (LivingEntity t : targets(p, new AABB(a, b).inflate(width))) {
+            if (s.pwHits.contains(t.getId())) continue;
+            Vec3 to = t.position().add(0, t.getBbHeight() * .5, 0).subtract(s.pwFrom);
+            double along = to.dot(s.pwDir);
+            if (along < before - 1 || along > s.pwDist + .5 || to.subtract(s.pwDir.scale(along)).length() > width + t.getBbWidth() * .5) continue;
+            s.pwHits.add(t.getId());
+            hit(p, t, HulkConfig.get(HulkConfig.CHARGED_DAMAGE).floatValue() * .25f, s.pwDir, .5 + .5 * s.pwCharge, .25);
+            fx(p, FX_WAVE_HIT, t.position().add(0, t.getBbHeight() * .5, 0), s.pwDir, .7f, 0);
         }
-        // Breaks what it meets: a limited tunnel of weak blocks along the wave.
-        var budget = new HulkBlocks.Budget();
-        budget.left = Math.min(budget.left, (int) (8 + 44 * c));
-        for (double d = 1.5; d < range && !budget.spent(); d += .8) {
-            Vec3 at = from.add(look.scale(d));
-            for (int i = 0; i < 3 && !budget.spent(); i++) {
-                BlockPos pos = BlockPos.containing(at.add((p.getRandom().nextDouble() - .5) * width, (p.getRandom().nextDouble() - .5) * width, (p.getRandom().nextDouble() - .5) * width));
+        if (s.pwDist >= s.pwRange) { s.punchWave = false; punchBlast(p, s, b); }
+    }
+    private static void punchBlast(ServerPlayer p, State s, Vec3 at) {
+        float c = s.pwCharge;
+        double radius = 2.6 + 2.6 * c;
+        float damage = (float) (HulkConfig.get(HulkConfig.CHARGED_DAMAGE) * (.35 + .65 * c));
+        BlockPos ground = surface(p.serverLevel(), BlockPos.containing(at), 4);
+        Vec3 floor = ground == null ? at : new Vec3(at.x, ground.getY() + 1, at.z);
+        fx(p, FX_BLAST, at, s.pwDir, c, ground == null ? 0 : HulkBlocks.id(p.level().getBlockState(ground)));
+        p.level().playSound(null, at.x, at.y, at.z, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 1.6f + c, .7f);
+        p.level().playSound(null, at.x, at.y, at.z, SoundEvents.ZOMBIE_BREAK_WOODEN_DOOR, SoundSource.PLAYERS, 1.2f, .5f);
+        for (LivingEntity t : targets(p, new AABB(at, at).inflate(radius))) {
+            Vec3 to = t.position().add(0, t.getBbHeight() * .5, 0).subtract(at);
+            double d = to.length();
+            if (d > radius) continue;
+            double fall = 1 - d / radius * .6;
+            boolean hidden = p.level().clip(new ClipContext(at, t.getEyePosition(), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, p)).getType() != HitResult.Type.MISS;
+            if (hidden && d > 1.5) continue;
+            Vec3 away = new Vec3(to.x, 0, to.z).lengthSqr() < .01 ? s.pwDir : new Vec3(to.x, 0, to.z).normalize().add(s.pwDir.scale(.6));
+            hit(p, t, (float) (damage * fall), away, HulkConfig.get(HulkConfig.CHARGED_KNOCKBACK) * (.5 + .5 * c) * fall, .45 + .35 * c);
+        }
+        // The crater: ground torn up and flung out of the burst (only when it burst near the ground or a wall).
+        if (ground != null && floor.distanceTo(at) < 3.5) crater(p, ground, (int) Math.round(1 + 2 * c), 1 + (c > .7f ? 1 : 0), new HulkBlocks.Budget(), .8 + .6 * c);
+        else if (ground == null || floor.distanceTo(at) >= 3.5) {
+            // A wall: knock a hole into it.
+            var budget = new HulkBlocks.Budget();
+            budget.left = Math.min(budget.left, (int) (6 + 20 * c));
+            int r = (int) Math.round(1 + 1.5 * c);
+            BlockPos centre = BlockPos.containing(at.add(s.pwDir.scale(1.2)));
+            for (BlockPos pos : BlockPos.betweenClosed(centre.offset(-r, -r, -r), centre.offset(r, r, r))) {
+                if (budget.spent()) break;
+                if (pos.distSqr(centre) > r * r + 1) continue;
                 BlockState was = p.level().getBlockState(pos);
                 if (was.isAir() || was.getDestroySpeed(p.level(), pos) > 1.2 + 1.8 * c) continue;
-                if (HulkBlocks.breakBlock(p, pos, budget) && p.getRandom().nextFloat() < .5f) fx(p, FX_BLOCK, Vec3.atCenterOf(pos), look, .7f, HulkBlocks.id(was));
+                Vec3 out = Vec3.atCenterOf(pos).subtract(at).normalize().scale(.4).add(s.pwDir.scale(.35)).add(0, .3, 0);
+                HulkBlocks.launch(p, pos.immutable(), budget, out);
             }
         }
     }
@@ -422,7 +487,11 @@ public final class HulkController {
             for (int w = -(width - 1) / 2; w <= width / 2; w++)
                 for (int d = 0; d < (w == 0 ? deep : 1); d++) {
                     BlockPos pos = BlockPos.containing(s.waveAt.x + side.x * w, ground.getY() - d, s.waveAt.z + side.z * w);
-                    if (HulkBlocks.earth(p.level().getBlockState(pos))) HulkBlocks.breakBlock(p, pos, s.waveBudget);
+                    if (!HulkBlocks.earth(p.level().getBlockState(pos))) continue;
+                    // Thrown up out of the trench and off to its side.
+                    Vec3 v = side.scale((w == 0 ? (p.getRandom().nextBoolean() ? 1 : -1) * .08 : Math.signum(w) * .2) + (p.getRandom().nextDouble() - .5) * .06)
+                            .add(s.waveDir.scale(.05)).add(0, .5 + p.getRandom().nextDouble() * .35 - d * .1, 0);
+                    HulkBlocks.launch(p, pos, s.waveBudget, v);
                 }
         }
         for (LivingEntity t : targets(p, new AABB(s.waveAt, s.waveAt).inflate(POUND_WIDTH_HIT, 2.5, POUND_WIDTH_HIT))) {
@@ -434,13 +503,18 @@ public final class HulkController {
     }
 
     // ------------------------------------------------------------------ leap
+    /** Off he goes, the way he is looking (up, ahead, or a flat bound when he looks down), faster the longer he held. */
     private static void leap(ServerPlayer p, State s) {
-        s.charge = Math.min(1, s.age / (float) LEAP_CHARGE_MAX);
+        s.charge = Math.min(1, Math.max(0, (s.age - LEAP_TAP) / (float) LEAP_CHARGE_MAX));
         if (!p.onGround()) { set(s, IDLE); return; }
         double power = HulkConfig.get(HulkConfig.LEAP_POWER);
-        Vec3 dir = flat(p);
-        double up = (.85 + .9 * s.charge) * power, ahead = (.45 + 1.45 * s.charge) * power;
-        p.setDeltaMovement(dir.x * ahead, up, dir.z * ahead);
+        Vec3 look = p.getLookAngle();
+        double speed = (1.25 + 1.75 * s.charge) * power;
+        Vec3 v = look.scale(speed);
+        double minUp = (.5 + .35 * s.charge) * power;
+        if (v.y < minUp) v = new Vec3(v.x, minUp, v.z);
+        if (v.y > 2.6 * power) v = new Vec3(v.x, 2.6 * power, v.z);
+        p.setDeltaMovement(v);
         p.hurtMarked = true;
         s.bounced = false; s.fallSpeed = 0; s.airTicks = 0;
         s.cooldowns[CD_LEAP] = HulkConfig.get(HulkConfig.LEAP_COOLDOWN);
@@ -477,17 +551,24 @@ public final class HulkController {
         }
         set(s, LANDING);
     }
-    /** A shallow bowl: the top layer within the radius, a second layer near the middle. */
-    static void crater(ServerPlayer p, BlockPos centre, int radius, int depth, HulkBlocks.Budget budget) {
+    /** A shallow bowl: the top layer within the radius, a second layer near the middle; the earth is flung out of it. */
+    static void crater(ServerPlayer p, BlockPos centre, int radius, int depth, HulkBlocks.Budget budget) { crater(p, centre, radius, depth, budget, 1); }
+    static void crater(ServerPlayer p, BlockPos centre, int radius, int depth, HulkBlocks.Budget budget, double force) {
+        var r = p.getRandom();
         for (int dx = -radius; dx <= radius; dx++) for (int dz = -radius; dz <= radius; dz++) {
             double d = Math.sqrt(dx * dx + dz * dz);
             if (d > radius + .3) continue;
             int deep = d < radius * .5 ? depth + 1 : depth;
             BlockPos top = surface(p.serverLevel(), centre.offset(dx, 0, dz), 2);
             if (top == null) continue;
+            Vec3 out = d < .1 ? new Vec3(r.nextDouble() - .5, 0, r.nextDouble() - .5) : new Vec3(dx / d, 0, dz / d);
             for (int i = 0; i < deep && !budget.spent(); i++) {
                 BlockPos pos = top.below(i);
-                if (HulkBlocks.earth(p.level().getBlockState(pos))) HulkBlocks.breakBlock(p, pos, budget);
+                if (!HulkBlocks.earth(p.level().getBlockState(pos))) continue;
+                // Out and up: the middle goes highest, the rim spills outward.
+                double up = (.55 + .45 * (1 - d / (radius + 1)) + r.nextDouble() * .25) * force - i * .12;
+                double side = (.14 + .1 * d / (radius + 1) + r.nextDouble() * .08) * force;
+                HulkBlocks.launch(p, pos, budget, out.scale(side).add(0, Math.max(.2, up), 0));
             }
         }
     }
@@ -618,8 +699,10 @@ public final class HulkController {
                 if (s.age >= POUND_TICKS) set(s, IDLE);
             }
             case LEAP_CHARGE -> {
-                if (!p.onGround()) set(s, IDLE);
-                else if (!s.spaceDown) leap(p, s);
+                if (s.age == LEAP_TAP) sound(p, SoundEvents.RAVAGER_STEP, .8f, .5f);
+                if (s.age == LEAP_TAP + LEAP_CHARGE_MAX) sound(p, SoundEvents.BEACON_POWER_SELECT, .5f, 1.8f);
+                if (!s.spaceDown) { if (s.age < LEAP_TAP) set(s, IDLE); else leap(p, s); }
+                else if (!p.onGround() && s.age > 1) set(s, IDLE);
             }
             case LEAP -> {
                 p.fallDistance = 0;
@@ -652,6 +735,7 @@ public final class HulkController {
         }
         if (s.wave) waveStep(p, s);
         if (s.clapping) clapStep(p, s);
+        if (s.punchWave) punchWaveStep(p, s);
         if (s.rockFlying) tickRock(p, s);
         if (s.hulk) p.fallDistance = Math.min(p.fallDistance, 6);   // Hulk shrugs off ordinary falls
         send(p, s);
@@ -688,6 +772,8 @@ public final class HulkController {
         return null;
     }
 
+    @SubscribeEvent public static void serverTick(TickEvent.ServerTickEvent e) { if (e.phase == TickEvent.Phase.END) HulkBlocks.tickDebris(); }
+
     /** Vanilla punches would double his damage: the punches above are his. */
     @SubscribeEvent public static void plainAttack(AttackEntityEvent e) { if (isHulk(e.getEntity())) e.setCanceled(true); }
     @SubscribeEvent public static void fall(LivingFallEvent e) {
@@ -702,7 +788,7 @@ public final class HulkController {
     // ------------------------------------------------------------------ sync
     private static void send(ServerPlayer p, State s) {
         int flags = (s.hulk ? FLAG_HULK : 0) | (s.rockFlying ? FLAG_ROCK_FLYING : 0) | (s.guardBroken > 0 ? FLAG_GUARD_BROKEN : 0);
-        float charge = s.action == PUNCH_CHARGE ? Math.min(1, s.age / (float) CHARGE_MAX) : s.action == LEAP_CHARGE ? Math.min(1, s.age / (float) LEAP_CHARGE_MAX) : s.charge;
+        float charge = s.action == PUNCH_CHARGE ? Math.min(1, s.age / (float) CHARGE_MAX) : s.action == LEAP_CHARGE ? Math.min(1, Math.max(0, (s.age - LEAP_TAP) / (float) LEAP_CHARGE_MAX)) : s.charge;
         ModNetworking.CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> p),
                 new HulkStatePacket(p.getId(), s.action, s.age, flags, charge, s.stamina, s.rockPos, HulkBlocks.id(s.rockBlock),
                         s.cooldowns.clone(), HulkConfig.get(HulkConfig.ULT_DELAY)));

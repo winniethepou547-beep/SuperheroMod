@@ -22,7 +22,9 @@ public final class HulkAction {
 
     // ------------------------------------------------------------------ punches (left click)
     /** A press shorter than this is a jab; longer starts the charged punch. */
-    public static final int TAP_TICKS = 5, PUNCH_TICKS = 9, PUNCH_HIT = 4, CHARGE_MAX = 40, RELEASE_TICKS = 14, RELEASE_HIT = 3;
+    public static final int TAP_TICKS = 5, PUNCH_TICKS = 9, PUNCH_HIT = 4, CHARGE_MAX = 18, RELEASE_TICKS = 14, RELEASE_HIT = 3;
+    /** The charged punch's shock wave: blocks it travels per tick before it bursts. */
+    public static final double PUNCH_WAVE_SPEED = 2.4;
 
     // ------------------------------------------------------------------ guard (right click)
     public static final float STAMINA_MAX = 100;
@@ -38,7 +40,8 @@ public final class HulkAction {
     public static final double POUND_WIDTH_HIT = 2.6;
 
     // ------------------------------------------------------------------ leap (space)
-    public static final int LEAP_CHARGE_MAX = 30, LANDING_TICKS = 16;
+    /** Space held shorter than LEAP_TAP is an ordinary jump; held longer it charges (full after LEAP_CHARGE_MAX more). */
+    public static final int LEAP_TAP = 4, LEAP_CHARGE_MAX = 10, LANDING_TICKS = 16;
 
     // ------------------------------------------------------------------ rock (C)
     public static final int ROCK_GRAB = 10, ROCK_LIFT = 20, ROCK_THROW = 26, ROCK_TICKS = 34;
@@ -51,7 +54,7 @@ public final class HulkAction {
 
     // ------------------------------------------------------------------ effects (HulkFxPacket kinds)
     public static final int FX_TRANSFORM = 0, FX_PUNCH = 1, FX_CHARGED_WAVE = 2, FX_CLAP = 3, FX_POUND_STEP = 4, FX_LANDING = 5,
-            FX_ROCK_PULL = 6, FX_ROCK_HIT = 7, FX_ULT_CRASH = 8, FX_ULT_SMASH = 9, FX_GUARD_HIT = 10, FX_REVERT = 11, FX_BLOCK = 12, FX_WAVE_HIT = 13;
+            FX_ROCK_PULL = 6, FX_ROCK_HIT = 7, FX_ULT_CRASH = 8, FX_ULT_SMASH = 9, FX_GUARD_HIT = 10, FX_REVERT = 11, FX_BLOCK = 12, FX_WAVE_HIT = 13, FX_BLAST = 14, FX_PUNCH_WAVE = 15;
 
     private HulkAction() {}
 }

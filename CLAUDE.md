@@ -113,8 +113,14 @@ landing spot and the target to the crater.
   **X** GAMMA RAGE film (needs a target in front).
 - Scale: everything is sized for his 1.5× body (effects start at his fists/chest, not the vanilla eye height).
   Thunderclap is a travelling wall of air (`CLAP_SPEED`, `CLAP_SPREAD`): hits land when the front reaches them,
-  grass is torn to dirt along its path. The ground wave throws up slabs of earth (`HulkFx` spikes), a V trench and
-  a crater where the fists go in. The rules file is `superheromod-hulk.toml` (renamed so the bigger defaults apply).
+  grass is torn to dirt along its path. Torn-up ground flies as real `FallingBlockEntity`s (`HulkBlocks.launch`;
+  they shatter on landing unless `debrisLands`): the ground wave's V trench, every crater, the charged punch's burst.
+  Shock rings draw a dusty SOFT body as well as additive light so they read in daylight.
+- Space: tap (< `LEAP_TAP` ticks) = ordinary jump, nothing breaks; hold = leap charge (full in `LEAP_CHARGE_MAX`),
+  launched along the look direction, extra gravity on the way down (client). LMB tap = explosive jab (small blast);
+  hold (bar `CHARGE_MAX`) = a shock wave that travels (`PUNCH_WAVE_SPEED`) and bursts ahead or at a wall.
+- Look follows Marvel Rivals' Hulk: V torso, huge traps/delts/forearms, fingered hands, navy torn shorts, purple
+  waistband shreds, silver gamma belt with green lights and buckle, black swept hair, glowing green eyes, toes. The rules file is `superheromod-hulk.toml` (renamed so the bigger defaults apply).
 - `HulkLayer` draws the whole body (player model hidden in `HeroArmPose`), one parametric body that grows from
   Banner to Hulk with `pose.size` (×1.5 overall); `HulkMotion` is the pure pose math; `HulkFx` world effects
   (rings, dust, chunks of the real ground, cracks, flying rock, first-person fists, the film's performers).

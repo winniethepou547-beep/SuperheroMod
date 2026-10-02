@@ -14,6 +14,8 @@ public final class HulkConfig {
     public static final ForgeConfigSpec.BooleanValue FRIENDLY_FIRE, BLOCK_DAMAGE, BREAK_IN_REGIONS;
     public static final ForgeConfigSpec.IntValue MAX_BLOCKS;
     public static final ForgeConfigSpec.DoubleValue MAX_HARDNESS, HEAVY_RESISTANCE;
+    public static final ForgeConfigSpec.BooleanValue FLYING_BLOCKS, DEBRIS_LANDS;
+    public static final ForgeConfigSpec.IntValue MAX_DEBRIS;
     public static final ForgeConfigSpec.ConfigValue<List<? extends String>> BANNED_BLOCKS;
 
     public static final ForgeConfigSpec.DoubleValue PUNCH_DAMAGE, PUNCH_REACH, PUNCH_KNOCKBACK;
@@ -47,13 +49,18 @@ public final class HulkConfig {
                         "minecraft:end_portal_frame", "minecraft:spawner", "minecraft:barrier"), o -> o instanceof String);
         HEAVY_RESISTANCE = b.comment("How much big, heavy creatures resist being thrown (0 = no difference, 1 = strongly)")
                 .defineInRange("heavyResistance", .7, 0, 1);
+        FLYING_BLOCKS = b.comment("Blocks torn out of the ground fly through the air as real falling blocks (off = they just break)")
+                .define("flyingBlocks", true);
+        DEBRIS_LANDS = b.comment("Flying blocks settle where they land (off = they shatter on landing and leave nothing)")
+                .define("debrisLands", false);
+        MAX_DEBRIS = b.comment("Most flying blocks in the air at once, for the whole server").defineInRange("maxFlyingBlocks", 160, 0, 1000);
         b.pop();
         b.push("punches");
         PUNCH_DAMAGE = b.defineInRange("damage", 7.0, 0, 100);
         PUNCH_REACH = b.defineInRange("reach", 3.8, 1, 8);
         PUNCH_KNOCKBACK = b.defineInRange("knockback", 1.0, 0, 5);
-        CHARGED_DAMAGE = b.comment("Charged punch damage at full charge").defineInRange("chargedDamage", 22.0, 0, 200);
-        CHARGED_RANGE = b.comment("How far the charged punch's shock wave travels at full charge").defineInRange("chargedRange", 18.0, 4, 40);
+        CHARGED_DAMAGE = b.comment("Damage where the charged punch's shock wave bursts, at full charge").defineInRange("chargedDamage", 24.0, 0, 200);
+        CHARGED_RANGE = b.comment("How far the charged punch's shock wave travels at full charge").defineInRange("chargedRange", 16.0, 4, 40);
         CHARGED_KNOCKBACK = b.defineInRange("chargedKnockback", 2.4, 0, 8);
         CHARGED_COOLDOWN = b.comment("Ticks (20 = 1 second)").defineInRange("chargedCooldown", 60, 0, 2000);
         b.pop();

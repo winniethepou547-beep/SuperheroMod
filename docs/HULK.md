@@ -6,13 +6,14 @@ Minecraft **1.20.1**, **Forge** (Java 17). Kahramanı seçmek için: `/superhero
 | Tuş | Ne yapar |
 |---|---|
 | **G** | Bruce Banner ⇄ Hulk dönüşümü (aşamalı: başını tutar, vücut büyür, gömlek ve gözlük yırtılır, kükreme) |
-| **Sol tık** | Sırayla sağ–sol yumruk; zayıf blokları (toprak, çim, yaprak vb.) azıcık kırabilir |
-| **Sol tık basılı tut** | Şarjlı Yıkıcı Yumruk: bırakınca önüne şok dalgası, şarj ne kadar dolarsa o kadar güçlü |
+| **Sol tık (bas-çek)** | Sırayla sağ–sol patlayıcı yumruk: vurduğu yerde küçük patlama, yakındakileri de iter; zayıf blokları fırlatır |
+| **Sol tık basılı tut** | Şarjlı Yıkıcı Yumruk (bar ~1 sn'de dolar): bırakınca şok dalgası ileri gider, ileride (ya da çarptığı duvarda) patlar; asıl hasar ve krater orada |
 | **Sağ tık basılı tut** | Gard: önden gelen hasarı çok, arkadan geleni az azaltır; yavaşlatır; dayanıklılık çubuğu biter |
 | **R** | Thunderclap: diz çöküp el çırpar, önüne yerden giden hava duvarı; iter ve sersemletir, duvar arkasına geçmez |
 | **F** | Yer Sarsan Yumruk: yere vurur, dalga yeri takip ederek ilerler, hendek açar, üstündekileri havaya atar |
 | **C** | Kaya Sök ve Fırlat: önündeki uygun zeminden blok söker, ellerinde taşır, baktığı yere fırlatır |
-| **Boşluk basılı tut** | Şarjlı Sıçrama: bar dolar, bırakınca sıçrar; iniş gücü düşüş hızına göre, küçük krater, bir kez seker |
+| **Boşluk (bas-çek)** | Normal zıplama, hiçbir şey kırılmaz |
+| **Boşluk basılı tut** | Şarjlı Sıçrama (bar yarım saniyede dolar): baktığın yöne fırlar, ağır ve hızlı düşer; iniş gücü düşüş hızına göre, krater, bir kez seker |
 | **X** | GAMA ÖFKESİ (ulti, önünde bir hedef ister) |
 
 Banner iken sadece **G** çalışır; diğer her şey Hulk'a özel. Hulk iken fare normal kazma / eşya kullanma yapmaz.
@@ -32,7 +33,8 @@ blok içine değil zeminin üstüne konur.
 ## Ayar dosyaları (oyun klasöründe `config/`)
 - `superheromod-hulk.toml` (sunucu kuralları ve denge):
   dost ateşi, blok kırma açık/kapalı, korumalı bölgelerde kırma, saldırı başına en fazla blok, en fazla blok sertliği,
-  yasaklı bloklar listesi, ağır düşmanların geri itilme direnci; her yeteneğin hasarı, menzili, geri itmesi,
+  yasaklı bloklar listesi, ağır düşmanların geri itilme direnci, kopan blokların gerçek düşen blok olarak uçması
+  (`flyingBlocks`), indikleri yere yerleşmeleri (`debrisLands`, kapalıyken yere çarpınca dağılır), aynı anda en fazla uçan blok; her yeteneğin hasarı, menzili, geri itmesi,
   sersemletme süresi, bekleme süresi; ultinin menzili, iki darbenin hasar payı, dalış gecikmesi, krater boyutu.
 - `superheromod-hulk-client.toml` (her oyuncunun kendi görüntüsü):
   efekt miktarı (0 = kapalı, 1 = normal, 2 = çok), kamera sarsıntısı, **sakin sinematik kamera** (ultide sert

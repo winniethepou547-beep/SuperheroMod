@@ -86,7 +86,7 @@ public final class HulkMotion {
             case GUARD -> guard(base.copy(), t);
             case THUNDERCLAP -> clap(base.copy(), t);
             case POUND -> pound(base.copy(), t);
-            case LEAP_CHARGE -> squat(base.copy(), t, in.charge());
+            case LEAP_CHARGE -> t < LEAP_TAP ? base : squat(base.copy(), t - LEAP_TAP, in.charge());
             case LEAP -> air(base.copy(), t, in.fallSpeed());
             case LANDING -> landing(base.copy(), t);
             case ROCK -> rock(base.copy(), t);

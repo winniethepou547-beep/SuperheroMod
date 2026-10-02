@@ -63,6 +63,41 @@ public final class HulkBlocks {
         return p.serverLevel().destroyBlock(pos, false, p);
     }
 
+    private static final java.util.List<net.minecraft.world.entity.item.FallingBlockEntity> DEBRIS = new java.util.ArrayList<>();
+
+    /**
+     * Tears the block out and throws it: a real falling block flying with this velocity (it shatters
+     * where it lands unless the server lets debris settle). Falls back to an ordinary break when flying
+     * blocks are off or too many are already in the air.
+     */
+    public static boolean launch(ServerPlayer p, BlockPos pos, Budget budget, net.minecraft.world.phys.Vec3 velocity) {
+        if (budget.spent()) return false;
+        ServerLevel level = p.serverLevel();
+        BlockState state = level.getBlockState(pos);
+        if (!allowed(p, pos, state)) return false;
+        budget.left--;
+        DEBRIS.removeIf(net.minecraft.world.entity.Entity::isRemoved);
+        if (!HulkConfig.get(HulkConfig.FLYING_BLOCKS) || DEBRIS.size() >= HulkConfig.get(HulkConfig.MAX_DEBRIS) || !state.isSolid())
+            return level.destroyBlock(pos, false, p);
+        level.levelEvent(2001, pos, Block.getId(state));
+        var flying = net.minecraft.world.entity.item.FallingBlockEntity.fall(level, pos, state);
+        flying.dropItem = false;
+        if (!HulkConfig.get(HulkConfig.DEBRIS_LANDS)) flying.disableDrop();
+        flying.setDeltaMovement(velocity);
+        flying.hurtMarked = true;
+        DEBRIS.add(flying);
+        return true;
+    }
+    /** Flying blocks that hit the ground burst into dust and grit there. */
+    public static void tickDebris() {
+        for (var it = DEBRIS.iterator(); it.hasNext(); ) {
+            var f = it.next();
+            if (!f.isRemoved()) continue;
+            it.remove();
+            if (f.level() instanceof ServerLevel level) level.levelEvent(2001, f.blockPosition(), Block.getId(f.getBlockState()));
+        }
+    }
+
     /** Turns the block into another (grass torn off to bare dirt) if the rules and the budget allow. */
     public static boolean change(ServerPlayer p, BlockPos pos, BlockState to, Budget budget) {
         if (budget.spent()) return false;

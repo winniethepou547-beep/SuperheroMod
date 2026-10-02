@@ -53,7 +53,8 @@ public final class HulkClient {
         public BlockState rockState() { BlockState s = Block.stateById(rockBlock); return s.isAir() ? Blocks.STONE.defaultBlockState() : s; }
     }
     private static final Map<Integer, State> STATES = new HashMap<>();
-    private static boolean spaceDown;
+    private static boolean spaceDown, tapJump;
+    private static int spaceTicks;
 
     private HulkClient() {}
 
@@ -120,18 +121,35 @@ public final class HulkClient {
         boolean down = player != null && mc.screen == null && isHero(player) && mc.options.keyJump.isDown();
         State s = get(player);
         boolean hulk = s != null && s.hulk();
-        if (down && !spaceDown && hulk && player.onGround() && !player.isInWater()) { ModNetworking.CHANNEL.sendToServer(new HulkInputPacket(true)); spaceDown = true; }
-        else if (!down && spaceDown) { ModNetworking.CHANNEL.sendToServer(new HulkInputPacket(false)); spaceDown = false; }
+        if (down && !spaceDown && leapReady(player, s)) { ModNetworking.CHANNEL.sendToServer(new HulkInputPacket(true)); spaceDown = true; spaceTicks = 0; }
+        else if (down && spaceDown) spaceTicks++;
+        else if (!down && spaceDown) {
+            ModNetworking.CHANNEL.sendToServer(new HulkInputPacket(false));
+            spaceDown = false;
+            // A quick tap is an ordinary jump.
+            if (spaceTicks < LEAP_TAP) tapJump = true;
+        }
+        // In a leap he comes down hard and fast, like the weight he is.
+        if (player != null && hulk && s.action == LEAP && !player.onGround() && !player.isInWater() && !player.getAbilities().flying) {
+            var v = player.getDeltaMovement();
+            if (v.y < .1) player.setDeltaMovement(v.x, Math.max(-3.4, v.y - .055), v.z);
+        }
     }
-    /** As Hulk the space bar is the leap, not the ordinary hop (in water it still swims). */
+    /** Can a press of space start the leap (Hulk, on the ground, not swimming, the leap not cooling down)? */
+    private static boolean leapReady(Player player, State s) {
+        return player != null && s != null && s.hulk() && player.onGround() && !player.isInWater() && !player.onClimbable() && s.cooldowns[5] <= 0;
+    }
+    /** As Hulk a held space bar is the leap; a quick tap is still an ordinary jump (in water it still swims). */
     @SubscribeEvent public static void noHop(MovementInputUpdateEvent e) {
         var mc = Minecraft.getInstance();
         if (mc.player == null || !isHero(mc.player)) return;
         State s = get(mc.player);
-        if (s == null || !s.hulk() || mc.player.isInWater() || mc.player.onClimbable()) return;
-        e.getInput().jumping = false;
+        if (s == null || !s.hulk() || mc.player.isInWater() || mc.player.onClimbable()) { tapJump = false; return; }
+        if (tapJump) { tapJump = false; e.getInput().jumping = mc.player.onGround(); return; }
+        // Space is held for the leap only while the press could start one; otherwise it is the plain jump.
+        if (spaceDown) e.getInput().jumping = false;
         // Charging anything plants him: barely moving while he winds up.
-        if (s.action == LEAP_CHARGE || s.action == PUNCH_CHARGE) { e.getInput().forwardImpulse *= .3f; e.getInput().leftImpulse *= .3f; }
+        if (s.action == LEAP_CHARGE && s.age >= LEAP_TAP || s.action == PUNCH_CHARGE) { e.getInput().forwardImpulse *= .3f; e.getInput().leftImpulse *= .3f; }
     }
     /** As Hulk the mouse buttons are his fists and his guard: no vanilla mining, hitting or item use alongside. */
     @SubscribeEvent public static void fists(InputEvent.InteractionKeyMappingTriggered e) {
@@ -175,7 +193,7 @@ public final class HulkClient {
             HudStyle.bar(g, cx - 50, y, 100, s.stamina / STAMINA_MAX, broken ? 0xFFFF6A50 : green);
         }
         // Charge bar for whatever is being charged.
-        if (s.action == PUNCH_CHARGE || s.action == LEAP_CHARGE) {
+        if (s.action == PUNCH_CHARGE && s.age >= 1 || s.action == LEAP_CHARGE && s.age >= LEAP_TAP) {
             String what = s.action == LEAP_CHARGE ? "Sıçrama" : "Yıkıcı Yumruk";
             HudStyle.caption(g, font, what, cx, h / 2 + 22, HudStyle.TEXT, 0);
             HudStyle.bar(g, cx - 40, h / 2 + 34, 80, s.charge, s.charge >= .99f ? 0xFFB6FF7A : green);
