@@ -17,6 +17,8 @@ public final class ZedMotion {
         public float rLegX, rLegZ, rKnee, lLegX, lLegZ, lKnee;
         /** 0 solid .. 1 dissolved into shadow (the Death Mark dash); blades glowing with the passive. */
         public float vanish, glow;
+        /** How far into his sprint he is (0 walking .. 1 the full low run, arms trailing behind). */
+        public float run;
 
         public Pose right(float x, float y, float z, float elbow) { rArmX = x; rArmY = y; rArmZ = z; rElbow = elbow; return this; }
         public Pose left(float x, float y, float z, float elbow) { lArmX = x; lArmY = y; lArmZ = z; lElbow = elbow; return this; }
@@ -27,7 +29,7 @@ public final class ZedMotion {
             Pose p = new Pose();
             p.crouch = crouch; p.bodyPitch = bodyPitch; p.torsoYaw = torsoYaw; p.torsoPitch = torsoPitch; p.torsoRoll = torsoRoll; p.headPitch = headPitch; p.headYaw = headYaw;
             p.rArmX = rArmX; p.rArmY = rArmY; p.rArmZ = rArmZ; p.rElbow = rElbow; p.lArmX = lArmX; p.lArmY = lArmY; p.lArmZ = lArmZ; p.lElbow = lElbow;
-            p.rLegX = rLegX; p.rLegZ = rLegZ; p.rKnee = rKnee; p.lLegX = lLegX; p.lLegZ = lLegZ; p.lKnee = lKnee; p.vanish = vanish; p.glow = glow;
+            p.rLegX = rLegX; p.rLegZ = rLegZ; p.rKnee = rKnee; p.lLegX = lLegX; p.lLegZ = lLegZ; p.lKnee = lKnee; p.vanish = vanish; p.glow = glow; p.run = run;
             return p;
         }
         public void toward(Pose o, float k) {
@@ -37,7 +39,7 @@ public final class ZedMotion {
             lArmX += (o.lArmX - lArmX) * k; lArmY += (o.lArmY - lArmY) * k; lArmZ += (o.lArmZ - lArmZ) * k; lElbow += (o.lElbow - lElbow) * k;
             rLegX += (o.rLegX - rLegX) * k; rLegZ += (o.rLegZ - rLegZ) * k; rKnee += (o.rKnee - rKnee) * k;
             lLegX += (o.lLegX - lLegX) * k; lLegZ += (o.lLegZ - lLegZ) * k; lKnee += (o.lKnee - lKnee) * k;
-            vanish += (o.vanish - vanish) * k; glow += (o.glow - glow) * k;
+            vanish += (o.vanish - vanish) * k; glow += (o.glow - glow) * k; run += (o.run - run) * k;
         }
     }
 
@@ -52,15 +54,15 @@ public final class ZedMotion {
 
     /**
      * The fighting stance: side-on, left foot ahead and right foot back, a little wider than the shoulders,
-     * knees soft; the right shoulder drawn back so he is narrow to the target; both forearms up close to
-     * the body, blades forward; the weight drifting slowly between the feet, a small breath.
+     * knees soft; the right shoulder drawn back so he is narrow to the target; hands low at his sides; the weight drifting slowly between the feet, a small breath.
      */
     public static Pose idle(float time) {
         Pose p = new Pose();
         float breathe = (float) Math.sin(time * .09) * .025f, shift = (float) Math.sin(time * .045);
         p.crouch = 1.2f + .15f * shift; p.torsoPitch = .12f + breathe; p.torsoYaw = .3f; p.torsoRoll = .03f * shift; p.headPitch = -.05f;
-        p.rArmX = -.45f - breathe; p.rArmY = .15f; p.rArmZ = .2f; p.rElbow = 1.1f;
-        p.lArmX = -.7f - breathe; p.lArmY = -.2f; p.lArmZ = -.15f; p.lElbow = .9f;
+        // Hands low at his sides, blades hanging down along the legs.
+        p.rArmX = -.12f - breathe; p.rArmZ = .14f; p.rElbow = .35f;
+        p.lArmX = -.18f - breathe; p.lArmZ = -.14f; p.lElbow = .4f;
         p.rLegX = .25f; p.lLegX = -.25f; p.rKnee = .35f + .05f * shift; p.lKnee = .3f - .05f * shift; p.rLegZ = .12f; p.lLegZ = -.1f;
         return p;
     }

@@ -72,6 +72,16 @@ public final class ZedController {
     }
     private static final class Bleed { final LivingEntity target; int left, stacks, clock; Bleed(LivingEntity t) { target = t; } }
     private static final Map<UUID, State> STATES = new HashMap<>();
+    private static final UUID SPRINT = UUID.fromString("7a1d3c52-9e4b-4f0a-8c61-2b5e9d7f3a01");
+    /** His sprint is far faster than a player's; only while sprinting, only while he is Zed. */
+    private static void sprint(ServerPlayer p, boolean on) {
+        var speed = p.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED);
+        if (speed == null) return;
+        boolean has = speed.getModifier(SPRINT) != null;
+        if (on && !has) speed.addTransientModifier(new net.minecraft.world.entity.ai.attributes.AttributeModifier(SPRINT, "Zed sprint", SPRINT_BONUS,
+                net.minecraft.world.entity.ai.attributes.AttributeModifier.Operation.MULTIPLY_TOTAL));
+        else if (!on && has) speed.removeModifier(SPRINT);
+    }
 
     private ZedController() {}
 
@@ -454,12 +464,14 @@ public final class ZedController {
     @SubscribeEvent public static void tick(TickEvent.PlayerTickEvent e) {
         if (e.phase != TickEvent.Phase.END || !(e.player instanceof ServerPlayer p)) return;
         if (!isHero(p)) {
+            sprint(p, false);
             State gone = STATES.remove(p.getUUID());
             if (gone != null) { if (gone.hidden) p.setInvisible(false); send(p, new State()); }
             return;
         }
         State s = state(p);
         s.age++;
+        sprint(p, p.isSprinting() && !busy(s));
         for (int i = 0; i < s.cooldowns.length; i++) if (s.cooldowns[i] > 0) s.cooldowns[i]--;
         switch (s.action) {
             case SLASH_RIGHT, SLASH_LEFT, SLASH_FINISH -> {

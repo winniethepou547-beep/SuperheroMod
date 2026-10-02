@@ -153,8 +153,10 @@ public final class ZedClient {
         input.up = input.down = input.left = input.right = false;
     }
     @SubscribeEvent public static void fov(ComputeFovModifierEvent e) {
-        if (fovKick < .01f || FilmDirector.playing() || !isHero(e.getPlayer())) return;
-        e.setNewFovModifier(e.getNewFovModifier() * (1 + .12f * fovKick));
+        if (FilmDirector.playing() || !isHero(e.getPlayer())) return;
+        // His sprint is much faster than a player's: keep the view from stretching with it.
+        float base = e.getPlayer().isSprinting() ? 1.15f : 1f;
+        e.setNewFovModifier(base * (1 + .12f * fovKick));
     }
     @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) { STATES.clear(); eDown = false; }
 

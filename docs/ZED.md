@@ -7,7 +7,7 @@ Klasik Zed: altın tepelikli gümüş miğfer, V kaşın altında kırmızı par
 ağızda dikey ızgara, kırmızı başlık; boynu saran ve göğse inen kırmızı örtü; altın kenarlı gümüş zırh; yukarı-dışa açılan
 katmanlı omuzluklar; sırtta iki büyük shuriken (bıçakları omuzların üstünden görünür); sırtta pelerin yok (katmanlı koyu kırmızı sırt zırhı); her kolda
 yumruğu geçen üç uzun bıçak; altın şeritli, ucu altın dikenli kırmızı etek; koyu bol pantolon; sivri dizli gümüş tozluklar.
-Etrafında hep hafif bir gölge dumanı tüter.
+Etrafında hep hafif bir gölge dumanı tüter. Dururken eller aşağıda. **Koşarken** çok daha hızlıdır (normal koşudan ~%90 fazla) ve Naruto gibi koşar: gövde öne eğik, kollar arkada, adımlarla gevşekçe savrulur.
 
 ## Tuşlar
 | Tuş | Ne yapar |

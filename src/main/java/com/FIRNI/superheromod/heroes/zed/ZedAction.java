@@ -13,6 +13,9 @@ public final class ZedAction {
     public static final int IDLE = 0, SLASH_RIGHT = 1, SLASH_LEFT = 2, THROW = 3, SHADOW_CAST = 4, SWAP = 5, SPIN = 6,
             MARK_LOCK = 7, MARK_DASH = 8, MARK_STRIKE = 9, MARK_RETURN = 10, MARK_HIDDEN = 11, ULTIMATE = 12, SLASH_FINISH = 13;
 
+    /** His sprint: this much faster than a player's (on top of the vanilla sprint). */
+    public static final double SPRINT_BONUS = .9;
+
     // ------------------------------------------------------------------ cooldown slots
     public static final int CD_Q = 0, CD_W = 1, CD_E = 2, CD_R = 3, CD_X = 4;
 

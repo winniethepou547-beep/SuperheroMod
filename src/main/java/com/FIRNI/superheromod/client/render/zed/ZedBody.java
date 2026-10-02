@@ -123,8 +123,10 @@ public final class ZedBody {
         mode = drawMode; alpha = opacity;
         flicker = drawMode == SHADOW ? .85f + .15f * (float) Math.sin(time * 2.1) : 1;
         p.pushPose();
-        // A runner's lean when he is moving quickly.
-        float lean = pose.bodyPitch + .22f * Math.min(1, amount);
+        // A runner's lean when he is moving quickly; the sprint throws him far forward, bobbing with each stride.
+        float run = Mth.clamp(pose.run, 0, 1);
+        float lean = pose.bodyPitch + .22f * Math.min(1, amount) * (1 - run) + .62f * run;
+        px(p, 0, -run * 1.2f * Math.abs(Mth.sin(walk * .8f)), 0);
         px(p, 0, 12, 0); p.mulPose(Axis.XP.rotation(lean)); px(p, 0, -12, 0);
 
         float drop = Mth.clamp(pose.crouch, -1, 10);
@@ -135,8 +137,10 @@ public final class ZedBody {
             boolean right = side < 0;
             float lx = right ? pose.rLegX : pose.lLegX, lz = right ? pose.rLegZ : pose.lLegZ, knee = right ? pose.rKnee : pose.lKnee;
             // Short quick steps.
-            float sw = Mth.cos(walk * .8f + (right ? 0 : Mth.PI)) * 1.05f * amount;
-            lx += sw; knee += Math.max(0, -Mth.sin(walk * .8f + (right ? 0 : Mth.PI))) * .7f * amount;
+            float sw = Mth.cos(walk * .8f + (right ? 0 : Mth.PI)) * 1.05f * amount * (1 + .45f * run);
+            lx += sw; knee += Math.max(0, -Mth.sin(walk * .8f + (right ? 0 : Mth.PI))) * .7f * amount * (1 + 1.1f * run);
+            // Sprinting, the legs reach out ahead of the leaning body.
+            lx -= .35f * run;
             legX[right ? 0 : 1] = lx - fold;
             p.pushPose();
             px(p, side * 1.95f, 12 + drop, 0);
@@ -149,14 +153,23 @@ public final class ZedBody {
         group = TORSO;
         skirt(p, b, light, legX[0], legX[1], time, amount);
         px(p, 0, 12, 0);
-        p.mulPose(Axis.YP.rotation(pose.torsoYaw)); p.mulPose(Axis.XP.rotation(pose.torsoPitch)); p.mulPose(Axis.ZP.rotation(pose.torsoRoll));
+        p.mulPose(Axis.YP.rotation(pose.torsoYaw + run * .12f * Mth.sin(walk * .8f))); p.mulPose(Axis.XP.rotation(pose.torsoPitch)); p.mulPose(Axis.ZP.rotation(pose.torsoRoll));
         px(p, 0, -12, 0);
         torso(p, b, light, time, amount, pose.torsoPitch + lean);
         group = ARMS;
         for (int side = -1; side <= 1; side += 2) {
             boolean right = side < 0;
             float ax = right ? pose.rArmX : pose.lArmX, ay = right ? pose.rArmY : pose.lArmY, az = right ? pose.rArmZ : pose.lArmZ, elbow = right ? pose.rElbow : pose.lElbow;
-            ax += Mth.cos(walk * .8f + (right ? Mth.PI : 0)) * .45f * amount;
+            ax += Mth.cos(walk * .8f + (right ? Mth.PI : 0)) * .45f * amount * (1 - run);
+            if (run > .01f) {
+                // The sprint: both arms flung back behind him, loose, not stiff: they bob with every stride,
+                // ripple a little out of step with each other, and the forearms trail behind the upper arms.
+                float phase = walk * .8f + (right ? 0 : 1.7f);
+                ax = Mth.lerp(run, ax, 1.25f + .14f * Mth.sin(phase * 2) + .06f * Mth.sin(walk * .37f + side));
+                ay = Mth.lerp(run, ay, side * -.12f);
+                az = Mth.lerp(run, az, -side * (.22f + .07f * Mth.sin(phase * 2 + 1)));
+                elbow = Mth.lerp(run, elbow, .28f + .14f * Mth.sin(phase * 2 + .9f));
+            }
             p.pushPose();
             px(p, side * 5.2f, 2, 0);
             rot(p, ax, ay, az);

@@ -20,7 +20,7 @@ import static com.FIRNI.superheromod.heroes.zed.ZedAction.*;
  * eyes the last to go. Each draw reports where his eyes and blade tips are, for their light and trails.
  */
 public final class ZedLayer extends RenderLayer<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> {
-    private static final class Blend { int action = -1; float changed; ZedMotion.Pose from, last; }
+    private static final class Blend { int action = -1; float changed, run, runAt; ZedMotion.Pose from, last; }
     private static final Map<Integer, Blend> BLENDS = new HashMap<>();
     private static final float CROSSFADE = 1.6f;
 
@@ -50,6 +50,13 @@ public final class ZedLayer extends RenderLayer<AbstractClientPlayer, PlayerMode
             mixed.vanish = pose.vanish; mixed.glow = pose.glow;
             pose = mixed;
         }
+        // Into the sprint and out of it smoothly; full only when he is not doing anything else.
+        boolean free = action == IDLE || action == SWAP || action == MARK_RETURN;
+        float want = e.isSprinting() && amount > .3f ? (free ? 1 : .35f) : 0;
+        float dt = Math.max(0, Math.min(2, now - blend.runAt));
+        blend.runAt = now;
+        blend.run += (want - blend.run) * (1 - (float) Math.exp(-dt * .35f));
+        pose.run = blend.run;
         blend.last = pose;
         var model = getParentModel();
         if (pose.vanish >= .98f) return;
