@@ -94,6 +94,7 @@ public final class ThorClient {
         float t = clock(s, partial);
         float ult = ultimateTime(e, partial);
         if (ult >= 0) { action = ULTIMATE; t = ult; }
+        if (com.FIRNI.superheromod.client.gui.Showcase.is(e)) { action = com.FIRNI.superheromod.client.gui.Showcase.action(); t = com.FIRNI.superheromod.client.gui.Showcase.time(); }
         Vec3 v = e.getDeltaMovement();
         if (e != Minecraft.getInstance().player) v = new Vec3(e.getX() - e.xo, e.getY() - e.yo, e.getZ() - e.zo);
         float speed = (float) v.length();

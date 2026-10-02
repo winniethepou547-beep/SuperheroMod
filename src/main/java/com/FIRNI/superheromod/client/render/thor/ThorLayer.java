@@ -116,7 +116,7 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
         float power = Math.max(pose.aura, state != null && state.powered() ? .5f : 0);
         Cloth c = cloth(e, time, flying);
         // The model's own frame, to stand the hammer upright against it later.
-        Quaternionf root = p.last().pose().getNormalizedRotation(new Quaternionf());
+        Quaternionf root = rotationOf(p);
         org.joml.Matrix4f rootInverse = new org.joml.Matrix4f(p.last().pose()).invert();
 
         p.pushPose();
@@ -193,7 +193,7 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
                 if (whirling && pose.spinMode >= 2) {
                     // The wheel is set square to his body, whatever the arm is doing: facing the way he faces
                     // (guard, charge) or at his side, edge-on to the front (whirling to fly). It turns about the fist.
-                    Quaternionf now = p.last().pose().getNormalizedRotation(new Quaternionf());
+                    Quaternionf now = rotationOf(p);
                     Quaternionf want = new Quaternionf(root);
                     if (pose.spinMode >= 3) want.rotateY((float) (Math.PI / 2));
                     want.rotateZ(pose.wristY).rotateX((float) Math.PI);
@@ -285,6 +285,16 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
      * Turns the hammer in the fist so its handle points along `handle` (in the body's frame), with the
      * head's long axis level and square to `out`, blended in by weight.
      */
+    /**
+     * The rotation of the current frame. A mirrored frame (the inventory and menu screens draw entities
+     * mirrored) is unmirrored first, or the hammer's corrections come out as wild scaling.
+     */
+    private static Quaternionf rotationOf(PoseStack p) {
+        org.joml.Matrix4f m = p.last().pose();
+        if (m.determinant() < 0) m = new org.joml.Matrix4f().scaling(1, 1, -1).mul(m);
+        return m.getNormalizedRotation(new Quaternionf());
+    }
+
     private static void orient(PoseStack p, Quaternionf root, org.joml.Vector3f handle, org.joml.Vector3f out, float weight, boolean headStanding) {
         org.joml.Vector3f up = new org.joml.Vector3f(0, -1, 0);
         org.joml.Vector3f along = new org.joml.Vector3f(up).cross(out);
@@ -300,7 +310,7 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
             along.set(new org.joml.Vector3f(handle).cross(third)).normalize();
         }
         Quaternionf local = new Quaternionf().setFromNormalized(new org.joml.Matrix3f(along, handle, third));
-        Quaternionf now = p.last().pose().getNormalizedRotation(new Quaternionf());
+        Quaternionf now = rotationOf(p);
         Quaternionf want = new Quaternionf(root).mul(local);
         Quaternionf fix = new Quaternionf(now).conjugate().mul(want);
         p.mulPose(new Quaternionf().slerp(fix, Math.min(1, weight)));
@@ -323,7 +333,7 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
         org.joml.Vector3f third = new org.joml.Vector3f(along).cross(handle).normalize();
         along.set(new org.joml.Vector3f(handle).cross(third)).normalize();
         Quaternionf local = new Quaternionf().setFromNormalized(new org.joml.Matrix3f(along, handle, third));
-        Quaternionf now = p.last().pose().getNormalizedRotation(new Quaternionf());
+        Quaternionf now = rotationOf(p);
         Quaternionf want = new Quaternionf(root).mul(local);
         Quaternionf fix = new Quaternionf(now).conjugate().mul(want);
         p.mulPose(new Quaternionf().slerp(fix, Math.min(1, weight)));

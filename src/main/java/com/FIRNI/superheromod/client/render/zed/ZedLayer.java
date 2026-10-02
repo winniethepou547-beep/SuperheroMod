@@ -34,6 +34,7 @@ public final class ZedLayer extends RenderLayer<AbstractClientPlayer, PlayerMode
         ZedClient.State s = ZedClient.get(e);
         int action = s == null ? IDLE : s.action;
         float t = s == null ? 0 : ZedClient.clock(s, partial);
+        if (com.FIRNI.superheromod.client.gui.Showcase.is(e)) { action = com.FIRNI.superheromod.client.gui.Showcase.action(); t = com.FIRNI.superheromod.client.gui.Showcase.time(); }
         float now = level.getGameTime() + partial;
         ZedMotion.Pose pose = ZedMotion.sample(action, t, time);
         // Out of the last pose into the new one.

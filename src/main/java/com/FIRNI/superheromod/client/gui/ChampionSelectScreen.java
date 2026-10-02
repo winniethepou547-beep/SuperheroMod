@@ -2,7 +2,6 @@ package com.FIRNI.superheromod.client.gui;
 
 import com.FIRNI.superheromod.SuperheroMod;
 import com.FIRNI.superheromod.client.ClientHeroRegistry;
-import com.FIRNI.superheromod.client.render.hulk.HulkClient;
 import com.FIRNI.superheromod.network.ModNetworking;
 import com.FIRNI.superheromod.network.packet.ChampionLockPacket;
 import com.mojang.blaze3d.platform.InputConstants;
@@ -16,7 +15,6 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
@@ -49,6 +47,7 @@ public final class ChampionSelectScreen extends Screen {
     private float scroll, scrollTarget, time;
     private int lockedAt = -1, ticks;
     private float pick = 1;
+    private final ChampionStage stage = new ChampionStage();
 
     public ChampionSelectScreen() {
         super(Component.literal("Champion Select"));
@@ -78,8 +77,12 @@ public final class ChampionSelectScreen extends Screen {
 
     @Override public void tick() {
         ticks++;
-        if (lockedAt >= 0 && ticks - lockedAt > 16) onClose();
+        stage.tick();
+        if (lockedAt >= 0 && ticks - lockedAt > ChampionStage.SHOW + 6) onClose();
     }
+    @Override public void removed() { stage.close(); super.removed(); }
+    /** Ticks since LOCK IN, or -1. */
+    private float shown(float partial) { return lockedAt < 0 ? -1 : ticks - lockedAt + partial; }
 
     // ------------------------------------------------------------------ drawing
     @Override public void render(GuiGraphics g, int mouseX, int mouseY, float partial) {
@@ -94,11 +97,54 @@ public final class ChampionSelectScreen extends Screen {
         preview(g, hero, mouseX, mouseY, accent);
         skills(g, hero, mouseX, mouseY, accent);
         lockIn(g, hero, mouseX, mouseY, accent);
-        if (lockedAt >= 0) {
-            float k = (ticks - lockedAt + partial) / 16f;
-            g.fill(0, 0, width, height, alpha(accent, .45f * (1 - k)));
-            centred(g, "KİLİTLENDİ", width / 2f, height / 2f - 10, 3f, alpha(PAPER, 1 - k * k), true);
+        float st = shown(partial);
+        if (st >= 0) {
+            // The rest of the screen steps back while the hero shows what it does.
+            float dim = ease(st / 6f) * .55f;
+            g.fill(0, 0, rightX() - 4, height, alpha(0xFF030208, dim));
+            g.fill(rightX() - 4, barY() - 36, width, height, alpha(0xFF030208, dim));
+            banner(g, hero, st);
         }
+    }
+
+    private static float ease(float x) { x = Mth.clamp(x, 0, 1); return x * x * (3 - 2 * x); }
+    /**
+     * LOCKED IN: a slanted band of ink with the hero's colour along its edges sweeps in across the
+     * lower part of the frame, the hero's name stamps down on it (a little too big, then settling),
+     * a shine runs across it, and it slides away at the end.
+     */
+    private void banner(GuiGraphics g, Champions.Champion c, float st) {
+        int x0 = rightX() - 6, x1 = width - pad() + 6;
+        float cy = panelBottom() - 34;
+        float in = 1 - (float) Math.pow(1 - Mth.clamp(st / 6f, 0, 1), 3), out = ease((st - ChampionStage.SHOW + 4) / 6f);
+        float shift = (1 - in) * -(x1 - x0) * 1.2f + out * (x1 - x0) * 1.2f;
+        float h = 30, slant = 14;
+        g.pose().pushPose();
+        g.pose().translate(shift, 0, 0);
+        quad(g, x0 + slant, cy - h / 2, x1 + slant, cy - h / 2, x1 - slant, cy + h / 2, x0 - slant, cy + h / 2, 0xF0070510);
+        quad(g, x0 + slant, cy - h / 2, x1 + slant, cy - h / 2, x1 + slant - 1.2f, cy - h / 2 + 2, x0 + slant - 1.2f, cy - h / 2 + 2, c.accent());
+        quad(g, x0 - slant + 1.2f, cy + h / 2 - 2, x1 - slant + 1.2f, cy + h / 2 - 2, x1 - slant, cy + h / 2, x0 - slant, cy + h / 2, c.accent());
+        // The shine running across.
+        float sweep = (st - 5) / 7f;
+        if (sweep > 0 && sweep < 1) {
+            float sx = x0 + (x1 - x0) * sweep;
+            quad(g, sx + slant, cy - h / 2, sx + slant + 10, cy - h / 2, sx - slant + 10, cy + h / 2, sx - slant, cy + h / 2, 0x50FFFFFF);
+        }
+        float mid = (x0 + x1) / 2f;
+        spaced(g, "KİLİTLENDİ", mid, cy - 11, .7f, 2.2f, c.accent());
+        float stamp = 1 + .5f * (1 - ease((st - 3) / 4f));
+        float a = Mth.clamp((st - 2) / 2f, 0, 1);
+        centred(g, c.name(), mid - 1.2f, cy - 3, 1.5f * stamp, alpha(CYAN, .6f * a), false);
+        centred(g, c.name(), mid + 1.2f, cy - 2.4f, 1.5f * stamp, alpha(MAGENTA, .6f * a), false);
+        centred(g, c.name(), mid, cy - 3, 1.5f * stamp, alpha(PAPER, a), false);
+        g.pose().popPose();
+    }
+    /** Letters set wide apart, centred. */
+    private void spaced(GuiGraphics g, String s, float cx, float y, float scale, float gap, int colour) {
+        float w = 0;
+        for (char ch : s.toCharArray()) w += font.width(String.valueOf(ch)) * scale + gap;
+        float x = cx - (w - gap) / 2;
+        for (char ch : s.toCharArray()) { text(g, String.valueOf(ch), x, y, scale, colour, false); x += font.width(String.valueOf(ch)) * scale + gap; }
     }
 
     /** Night between worlds: a deep gradient, drifting rift lines in the hero's colour, halftone dots. */
@@ -206,25 +252,8 @@ public final class ChampionSelectScreen extends Screen {
         g.blit(c.splash(), fx0, fy0, fw, fh, (512 - uw) / 2f, (512 - vh) * .3f, uw, vh, 512, 512);
         RenderSystem.setShaderColor(1, 1, 1, 1);
         g.fillGradient(fx0, fy0 + fh / 2, fx1, fy1, 0x00000000, 0xC0050308);
-        // The hero itself, in its own body, turning to follow the mouse.
-        var player = Minecraft.getInstance().player;
-        if (player != null) {
-            g.enableScissor(fx0, fy0, fx1, fy1);
-            String real = ClientHeroRegistry.get(player.getUUID());
-            boolean hulk = "hulk".equals(c.id());
-            int scale = (int) (fh * (hulk ? .26f : .36f));
-            int px = (fx0 + fx1) / 2, py = fy1 - 6;
-            ClientHeroRegistry.set(player.getUUID(), c.id());
-            try {
-                Runnable draw = () -> InventoryScreen.renderEntityInInventoryFollowsMouse(g, px, py, scale, px - mx, py - fh * .6f - my, player);
-                if (hulk) HulkClient.asHulk(player, draw); else draw.run();
-            } catch (Throwable ignored) {
-                // A hero that cannot be drawn here still has its art.
-            } finally {
-                ClientHeroRegistry.set(player.getUUID(), real);
-                g.disableScissor();
-            }
-        }
+        // The hero itself, in its own body: turning after the mouse, or showing what it does after LOCK IN.
+        stage.draw(g, c.id(), fx0, fy0, fx1, fy1, mx, my, shown(Minecraft.getInstance().getFrameTime()), Minecraft.getInstance().getFrameTime());
         frame(g, fx0, fy0, fx1, fy1, c.accent(), 1);
         corners(g, fx0 - 2, fy0 - 2, fx1 + 2, fy1 + 2, c.accent());
     }
@@ -313,9 +342,8 @@ public final class ChampionSelectScreen extends Screen {
         if (my >= barY() && my < barY() + barH() && mx >= width - pad() - lockW() && mx < width - pad()) {
             ModNetworking.CHANNEL.sendToServer(new ChampionLockPacket(c.id()));
             lockedAt = ticks;
-            var sounds = Minecraft.getInstance().getSoundManager();
-            sounds.play(SimpleSoundInstance.forUI(SoundEvents.PLAYER_LEVELUP, 1.4f, .8f));
-            sounds.play(SimpleSoundInstance.forUI(SoundEvents.BEACON_ACTIVATE, 1.6f, .6f));
+            Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.PLAYER_LEVELUP, 1.4f, .5f));
+            ChampionStage.sounds(c.id());
             return true;
         }
         return super.mouseClicked(mx, my, button);

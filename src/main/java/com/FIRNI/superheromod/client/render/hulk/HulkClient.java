@@ -99,6 +99,7 @@ public final class HulkClient {
         float t = clock(s, partial);
         float rage = rageTime(e, partial);
         if (rage >= 0) { action = ULTIMATE; t = rage; }
+        if (com.FIRNI.superheromod.client.gui.Showcase.is(e)) { action = com.FIRNI.superheromod.client.gui.Showcase.action(); t = com.FIRNI.superheromod.client.gui.Showcase.time(); }
         double vy = e.getY() - e.yo;
         s.fallSpeed = vy < 0 ? (float) -vy : 0;
         var in = new HulkMotion.Input(action, t, s.hulk(), s.charge, time, e.onGround(), s.fallSpeed,

@@ -177,8 +177,12 @@ landing spot and the target to the crater.
 - `client/gui/ChampionSelectScreen` (key P; the dev Pose Studio moved to F8 under a new key id) + roster data
   `client/gui/Champions` (name, title, accent, skills per hero; `MIN_SLOTS` "?" cards for future heroes).
   Splash art PNGs in `textures/gui/champions/<id>.png`, drawn by `tools/splash/make_all.py` (Pillow; comic-poster
-  style). The preview renders the player's real model as the chosen hero (temporary `ClientHeroRegistry` override;
-  Hulk via `HulkClient.asHulk`). LOCK IN sends `ChampionLockPacket` (server: same as `/superhero hero`, no op needed).
+  style). `ChampionStage` draws a stand-in `RemotePlayer` (own UUID, never the real player) as the chosen hero
+  (Hulk via `HulkClient.asHulk`); LOCK IN plays a 46-tick show per hero (`Showcase` hook makes Zed/Thor/Hulk layers
+  play an action: spin+finisher+throw / sky beam / thunderclap; Cyclops beam, Sandman sand storm, Ghost Rider rides the
+  Hell Cycle in via `GhostRiderLayer.filmBike`) under a "KİLİTLENDİ" band, then sends `ChampionLockPacket`'s result.
+  `ThorLayer.rotationOf` unmirrors the GUI matrix (the hammer blew up in menus). Sandman skin: `tools/skins/sandman_skin.py`.
+  LOCK IN sends `ChampionLockPacket` (server: same as `/superhero hero`, no op needed).
   New hero = add a `Champion` entry + a splash script.
 
 ## Other state
