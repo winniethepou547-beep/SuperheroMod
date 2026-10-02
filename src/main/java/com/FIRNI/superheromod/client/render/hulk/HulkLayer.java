@@ -284,10 +284,10 @@ public final class HulkLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
         // The sleeve splits along its seams and the halves fall away as the arm swells.
         float tear = Mth.clamp((k - .1f) / .45f, 0, 1);
         if (tear < 1) for (int i = 0; i < 4; i++) {
-            float len = 4.8f * (1 - tear * (.55f + .45f * ((i * 7 + 3) % 5) / 4f));
+            float piece = 4.8f * (1 - tear * (.55f + .45f * ((i * 7 + 3) % 5) / 4f));
             float out = tear * .9f;
             float x = (i % 2 == 0 ? -1 : 1) * (w / 4 + out * .5f), z = (i < 2 ? -1 : 1) * (w / 4 + out * .5f);
-            centred(p, b, light, x, -2.1f + tear * .4f, z, w / 2 + .15f - tear * .5f, len, w / 2 + .15f - tear * .5f, SHIRT);
+            centred(p, b, light, x, -2.1f + tear * .4f, z, w / 2 + .15f - tear * .5f, piece, w / 2 + .15f - tear * .5f, SHIRT);
         }
     }
 
