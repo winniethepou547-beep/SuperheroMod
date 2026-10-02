@@ -111,7 +111,13 @@ public final class ChampionSelectScreen extends Screen {
             g.fill(0, 0, rightX() - 4, height, alpha(0xFF030208, dim));
             g.fill(rightX() - 4, barY() - 36, width, height, alpha(0xFF030208, dim));
             float after = st - ChampionStage.length(hero.id());
-            if (after >= 0) banner(g, hero, after);
+            if (after >= 0) {
+                // In front of the hero's body and the show's effects (they are drawn deep into the screen).
+                g.pose().pushPose();
+                g.pose().translate(0, 0, 1000);
+                banner(g, hero, after);
+                g.pose().popPose();
+            }
         }
     }
 

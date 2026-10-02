@@ -553,17 +553,8 @@ final class ChampionStage {
                 }
             }
         }
-        // The look: the storm in his eyes, sparks spitting out of them.
+        // The look: his own eyes light up (the layer draws them); the bolt behind him lights the whole frame for a moment.
         if (st > 92) {
-            float on = span(st, 92, 98);
-            for (int side = -1; side <= 1; side += 2) {
-                float ex = px + side * s * .115f, ey = py - s * 1.5f;
-                glowDisc(g, ex, ey, s * .16f, 0xFFDDEEFF, .9f * on);
-                glowDisc(g, ex, ey, s * .4f, 0xFF7FB8FF, .35f * on * (.8f + .2f * Mth.sin(st * 1.7f)));
-                int seed = (int) (st * 1.5f) * 3 + side;
-                if (hash(seed) < .6f) bolt(g, ex, ey, ex + side * s * (.25f + .35f * hash(seed + 1)), ey - s * (.05f + .3f * hash(seed + 2)), seed, s * .015f, 0xFFDDEEFF, on);
-            }
-            // The bolt behind him lights the whole frame for a moment.
             float age = st - 98;
             if (age >= 0 && age < 5) g.fill(fx0, fy0, fx1, fy1, alphaOf(0xFFDDEEFF, .35f * (1 - age / 5)));
         }
