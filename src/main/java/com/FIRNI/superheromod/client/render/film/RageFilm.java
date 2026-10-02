@@ -47,8 +47,8 @@ final class RageFilm implements Film {
         int smash = ULT_CRASH + 40;
         if (s != null && level != null && level.getEntity(attacker) != null) smash = HulkClient.smashTick(level.getEntity(attacker));
         path = new RagePath(d, smash);
-        calm = HulkConfig.CALM_CAMERA.get();
-        shake = (float) (double) HulkConfig.SHAKE.get() * (calm ? .3f : 1);
+        calm = HulkConfig.get(HulkConfig.CALM_CAMERA);
+        shake = (float) (double) HulkConfig.get(HulkConfig.SHAKE) * (calm ? .3f : 1);
         double D = d, H = ULT_HEIGHT;
         Vec3 grab = path.hulk(ULT_GRAB), top = path.hulk(ULT_HOLD + 4), crater = path.crater(), spot = path.smashSpot();
         int dive = smash - 14, total = path.total();

@@ -126,5 +126,13 @@ public final class HulkConfig {
         CLIENT = b.build();
     }
 
+    /**
+     * A setting's value, or its default while the file is not loaded yet (or not at all on this side):
+     * Hulk never crashes the game over a setting.
+     */
+    public static <T> T get(ForgeConfigSpec.ConfigValue<T> value) {
+        try { return value.get(); } catch (IllegalStateException | NullPointerException e) { return value.getDefault(); }
+    }
+
     private HulkConfig() {}
 }

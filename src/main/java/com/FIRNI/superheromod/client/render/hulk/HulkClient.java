@@ -147,7 +147,7 @@ public final class HulkClient {
     // ------------------------------------------------------------------ HUD
     @SubscribeEvent public static void hud(RenderGuiEvent.Post e) {
         var mc = Minecraft.getInstance();
-        if (mc.player == null || mc.options.hideGui || !isHero(mc.player) || !HulkConfig.HUD.get() || FilmDirector.playing()) return;
+        if (mc.player == null || mc.options.hideGui || !isHero(mc.player) || !HulkConfig.get(HulkConfig.HUD) || FilmDirector.playing()) return;
         State s = get(mc.player);
         if (s == null) return;
         var g = e.getGuiGraphics();

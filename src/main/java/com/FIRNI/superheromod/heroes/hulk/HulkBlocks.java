@@ -20,7 +20,7 @@ public final class HulkBlocks {
     /** A running allowance for one attack. */
     public static final class Budget {
         int left;
-        public Budget() { left = HulkConfig.MAX_BLOCKS.get(); }
+        public Budget() { left = HulkConfig.get(HulkConfig.MAX_BLOCKS); }
         public boolean spent() { return left <= 0; }
     }
 
@@ -28,15 +28,15 @@ public final class HulkBlocks {
 
     /** May this block be changed by this Hulk at all? */
     public static boolean allowed(ServerPlayer p, BlockPos pos, BlockState state) {
-        if (!HulkConfig.BLOCK_DAMAGE.get() || state.isAir()) return false;
+        if (!HulkConfig.get(HulkConfig.BLOCK_DAMAGE) || state.isAir()) return false;
         ServerLevel level = p.serverLevel();
         if (!level.isLoaded(pos) || level.isOutsideBuildHeight(pos)) return false;
         float hardness = state.getDestroySpeed(level, pos);
-        if (hardness < 0 || hardness > HulkConfig.MAX_HARDNESS.get()) return false;
+        if (hardness < 0 || hardness > HulkConfig.get(HulkConfig.MAX_HARDNESS)) return false;
         if (state.hasBlockEntity()) return false;
         var id = ForgeRegistries.BLOCKS.getKey(state.getBlock());
-        if (id != null && HulkConfig.BANNED_BLOCKS.get().contains(id.toString())) return false;
-        if (!HulkConfig.BREAK_IN_REGIONS.get())
+        if (id != null && HulkConfig.get(HulkConfig.BANNED_BLOCKS).contains(id.toString())) return false;
+        if (!HulkConfig.get(HulkConfig.BREAK_IN_REGIONS))
             for (var region : RegionManager.getAll().values())
                 if (region.contains(level.dimension().location(), pos)) return false;
         if (!level.mayInteract(p, pos)) return false;

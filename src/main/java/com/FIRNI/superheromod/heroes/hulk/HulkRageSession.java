@@ -26,7 +26,7 @@ public final class HulkRageSession implements FilmSessions.Script {
 
     public static boolean start(ServerPlayer player, LivingEntity target) { return FilmSessions.start(player, target, INSTANCE); }
 
-    public static int smashTick() { return ULT_CRASH + HulkConfig.ULT_DELAY.get(); }
+    public static int smashTick() { return ULT_CRASH + HulkConfig.get(HulkConfig.ULT_DELAY); }
     public static int totalTicks() { return smashTick() + ULT_TOTAL_AFTER; }
 
     @Override public String film() { return ID; }
@@ -39,7 +39,7 @@ public final class HulkRageSession implements FilmSessions.Script {
         if (age == ULT_CRASH) {
             if (target.isAlive()) {
                 target.invulnerableTime = 0;
-                target.hurt(p.damageSources().playerAttack(p), target.getMaxHealth() * HulkConfig.ULT_CRASH_SHARE.get().floatValue());
+                target.hurt(p.damageSources().playerAttack(p), target.getMaxHealth() * HulkConfig.get(HulkConfig.ULT_CRASH_SHARE).floatValue());
             }
             HulkController.fx(p, FX_ULT_CRASH, crater, forward, 1, HulkBlocks.id(level.getBlockState(BlockPos.containing(crater).below())));
             level.playSound(null, crater.x, crater.y, crater.z, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 1.4f, .8f);
@@ -48,9 +48,9 @@ public final class HulkRageSession implements FilmSessions.Script {
         if (age == smashTick()) {
             if (target.isAlive()) {
                 target.invulnerableTime = 0;
-                target.hurt(p.damageSources().playerAttack(p), target.getMaxHealth() * HulkConfig.ULT_SMASH_SHARE.get().floatValue());
+                target.hurt(p.damageSources().playerAttack(p), target.getMaxHealth() * HulkConfig.get(HulkConfig.ULT_SMASH_SHARE).floatValue());
             }
-            int radius = HulkConfig.ULT_CRATER.get();
+            int radius = HulkConfig.get(HulkConfig.ULT_CRATER);
             BlockPos ground = BlockPos.containing(crater).below();
             int block = HulkBlocks.id(level.getBlockState(ground));
             if (radius > 0) HulkController.crater(p, ground, radius, 2, new HulkBlocks.Budget());
@@ -61,7 +61,7 @@ public final class HulkRageSession implements FilmSessions.Script {
             // Anyone else standing near is thrown out of the blast.
             for (LivingEntity t : level.getEntitiesOfClass(LivingEntity.class, new AABB(crater, crater).inflate(9, 4, 9),
                     t -> t != p && t != target && t.isAlive() && !t.isSpectator()
-                            && !(t instanceof Player other && p.isAlliedTo(other) && !HulkConfig.FRIENDLY_FIRE.get()))) {
+                            && !(t instanceof Player other && p.isAlliedTo(other) && !HulkConfig.get(HulkConfig.FRIENDLY_FIRE)))) {
                 double d = t.position().distanceTo(crater);
                 if (d > 9) continue;
                 HulkController.hit(p, t, (float) (12 * (1 - d / 9)), t.position().subtract(crater), 1.6 * (1 - d / 9), .6 * (1 - d / 9));
@@ -86,13 +86,13 @@ public final class HulkRageSession implements FilmSessions.Script {
 
     /** The best target in front of him, in range. */
     public static LivingEntity findTarget(ServerPlayer player) {
-        double range = HulkConfig.ULT_RANGE.get();
+        double range = HulkConfig.get(HulkConfig.ULT_RANGE);
         Vec3 eye = player.getEyePosition(1f), look = player.getLookAngle();
         LivingEntity best = null;
         double bestScore = -1;
         for (LivingEntity e : player.level().getEntitiesOfClass(LivingEntity.class, new AABB(eye, eye).inflate(range),
                 e -> e != player && e.isAlive() && !e.isSpectator() && !FilmSessions.busy(e.getUUID())
-                        && !(e instanceof Player other && player.isAlliedTo(other) && !HulkConfig.FRIENDLY_FIRE.get()))) {
+                        && !(e instanceof Player other && player.isAlliedTo(other) && !HulkConfig.get(HulkConfig.FRIENDLY_FIRE)))) {
             Vec3 to = e.getEyePosition().subtract(eye);
             double dist = to.length();
             if (dist > range || dist < .5) continue;

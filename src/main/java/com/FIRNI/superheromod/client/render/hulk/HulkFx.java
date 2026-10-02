@@ -83,13 +83,13 @@ public final class HulkFx {
 
     private static long now() { var l = Minecraft.getInstance().level; return l == null ? 0 : l.getGameTime(); }
     private static Random random() { return new Random(System.nanoTime()); }
-    private static float amount() { return (float) Math.max(0, Math.min(2, HulkConfig.EFFECTS.get())); }
+    private static float amount() { return (float) Math.max(0, Math.min(2, HulkConfig.get(HulkConfig.EFFECTS))); }
     private static int n(double count) { return (int) Math.round(count * amount()); }
     private static <T> void cap(List<T> list, int max) { while (list.size() > max) list.remove(0); }
 
     // ------------------------------------------------------------------ spawning
     private static void shake(Vec3 at, float strength, float range) {
-        float s = (float) (double) HulkConfig.SHAKE.get();
+        float s = (float) (double) HulkConfig.get(HulkConfig.SHAKE);
         if (s > 0) ClientScreenShake.addFromSource(at, strength * s, range);
     }
     private static void screenFlash(Vec3 at, float strength, double range, int rgb) {
