@@ -53,6 +53,10 @@ public final class ThorFx {
     private static final float SHOCK_LIFE = 5;
     static void shock(Vec3 at, Vec3 dir, double size) {
         if (dir.lengthSqr() < 1e-6) dir = new Vec3(0, 1, 0);
+        // Out in front of the struck body, toward the blow, so the body does not hide it.
+        var mc = Minecraft.getInstance();
+        if (mc.player != null) at = at.add(mc.gameRenderer.getMainCamera().getPosition().subtract(at).normalize().scale(.45));
+        size *= 1.25;
         if (SHOCKS.size() > 24) SHOCKS.remove(0);
         SHOCKS.add(new Shock(at, dir.normalize(), now(), size));
     }
@@ -323,6 +327,14 @@ public final class ThorFx {
                     bolt(h.add(d.scale(.3)), h.add(d.scale(.8 + r.nextDouble() * .6)), .025, 2 + r.nextInt(2), 1, .4, .3);
                 }
                 sparks(h, 1, .25);
+            }
+            // Every swing, hit or miss, leaves a tiny shock ring in the air where the head passes at the blow.
+            int hitTick = action == SWING_RIGHT || action == SWING_LEFT ? SWING_HIT : action == UPPERCUT ? UPPER_HIT : -1;
+            if (hitTick >= 0 && t >= hitTick && !Long.valueOf(s.actionStart).equals(SWUNG.get(p.getId()))) {
+                SWUNG.put(p.getId(), s.actionStart);
+                Vec3 f = Vec3.directionFromRotation(0, p.getYRot()), side = f.cross(new Vec3(0, 1, 0)).normalize();
+                Vec3 at = p.position().add(0, action == UPPERCUT ? 1.9 : 1.25, 0).add(f.scale(1.9));
+                shock(at, action == UPPERCUT ? new Vec3(0, 1, 0) : side.scale(action == SWING_RIGHT ? 1 : -1), .75);
             }
             // The thunder beam: sparks where it lands.
             if (action == BEAM && t >= BM_AIM && t < BM_END) {
@@ -677,8 +689,8 @@ public final class ThorFx {
     private static void drawShock(FilmContext c, Matrix4f m, Shock k, float time) {
         float age = (time - k.start()) / SHOCK_LIFE;
         if (age < 0 || age > 1) return;
-        double radius = k.size() * (.15 + .85 * (1 - (1 - age) * (1 - age))), width = .06 + .05 * age;
-        float alpha = .32f * (1 - age);
+        double radius = k.size() * (.15 + .85 * (1 - (1 - age) * (1 - age))), width = .09 + .07 * age;
+        float alpha = .7f * (1 - age);
         Vec3 u = ThorBolts.perpendicular(k.dir()), w = k.dir().cross(u);
         var v = c.buffers().getBuffer(FilmFx.ADD);
         int n = 24;
@@ -904,6 +916,8 @@ public final class ThorFx {
     private record Fling(long start, float yaw) {}
     private static final int FLING_TICKS = 18;
     private static final Map<Integer, Fling> FLUNG = new HashMap<>();
+    /** The swing (by its start tick) each Thor last left a shock ring for. */
+    private static final Map<Integer, Long> SWUNG = new HashMap<>();
     /** Thrown off the hammer: one full backward flip through the air, limbs flung out, ending upright. */
     private static boolean flung(PoseStack pose, MultiBufferSource.BufferSource buffers, Vec3 cam, int id, Fling f, float partial) {
         var mc = Minecraft.getInstance();

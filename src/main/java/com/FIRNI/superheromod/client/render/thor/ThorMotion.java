@@ -82,7 +82,7 @@ public final class ThorMotion {
         p.torsoPitch = .05f + breathe; p.headPitch = -.06f - breathe;
         p.rLegZ = .07f; p.lLegZ = -.07f;
         // Mjolnir held up off the ground: forearm forward, the handle rising out of the fist, head on top.
-        p.rArmX = -.3f - breathe; p.rArmZ = .3f; p.rArmY = .05f; p.rElbow = 1.05f; p.wristX = -1.79f; p.upright = 1;
+        p.rArmX = -.1f - breathe; p.rArmZ = .26f; p.rArmY = .05f; p.rElbow = .8f; p.wristX = -1.79f; p.upright = 1;
         p.lArmX = .02f - breathe; p.lArmZ = -.11f; p.lElbow = .22f;
         // Every so often: settles the hammer in his grip, rolls a shoulder, glances aside.
         float cycle = time % 220;
@@ -101,7 +101,7 @@ public final class ThorMotion {
         p.crouch = .35f + breathe * 3; p.torsoPitch = .1f; p.headPitch = -.1f;
         p.rLegZ = .14f; p.lLegZ = -.14f; p.rLegX = .08f; p.lLegX = -.14f; p.rKnee = .1f; p.lKnee = .08f;
         p.torsoYaw = -.12f;
-        p.rArmX = -.62f + breathe; p.rArmZ = .3f; p.rArmY = .1f; p.rElbow = .95f; p.wristX = -1.57f; p.upright = 1;
+        p.rArmX = -.38f + breathe; p.rArmZ = .26f; p.rArmY = .1f; p.rElbow = .85f; p.wristX = -1.57f; p.upright = 1;
         p.lArmX = -.5f - breathe; p.lArmZ = -.32f; p.lArmY = -.15f; p.lElbow = .7f;
         return p;
     }

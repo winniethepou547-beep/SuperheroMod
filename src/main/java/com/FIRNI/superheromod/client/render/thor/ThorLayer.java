@@ -177,7 +177,8 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
                     // Turn the hammer, about the fist, until its handle stands straight up in the model's frame.
                     Quaternionf now = p.last().pose().getNormalizedRotation(new Quaternionf());
                     // Upright, and turned a quarter about its own handle: the head points front to back, not a T.
-                    Quaternionf want = new Quaternionf(root).rotateZ(pose.tilt).rotateX((float) Math.PI).rotateY((float) (Math.PI / 2));
+                    // Not quite plumb: the top leans a touch forward and away from his body, as a hand naturally holds it.
+                    Quaternionf want = new Quaternionf(root).rotateX(.16f).rotateZ(pose.tilt - .1f).rotateX((float) Math.PI).rotateY((float) (Math.PI / 2));
                     Quaternionf fix = new Quaternionf(now).conjugate().mul(want);
                     p.mulPose(new Quaternionf().slerp(fix, Math.min(1, pose.upright)));
                 }
