@@ -657,6 +657,22 @@ public final class ThorFx {
             ThorBolts.draw(c.buffers().getBuffer(FilmFx.ADD), m, ThorBolts.bolt(head, tail, frame * 31L + salt, .25, .3, 1), c.camera(), width * .35, alpha * .8f);
     }
     /**
+     * One clump of storm cloud, dense enough to read against any sky: a solid core, a body and soft
+     * edges, slightly lighter on top where the sky lights it.
+     */
+    private static int lighten(int rgb, int by) {
+        int r = Math.min(255, (rgb >> 16 & 255) + by), g = Math.min(255, (rgb >> 8 & 255) + by), b = Math.min(255, (rgb & 255) + by);
+        return r << 16 | g << 8 | b;
+    }
+    private static void cloud(FilmContext c, Vec3 at, double size, int colour, float alpha) {
+        if (alpha <= .01f) return;
+        int top = lighten(colour, 18);
+        FilmFx.puff(c, at, size * 1.15, colour, alpha);
+        FilmFx.puff(c, at, size * .8, colour, alpha);
+        FilmFx.puff(c, at.add(0, size * .18, 0), size * .55, top, alpha);
+    }
+
+    /**
      * The storm: a low ceiling of dark cloud closing over the whole place, wheeling slowly, and banks
      * of it drifting round the two of them up at the height of the fight. Lightning lights it from inside.
      */
@@ -675,8 +691,8 @@ public final class ThorFx {
                 double a = i * Math.PI * 2 / n + spin * (ring % 2 == 0 ? 1 : -.7) + ring * .7;
                 double wobble = FilmFx.hash(i * 7.1 + ring * 3.3);
                 Vec3 at = eye.add(Math.cos(a) * radius, (wobble - .5) * 3 + Math.sin(t * .03 + i) * .4, Math.sin(a) * radius);
-                int colour = wobble < .33 ? 0x22252e : wobble < .66 ? 0x2c303b : 0x363b48;
-                FilmFx.puff(c, at, 10 + wobble * 6, colour, .82f * here);
+                int colour = wobble < .33 ? 0x30343e : wobble < .66 ? 0x3d424e : 0x4b5160;
+                cloud(c, at, 12 + wobble * 7, colour, here);
             }
         }
         // Banks at the height of the fight, sliding past.
@@ -690,7 +706,7 @@ public final class ThorFx {
                     double a = i * Math.PI * 2 / n + t * .01 * (ring + 1) + ring;
                     double wobble = FilmFx.hash(i * 3.7 + ring * 9.1);
                     Vec3 at = mid.add(Math.cos(a) * radius, (ring - 1) * 5 + (wobble - .5) * 4, Math.sin(a) * radius);
-                    FilmFx.puff(c, at, 7 + wobble * 5, wobble < .5 ? 0x2a2e38 : 0x3a3f4c, .6f * banks);
+                    cloud(c, at, 8 + wobble * 5, wobble < .5 ? 0x353a45 : 0x454b58, .85f * banks);
                 }
             }
         }

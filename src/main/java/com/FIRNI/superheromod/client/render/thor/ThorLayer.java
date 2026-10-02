@@ -66,9 +66,9 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
     private static final ModelPart HAIR_SIDE = GhostMaterials.box(-4.7f, -7.4f, -2.6f, .95f, 6.0f, 5.0f);
     private static final ModelPart HAIR_FRINGE = GhostMaterials.box(-4.3f, -8.2f, -4.6f, 3.4f, 1.6f, 1.0f);
     // Shoulder length: the hair ends just below the shoulders.
-    private static final ModelPart HAIR_FLOW = GhostMaterials.box(-4.2f, 0, -1.1f, 8.4f, 2.9f, 2.0f);
-    private static final ModelPart HAIR_TIP = GhostMaterials.box(-3.6f, 0, -.8f, 7.2f, 1.3f, 1.4f);
-    private static final ModelPart HAIR_LOCK = GhostMaterials.box(-.9f, 0, -1.0f, 1.8f, 3.3f, 2.0f);
+    private static final ModelPart HAIR_FLOW = GhostMaterials.box(-3.4f, 0, -.8f, 6.8f, 2.5f, 1.6f);
+    private static final ModelPart HAIR_TIP = GhostMaterials.box(-2.9f, 0, -.6f, 5.8f, 1.0f, 1.2f);
+    private static final ModelPart HAIR_LOCK = GhostMaterials.box(-.8f, 0, -.9f, 1.6f, 2.6f, 1.8f);
     // Cape
     private static final ModelPart CAPE_ROW = GhostMaterials.box(-5.2f, 0, 0, 10.4f, 4.5f, .55f);
     /** One vertical fold of the cape; alternate folds sit a little further out and catch the light. */
@@ -360,8 +360,10 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
         }
         float lift = c.lift();
         p.pushPose();
-        px(p, 0, .2, 3.3);
-        p.mulPose(Axis.XP.rotation(.15f + lift * .95f + (float) Math.sin(time * .25) * .04f * (1 + lift)));
+        // Rests on the outside of the cape: always tipped back at least as far as the cape is, so the
+        // cloth never swings out through it.
+        px(p, 0, .1, 3.75);
+        p.mulPose(Axis.XP.rotation(.22f + Math.max(0, lift) * .85f + (float) Math.sin(time * .25) * .03f * (1 + lift)));
         draw(HAIR_FLOW, p, b, light, HAIR);
         px(p, 0, 4.4, .2);
         p.mulPose(Axis.XP.rotation(lift * .4f + (float) Math.sin(time * .31 + 1) * .08f * (.3f + lift)));

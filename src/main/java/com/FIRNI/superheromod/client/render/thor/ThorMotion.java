@@ -74,7 +74,7 @@ public final class ThorMotion {
         p.torsoPitch = .05f + breathe; p.headPitch = -.06f - breathe;
         p.rLegZ = .07f; p.lLegZ = -.07f;
         // Mjolnir held up off the ground: forearm forward, the handle rising out of the fist, head on top.
-        p.rArmX = -.1f - breathe; p.rArmZ = .1f; p.rArmY = .05f; p.rElbow = .9f; p.wristX = -2.12f;
+        p.rArmX = -.3f - breathe; p.rArmZ = .3f; p.rArmY = .05f; p.rElbow = 1.05f; p.wristX = -1.79f;
         p.lArmX = .02f - breathe; p.lArmZ = -.11f; p.lElbow = .22f;
         // Every so often: settles the hammer in his grip, rolls a shoulder, glances aside.
         float cycle = time % 220;
@@ -90,10 +90,10 @@ public final class ThorMotion {
     public static Pose combat(float time) {
         Pose p = new Pose();
         float breathe = (float) Math.sin(time * .14) * .03f;
-        p.crouch = 1.2f + breathe * 8; p.torsoPitch = .14f; p.headPitch = -.12f;
-        p.rLegZ = .17f; p.lLegZ = -.17f; p.rLegX = .12f; p.lLegX = -.22f; p.rKnee = .32f; p.lKnee = .28f;
+        p.crouch = .35f + breathe * 3; p.torsoPitch = .1f; p.headPitch = -.1f;
+        p.rLegZ = .14f; p.lLegZ = -.14f; p.rLegX = .08f; p.lLegX = -.14f; p.rKnee = .1f; p.lKnee = .08f;
         p.torsoYaw = -.12f;
-        p.rArmX = -.62f + breathe; p.rArmZ = .12f; p.rArmY = .1f; p.rElbow = .95f; p.wristX = -1.5f;
+        p.rArmX = -.62f + breathe; p.rArmZ = .3f; p.rArmY = .1f; p.rElbow = .95f; p.wristX = -1.57f;
         p.lArmX = -.5f - breathe; p.lArmZ = -.32f; p.lArmY = -.15f; p.lElbow = .7f;
         return p;
     }
@@ -103,8 +103,8 @@ public final class ThorMotion {
         float fast = clamp(speed / 1.4f);
         p.bodyPitch = .25f + 1.0f * fast;
         p.headPitch = -.2f - .75f * fast;
-        p.rArmX = -2.65f; p.rArmZ = .42f; p.rArmY = -.15f; p.rElbow = .95f;
-        p.wristX = time * 1.4f; p.spinRing = 1; p.spinMode = 1;
+        p.rArmX = -.55f; p.rArmZ = 1.3f; p.rArmY = 0; p.rElbow = .12f;
+        p.wristX = -1.5708f; p.wristY = time * 2.4f; p.spinRing = 1; p.spinMode = 2;
         p.lArmX = .35f + .3f * fast; p.lArmZ = -.55f; p.lElbow = .3f;
         float sway = (float) Math.sin(time * .12) * .06f;
         p.rLegX = .3f + .2f * fast + sway; p.lLegX = .12f + .15f * fast - sway; p.rKnee = .45f; p.lKnee = .2f;
@@ -232,11 +232,12 @@ public final class ThorMotion {
     /** Shift on the ground: the arm comes up beside his head and Mjolnir winds up to a whirl. */
     static Pose takeoff(Pose p, float t) {
         float raise = k(t, 0, 5), crouch = (float) Math.sin(Math.PI * clamp((t - 6) / (TAKEOFF_TICKS - 6)));
-        p.rArmX = lerp(p.rArmX, -2.65f, raise); p.rArmZ = lerp(p.rArmZ, .42f, raise); p.rArmY = lerp(p.rArmY, -.15f, raise);
-        p.rElbow = lerp(p.rElbow, .95f, raise);
+        // The arm goes out to his side; Mjolnir turns about it, so it whirls in a wheel beside him, clear of his body.
+        p.rArmX = lerp(p.rArmX, -.55f, raise); p.rArmZ = lerp(p.rArmZ, 1.3f, raise); p.rArmY = lerp(p.rArmY, 0, raise);
+        p.rElbow = lerp(p.rElbow, .12f, raise);
         // Spin speed climbs from a lazy turn to a blur: angle is the integral of that speed.
-        p.wristX = .25f * t + .045f * t * t;
-        p.spinRing = k(t, 4, TAKEOFF_TICKS); p.spinMode = 1;
+        p.wristX = -1.5708f; p.wristY = .25f * t + .08f * t * t;
+        p.spinRing = k(t, 4, TAKEOFF_TICKS); p.spinMode = 2;
         p.lArmX = lerp(p.lArmX, .25f, raise); p.lArmZ = lerp(p.lArmZ, -.6f, raise);
         p.crouch = 3.5f * crouch; p.rKnee = .9f * crouch; p.lKnee = .9f * crouch; p.torsoPitch = .25f * crouch; p.headPitch = -.3f;
         p.eyes = .5f * raise;
@@ -433,7 +434,7 @@ public final class ThorMotion {
         if (t >= ULT_RISE && t < ULT_CATCH) {
             Pose f = new Pose();
             f.bodyPitch = .2f; f.headPitch = -.6f;
-            f.rArmX = -2.95f; f.rArmZ = .3f; f.rElbow = .3f; f.wristX = spin(t - ULT_RISE, 2.2f, 1) + 20; f.spinRing = 1; f.spinMode = 1;
+            f.rArmX = -.7f; f.rArmZ = 1.3f; f.rElbow = .12f; f.wristX = -1.5708f; f.wristY = spin(t - ULT_RISE, 2.4f, 1) + 20; f.spinRing = 1; f.spinMode = 2;
             f.lArmX = .5f; f.lArmZ = -.45f; f.lElbow = .35f;
             float sway = (float) Math.sin(t * .4) * .08f;
             f.rLegX = .35f + sway; f.lLegX = .15f - sway; f.rKnee = .55f; f.lKnee = .3f;
@@ -441,6 +442,7 @@ public final class ThorMotion {
             // The throw: the arm whips straight up and lets Mjolnir go on into the storm.
             float whip = snap(t, ULT_TOSS - 4, ULT_TOSS);
             f.rArmX = lerp(f.rArmX, -3.1f, whip); f.rArmZ = lerp(f.rArmZ, .05f, whip); f.rElbow = lerp(f.rElbow, 0, whip);
+            f.wristX = lerp(f.wristX, 0, whip); f.wristY *= 1 - whip;
             f.spinRing *= 1 - whip;
             if (t >= ULT_TOSS) { f.noHammer = 1; f.wristX = 0; }
             // Empty-handed now: both arms reach up for them, then open wide to take hold.

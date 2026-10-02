@@ -97,7 +97,7 @@ public final class ThorClient {
         Vec3 v = e.getDeltaMovement();
         if (e != Minecraft.getInstance().player) v = new Vec3(e.getX() - e.xo, e.getY() - e.yo, e.getZ() - e.zo);
         float speed = (float) v.length();
-        boolean combat = now - s.lastCombat < 120;
+        boolean combat = now - s.lastCombat < 50;
         float charge = action == CHARGE ? Math.min(1, t / CHARGE_FULL) : s.dashCharge;
         float look = e.getViewXRot(partial) * (float) Math.PI / 180;
         var in = new ThorMotion.Input(action, t, false, s.hammerOut(), s.powered(), combat, speed, time, e.onGround(), charge, look);
