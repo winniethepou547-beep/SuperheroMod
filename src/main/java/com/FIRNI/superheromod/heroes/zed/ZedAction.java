@@ -11,15 +11,24 @@ public final class ZedAction {
 
     // ------------------------------------------------------------------ actions (his own and his shadow's)
     public static final int IDLE = 0, SLASH_RIGHT = 1, SLASH_LEFT = 2, THROW = 3, SHADOW_CAST = 4, SWAP = 5, SPIN = 6,
-            MARK_LOCK = 7, MARK_DASH = 8, MARK_STRIKE = 9, MARK_RETURN = 10, MARK_HIDDEN = 11, ULTIMATE = 12;
+            MARK_LOCK = 7, MARK_DASH = 8, MARK_STRIKE = 9, MARK_RETURN = 10, MARK_HIDDEN = 11, ULTIMATE = 12, SLASH_FINISH = 13;
 
     // ------------------------------------------------------------------ cooldown slots
     public static final int CD_Q = 0, CD_W = 1, CD_E = 2, CD_R = 3, CD_X = 4;
 
-    // ------------------------------------------------------------------ left click: quick slashes (+ passive)
-    public static final int SLASH_TICKS = 7, SLASH_HIT = 3;
-    public static final double SLASH_REACH = 3.3;
-    public static final float SLASH_DAMAGE = 6;
+    // ------------------------------------------------------------------ left click: a three-cut combo (+ passive)
+    /**
+     * Right-hand cut, left-hand reverse cut, then a deeper diagonal finisher. A click during a cut is
+     * remembered and the next cut starts as soon as this one may be broken off (CHAIN), out of its
+     * recovery rather than from a standing start. The combo starts over after COMBO_RESET idle ticks.
+     */
+    public static final int SLASH_TICKS = 8, SLASH_HIT = 3, SLASH_CHAIN = 5,
+            FINISH_TICKS = 11, FINISH_HIT = 5, FINISH_CHAIN = 8, COMBO_RESET = 14;
+    public static final double SLASH_REACH = 3.3, FINISH_REACH = 3.7;
+    public static final float SLASH_DAMAGE = 6, FINISH_DAMAGE = 9, SLASH_KNOCK = .22f, FINISH_KNOCK = .5f;
+    /** Bleeding (left-click cuts and shurikens): stacks up to BLEED_MAX, each stack this much every BLEED_EVERY ticks. */
+    public static final int BLEED_TICKS = 80, BLEED_EVERY = 20, BLEED_MAX = 3;
+    public static final float BLEED_DAMAGE = 1;
     /** Contempt for the Weak: below this share of their health a slash also cuts this share of their max health. */
     public static final float PASSIVE_BELOW = .5f, PASSIVE_SHARE = .08f;
     /** Ticks before the passive can trigger on the same target again. */
@@ -27,7 +36,7 @@ public final class ZedAction {
 
     // ------------------------------------------------------------------ Q: Razor Shuriken
     public static final int THROW_TICKS = 9, THROW_RELEASE = 3, Q_COOLDOWN = 80;
-    public static final double SHURIKEN_SPEED = 1.7, SHURIKEN_RANGE = 19, SHURIKEN_RADIUS = .75;
+    public static final double SHURIKEN_SPEED = 1.7, SHURIKEN_RANGE = 19, SHURIKEN_RADIUS = 1.0;
     public static final float SHURIKEN_DAMAGE = 9, SHURIKEN_PIERCED = .6f, SHURIKEN_SECOND = .5f;
 
     // ------------------------------------------------------------------ W (on F): Living Shadow

@@ -46,6 +46,8 @@ public final class ZedClient {
         public int wAction, wAge, wLeft, rLeft;
         public long wBorn;
         public int markTarget = -1, markLeft;
+        /** When a cut of his last landed (level time): his body holds still for an instant there. */
+        float stopAt = -100;
         public float markStored;
         long received;
     }
@@ -73,6 +75,7 @@ public final class ZedClient {
         // The view kicks for the local Zed when he blinks somewhere.
         if (mc.player != null && p.entity() == mc.player.getId() && p.action() != s.action
                 && (p.action() == SWAP || p.action() == MARK_RETURN || p.action() == MARK_DASH || p.action() == MARK_STRIKE)) fovKick = 1;
+        if (p.action() != s.action) s.stopAt = -100;
         s.action = p.action(); s.age = p.age(); s.side = p.flags(); s.cooldowns = p.cooldowns();
         s.wAlive = p.wAlive(); s.wPos = p.wPos(); s.wYaw = p.wYaw(); s.wAction = p.wAction(); s.wAge = p.wAge(); s.wLeft = p.wLeft();
         s.rAlive = p.rAlive(); s.rPos = p.rPos(); s.rYaw = p.rYaw(); s.rLeft = p.rLeft();
@@ -82,7 +85,24 @@ public final class ZedClient {
     public static float clock(State s, float partial) {
         var level = Minecraft.getInstance().level;
         if (level == null) return s.age;
-        return s.age + Math.min(3, Math.max(0, level.getGameTime() - s.received)) + partial;
+        float raw = s.age + Math.min(3, Math.max(0, level.getGameTime() - s.received)) + partial;
+        // Hit-stop: the cut holds for a moment where it bit.
+        if (s.stopAt > 0) raw -= Math.min(HIT_STOP, Math.max(0, level.getGameTime() + partial - s.stopAt));
+        return raw;
+    }
+    private static final float HIT_STOP = 1.4f;
+    /** A cut landed here: every Zed cutting next to it stops for an instant; the local one feels it. */
+    public static void cutLanded(net.minecraft.world.phys.Vec3 at, boolean heavy) {
+        var mc = Minecraft.getInstance();
+        if (mc.level == null) return;
+        for (var entry : STATES.entrySet()) {
+            State s = entry.getValue();
+            if (s.action != SLASH_RIGHT && s.action != SLASH_LEFT && s.action != SLASH_FINISH) continue;
+            var body = mc.level.getEntity(entry.getKey());
+            if (body == null || body.position().distanceTo(at) > 5) continue;
+            s.stopAt = mc.level.getGameTime() + mc.getFrameTime();
+            if (body == mc.player) com.FIRNI.superheromod.client.render.ClientScreenShake.add(heavy ? .1f : .045f);
+        }
     }
     public static float shadowClock(State s, float partial) {
         var level = Minecraft.getInstance().level;

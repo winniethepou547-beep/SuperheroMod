@@ -48,6 +48,8 @@ public final class ZedBody {
     /** When on, every draw records where the eyes are in the world (eyeRight, eyeLeft). */
     public static boolean capture;
     public static Vec3 eyeRight, eyeLeft;
+    /** With capture on: where the tips of his main blades are (for their motion trails). */
+    public static Vec3 tipRight, tipLeft;
 
     private ZedBody() {}
 
@@ -248,25 +250,21 @@ public final class ZedBody {
         part(p, b, light, 0, -.5f, -.1f, 0, 0, 0, 7.2f, 2.4f, 5.8f, RED);
         part(p, b, light, .3f, 4.8f, -3f, 0, 0, .45f, 2.8f, 10.5f, .5f, RED);
         part(p, b, light, .9f, 4.2f, -3.15f, 0, 0, .45f, .5f, 9f, .3f, RED_FOLD);
-        // Steel back plate with a gold line down the spine.
+        // The back, as in the reference: layered dark crimson plates edged in dark steel, a ridge down the
+        // spine, a short crimson mantle over the shoulders. No long cape: nothing hides the shurikens.
         part(p, b, light, 0, 3.6f, 2.3f, 0, 0, 0, 7.4f, 6f, .6f, STEEL_DARK);
-        part(p, b, light, 0, 3.6f, 2.65f, 0, 0, 0, .5f, 5.6f, .2f, GOLD_DARK);
-        // A short crimson mantle over the shoulders, and the cape: swept back with speed, and hanging
-        // away from his back when he bends forward.
-        part(p, b, light, 0, -.25f, 1.2f, 0, 0, 0, 10.4f, 2f, 5f, RED);
-        float cape = .08f + (float) Math.sin(time * .15) * .04f + .5f * Math.min(1, amount) + Math.max(0, pitch) * .85f;
-        p.pushPose(); px(p, 0, -.6f, 2.55f); p.mulPose(Axis.XP.rotation(cape));
-        part(p, b, light, 0, 7.4f, .25f, 0, 0, 0, 9.6f, 14.8f, .45f, RED);
-        part(p, b, light, 0, 7.2f, -.05f, 0, 0, 0, 9.2f, 14.4f, .2f, RED_DARK);
-        for (int i = -1; i <= 1; i++) {
-            part(p, b, light, i * 3.2f, 15.4f + (i == 0 ? .6f : 0), .25f, 0, 0, 0, 3f, 1.4f, .45f, RED_FOLD);
-            part(p, b, light, i * 3.2f, 16.6f + (i == 0 ? .6f : 0), .25f, 0, 0, 0, .45f, 1.1f, .45f, SILVER);
-        }
-        p.popPose();
-        // The two great shurikens hung on his back, one over each shoulder blade, blades up and out.
+        part(p, b, light, 0, 1.6f, 2.6f, .12f, 0, 0, 7.8f, 2.8f, .6f, RED_DARK);
+        part(p, b, light, 0, 4.2f, 2.65f, .08f, 0, 0, 7.2f, 2.6f, .6f, RED);
+        part(p, b, light, 0, 6.7f, 2.55f, .05f, 0, 0, 6.6f, 2.2f, .6f, RED_DARK);
+        for (float y : new float[]{2.95f, 5.5f, 7.8f}) part(p, b, light, 0, y, 2.95f, 0, 0, 0, 7f - y * .12f, .35f, .2f, STEEL_DARK);
+        part(p, b, light, 0, 4.2f, 3.0f, 0, 0, 0, .7f, 7.4f, .4f, GOLD_DARK);
+        part(p, b, light, 0, -.25f, 1.4f, 0, 0, 0, 10.4f, 2f, 4.4f, RED);
+        part(p, b, light, 0, .9f, 3.35f, .3f, 0, 0, 5.2f, 2.6f, .5f, RED_FOLD);
+        // The two great shurikens hung high on his back, overlapping in the middle, their blades rising
+        // over his shoulders and reaching out past them.
         for (int side = -1; side <= 1; side += 2) {
-            p.pushPose(); px(p, side * 3.7f, 3.2f, 3.6f); p.mulPose(Axis.ZP.rotation(side * .45f));
-            shuriken(p, b, light, 5.6f, SILVER, SILVER_HI, STEEL_DARK);
+            p.pushPose(); px(p, side * 4.1f, 1.6f, side < 0 ? 3.7f : 4.5f); p.mulPose(Axis.ZP.rotation(side * .28f));
+            shuriken(p, b, light, 8.6f, SILVER, SILVER_HI, STEEL_DARK);
             p.popPose();
         }
         if (mode == SHADOW) {
@@ -342,6 +340,10 @@ public final class ZedBody {
             glow(p, b, side * 2.1f - .3f, 2.5f, -1.9f, .6f, 10, .2f, .55f * g, .04f * g, .28f * g);
         }
         if (mode == SHADOW) glow(p, b, side * 2.5f - .1f, 2, -.2f, .2f, 13, .2f, .35f, .04f, .3f);
+        if (capture) {
+            Vec3 tip = world(p, side * 2.8f, 16.2f, -.15f);
+            if (side < 0) tipRight = tip; else tipLeft = tip;
+        }
     }
 
     // ------------------------------------------------------------------ head: the helm and the hood

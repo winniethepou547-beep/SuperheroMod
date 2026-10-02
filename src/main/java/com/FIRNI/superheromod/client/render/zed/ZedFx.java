@@ -130,7 +130,12 @@ public final class ZedFx {
                 }
                 if (near(at, 12)) ClientScreenShake.add(.18f);
             }
-            case FX_MARK_LOCK, FX_SLASH_HIT, FX_PASSIVE -> add(p);
+            case FX_SLASH_HIT -> {
+                add(p);
+                if (p.power() >= 1.5f || p.power() == 1 || p.power() == -1) ZedClient.cutLanded(at, p.power() >= 1.5f);
+                ShadowSmoke.burst(at, p.power() >= 1.5f ? 6 : 3, .3, dir.normalize().scale(.05), .03, .18f, 10, .45f);
+            }
+            case FX_MARK_LOCK, FX_PASSIVE -> add(p);
             case FX_MARK_APPLY -> add(p);
             case FX_MARK_POP -> {
                 add(p);
@@ -358,6 +363,7 @@ public final class ZedFx {
             // Light first, so the smoke can veil it: the films' light inside the storm, the eyes.
             ExecutionFx.beforeSmoke(c, partial);
             ZedEyes.render(c, time);
+            ZedBlades.render(c, time);
             for (Copy cp : COPIES) copyTrail(c, cp, time - cp.start(), partial);
             // His aura: a soft dark patch on the ground under him.
             for (Player pl : mc.level.players()) {
@@ -374,10 +380,10 @@ public final class ZedFx {
                 Vec3 at = s.prev.lerp(s.pos, partial);
                 double len = Math.min(3.2, s.travelled);
                 int col = s.shadow ? VIOLET : RED;
-                FilmFx.streak(c, at.subtract(s.dir.scale(len)), at, .3, DARK, 0, .4f, false);
-                FilmFx.streak(c, at.subtract(s.dir.scale(len * .9)), at, .09, col, 0, .85f, true);
-                FilmFx.streak(c, at.subtract(s.dir.scale(len * .5)), at, .025, WHITE, 0, .6f, true);
-                FilmFx.glow(c, at, .4, col, .3f);
+                FilmFx.streak(c, at.subtract(s.dir.scale(len)), at, .5, DARK, 0, .4f, false);
+                FilmFx.streak(c, at.subtract(s.dir.scale(len * .9)), at, .12, col, 0, .85f, true);
+                FilmFx.streak(c, at.subtract(s.dir.scale(len * .5)), at, .03, WHITE, 0, .6f, true);
+                FilmFx.glow(c, at, .7, col, .3f);
             }
             for (Burst b : BURSTS) burst(c, b, time, partial);
             // The X on the marked: burning, beating faster as the end nears.
@@ -550,15 +556,17 @@ public final class ZedFx {
             }
             case FX_SLASH_HIT, FX_PASSIVE, FX_SHURIKEN_HIT -> {
                 // A crossing cut where it landed; bigger, with a dark burst, for the passive.
-                boolean passive = b.kind() == FX_PASSIVE;
-                float life = passive ? 8 : 5, k = age / life;
+                boolean passive = b.kind() == FX_PASSIVE, finisher = b.kind() == FX_SLASH_HIT && b.power() >= 1.5f;
+                float life = passive ? 8 : finisher ? 6 : 4, k = age / life;
                 if (k > 1) return;
-                float a = 1 - k;
+                float a = (1 - k) * (1 - k);
                 Vec3 facing = c.camera().subtract(at).normalize();
-                double r = passive ? .9 : .55;
-                double spin = b.power() < 0 ? Math.PI * .6 : 0;
-                arc(c, FilmFx.ADD, at, facing, r, spin + 2.4 + k, spin + 4.4 + k, passive ? .12 : .07, passive ? RED : WHITE, .95f * a);
-                arc(c, FilmFx.ADD, at, facing, r * .8, spin + .9 - k, spin + 2.6 - k, .05, RED, .8f * a);
+                double r = passive ? .9 : finisher ? .8 : .55;
+                // The cut's direction: across one way for the right hand, the other for the left, down on a diagonal for the finisher.
+                double spin = finisher ? Math.PI * .3 : b.power() < 0 ? Math.PI * .6 : 0;
+                arc(c, FilmFx.ADD, at, facing, r, spin + 2.4 + k, spin + 4.4 + k, passive || finisher ? .12 : .06, passive ? RED : WHITE, .95f * a);
+                arc(c, FilmFx.ADD, at, facing, r * .8, spin + .9 - k, spin + 2.6 - k, .05, finisher ? VIOLET : RED, .8f * a);
+                if (finisher) arc(c, FilmFx.SOFT, at, facing, r, spin + 2.3 + k, spin + 4.5 + k, .3, DARK, .6f * a);
                 if (passive) {
                     ring(c, FilmFx.SOFT, at, facing, .4 + 1.2 * k, .3, DARK, .6f * a);
                     FilmFx.glow(c, at, 1, VIOLET, .6f * a);
@@ -622,8 +630,8 @@ public final class ZedFx {
             pose.mulPose(Axis.ZP.rotation(-(time - s.start) * 1.1f));
             int light = s.shadow ? LevelRenderer.getLightColor(mc.level, BlockPos.containing(at)) & 0xF0 : LevelRenderer.getLightColor(mc.level, BlockPos.containing(at));
             ZedBody.solid();
-            if (s.shadow) ZedBody.shuriken(pose, buffers, light, 8, new float[]{.16f, .1f, .22f}, new float[]{.42f, .26f, .58f}, new float[]{.05f, .03f, .08f});
-            else ZedBody.shuriken(pose, buffers, light, 8, ZedBody.SILVER, ZedBody.SILVER_HI, ZedBody.STEEL_DARK);
+            if (s.shadow) ZedBody.shuriken(pose, buffers, light, 10.5f, new float[]{.16f, .1f, .22f}, new float[]{.42f, .26f, .58f}, new float[]{.05f, .03f, .08f});
+            else ZedBody.shuriken(pose, buffers, light, 10.5f, ZedBody.SILVER, ZedBody.SILVER_HI, ZedBody.STEEL_DARK);
             pose.popPose();
             any = true;
         }
@@ -674,14 +682,35 @@ public final class ZedFx {
             p.translate(side * .5, -.6, -.75);
             p.mulPose(Axis.YP.rotationDegrees(-side * 6));
             switch (action) {
-                case SLASH_RIGHT, SLASH_LEFT -> {
-                    if (right == (action == SLASH_RIGHT)) {
-                        float cut = ZedMotion.snap(t, 1.5f, SLASH_HIT + .5f), back = ZedMotion.k(t, SLASH_HIT + 1, SLASH_TICKS);
+                case SLASH_RIGHT -> {
+                    // The right blade drawn back a touch, then flat across and home on a low curve.
+                    if (right) {
+                        float load = ZedMotion.k(t, 0, 1.2f), cut = ZedMotion.snap(t, 1.2f, SLASH_HIT + .3f), back = ZedMotion.k(t, SLASH_HIT + .5f, SLASH_TICKS);
                         float w = 1 - back;
-                        p.translate((side * .25 - side * .8 * cut) * w, .2 * w, -.2 * w);
-                        p.mulPose(Axis.YP.rotationDegrees(side * (40 - 110 * cut) * w));
-                        p.mulPose(Axis.ZP.rotationDegrees(side * 70 * w));
-                    }
+                        p.translate((.15 * load - 1.0 * cut) * w, (.12 * cut - .15 * Math.sin(Math.PI * back)) * w, (-.25 * cut) * w);
+                        p.mulPose(Axis.YP.rotationDegrees((25 * load - 120 * cut) * w));
+                        p.mulPose(Axis.ZP.rotationDegrees(70 * w));
+                    } else { float w = 1 - ZedMotion.k(t, SLASH_HIT + .5f, SLASH_TICKS); p.translate(.06 * w, -.06 * w, .08 * w); }
+                }
+                case SLASH_LEFT -> {
+                    // The left blade from high and wide, down across on a diagonal.
+                    if (!right) {
+                        float load = ZedMotion.k(t, 0, 1.3f), cut = ZedMotion.snap(t, 1.3f, SLASH_HIT + .3f), back = ZedMotion.k(t, SLASH_HIT + .5f, SLASH_TICKS);
+                        float w = 1 - back;
+                        p.translate((-.1 * load + 1.0 * cut) * w, (.3 * load * (1 - cut) - .25 * cut) * w, -.25 * cut * w);
+                        p.mulPose(Axis.YP.rotationDegrees((-20 * load + 110 * cut) * w));
+                        p.mulPose(Axis.ZP.rotationDegrees((-60 - 25 * cut) * w));
+                    } else { float w = 1 - ZedMotion.k(t, SLASH_HIT + .5f, SLASH_TICKS); p.translate(-.06 * w, -.06 * w, .08 * w); }
+                }
+                case SLASH_FINISH -> {
+                    // Coil, then the right blade comes down hard and diagonal across the view.
+                    float load = ZedMotion.k(t, 0, 2.8f), cut = ZedMotion.snap(t, 2.8f, FINISH_HIT + .4f), back = ZedMotion.k(t, FINISH_HIT + 1.5f, FINISH_TICKS);
+                    float w = 1 - back;
+                    if (right) {
+                        p.translate((.25 * load * (1 - cut) - 1.1 * cut) * w, (.45 * load * (1 - cut) - .45 * cut) * w, (.15 * load - .35 * cut) * w);
+                        p.mulPose(Axis.YP.rotationDegrees((30 * load - 130 * cut) * w));
+                        p.mulPose(Axis.ZP.rotationDegrees((80 + 30 * cut) * w));
+                    } else p.translate(-.25 * cut * w, -.2 * cut * w, .2 * cut * w);
                 }
                 case THROW -> {
                     if (right) {
@@ -734,7 +763,7 @@ public final class ZedFx {
         if (vignette < .01f) return;
         g.fill(0, 0, w, h, HudStyle.alpha(0xFF0A0410, vignette));
     }
-    @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) { STARS.clear(); BURSTS.clear(); COPIES.clear(); vignette = 0; ZedEyes.clear(); }
+    @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) { STARS.clear(); BURSTS.clear(); COPIES.clear(); vignette = 0; ZedEyes.clear(); ZedBlades.clear(); }
 
     @Mod.EventBusSubscriber(modid = SuperheroMod.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
     public static final class Registration {

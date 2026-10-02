@@ -7,6 +7,7 @@ import com.FIRNI.superheromod.network.ModNetworking;
 import com.FIRNI.superheromod.network.packet.ZedFxPacket;
 import com.FIRNI.superheromod.network.packet.ZedStatePacket;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -30,6 +31,7 @@ import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.network.PacketDistributor;
+import org.joml.Vector3f;
 
 import java.util.*;
 
@@ -59,11 +61,16 @@ public final class ZedController {
         final Map<Integer, Set<Integer>> castHits = new HashMap<>();
         int casts;
         final Map<Integer, Long> passiveReady = new HashMap<>();
+        /** The combo: which cut comes next, a click waiting for the current cut to allow it, when the last cut ended. */
+        int combo; boolean queued; long lastCut;
+        /** Who is bleeding from his cuts and shurikens. */
+        final Map<Integer, Bleed> bleeds = new HashMap<>();
         int markTarget = -1, markLeft; float markStored;
         LivingEntity dashTarget; Vec3 dashFrom = Vec3.ZERO, dashTo = Vec3.ZERO;
         /** He made himself invisible for the Death Mark (and must show himself again). */
         boolean hidden;
     }
+    private static final class Bleed { final LivingEntity target; int left, stacks, clock; Bleed(LivingEntity t) { target = t; } }
     private static final Map<UUID, State> STATES = new HashMap<>();
 
     private ZedController() {}
@@ -102,29 +109,54 @@ public final class ZedController {
         }
     }
 
-    // ------------------------------------------------------------------ left click: quick slashes and the passive
+    // ------------------------------------------------------------------ left click: the three-cut combo and the passive
+    private static boolean cutting(State s) { return s.action == SLASH_RIGHT || s.action == SLASH_LEFT || s.action == SLASH_FINISH; }
     private static void slash(ServerPlayer p, State s) {
         if (busy(s)) return;
-        if ((s.action == SLASH_RIGHT || s.action == SLASH_LEFT) && s.age < SLASH_TICKS - 2) return;
-        s.side = 1 - s.side;
-        set(s, s.side == 0 ? SLASH_RIGHT : SLASH_LEFT);
-        sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, .6f, 1.5f);
+        // Mid-cut: remember the click; the next cut starts as soon as this one may be broken off.
+        if (cutting(s) && s.age < (s.action == SLASH_FINISH ? FINISH_CHAIN : SLASH_CHAIN)) { s.queued = true; return; }
+        nextCut(p, s);
+    }
+    private static void nextCut(ServerPlayer p, State s) {
+        s.queued = false;
+        long now = p.level().getGameTime();
+        if (!cutting(s) && now - s.lastCut > COMBO_RESET) s.combo = 0;
+        int step = s.combo;
+        s.combo = (step + 1) % 3;
+        s.side = step == 1 ? 1 : 0;
+        set(s, step == 0 ? SLASH_RIGHT : step == 1 ? SLASH_LEFT : SLASH_FINISH);
+        // The air parting: a different note for each cut, deeper for the finisher.
+        float[] pitch = {1.75f, 1.45f, 1.05f};
+        sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, step == 2 ? .7f : .45f, pitch[step] + (p.getRandom().nextFloat() - .5f) * .1f);
     }
     private static void slashHit(ServerPlayer p, State s) {
+        boolean finisher = s.action == SLASH_FINISH;
+        double reach = finisher ? FINISH_REACH : SLASH_REACH;
         Vec3 look = p.getLookAngle(), eye = p.getEyePosition();
         LivingEntity best = null;
         double bestDist = Double.MAX_VALUE;
-        for (LivingEntity t : targets(p, p.getBoundingBox().inflate(SLASH_REACH + 1))) {
+        for (LivingEntity t : targets(p, p.getBoundingBox().inflate(reach + 1))) {
             Vec3 to = t.getBoundingBox().getCenter().subtract(eye);
             double d = to.length();
-            if (d > SLASH_REACH + t.getBbWidth() * .5 || to.normalize().dot(look) < .55) continue;
+            if (d > reach + t.getBbWidth() * .5 || to.normalize().dot(look) < .55) continue;
             if (d < bestDist) { bestDist = d; best = t; }
         }
         if (best == null) return;
-        hurt(p, best, SLASH_DAMAGE);
+        hurt(p, best, finisher ? FINISH_DAMAGE : SLASH_DAMAGE);
+        // Knocked a little the way the blade went.
+        Vec3 push = new Vec3(look.x, 0, look.z).normalize().scale(finisher ? FINISH_KNOCK : SLASH_KNOCK);
+        best.push(push.x, finisher ? .12 : .04, push.z);
+        best.hurtMarked = true;
+        bleed(p, s, best);
         Vec3 at = best.getBoundingBox().getCenter();
-        fx(p, FX_SLASH_HIT, at, look, s.side == 0 ? 1 : -1, best.getId());
-        sound(p, SoundEvents.PLAYER_ATTACK_STRONG, .8f, 1.4f);
+        fx(p, FX_SLASH_HIT, at, look, finisher ? 2 : s.action == SLASH_RIGHT ? 1 : -1, best.getId());
+        if (finisher) {
+            sound(p, SoundEvents.PLAYER_ATTACK_CRIT, 1f, .85f);
+            sound(p, SoundEvents.PLAYER_ATTACK_KNOCKBACK, .8f, .9f);
+        } else {
+            sound(p, SoundEvents.PLAYER_ATTACK_STRONG, .8f, s.action == SLASH_RIGHT ? 1.45f : 1.2f);
+            sound(p, SoundEvents.TRIDENT_HIT, .35f, s.action == SLASH_RIGHT ? 1.9f : 1.6f);
+        }
         // Contempt for the Weak: the wounded are cut deeper (once in a while per target).
         long now = p.level().getGameTime();
         if (best.isAlive() && best.getHealth() < best.getMaxHealth() * PASSIVE_BELOW && s.passiveReady.getOrDefault(best.getId(), 0L) <= now) {
@@ -133,6 +165,34 @@ public final class ZedController {
             best.hurt(p.damageSources().indirectMagic(p, p), best.getMaxHealth() * PASSIVE_SHARE);
             fx(p, FX_PASSIVE, at, look, 1, best.getId());
             p.level().playSound(null, at.x, at.y, at.z, SoundEvents.TRIDENT_HIT, SoundSource.PLAYERS, 1f, .6f);
+        }
+    }
+
+    // ------------------------------------------------------------------ bleeding
+    /** A cut or a shuriken opens a wound: another stack (up to BLEED_MAX), the time renewed. */
+    private static void bleed(ServerPlayer p, State s, LivingEntity t) {
+        if (!t.isAlive()) return;
+        Bleed b = s.bleeds.computeIfAbsent(t.getId(), id -> new Bleed(t));
+        b.stacks = Math.min(BLEED_MAX, b.stacks + 1);
+        b.left = BLEED_TICKS;
+    }
+    private static void tickBleeds(ServerPlayer p, State s) {
+        if (s.bleeds.isEmpty()) return;
+        var level = p.serverLevel();
+        for (Iterator<Bleed> it = s.bleeds.values().iterator(); it.hasNext(); ) {
+            Bleed b = it.next();
+            LivingEntity t = b.target;
+            if (!t.isAlive() || t.level() != p.level() || --b.left < 0) { it.remove(); continue; }
+            b.clock++;
+            // Drops of blood running off them.
+            if (b.clock % 3 == 0) level.sendParticles(new DustParticleOptions(new Vector3f(.55f, .02f, .03f), .9f + .2f * b.stacks),
+                    t.getX(), t.getY() + t.getBbHeight() * .6, t.getZ(), b.stacks, t.getBbWidth() * .3, t.getBbHeight() * .25, t.getBbWidth() * .3, 0);
+            if (b.clock % BLEED_EVERY == 0) {
+                t.invulnerableTime = 0;
+                t.hurt(p.damageSources().indirectMagic(p, p), BLEED_DAMAGE * b.stacks);
+                level.sendParticles(new DustParticleOptions(new Vector3f(.7f, .03f, .05f), 1.3f), t.getX(), t.getY() + t.getBbHeight() * .5, t.getZ(),
+                        6, t.getBbWidth() * .3, t.getBbHeight() * .3, t.getBbWidth() * .3, 0);
+            }
         }
     }
 
@@ -193,6 +253,7 @@ public final class ZedController {
                 k.hits.add(t.getId());
                 already.add(t.getId());
                 hurt(p, t, damage);
+                bleed(p, s, t);
                 fx(p, FX_SHURIKEN_HIT, t.getBoundingBox().getCenter(), k.dir, k.fromShadow ? 1 : 0, t.getId());
                 p.level().playSound(null, t.getX(), t.getY(), t.getZ(), SoundEvents.TRIDENT_HIT, SoundSource.PLAYERS, .9f, 1.5f);
             }
@@ -401,7 +462,12 @@ public final class ZedController {
         s.age++;
         for (int i = 0; i < s.cooldowns.length; i++) if (s.cooldowns[i] > 0) s.cooldowns[i]--;
         switch (s.action) {
-            case SLASH_RIGHT, SLASH_LEFT -> { if (s.age == SLASH_HIT) slashHit(p, s); if (s.age >= SLASH_TICKS) set(s, IDLE); }
+            case SLASH_RIGHT, SLASH_LEFT, SLASH_FINISH -> {
+                boolean finisher = s.action == SLASH_FINISH;
+                if (s.age == (finisher ? FINISH_HIT : SLASH_HIT)) slashHit(p, s);
+                if (s.queued && s.age >= (finisher ? FINISH_CHAIN : SLASH_CHAIN)) nextCut(p, s);
+                else if (s.age >= (finisher ? FINISH_TICKS : SLASH_TICKS)) { s.lastCut = p.level().getGameTime(); if (finisher) s.combo = 0; set(s, IDLE); }
+            }
             case THROW -> { if (s.age == THROW_RELEASE) release(p, s); if (s.age >= THROW_TICKS) set(s, IDLE); }
             case SHADOW_CAST -> { if (s.age >= CAST_TICKS) set(s, IDLE); }
             case SWAP, MARK_RETURN -> { if (s.age >= SWAP_TICKS) set(s, IDLE); }
@@ -426,6 +492,7 @@ public final class ZedController {
         tickShadow(p, s, s.w, false);
         tickShadow(p, s, s.r, true);
         if (!s.stars.isEmpty()) tickStars(p, s);
+        tickBleeds(p, s);
         tickMark(p, s);
         send(p, s);
     }

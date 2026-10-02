@@ -50,22 +50,27 @@ public final class ZedMotion {
     static float snap(float t, float a, float b) { float x = clamp((t - a) / (b - a)); return 1 - (1 - x) * (1 - x) * (1 - x); }
     static float lerp(float a, float b, float k) { return a + (b - a) * k; }
 
-    /** Ready: upright but loose, left foot ahead, knees soft, hands low and ready at his sides. */
+    /**
+     * The fighting stance: side-on, left foot ahead and right foot back, a little wider than the shoulders,
+     * knees soft; the right shoulder drawn back so he is narrow to the target; both forearms up close to
+     * the body, blades forward; the weight drifting slowly between the feet, a small breath.
+     */
     public static Pose idle(float time) {
         Pose p = new Pose();
-        float breathe = (float) Math.sin(time * .09) * .025f;
-        p.crouch = .8f; p.torsoPitch = .08f + breathe; p.headPitch = -.05f;
-        p.rArmX = -.12f - breathe; p.rArmZ = .14f; p.rElbow = .35f; p.lArmX = -.18f - breathe; p.lArmZ = -.14f; p.lElbow = .4f;
-        p.rLegX = .16f; p.lLegX = -.2f; p.rKnee = .18f; p.lKnee = .14f; p.rLegZ = .05f; p.lLegZ = -.05f;
-        p.torsoYaw = .08f;
+        float breathe = (float) Math.sin(time * .09) * .025f, shift = (float) Math.sin(time * .045);
+        p.crouch = 1.2f + .15f * shift; p.torsoPitch = .12f + breathe; p.torsoYaw = .3f; p.torsoRoll = .03f * shift; p.headPitch = -.05f;
+        p.rArmX = -.45f - breathe; p.rArmY = .15f; p.rArmZ = .2f; p.rElbow = 1.1f;
+        p.lArmX = -.7f - breathe; p.lArmY = -.2f; p.lArmZ = -.15f; p.lElbow = .9f;
+        p.rLegX = .25f; p.lLegX = -.25f; p.rKnee = .35f + .05f * shift; p.lKnee = .3f - .05f * shift; p.rLegZ = .12f; p.lLegZ = -.1f;
         return p;
     }
 
     public static Pose sample(int action, float t, float time) {
         Pose p = idle(time);
         return switch (action) {
-            case SLASH_RIGHT -> slash(p, t, true);
-            case SLASH_LEFT -> slash(p, t, false);
+            case SLASH_RIGHT -> cutRight(p, t);
+            case SLASH_LEFT -> cutLeft(p, t);
+            case SLASH_FINISH -> finisher(p, t);
             case THROW -> toss(p, t);
             case SHADOW_CAST -> cast(p, t);
             case SWAP, MARK_RETURN -> swap(p, t);
@@ -77,17 +82,70 @@ public final class ZedMotion {
         };
     }
 
-    /** One arm cuts flat across in front of him, the shoulders turning with it; then straight back to guard. */
-    static Pose slash(Pose p, float t, boolean right) {
-        float draw = k(t, 0, 1.5f), cut = snap(t, 1.5f, SLASH_HIT + .5f), back = k(t, SLASH_HIT + 1, SLASH_TICKS);
-        float s = right ? 1 : -1;
-        float armX = lerp(-1.35f, -1.45f, cut), armY = lerp(.9f, -1.0f, cut) * s, elbow = lerp(1.0f, .15f, cut);
-        float w = draw * (1 - back);
-        if (right) { p.rArmX = lerp(p.rArmX, armX, w); p.rArmY = lerp(p.rArmY, armY, w); p.rElbow = lerp(p.rElbow, elbow, w); }
-        else { p.lArmX = lerp(p.lArmX, armX, w); p.lArmY = lerp(p.lArmY, armY, w); p.lElbow = lerp(p.lElbow, elbow, w); }
-        p.torsoYaw += s * lerp(.35f, -.45f, cut) * w;
-        p.crouch += 1.2f * w; p.torsoPitch += .1f * w;
-        if (right) p.lArmX = lerp(p.lArmX, -.6f, w); else p.rArmX = lerp(p.rArmX, -.6f, w);
+    /** The blades flare for the instant of a cut. */
+    static float flare(float t, float hit) { return Math.min(k(t, hit - 2, hit - .5f), 1 - k(t, hit + .5f, hit + 3)); }
+    /**
+     * First cut, the rear (right) hand: the shoulder draws back a touch and the elbow folds, then shoulder,
+     * elbow and wrist open in one quick flat arc across; the arm comes home round a low curve, not back
+     * along the same line, and the body gives back part of its turn.
+     */
+    static Pose cutRight(Pose p, float t) {
+        float load = k(t, 0, 1.2f), cut = snap(t, 1.2f, SLASH_HIT + .3f), home = k(t, SLASH_HIT + .5f, SLASH_TICKS);
+        float w = 1 - home;
+        float x = lerp(lerp(-.45f, -1.1f, load), -1.45f, cut), y = lerp(lerp(.15f, .95f, load), -1.05f, cut), el = lerp(lerp(1.1f, 1.3f, load), .15f, cut);
+        // The wrist turns the blade over at the very end of the cut.
+        float z = lerp(lerp(.2f, .35f, load), .15f, cut) - .25f * k(t, SLASH_HIT - .3f, SLASH_HIT + .4f);
+        // Home round a low arc: the arm drops as it comes back.
+        float dip = .55f * (float) Math.sin(Math.PI * home);
+        p.rArmX = lerp(x, p.rArmX, home) + dip; p.rArmY = lerp(y, p.rArmY, home); p.rArmZ = lerp(z, p.rArmZ, home); p.rElbow = lerp(el, p.rElbow, home);
+        p.torsoYaw = lerp(p.torsoYaw + .25f * load * (1 - cut) - .85f * cut, p.torsoYaw - .25f, home) ;
+        p.torsoYaw = lerp(p.torsoYaw, .3f, home * home);
+        p.headYaw = .4f * cut * w; p.crouch += .6f * cut * w; p.torsoPitch += .1f * cut * w;
+        p.lArmX = lerp(p.lArmX, -.35f, w); p.lArmY = lerp(p.lArmY, .35f, w);
+        p.glow = flare(t, SLASH_HIT);
+        return p;
+    }
+    /**
+     * Second cut, the front (left) hand, not a mirror of the first: it starts high and wide, the left
+     * shoulder drawn back, and comes down across on a diagonal; the weight rolls onto the front foot.
+     */
+    static Pose cutLeft(Pose p, float t) {
+        float load = k(t, 0, 1.3f), cut = snap(t, 1.3f, SLASH_HIT + .3f), home = k(t, SLASH_HIT + .5f, SLASH_TICKS);
+        float w = 1 - home;
+        float x = lerp(lerp(-.7f, -1.75f, load), -.85f, cut), y = lerp(lerp(-.2f, -.85f, load), 1.05f, cut), el = lerp(lerp(.9f, 1.2f, load), .2f, cut);
+        float z = lerp(lerp(-.15f, -.45f, load), -.1f, cut) + .2f * k(t, SLASH_HIT - .3f, SLASH_HIT + .4f);
+        float dip = .45f * (float) Math.sin(Math.PI * home);
+        p.lArmX = lerp(x, p.lArmX, home) + dip; p.lArmY = lerp(y, p.lArmY, home); p.lArmZ = lerp(z, p.lArmZ, home); p.lElbow = lerp(el, p.lElbow, home);
+        float turn = lerp(lerp(.3f, -.25f, load), .95f, cut);
+        p.torsoYaw = lerp(turn, .3f, home);
+        p.headYaw = -.35f * cut * w; p.torsoRoll += .14f * cut * w; p.crouch += .4f * cut * w;
+        p.lLegX -= .12f * cut * w; p.lKnee += .2f * cut * w;
+        p.rArmX = lerp(p.rArmX, -.3f, w); p.rArmY = lerp(p.rArmY, -.25f, w); p.rElbow = lerp(p.rElbow, 1.3f, w);
+        p.glow = flare(t, SLASH_HIT);
+        return p;
+    }
+    /**
+     * The finisher: knees bend, the body coils away from the cut, the right blade goes back and up; then
+     * hips, waist, shoulder and arm all let go together in one deep diagonal cut down across, the body
+     * reaching after it over a lunging front leg.
+     */
+    static Pose finisher(Pose p, float t) {
+        float load = k(t, 0, 2.8f), cut = snap(t, 2.8f, FINISH_HIT + .4f), home = k(t, FINISH_HIT + 1.5f, FINISH_TICKS);
+        float w = 1 - home;
+        p.crouch += (2.4f * load * (1 - cut) + 1.6f * cut) * w;
+        p.torsoYaw = lerp(lerp(.3f, 1.0f, load), -.85f, cut);
+        p.torsoYaw = lerp(p.torsoYaw, .3f, home);
+        p.torsoPitch += (.25f * load * (1 - cut) + .45f * cut) * w;
+        p.bodyPitch += .25f * cut * w;
+        float x = lerp(lerp(-.45f, -2.4f, load), -.7f, cut), y = lerp(lerp(.15f, .6f, load), -1.2f, cut), el = lerp(lerp(1.1f, 1.5f, load), .1f, cut);
+        p.rArmX = lerp(x, p.rArmX, home) + .5f * (float) Math.sin(Math.PI * home); p.rArmY = lerp(y, p.rArmY, home); p.rElbow = lerp(el, p.rElbow, home);
+        p.rArmZ = lerp(lerp(.2f, .5f, load), .1f, cut) * w + p.rArmZ * home;
+        // The other arm swings back for balance.
+        p.lArmX = lerp(p.lArmX, lerp(-.9f, .65f, cut), w); p.lArmZ = lerp(p.lArmZ, -.45f, w); p.lElbow = lerp(p.lElbow, .4f, w);
+        // Lunging onto the front leg.
+        p.lLegX -= .35f * cut * w; p.lKnee += .45f * cut * w; p.rLegX += .25f * cut * w;
+        p.headYaw = .5f * cut * w; p.headPitch += .15f * cut * w;
+        p.glow = flare(t, FINISH_HIT) * 1.2f;
         return p;
     }
     /** The throw: shoulder back, the arm draws in, then snaps out at the target, the other arm out for balance. */
