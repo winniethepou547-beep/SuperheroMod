@@ -174,10 +174,10 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
                 p.mulPose(Axis.ZP.rotation(pose.wristZ));
                 p.mulPose(Axis.XP.rotation(pose.wristX));
                 if (pose.upright > .01f) {
-                    // The hold: whatever the arm does, the handle runs out of the fist forward and a little outward,
+                    // The hold: whatever the arm does, the handle runs out of the fist straight forward, in line with the arm,
                     // rising at the stance's angle (about 30 degrees at rest, straight up in a launch), head on top.
                     float rise = pose.holdRise;
-                    org.joml.Vector3f out = new org.joml.Vector3f(-.45f, 0, -.89f).normalize();   // forward, a little to his right
+                    org.joml.Vector3f out = new org.joml.Vector3f(0, 0, -1);   // straight ahead, in line with the arm (no lean outward)
                     org.joml.Vector3f handle = new org.joml.Vector3f(out).mul((float) Math.cos(rise)).add(0, (float) -Math.sin(rise), 0).normalize();
                     orient(p, root, handle, out, pose.upright, true);
                 }
