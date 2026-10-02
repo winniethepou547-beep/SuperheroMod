@@ -275,7 +275,9 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
         var rel = new org.joml.Matrix4f(rootInverse).mul(p.last().pose());
         var hand = rel.getTranslation(new org.joml.Vector3f());
         // Out from the middle of his body, level; up is -y in the model's frame.
-        org.joml.Vector3f out = new org.joml.Vector3f(hand.x, 0, hand.z);
+        // Out from his right shoulder (not the middle of his chest), so even a hand close in front of his
+        // face sends the hammer away from his head.
+        org.joml.Vector3f out = new org.joml.Vector3f(hand.x + 5.75f / 16, 0, hand.z);
         if (out.lengthSquared() < 1e-6f) out.set(0, 0, -1);
         out.normalize();
         org.joml.Vector3f up = new org.joml.Vector3f(0, -1, 0);

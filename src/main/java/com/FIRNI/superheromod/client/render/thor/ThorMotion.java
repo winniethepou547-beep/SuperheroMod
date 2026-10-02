@@ -193,8 +193,10 @@ public final class ThorMotion {
         float wind = k(t, 0, 3), strike = snap(t, 3, SWING_HIT + 1), settle = k(t, SWING_HIT + 1, SWING_TICKS);
         // Starts from the first hit's follow-through: chest right, arm out right, elbow cocking.
         p.torsoYaw = lerp(.9f, .95f, wind); p.torsoPitch = .2f;
-        p.rArmX = lerp(-1.1f, -1.3f, wind); p.rArmY = lerp(1.3f, 1.35f, wind); p.rArmZ = lerp(.55f, .3f, wind);
-        p.rElbow = lerp(.4f, .85f, wind); p.wristX = -.1f;
+        // The arm stays long, drawn back out to his right at shoulder height (a bent elbow here would bring
+        // the hammer in over his head).
+        p.rArmX = lerp(-1.1f, -1.4f, wind); p.rArmY = lerp(1.3f, 1.55f, wind); p.rArmZ = lerp(.55f, .45f, wind);
+        p.rElbow = lerp(.4f, .2f, wind); p.wristX = -.1f;
         // Wrist cocked the other way: the hammer trails out to his right, flat.
         p.wristZ = lerp(0, .95f, wind);
         p.lArmX = -.6f; p.lArmY = -.6f; p.lArmZ = -.75f;
@@ -202,7 +204,7 @@ public final class ThorMotion {
         // Backhand: chest whips left, the arm crosses in front of the chest.
         p.torsoYaw = lerp(p.torsoYaw, -.75f, strike); p.torsoRoll = lerp(0, .08f, strike);
         p.rArmX = lerp(p.rArmX, -1.5f, strike); p.rArmY = lerp(p.rArmY, -1.05f, strike); p.rArmZ = lerp(p.rArmZ, -.2f, strike);
-        p.rElbow = lerp(p.rElbow, .2f, strike); p.wristX = lerp(p.wristX, 0, strike);
+        p.rElbow = lerp(p.rElbow, .1f, strike); p.wristX = lerp(p.wristX, 0, strike);
         p.wristZ = lerp(p.wristZ, -.35f, strike);
         p.lArmX = lerp(p.lArmX, -.2f, strike); p.lArmY = lerp(p.lArmY, .2f, strike); p.lArmZ = lerp(p.lArmZ, -.35f, strike);
         p.rLegX = lerp(p.rLegX, -.25f, strike); p.lLegX = lerp(p.lLegX, .25f, strike);
