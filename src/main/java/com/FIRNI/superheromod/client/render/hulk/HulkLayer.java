@@ -193,7 +193,7 @@ public final class HulkLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
         float w = l(8, 15.5f, k), d = l(4, 9.5f, k), waist = l(8, 11.5f, k), wd = l(4, 7.6f, k);
         float[] deep = mix(shade, GREEN_DEEP, k);
         centred(p, b, light, 0, 0, 0, w, l(12, 7.2f, k), d, skin);                       // chest and back
-        centred(p, b, light, 0, l(0, 6.6f, k), .3f * k, waist, l(12, 5.6f, k), wd, skin); // belly
+        centred(p, b, light, 0, l(12, 6.6f, k), .3f * k, waist, l(0, 5.6f, k), wd, skin); // belly (Hulk's narrower waist)
         if (k > .05f) {
             // Traps: a mountain from the neck out to the shoulders.
             centred(p, b, light, 0, -3.2f * k, 1.4f * k, w * .74f, 3.6f * k, d * .62f, shade);
@@ -215,13 +215,9 @@ public final class HulkLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
             centred(p, b, light, 0, 6.6f, -wd / 2 - .2f * k, .4f * k, 4 * k, .7f * k, deep);
         }
         // Banner's shirt: whole at first, splitting into rags, gone by the time he is Hulk.
-        float shirt = 1 - Mth.clamp((k - .2f) / .45f, 0, 1);
-        if (shirt > 0) {
-            centred(p, b, light, 0, -.1f, 0, w + .3f, 10.5f * shirt + .5f, d + .3f, SHIRT);
-            centred(p, b, light, 0, -.2f, -d / 2 - .2f, 2.2f, 1.2f * shirt, .3f, new float[]{SHIRT[0] * .85f, SHIRT[1] * .85f, SHIRT[2] * .85f});
-        }
+        shirt(p, b, light, k, w, d);
         // Shorts up to the waist, the shredded purple waistband over them, then the gamma belt.
-        centred(p, b, light, 0, 10.6f, .3f * k, waist + .9f * k, 2.4f, wd + .6f * k, PANTS);
+        centred(p, b, light, 0, 10.4f, .3f * k, waist + .5f + .9f * k, l(1.9f, 2.6f, k), wd + .5f + .6f * k, PANTS);
         if (k > .2f) for (int i = 0; i < 7; i++) {
             float x = (i - 3) * waist * .15f;
             centred(p, b, light, x, 9.5f, -wd / 2 - .1f, waist * .13f, 1.2f + .9f * (i % 3) / 2f, .5f, PURPLE);
@@ -230,10 +226,34 @@ public final class HulkLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
         beltAndBuckle(p, b, light, k, waist, wd);
     }
 
+    /**
+     * Banner's shirt tearing apart as he grows: panels split along the seams, the gaps open, the ragged
+     * pieces ride out on the swelling muscle and shorten until nothing is left.
+     */
+    private void shirt(PoseStack p, MultiBufferSource b, int light, float k, float w, float d) {
+        float tear = Mth.clamp((k - .12f) / .5f, 0, 1);
+        if (tear >= 1) return;
+        float[] dark = {SHIRT[0] * .82f, SHIRT[1] * .82f, SHIRT[2] * .82f};
+        int strips = 4;
+        for (int face = 0; face < 2; face++) {
+            float z = (face == 0 ? -1 : 1) * (d / 2 + .15f + tear * .5f);
+            for (int i = 0; i < strips; i++) {
+                float sw = (w + .3f) / strips, gap = tear * sw * .45f;
+                float x = -w / 2 - .15f + sw * (i + .5f) + (i - 1.5f) * tear * .5f;
+                float len = 10.5f * (1 - tear * (.4f + .6f * ((i * 5 + face * 3) % 4) / 3f));
+                centred(p, b, light, x, -.1f + tear * 1.2f, z, sw - gap, len, .3f, i % 2 == 0 ? SHIRT : dark);
+            }
+        }
+        // Sides, and the collar while it holds.
+        for (int s = -1; s <= 1; s += 2)
+            centred(p, b, light, s * (w / 2 + .15f + tear * .5f), -.1f + tear * 1.5f, 0, .3f, 10.5f * (1 - tear * .8f), d * (1 - tear * .6f), SHIRT);
+        if (tear < .3f) centred(p, b, light, 0, -.2f, -d / 2 - .25f, 2.2f, 1.2f, .3f, dark);
+    }
+
     /** The gamma belt: silver plates linked round the waist, green lights, the triangular buckle glowing in front. */
     private void beltAndBuckle(PoseStack p, MultiBufferSource b, int light, float k, float waist, float wd) {
         float y = 9.9f, h = l(.9f, 1.4f, k);
-        centred(p, b, light, 0, y, .3f * k, waist + 1.1f * k + .3f, h, wd + .8f * k + .3f, SILVER_DARK);
+        centred(p, b, light, 0, y, .3f * k, waist + 1.1f * k + .7f, h, wd + .8f * k + .7f, SILVER_DARK);
         for (int s = -1; s <= 1; s += 2) {
             for (int i = 0; i < 3; i++) {
                 float x = s * (2.4f + i * 1.5f) * l(.7f, 1, k);
@@ -261,8 +281,14 @@ public final class HulkLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
             centred(p, b, light, 0, 1.2f, -w / 2 - .5f * k, w * .75f, 3.8f * k, 1f * k, light2);
             centred(p, b, light, 0, .4f, w / 2 + .45f * k, w * .7f, 4.4f * k, .9f * k, shade);
         }
-        float sleeve = 1 - Mth.clamp((k - .15f) / .4f, 0, 1);
-        if (sleeve > 0) centred(p, b, light, 0, -2.1f, 0, w + .3f, 4.8f * sleeve, w + .3f, SHIRT);
+        // The sleeve splits along its seams and the halves fall away as the arm swells.
+        float tear = Mth.clamp((k - .1f) / .45f, 0, 1);
+        if (tear < 1) for (int i = 0; i < 4; i++) {
+            float len = 4.8f * (1 - tear * (.55f + .45f * ((i * 7 + 3) % 5) / 4f));
+            float out = tear * .9f;
+            float x = (i % 2 == 0 ? -1 : 1) * (w / 4 + out * .5f), z = (i < 2 ? -1 : 1) * (w / 4 + out * .5f);
+            centred(p, b, light, x, -2.1f + tear * .4f, z, w / 2 + .15f - tear * .5f, len, w / 2 + .15f - tear * .5f, SHIRT);
+        }
     }
 
     private void forearm(PoseStack p, MultiBufferSource b, int light, float k, float[] skin, float[] shade, float[] light2, float fists, int side) {

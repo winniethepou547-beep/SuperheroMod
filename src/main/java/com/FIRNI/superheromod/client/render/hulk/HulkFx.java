@@ -486,6 +486,13 @@ public final class HulkFx {
             switch (s.action) {
                 case TRANSFORM -> {
                     float g = HulkMotion.clamp((t - 4) / (GROW_END - 4));
+                    // Scraps of his shirt tearing off as he swells.
+                    if (t > GROW_START + 3 && t < GROW_START + 18)
+                        for (int i = 0; i < n(3); i++) {
+                            double a = r.nextDouble() * Math.PI * 2;
+                            level.addParticle(new DustParticleOptions(new Vector3f(.56f, .46f, .72f), 1.4f + r.nextFloat()), at.x + Math.cos(a) * .9, at.y + 1.2 + r.nextDouble() * 1.4, at.z + Math.sin(a) * .9,
+                                    Math.cos(a) * .15, .05, Math.sin(a) * .15);
+                        }
                     if (t < GROW_END + 4) gammaMotes(at.add(0, .6, 0), 2 + (int) (5 * g), 1 + g, .06 + .1 * g);
                     if (t >= GROW_START && t < GROW_END && r.nextFloat() < .4f)
                         level.playLocalSound(at.x, at.y, at.z, SoundEvents.WARDEN_HEARTBEAT, SoundSource.PLAYERS, .6f + g * .6f, .7f + g * .4f, false);

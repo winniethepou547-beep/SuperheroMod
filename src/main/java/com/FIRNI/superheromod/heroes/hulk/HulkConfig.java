@@ -84,7 +84,7 @@ public final class HulkConfig {
         POUND_RANGE = b.comment("Blocks the earth wave travels").defineInRange("range", 22.0, 3, 48);
         POUND_LAUNCH = b.defineInRange("launch", 1.15, 0, 4);
         POUND_WIDTH = b.comment("Width of the trench it leaves (0 = no trench)").defineInRange("trenchWidth", 6, 0, 12);
-        POUND_DEPTH = b.comment("Depth of the trench in blocks").defineInRange("trenchDepth", 20, 0, 40);
+        POUND_DEPTH = b.comment("Depth of the trench in blocks").defineInRange("splitDepth", 15, 0, 40);
         POUND_COOLDOWN = b.defineInRange("cooldown", 200, 0, 4000);
         b.pop();
         b.push("leap");

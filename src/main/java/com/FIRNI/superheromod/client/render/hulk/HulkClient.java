@@ -160,6 +160,13 @@ public final class HulkClient {
         e.setCanceled(true);
         e.setSwingHand(false);
     }
+    /** His speed is doubled, which would stretch the view absurdly: as Hulk the view widens only a touch when sprinting. */
+    @SubscribeEvent public static void fov(net.minecraftforge.client.event.ComputeFovModifierEvent e) {
+        if (FilmDirector.playing() || !isHero(e.getPlayer())) return;
+        State s = get(e.getPlayer());
+        if (s == null || !s.hulk()) return;
+        e.setNewFovModifier(e.getPlayer().isSprinting() ? 1.12f : 1f);
+    }
     @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) { STATES.clear(); spaceDown = false; }
 
     // ------------------------------------------------------------------ HUD

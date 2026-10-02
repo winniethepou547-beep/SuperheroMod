@@ -40,7 +40,7 @@ public final class HulkAction {
     public static final double POUND_WIDTH_HIT = 2.6;
     /** Where the ground splits open (blocks in front of him), and ticks per block it runs. */
     public static final double POUND_START = 2.8;
-    public static final int POUND_STEP_TICKS = 2;
+    public static final int POUND_STEP_TICKS = 1;
 
     // ------------------------------------------------------------------ leap (space)
     /** Space held shorter than LEAP_TAP is an ordinary jump; held longer it charges (full after LEAP_CHARGE_MAX more). */
@@ -48,6 +48,8 @@ public final class HulkAction {
 
     // ------------------------------------------------------------------ rock (C)
     public static final int ROCK_GRAB = 10, ROCK_LIFT = 20, ROCK_THROW = 26, ROCK_TICKS = 34;
+    /** How far in front of him the boulder is torn out (so the hole never opens under his feet). */
+    public static final double ROCK_AHEAD = 2.9;
 
     // ------------------------------------------------------------------ Gamma Rage (X)
     /** Gather, leap at them, grab, up into the sky, the roar, the throw, their crash, the dive, the smash, the end. */
