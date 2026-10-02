@@ -52,7 +52,7 @@ public final class ZedEyes {
                     float k0 = (time - prev.time) / WINDOW, k1 = (time - s.time) / WINDOW;
                     float a0 = (float) Math.pow(Math.max(0, 1 - k0), 2.2) * prev.power, a1 = (float) Math.pow(Math.max(0, 1 - k1), 2.2) * s.power;
                     for (int e = 0; e < 2; e++) {
-                        Vec3 from = e == 0 ? prev.right : prev.left, to = e == 0 ? s.right : s.left;
+                        Vec3 from = side(prev, e, time), to = side(s, e, time);
                         if (from.distanceToSqr(to) < 1e-5) continue;
                         FilmFx.streak(c, from, to, .055 * (1 - k1 * .5), RED, a0 * .75f, a1 * .75f, true);
                         FilmFx.streak(c, from, to, .018, CORE, a0 * .6f, a1 * .6f, true);
@@ -74,6 +74,20 @@ public final class ZedEyes {
             FilmFx.glow(c, mid.add(c.camera().subtract(mid).normalize().scale(.1)), .7 * Math.min(1.6, p), DEEP, .12f * Math.min(1.5f, p));
             ShadowSmoke.light(mid, RED, .45f * Math.min(1, p), 1.1f);
         }
+    }
+    /**
+     * Where a past sample of an eye is drawn: right at the eye when new, then swept out to the side of
+     * the head, so the streak runs back past his temples instead of through his head and out of the
+     * back of it.
+     */
+    private static Vec3 side(Sample s, int eye, float time) {
+        Vec3 across = s.left.subtract(s.right);
+        if (across.lengthSqr() < 1e-8) return eye == 0 ? s.right : s.left;
+        across = across.normalize();
+        float age = Math.max(0, time - s.time);
+        float k = Math.min(1, age / .9f);
+        double out = .26 * k * k * (3 - 2 * k);
+        return eye == 0 ? s.right.subtract(across.scale(out)) : s.left.add(across.scale(out));
     }
     public static void clear() { EYES.clear(); }
 }
