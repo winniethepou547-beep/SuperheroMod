@@ -14,7 +14,7 @@ import static com.FIRNI.superheromod.heroes.hulk.HulkAction.*;
  * a little to -x (right), as in the reference shot.
  */
 public final class RagePath {
-    public static final Vec3 HULK_HOME = new Vec3(.45, 0, 0), TARGET_HOME = new Vec3(-.3, 0, 3.1), TARGET_REST = new Vec3(-3.4, 0, 17);
+    public static final Vec3 HULK_HOME = new Vec3(.45, 0, 0), TARGET_HOME = new Vec3(.4, 0, 2.3), TARGET_REST = new Vec3(-3.4, 0, 17);
     /** The mountain the punch splits: its near face, depth, height and half width (blocks). */
     public static final double MOUNTAIN_Z = 125, MOUNTAIN_DEPTH = 60, MOUNTAIN_HEIGHT = 82, MOUNTAIN_HALF = 165;
 
@@ -32,8 +32,9 @@ public final class RagePath {
     /** Where Hulk stands for punch i: half a step to one side or the other, sometimes closer in. */
     private static Vec3 station(int i) {
         if (i < 0) return HULK_HOME;
-        double side = ULT_RIGHT[i] ? 1 : -1, reach = i < 5 ? .55 : 1;
-        return HULK_HOME.add(side * (.2 + .35 * hash(i * 7.13)) * reach, 0, (-.1 + .55 * hash(i * 3.71)) * reach);
+        // Small shifts only: whatever the step, the fist must still land on them.
+        double side = ULT_RIGHT[i] ? 1 : -1, reach = i < 5 ? .6 : 1;
+        return HULK_HOME.add(side * (.08 + .14 * hash(i * 7.13)) * reach, 0, (-.05 + .3 * hash(i * 3.71)) * reach);
     }
 
     /** Hulk's feet. */
@@ -69,11 +70,11 @@ public final class RagePath {
         float r = jolt(t, true), l = jolt(t, false);
         // A right hand comes in from Hulk's right (-x) and shoves them toward +x, a left the other way;
         // the whole barrage drives them back.
-        float back = .9f * clamp((t - ULT_FIRST) / (ULT_STOP - ULT_FIRST));
-        Vec3 held = TARGET_HOME.add(.22 * (r - l), 0, back + .12 * (r + l));
+        float back = .25f * clamp((t - ULT_FIRST) / (ULT_STOP - ULT_FIRST));
+        Vec3 held = TARGET_HOME.add(.13 * (r - l), 0, back + .1 * (r + l));
         if (t < ULT_PUNCH) return held;
         float u = clamp((t - ULT_PUNCH) / 36f), along = 1 - (1 - u) * (1 - u) * (1 - u);
-        Vec3 from = TARGET_HOME.add(0, 0, .9);
+        Vec3 from = TARGET_HOME.add(0, 0, .25);
         Vec3 flat = from.lerp(TARGET_REST, along);
         double up = u < 1 ? 2.4 * Math.sin(Math.PI * u) * (1 - .35 * u) : 0;
         // A short skid after they come down.
@@ -96,7 +97,8 @@ public final class RagePath {
             p.rot[CHEST][0] -= .22f * (r + l); p.rot[HEAD][0] -= .3f * (r + l);
             p.bodyRoll += (r - l) * 9;
             p.crouch += .05f * (r + l);
-            p.rot[RIGHT_UPPER_ARM][0] += .25f * (r + l); p.rot[LEFT_UPPER_ARM][0] += .25f * (r + l);
+            // The guard stays up and is driven back into their face (it must never read as them punching).
+            p.rot[RIGHT_LOWER_ARM][0] -= .2f * (r + l); p.rot[LEFT_LOWER_ARM][0] -= .2f * (r + l);
             // Shaking on their feet after it stops.
             if (t > ULT_STOP && t < ULT_WINDUP + 20) {
                 float s = (float) Math.sin(t * 2.3) * .05f;

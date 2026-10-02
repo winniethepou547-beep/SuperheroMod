@@ -35,7 +35,7 @@ public final class OnePunchStage {
 
     /** The sky and the ground: midday, the dust in the air thickening with the barrage and the air current. */
     public static FilmBackdrop.Params backdrop(float t) {
-        float dust = .28f * window(t, ULT_BARRAGE + 20, ULT_CLEAR + 10, 30) + .4f * window(t, ULT_PUNCH + 10, ULT_REVEAL + 20, 30) + .08f * clamp((t - ULT_REVEAL) / 40f);
+        float dust = .28f * window(t, ULT_BARRAGE + 20, ULT_CLEAR + 10, 30) + .3f * window(t, ULT_PUNCH + 10, 330, 20) + .45f * fog(t) + .08f * clamp((t - ULT_REVEAL) / 40f);
         return FilmBackdrop.Params.plain(new Vec3(-.35, .85, -.4), dust, .6f);
     }
 
@@ -100,10 +100,24 @@ public final class OnePunchStage {
         int r = (int) ((a >> 16 & 255) * (1 - k) + (b >> 16 & 255) * k), g = (int) ((a >> 8 & 255) * (1 - k) + (b >> 8 & 255) * k), bl = (int) ((a & 255) * (1 - k) + (b & 255) * k);
         return r << 16 | g << 8 | bl;
     }
-    /** The split appears while the air current hides the mountain. */
-    private static final float SPLIT_AT = ULT_REVEAL - 12;
+    /** The split appears while the mountain is lost in the dust, and only shows as the dust thins. */
+    private static final float SPLIT_AT = 338;
+    private static final int FOG = 0xd8d2c6;
+    /** How thick the dust round the mountain is: it rolls in with the current, holds, then thins slowly. */
+    static float fog(float t) { return clamp((t - 305) / 22f) * (1 - clamp((t - 352) / 48f)); }
     private static void mountain(FilmContext c, Matrix4f m, float t) {
-        for (float[] b : t < SPLIT_AT ? WHOLE : SPLIT) FilmFx.cube(c, m, b[0], b[1], b[2], b[3], b[4], b[5], Float.floatToRawIntBits(b[6]));
+        float fog = fog(t);
+        for (float[] b : t < SPLIT_AT ? WHOLE : SPLIT) {
+            int rgb = Float.floatToRawIntBits(b[6]);
+            FilmFx.cube(c, m, b[0], b[1], b[2], b[3], b[4], b[5], fog > 0 ? mix(rgb, FOG, Math.min(1, fog * 1.1f)) : rgb);
+        }
+        if (fog <= 0) return;
+        // A whole mass of dust round it, thick enough that nothing of it shows through at the worst.
+        for (int i = 0; i < 120; i++) {
+            double x = (hash(i * 1.37) - .5) * 2 * (MOUNTAIN_HALF + 15), y = 4 + 95 * hash(i * 2.11), z = MOUNTAIN_Z - 18 + (MOUNTAIN_DEPTH + 40) * hash(i * 3.73);
+            double drift = (t - 305) * .04 * (hash(i * 5.9) - .3);
+            FilmFx.puff(c, new Vec3(x + drift * 3, y + drift, z), 30 + 20 * hash(i * 4.4), i % 4 == 0 ? DUST_MID : FOG, .95f * fog);
+        }
     }
     /** Rocks breaking off the ravine's walls and falling, a while after it opens. */
     private static void rocks(FilmContext c, Matrix4f m, float t) {
@@ -155,8 +169,8 @@ public final class OnePunchStage {
     /** Where the fist meets them for punch i. */
     private static Vec3 contact(int i) {
         Vec3 tg = RagePath.target(ULT_HITS[i]);
-        double side = ULT_RIGHT[i] ? -.25 : .25;
-        return tg.add(side + .3 * (hash(i * 4.4) - .5), 1.35 + .5 * hash(i * 6.1), -.45);
+        double side = ULT_RIGHT[i] ? -.12 : .12;
+        return tg.add(side + .2 * (hash(i * 4.4) - .5), 1.25 + .45 * hash(i * 6.1), -.32);
     }
     /** Each blow: a flash, a ring of pressed air bursting out the far side, dust thrown the way it went. */
     private static void blows(FilmContext c, float t) {
@@ -205,13 +219,14 @@ public final class OnePunchStage {
             }
         }
         // At the height of it a cloud wraps both of them; only shapes and flashes show through.
-        float peak = clamp((t - (ULT_BARRAGE + 30)) / 40f) * clear;
+        float peak = clamp((t - (ULT_BARRAGE + 25)) / 35f) * clear;
         if (peak <= 0) return;
+        // So thick that only shapes and flashes show through: layers of it all round, near ones and far ones.
         Vec3 mid = RagePath.hulk(t).lerp(RagePath.target(t), .5);
-        for (int i = 0; i < 34; i++) {
-            double a = i * 2.39996 + t * .012 * (i % 2 == 0 ? 1 : -1), r = 1.6 + 2.8 * hash(i * 5.5);
-            Vec3 at = mid.add(Math.cos(a) * r, .6 + 2.4 * hash(i * 3.3) + .25 * Math.sin(t * .05 + i), Math.sin(a) * r);
-            FilmFx.puff(c, at, 2.4 + 1.8 * hash(i * 9.1), i % 3 == 0 ? DUST_DARK : DUST_LIGHT, .42f * peak);
+        for (int i = 0; i < 90; i++) {
+            double a = i * 2.39996 + t * .012 * (i % 2 == 0 ? 1 : -1), r = .8 + 6 * hash(i * 5.5);
+            Vec3 at = mid.add(Math.cos(a) * r, .4 + 3.4 * hash(i * 3.3) + .25 * Math.sin(t * .05 + i), Math.sin(a) * r);
+            FilmFx.puff(c, at, 2.6 + 2.6 * hash(i * 9.1), i % 3 == 0 ? DUST_DARK : i % 3 == 1 ? DUST_MID : DUST_LIGHT, .8f * peak);
         }
     }
 
@@ -242,6 +257,15 @@ public final class OnePunchStage {
             float hop = (float) Math.abs(Math.sin(t * 2.7 + i * 1.3)) * .08f * grow;
             float x = (float) (feet.x + Math.cos(a) * r), z = (float) (feet.z + Math.sin(a) * r), s = .07f + .05f * (float) hash(i);
             FilmFx.cube(c, m, x - s, hop, z - s, x + s, hop + 2 * s, z + s, 0x6b6157);
+        }
+        // The punch: the fist burning red-white, his eyes white.
+        if (t >= ULT_PUNCH - 2 && t < ULT_IMPACT_END + 6) {
+            float k = 1 - clamp((t - ULT_IMPACT_END) / 6f);
+            Vec3 h = RagePath.hulk(t), fist = h.add(-.15, 1.8, 1.55);
+            FilmFx.glow(c, fist, 1.8, 0xff1a14, .95f * k);
+            FilmFx.glow(c, fist, .7, 0xffffff, .9f * k);
+            for (int i = 0; i < 6; i++) FilmFx.streak(c, fist.add((hash(i * 2.1) - .5) * .8, (hash(i * 3.7) - .5) * .8, -2.4), fist.add(0, 0, .3), .18, 0xff4030, 0, .7f * k, true);
+            for (int s = -1; s <= 1; s += 2) FilmFx.glow(c, h.add(s * .12, 2.2, .55), .28, 0xffffff, .95f * k);
         }
         // The fist drawn back glows faintly with gamma.
         if (t > ULT_WINDUP + 4 && t < ULT_PUNCH) FilmFx.glow(c, feet.add(-.95, 1.7, -.6), .8 + .6 * grow, HulkFx.GAMMA, .25f * grow);

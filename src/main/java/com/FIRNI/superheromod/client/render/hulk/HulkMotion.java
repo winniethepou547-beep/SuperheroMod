@@ -338,8 +338,9 @@ public final class HulkMotion {
             float[] a = arms(t);
             float er = Math.max(0, a[0]), el = Math.max(0, a[1]), dr = Math.min(0, a[0]), dl = Math.min(0, a[1]);
             // The arm drives straight out from the shoulder toward the middle line; the elbow opens.
-            p.rArmX = lerp(p.rArmX, -1.6f, er) - .35f * dr; p.rElbow = lerp(p.rElbow, .05f, er) + .3f * -dr; p.rArmY = lerp(p.rArmY, -.12f, er);
-            p.lArmX = lerp(p.lArmX, -1.6f, el) - .35f * dl; p.lElbow = lerp(p.lElbow, .05f, el) + .3f * -dl; p.lArmY = lerp(p.lArmY, .12f, el);
+            // Angled in and slightly down, so either hand lands on the middle of them, not beside them or over their head.
+            p.rArmX = lerp(p.rArmX, -1.35f, er) - .35f * dr; p.rElbow = lerp(p.rElbow, .05f, er) + .3f * -dr; p.rArmY = lerp(p.rArmY, -.52f, er);
+            p.lArmX = lerp(p.lArmX, -1.35f, el) - .35f * dl; p.lElbow = lerp(p.lElbow, .05f, el) + .3f * -dl; p.lArmY = lerp(p.lArmY, .52f, el);
             // The body turns into each punch: the punching shoulder forward, chest and hips after it.
             p.torsoYaw = -.55f * er + .55f * el + .2f * dr - .2f * dl;
             p.torsoRoll = .08f * (er - el);
@@ -372,15 +373,17 @@ public final class HulkMotion {
         if (t < ULT_PUNCH - 3) {
             Pose p = hulk(time);
             p.toward(coil, snap(t, ULT_WINDUP, ULT_WINDUP + 5));
-            // Every muscle locks: a fine tremble that stops dead for the freeze.
+            // Every muscle locks: a fine tremble that stops dead for the freeze, and then the roar.
             p.tremble = t < ULT_FREEZE ? .35f + .5f * clamp((t - ULT_WINDUP) / (ULT_FREEZE - ULT_WINDUP)) : 0;
+            float roar = k(t, ULT_FREEZE, ULT_FREEZE + 2);
+            p.mouth = lerp(p.mouth, 1, roar); p.headPitch = lerp(p.headPitch, -.3f, roar); p.gamma = lerp(p.gamma, 1, roar);
             return p;
         }
         // The punch: the drive comes up from the feet through the hips and chest into the arm.
         Pose strike = hulk(time);
         strike.crouch = 2.6f; strike.rLegZ = .3f; strike.lLegZ = -.3f; strike.rLegX = .6f; strike.rKnee = .2f; strike.lLegX = -.7f; strike.lKnee = .85f;
         strike.torsoYaw = -.85f; strike.torsoPitch = .35f; strike.torsoRoll = .08f;
-        strike.rArmX = -1.62f; strike.rElbow = 0; strike.rArmY = -.15f; strike.rArmZ = .05f;
+        strike.rArmX = -1.45f; strike.rElbow = 0; strike.rArmY = -.45f; strike.rArmZ = .05f;
         strike.lArmX = .55f; strike.lArmZ = -.5f; strike.lElbow = 1.2f;
         strike.headYaw = .2f; strike.headPitch = -.15f; strike.mouth = .9f; strike.fists = 1; strike.gamma = .8f;
         if (t < ULT_LOWER) {

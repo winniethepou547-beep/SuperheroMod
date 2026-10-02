@@ -83,16 +83,18 @@ final class RageFilm implements Film {
         // It stops.
         shots.add(shot(ULT_STOP, ULT_CLEAR, .6f, .05f).path(v(-8, 2.6, -4.5), v(-7.8, 2.5, -4.3)).look(v(0, 1.8, 1.6)).fov(56, 55).build());
         // The dust clears: closer to Hulk, standing tall, looking at them.
-        shots.add(shot(ULT_CLEAR, ULT_WINDUP, .02f, .02f).path(v(-2.4, 2.6, 4.4), v(-2.0, 2.8, 3.5)).look(v(.45, 3.3, 0), v(.45, 3.4, 0)).fov(50, 42).build());
+        shots.add(shot(ULT_CLEAR, ULT_WINDUP, .02f, .02f).path(v(-2.6, 2.2, 4.0), v(-2.1, 2.3, 3.1)).look(v(.45, 2.2, 0), v(.45, 2.3, 0)).fov(52, 44).build());
         // The wind-up, from low in front: the coil, the tremble.
-        shots.add(shot(ULT_WINDUP, ULT_FREEZE, .1f, .3f).path(v(-1.4, .5, 3.0), v(-1.3, .45, 2.6)).look(v(.55, 2.9, .1)).fov(50, 44).build());
-        shots.add(shot(ULT_FREEZE, ULT_PUNCH - 3, 0, 0).path(v(-1.3, .45, 2.6), v(-1.28, .45, 2.55)).look(v(.55, 2.9, .1)).fov(44, 43).build());
+        shots.add(shot(ULT_WINDUP, ULT_FREEZE, .1f, .3f).path(v(-1.6, .5, 3.0), v(-1.45, .45, 2.6)).look(v(.55, 1.9, -.2)).fov(56, 50).build());
+        // The roar: a snap zoom right into his face, then held close, shaking with it.
+        shots.add(shot(ULT_FREEZE, ULT_FREEZE + 3, .2f, .5f).path(v(-.6, 1.9, 2.6), v(.35, 2.1, 1.05)).look(v(.55, 2.15, -.15)).fov(62, 30).build());
+        shots.add(shot(ULT_FREEZE + 3, ULT_PUNCH - 3, .6f, .4f).path(v(.35, 2.1, 1.05), v(.38, 2.12, .98)).look(v(.55, 2.15, -.15)).fov(30, 28).build());
         // The punch: a fast push in along his right side toward the fist.
-        shots.add(shot(ULT_PUNCH - 3, ULT_PUNCH, .2f, .6f).path(v(-2.8, 2.2, -1.6), v(-1.5, 2.15, 1.0)).look(v(-.25, 2.1, 3.2)).fov(70, 92).whip(!calm).build());
-        // The impact frames: close cuts, the contact, his arm, the line of it.
-        shots.add(shot(ULT_PUNCH, ULT_PUNCH + 4, 1, .8f).path(v(-1.2, 2.0, 2.2), v(-1.1, 2.0, 2.3)).look(v(-.3, 1.9, 3.1)).fov(38, 36).build());
-        shots.add(shot(ULT_PUNCH + 4, ULT_PUNCH + 8, .9f, .7f).path(v(-1.9, 2.3, 1.0), v(-1.8, 2.3, 1.1)).look(v(.2, 2.2, 1.6)).fov(44, 42).build());
-        shots.add(shot(ULT_PUNCH + 8, ULT_IMPACT_END, .8f, .5f).path(v(1.8, 3.1, -3.8), v(1.7, 3.0, -3.6)).look(v(-.5, 2.0, 5)).fov(56, 58).build());
+        shots.add(shot(ULT_PUNCH - 3, ULT_PUNCH, .2f, .6f).path(v(-2.4, 2.1, -1.2), v(-1.3, 2.0, .9)).look(v(.2, 1.8, 2.6)).fov(70, 92).whip(!calm).build());
+        // The impact frame (after the reference): from behind the target, his fist coming in on the left,
+        // his face at the right edge, the target in the foreground looking at it.
+        shots.add(shot(ULT_PUNCH, ULT_PUNCH + 9, 1, .8f).path(v(1.05, 1.75, 3.65), v(1.0, 1.78, 3.55)).look(v(-.1, 2.0, 1.1)).fov(50, 47).build());
+        shots.add(shot(ULT_PUNCH + 9, ULT_IMPACT_END, .8f, .5f).path(v(1.8, 3.1, -3.8), v(1.7, 3.0, -3.6)).look(v(-.3, 2.0, 5)).fov(56, 58).build());
         // The air current: running with it down the plain.
         shots.add(shot(ULT_IMPACT_END, 300, .45f, .2f).path(v(-2.5, 2.6, .5), v(-4, 3.5, 20), v(-7, 5, 50))
                 .look(v(0, 3, 8), v(0, 4, 35), v(0, 8, 80)).fov(70, 76).build());
@@ -150,6 +152,9 @@ final class RageFilm implements Film {
         add(c, ULT_WINDUP + 10, SoundEvents.WARDEN_HEARTBEAT, 1f, .55f);
         add(c, ULT_WINDUP + 12, SoundEvents.STONE_BREAK, .5f, .5f);
         add(c, ULT_WINDUP + 18, SoundEvents.WARDEN_HEARTBEAT, 1f, .6f);
+        // The roar with the snap zoom.
+        add(c, ULT_FREEZE, SoundEvents.RAVAGER_ROAR, 1f, .45f);
+        add(c, ULT_FREEZE, SoundEvents.WARDEN_ROAR, .9f, .6f);
         // The punch, after a breath of nothing.
         add(c, ULT_PUNCH, SoundEvents.GENERIC_EXPLODE, 1f, .35f);
         add(c, ULT_PUNCH, SoundEvents.WARDEN_SONIC_BOOM, 1f, .45f);
@@ -173,7 +178,7 @@ final class RageFilm implements Film {
     @Override public int grade(float t) {
         if (t >= ULT_PUNCH && t < ULT_IMPACT_END) {
             int f = (int) ((t - ULT_PUNCH) / (calm ? 4.5f : 1.5f)) % 3;
-            return f == 1 ? 0xD8700000 : f == 0 ? 0xE6000000 : 0xEE050000;
+            return f == 0 ? 0x88B00010 : f == 1 ? 0xA8000000 : 0x98700008;
         }
         float white = window(t, ULT_IMPACT_END, ULT_IMPACT_END + 14, 2) * .55f;
         if (white > .01f) return ((int) (white * 255) << 24) | 0xf4f1ea;
@@ -186,7 +191,7 @@ final class RageFilm implements Film {
     @Override public void overlay(GuiGraphics g, float t, int w, int h) {
         if (t >= ULT_PUNCH && t < ULT_IMPACT_END) impactFrame(g, w, h, t);
         // Speed lines while the barrage is at its fastest and while the air current runs.
-        float speed = Math.max(window(t, ULT_BARRAGE + 30, ULT_STOP, 6) * .8f, window(t, ULT_IMPACT_END, 300, 6));
+        float speed = Math.max(Math.max(window(t, ULT_BARRAGE + 30, ULT_STOP, 6) * .8f, window(t, ULT_IMPACT_END, 300, 6)), window(t, ULT_FREEZE, ULT_PUNCH - 3, 1));
         if (speed > .02f) speedLines(g, w, h, speed, t);
         float title = window(t, ULT_WIDE + 26, ULT_TOTAL - 10, 8);
         if (title > 0) {
@@ -201,40 +206,46 @@ final class RageFilm implements Film {
         }
     }
     /**
-     * One impact frame: a red burst tearing out from the fist with white strokes through it, or (every
-     * other frame) the same shape in black on red; each frame shifts and re-rolls its shapes so the
-     * picture flickers like hand-drawn impact frames.
+     * One impact frame (after the reference): the picture stays, flooded red or crushed dark; a red glow
+     * bursts round the fist (left of centre); black hatching strokes tear outward from it, white slashes run
+     * through the glow; every frame shifts and re-rolls its strokes so it flickers like drawn impact frames.
      */
     private void impactFrame(GuiGraphics g, int w, int h, float t) {
         int frame = (int) ((t - ULT_PUNCH) / (calm ? 4.5f : 1.5f));
-        boolean inverse = frame % 3 == 1;
-        float cx = w * (.52f + .04f * (hash(frame * 3.1f) - .5f)), cy = h * (.48f + .05f * (hash(frame * 5.7f) - .5f));
-        float reach = (float) Math.hypot(w, h) * .75f;
+        float cx = w * (.36f + .03f * (hash(frame * 3.1f) - .5f)), cy = h * (.44f + .04f * (hash(frame * 5.7f) - .5f));
+        float reach = (float) Math.hypot(w, h) * .8f;
         RenderSystem.enableBlend(); RenderSystem.defaultBlendFunc();
         RenderSystem.setShader(GameRenderer::getPositionColorShader);
         var buffer = Tesselator.getInstance().getBuilder();
         buffer.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
         var m = g.pose().last().pose();
-        int spikes = 64;
-        for (int i = 0; i < spikes; i++) {
-            double a0 = (i + hash(i * 7.3f + frame) * .5) / spikes * Math.PI * 2, a1 = (i + 1) / (double) spikes * Math.PI * 2;
-            float len = reach * (.25f + .7f * hash(i * 13.1f + frame * 2.3f));
-            float r = inverse ? 0 : 1, gg = inverse ? 0 : .08f, b = inverse ? 0 : .04f;
-            // The burst: a jagged star, solid at the centre.
-            buffer.vertex(m, cx, cy, 0).color(r, inverse ? 0 : .55f, inverse ? 0 : .35f, 1f).endVertex();
-            buffer.vertex(m, cx + (float) Math.cos(a0) * len, cy + (float) Math.sin(a0) * len * .8f, 0).color(r, gg, b, inverse ? .85f : .9f).endVertex();
-            buffer.vertex(m, cx + (float) Math.cos(a1) * len * .45f, cy + (float) Math.sin(a1) * len * .36f, 0).color(r, gg, b, inverse ? .7f : .75f).endVertex();
+        // The red glow round the fist, white-hot in its middle.
+        int ring = 40;
+        float glow = reach * (.32f + .05f * hash(frame * 2.2f));
+        for (int i = 0; i < ring; i++) {
+            double a0 = i * Math.PI * 2 / ring, a1 = (i + 1) * Math.PI * 2 / ring;
+            float r0 = glow * (.8f + .4f * hash(i * 3.7f + frame)), r1 = glow * (.8f + .4f * hash((i + 1) % ring * 3.7f + frame));
+            buffer.vertex(m, cx, cy, 0).color(1f, .75f, .7f, .85f).endVertex();
+            buffer.vertex(m, cx + (float) Math.cos(a0) * r0 * 1.3f, cy + (float) Math.sin(a0) * r0, 0).color(.95f, .05f, .08f, 0f).endVertex();
+            buffer.vertex(m, cx + (float) Math.cos(a1) * r1 * 1.3f, cy + (float) Math.sin(a1) * r1, 0).color(.95f, .05f, .08f, 0f).endVertex();
         }
-        // Sharp strokes across it: white on the red frames, red on the black ones.
-        for (int i = 0; i < 26; i++) {
+        // Black hatching strokes tearing outward from the blow, thick at their roots.
+        for (int i = 0; i < 80; i++) {
             double a = hash(i * 3.3f + frame * 9.1f) * Math.PI * 2;
-            float inner = reach * (.08f + .2f * hash(i * 5.1f + frame)), outer = reach * (.5f + .5f * hash(i * 1.7f + frame * 4.4f));
-            float half = 1.2f + 3.5f * hash(i * 2.9f + frame);
+            float inner = reach * (.1f + .25f * hash(i * 5.1f + frame)), outer = inner + reach * (.15f + .45f * hash(i * 1.7f + frame * 4.4f));
+            float half = 1.5f + 4.5f * hash(i * 2.9f + frame);
             float cos = (float) Math.cos(a), sin = (float) Math.sin(a), px = -sin * half, py = cos * half;
-            float r = 1, gg = inverse ? .15f : 1, b = inverse ? .1f : 1;
-            buffer.vertex(m, cx + cos * inner, cy + sin * inner, 0).color(r, gg, b, 0f).endVertex();
-            buffer.vertex(m, cx + cos * outer + px, cy + sin * outer + py, 0).color(r, gg, b, .95f).endVertex();
-            buffer.vertex(m, cx + cos * outer - px, cy + sin * outer - py, 0).color(r, gg, b, .95f).endVertex();
+            buffer.vertex(m, cx + cos * inner + px, cy + sin * inner + py, 0).color(0f, 0f, 0f, .9f).endVertex();
+            buffer.vertex(m, cx + cos * inner - px, cy + sin * inner - py, 0).color(0f, 0f, 0f, .9f).endVertex();
+            buffer.vertex(m, cx + cos * outer, cy + sin * outer, 0).color(0f, 0f, 0f, 0f).endVertex();
+        }
+        // White slashes through the glow, roughly along the line of the punch.
+        for (int i = 0; i < 7; i++) {
+            float y = cy + (hash(i * 4.1f + frame * 2.7f) - .5f) * glow * 1.2f, x0 = cx - glow * (.3f + .5f * hash(i * 1.9f + frame)), x1 = cx + glow * (.2f + .6f * hash(i * 6.3f + frame));
+            float half = 1.5f + 3 * hash(i * 8.8f + frame), tilt = (hash(i * 2.4f + frame) - .5f) * glow * .4f;
+            buffer.vertex(m, x0, y - tilt, 0).color(1f, .95f, .95f, 0f).endVertex();
+            buffer.vertex(m, x1, y + tilt - half, 0).color(1f, .95f, .95f, .9f).endVertex();
+            buffer.vertex(m, x1, y + tilt + half, 0).color(1f, .95f, .95f, .9f).endVertex();
         }
         BufferUploader.drawWithShader(buffer.end());
         RenderSystem.disableBlend();
