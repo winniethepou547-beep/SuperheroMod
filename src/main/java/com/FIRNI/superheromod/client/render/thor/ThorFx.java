@@ -757,7 +757,7 @@ public final class ThorFx {
             double dist = Math.sqrt(x * x + z * z);
             if (dist > cells * step) continue;
             // Closes in from the edge toward the middle.
-            float grown = FilmFx.ease((t - (ULT_UPPER + 8) - (1 - dist / (cells * step)) * 28) / 22f);
+            float grown = FilmFx.ease((float) ((t - (ULT_UPPER + 8) - (1 - dist / (cells * step)) * 28) / 22));
             Vec3 at = eye.add(x * cos - z * sin, (FilmFx.hash(seed + 3) - .5) * 2.4, x * sin + z * cos);
             cloudMass(c, m, at, step * .62 + FilmFx.hash(seed + 4) * 1.2, 2.2 + FilmFx.hash(seed + 6) * 2.6, seed, grown, bright);
         }
