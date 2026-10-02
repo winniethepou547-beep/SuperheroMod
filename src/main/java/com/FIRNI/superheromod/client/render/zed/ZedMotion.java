@@ -53,17 +53,17 @@ public final class ZedMotion {
     static float lerp(float a, float b, float k) { return a + (b - a) * k; }
 
     /**
-     * The fighting stance: side-on, left foot ahead and right foot back, a little wider than the shoulders,
-     * knees soft; the right shoulder drawn back so he is narrow to the target; hands low at his sides; the weight drifting slowly between the feet, a small breath.
+     * The fighting stance: side-on, standing upright on straight legs, left foot a little ahead; the right shoulder drawn back so he is narrow to the target; hands low at his sides; the weight drifting slowly between the feet, a small breath.
      */
     public static Pose idle(float time) {
         Pose p = new Pose();
         float breathe = (float) Math.sin(time * .09) * .025f, shift = (float) Math.sin(time * .045);
-        p.crouch = 1.2f + .15f * shift; p.torsoPitch = .12f + breathe; p.torsoYaw = .3f; p.torsoRoll = .03f * shift; p.headPitch = -.05f;
+        p.crouch = 0; p.torsoPitch = .12f + breathe; p.torsoYaw = .3f; p.torsoRoll = .03f * shift; p.headPitch = -.05f;
         // Hands low at his sides, blades hanging down along the legs.
         p.rArmX = -.12f - breathe; p.rArmZ = .14f; p.rElbow = .35f;
         p.lArmX = -.18f - breathe; p.lArmZ = -.14f; p.lElbow = .4f;
-        p.rLegX = .25f; p.lLegX = -.25f; p.rKnee = .35f + .05f * shift; p.lKnee = .3f - .05f * shift; p.rLegZ = .12f; p.lLegZ = -.1f;
+        // Standing tall on straight legs, one foot a little ahead; only the weight shifts.
+        p.rLegX = .08f; p.lLegX = -.1f; p.rKnee = .04f + .03f * Math.max(0, shift); p.lKnee = .04f + .03f * Math.max(0, -shift); p.rLegZ = .05f; p.lLegZ = -.05f;
         return p;
     }
 
