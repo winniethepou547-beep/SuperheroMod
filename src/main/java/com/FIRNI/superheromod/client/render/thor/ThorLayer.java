@@ -174,13 +174,12 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
                 p.mulPose(Axis.ZP.rotation(pose.wristZ));
                 p.mulPose(Axis.XP.rotation(pose.wristX));
                 if (pose.upright > .01f) {
-                    // Turn the hammer, about the fist, until its handle stands straight up in the model's frame.
-                    Quaternionf now = p.last().pose().getNormalizedRotation(new Quaternionf());
-                    // Upright, and turned a quarter about its own handle: the head points front to back, not a T.
-                    // Not quite plumb: the top leans a touch forward and away from his body, as a hand naturally holds it.
-                    Quaternionf want = new Quaternionf(root).rotateX(.3f).rotateZ(pose.tilt).rotateX((float) Math.PI).rotateY((float) (Math.PI / 2));
-                    Quaternionf fix = new Quaternionf(now).conjugate().mul(want);
-                    p.mulPose(new Quaternionf().slerp(fix, Math.min(1, pose.upright)));
+                    // The hold: whatever the arm does, the handle runs out of the fist forward and a little outward,
+                    // rising at the stance's angle (about 30 degrees at rest, straight up in a launch), head on top.
+                    float rise = pose.holdRise;
+                    org.joml.Vector3f out = new org.joml.Vector3f(-.45f, 0, -.89f).normalize();   // forward, a little to his right
+                    org.joml.Vector3f handle = new org.joml.Vector3f(out).mul((float) Math.cos(rise)).add(0, (float) -Math.sin(rise), 0).normalize();
+                    orient(p, root, handle, out, pose.upright);
                 }
                 if (pose.lever > .01f) {
                     lever(p, root, rootInverse, pose.lever);
@@ -282,6 +281,24 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
      * nearly level, the head out at the end of it leading the blow with its striking face, so it is the
      * head that lands, not the handle.
      */
+    /**
+     * Turns the hammer in the fist so its handle points along `handle` (in the body's frame), with the
+     * head's long axis level and square to `out`, blended in by weight.
+     */
+    private static void orient(PoseStack p, Quaternionf root, org.joml.Vector3f handle, org.joml.Vector3f out, float weight) {
+        org.joml.Vector3f up = new org.joml.Vector3f(0, -1, 0);
+        org.joml.Vector3f along = new org.joml.Vector3f(up).cross(out);
+        if (along.lengthSquared() < 1e-6f) along.set(1, 0, 0);
+        along.normalize();
+        org.joml.Vector3f third = new org.joml.Vector3f(along).cross(handle).normalize();
+        along.set(new org.joml.Vector3f(handle).cross(third)).normalize();
+        Quaternionf local = new Quaternionf().setFromNormalized(new org.joml.Matrix3f(along, handle, third));
+        Quaternionf now = p.last().pose().getNormalizedRotation(new Quaternionf());
+        Quaternionf want = new Quaternionf(root).mul(local);
+        Quaternionf fix = new Quaternionf(now).conjugate().mul(want);
+        p.mulPose(new Quaternionf().slerp(fix, Math.min(1, weight)));
+    }
+
     private static void lever(PoseStack p, Quaternionf root, org.joml.Matrix4f rootInverse, float weight) {
         var rel = new org.joml.Matrix4f(rootInverse).mul(p.last().pose());
         var hand = rel.getTranslation(new org.joml.Vector3f());

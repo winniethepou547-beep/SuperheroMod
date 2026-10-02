@@ -31,6 +31,8 @@ public final class ThorMotion {
         public float upright;
         /** While held upright: the handle leaned over sideways (radians, positive leans the top to his left). */
         public float tilt;
+        /** The hold's handle angle above level (radians): about 30 degrees at rest, straight up in a launch. */
+        public float holdRise = .55f;
         /** During a swing: the hammer turned out as a lever, head leading (see ThorLayer.lever). */
         public float lever;
 
@@ -41,7 +43,7 @@ public final class ThorMotion {
             rArmX = o.rArmX; rArmY = o.rArmY; rArmZ = o.rArmZ; rElbow = o.rElbow; lArmX = o.lArmX; lArmY = o.lArmY; lArmZ = o.lArmZ; lElbow = o.lElbow;
             rLegX = o.rLegX; rLegZ = o.rLegZ; rKnee = o.rKnee; lLegX = o.lLegX; lLegZ = o.lLegZ; lKnee = o.lKnee;
             wristX = o.wristX; wristY = o.wristY; wristZ = o.wristZ; spinRing = o.spinRing; spinMode = o.spinMode;
-            eyes = o.eyes; mouth = o.mouth; aura = o.aura; twoHands = o.twoHands; noHammer = o.noHammer; upright = o.upright; tilt = o.tilt; lever = o.lever;
+            eyes = o.eyes; mouth = o.mouth; aura = o.aura; twoHands = o.twoHands; noHammer = o.noHammer; upright = o.upright; tilt = o.tilt; lever = o.lever; holdRise = o.holdRise;
         }
         /** Blend toward another pose by k (0..1). Spin angles are not blended here (see ThorLayer). */
         public void toward(Pose o, float k) {
@@ -54,7 +56,7 @@ public final class ThorMotion {
             lLegX += (o.lLegX - lLegX) * k; lLegZ += (o.lLegZ - lLegZ) * k; lKnee += (o.lKnee - lKnee) * k;
             spinRing += (o.spinRing - spinRing) * k; spinMode = o.spinMode; wristZ += (o.wristZ - wristZ) * k;
             eyes += (o.eyes - eyes) * k; mouth += (o.mouth - mouth) * k; aura += (o.aura - aura) * k; twoHands += (o.twoHands - twoHands) * k;
-            noHammer = o.noHammer; upright += (o.upright - upright) * k; tilt += (o.tilt - tilt) * k; lever += (o.lever - lever) * k;
+            noHammer = o.noHammer; upright += (o.upright - upright) * k; tilt += (o.tilt - tilt) * k; lever += (o.lever - lever) * k; holdRise += (o.holdRise - holdRise) * k;
         }
     }
 
@@ -82,7 +84,7 @@ public final class ThorMotion {
         p.torsoPitch = .05f + breathe; p.headPitch = -.06f - breathe;
         p.rLegZ = .07f; p.lLegZ = -.07f;
         // Mjolnir held up off the ground: forearm forward, the handle rising out of the fist, head on top.
-        p.rArmX = -.1f - breathe; p.rArmZ = .26f; p.rArmY = .05f; p.rElbow = .8f; p.wristX = -1.79f; p.upright = 1; p.tilt = -.25f;
+        p.rArmX = -.05f - breathe; p.rArmZ = .14f; p.rArmY = .05f; p.rElbow = .3f; p.wristX = -1.79f; p.upright = 1; p.holdRise = .55f;
         p.lArmX = .02f - breathe; p.lArmZ = -.11f; p.lElbow = .22f;
         // Every so often: settles the hammer in his grip, rolls a shoulder, glances aside.
         float cycle = time % 220;
@@ -101,7 +103,7 @@ public final class ThorMotion {
         p.crouch = .35f + breathe * 3; p.torsoPitch = .1f; p.headPitch = -.1f;
         p.rLegZ = .14f; p.lLegZ = -.14f; p.rLegX = .08f; p.lLegX = -.14f; p.rKnee = .1f; p.lKnee = .08f;
         p.torsoYaw = -.12f;
-        p.rArmX = -.38f + breathe; p.rArmZ = .26f; p.rArmY = .1f; p.rElbow = .85f; p.wristX = -1.57f; p.upright = 1; p.tilt = -.25f;
+        p.rArmX = -.25f + breathe; p.rArmZ = .16f; p.rArmY = .1f; p.rElbow = .45f; p.wristX = -1.57f; p.upright = 1; p.holdRise = .6f;
         p.lArmX = -.5f - breathe; p.lArmZ = -.32f; p.lArmY = -.15f; p.lElbow = .7f;
         return p;
     }
@@ -299,14 +301,14 @@ public final class ThorMotion {
         p.crouch = lerp(p.crouch, 1.8f + 1.2f * c, in); p.torsoPitch = lerp(p.torsoPitch, .15f, in);
         p.torsoYaw = lerp(p.torsoYaw, .3f, in); p.headPitch = lerp(p.headPitch, -.15f, in);
         p.rLegZ = .2f; p.lLegZ = -.2f; p.rLegX = .25f; p.lLegX = -.35f; p.rKnee = .45f; p.lKnee = .5f;
-        // Arm forward and a little to his right, elbow soft: the wheel turns close in front of him, facing the way he faces.
-        p.rArmX = lerp(p.rArmX, -1.25f, in); p.rArmY = lerp(p.rArmY, .1f, in); p.rArmZ = lerp(p.rArmZ, .15f, in); p.rElbow = lerp(p.rElbow, .45f, in);
+        // Arm a little out to his right side: the wheel turns beside him, edge-on to the front, close to his body.
+        p.rArmX = lerp(p.rArmX, -.4f, in); p.rArmY = lerp(p.rArmY, 0, in); p.rArmZ = lerp(p.rArmZ, .6f, in); p.rElbow = lerp(p.rElbow, .2f, in);
         p.lArmX = lerp(p.lArmX, .25f, in); p.lArmZ = lerp(p.lArmZ, -.45f, in); p.lElbow = lerp(p.lElbow, .5f, in);
         p.wristX = -1.5708f;
         // Speeds up with the charge; at full charge it holds the top speed.
         float full = CHARGE_FULL;
         p.wristY = t <= full ? 1.2f * t + 1.7f * t * t / (2 * full) : 1.2f * full + 1.7f * full / 2 + 2.9f * (t - full);
-        p.spinRing = k(t, 1, 5); p.spinMode = 2;
+        p.spinRing = k(t, 1, 5); p.spinMode = 3;
         p.eyes = c * c * .8f;
         return p;
     }
@@ -325,7 +327,7 @@ public final class ThorMotion {
         float hold = out * (1 - end);
         p.wristX = lerp(p.wristX, 0, hold); p.wristY = lerp(p.wristY, 0, hold); p.wristZ = lerp(p.wristZ, 0, hold);
         // Mjolnir stays upright in the outstretched fist, as when he stands.
-        p.upright = 1; p.tilt = -.25f;
+        p.upright = 1; p.holdRise = 1.5708f;
         return p;
     }
     /** F: Mjolnir straight up to the sky, then levelled at what he looks at while the lightning pours out. */
