@@ -28,8 +28,10 @@ public final class FilmSessions {
         int total();
         /** Until this tick both performers are held in place; after it the world takes over. */
         int release();
-        /** Called once per tick with the new age (1..total). */
+        /** Called once per tick with the new age (1..total); the target is null once it is gone (see outlivesTarget). */
         void tick(ServerPlayer attacker, LivingEntity target, int age, Vec3 forward);
+        /** True if the film plays on to its end even when the target dies or is removed (it is a finisher). */
+        default boolean outlivesTarget() { return false; }
     }
     private static final class Session {
         Script script; UUID target; int age; Vec3 anchor, targetAt; float yaw; boolean aiWasOff;
@@ -69,16 +71,17 @@ public final class FilmSessions {
         Session s = ACTIVE.get(p.getUUID());
         if (s == null) return;
         LivingEntity target = p.serverLevel().getEntity(s.target) instanceof LivingEntity living ? living : null;
-        if (target == null || !p.isAlive() || target.distanceTo(p) > 40) { finish(p, target, s); return; }
+        boolean gone = target == null || !target.isAlive();
+        if (!p.isAlive() || target == null && !s.script.outlivesTarget() || target != null && target.distanceTo(p) > 40) { finish(p, target, s); return; }
         s.age++;
         Vec3 forward = Vec3.directionFromRotation(0, s.yaw);
         if (s.age < s.script.release()) {
             hold(p, s.anchor, s.yaw);
-            if (target.isAlive()) hold(target, s.targetAt, s.yaw + 180);
+            if (!gone) hold(target, s.targetAt, s.yaw + 180);
         } else if (s.age == s.script.release() && target instanceof Mob mob) mob.setNoAi(s.aiWasOff);
         s.script.tick(p, target, s.age, forward);
         sync(p, target, s, true);
-        if (s.age >= s.script.total() || !target.isAlive() && s.age >= s.script.release()) finish(p, target, s);
+        if (s.age >= s.script.total() || gone && !s.script.outlivesTarget() && s.age >= s.script.release()) finish(p, target, s);
     }
     private static void hold(LivingEntity body, Vec3 at, float facing) {
         if (body instanceof ServerPlayer player) {

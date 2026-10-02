@@ -19,7 +19,7 @@ import net.minecraftforge.fml.common.Mod;
  */
 @Mod.EventBusSubscriber(modid = SuperheroMod.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public final class FilmBackdrop {
-    public static final int CLOUDS = 0, STAR = 1, ORBIT = 2, PLUNGE = 3, HELL = 4, ABYSS = 5, ARENA = 6, DESERT = 7;
+    public static final int CLOUDS = 0, STAR = 1, ORBIT = 2, PLUNGE = 3, HELL = 4, ABYSS = 5, ARENA = 6, DESERT = 7, PLAIN = 8;
     /** Everything the backdrop needs for one frame. Planet radius and ring are in stage blocks / radii. */
     public record Params(int scene, Vec3 planet, float radius, float ringInner, float ringOuter, float ringSpin, float ringAlpha,
                          float fallSpeed, float streaks, float clouds, float xray, int tint, float tintAmount) {
@@ -33,6 +33,10 @@ public final class FilmBackdrop {
         /** Golden-hour desert; storm 0..1 rolls a sandstorm over it, wind sets how fast it blows. */
         public static Params desert(Vec3 sun, float storm, float wind, int tint, float tintAmount) {
             return new Params(DESERT, sun, 1, 0, 0, 0, 0, wind, 0, storm, 0, tint, tintAmount);
+        }
+        /** An open plain at midday, a blue sky with big white clouds; dust 0..1 hangs in the air, drift moves the clouds. */
+        public static Params plain(Vec3 sun, float dust, float drift) {
+            return new Params(PLAIN, sun, 1, 0, 0, 0, 0, drift, 0, dust, 0, 0, 0);
         }
         public static Params abyss(float streaks) {
             return new Params(ABYSS, Vec3.ZERO, 1, 0, 0, 0, 0, 0, streaks, 0, 0, 0, 0);

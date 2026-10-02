@@ -42,6 +42,7 @@ public record FilmShot(float start, float end, Vec3[] path, Vec3[] look, float f
         public Builder roll(float a, float b) { rollA = a; rollB = b; return this; }
         public Builder shake(float a, float b) { shakeA = a; shakeB = b; return this; }
         public Builder whip() { whip = true; return this; }
+        public Builder whip(boolean on) { whip = on; return this; }
         public FilmShot build() { return new FilmShot(start, end, path, look, fovA, fovB, rollA, rollB, shakeA, shakeB, whip); }
     }
 }

@@ -331,6 +331,43 @@ void main() {
             col += vec3(1.0, 0.85, 0.6) * grain * storm * 0.35;
         }
     }
+    if (scene == 8) {
+        // Open plain under a high blue sky with big white clouds (Planet: sun direction;
+        // Motion.x cloud drift, Motion.z dust hanging in the air).
+        vec3 sunDir = normalize(Planet.xyz);
+        float dust = Motion.z;
+        float up = rd.y;
+        vec3 zenith = vec3(0.10, 0.27, 0.70);
+        vec3 horizon = vec3(0.64, 0.77, 0.92);
+        col = mix(horizon, zenith, smoothstep(-0.02, 0.5, up));
+        float sd = max(0.0, dot(rd, sunDir));
+        col += vec3(1.0, 0.95, 0.85) * pow(sd, 24.0) * 0.5;
+        if (up > 0.0) {
+            // Clouds on a high layer: firm white masses with grey-blue undersides.
+            vec2 cp = rd.xz / (up + 0.08) * 1.6 + vec2(Time * Motion.x * 0.02, 0.0);
+            float c = fbm3(vec3(cp * 0.55, 1.0));
+            float body = smoothstep(0.52, 0.6, c);
+            float lit = smoothstep(0.5, 0.72, fbm3(vec3(cp * 0.55 + vec2(0.06, 0.09), 1.0)));
+            vec3 cloud = mix(vec3(0.70, 0.77, 0.88), vec3(1.0), lit);
+            col = mix(col, cloud, body * smoothstep(0.0, 0.08, up));
+        }
+        // Far hills, hazy blue, low round the horizon.
+        float az = atan(rd.x, rd.z);
+        float ridge = 0.008 + 0.02 * fbm3(vec3(az * 3.0, 0.0, 5.0));
+        if (up < ridge && up >= -0.0005) col = mix(col, vec3(0.55, 0.62, 0.70), 0.6);
+        if (up < -0.0005) {
+            // Pale sandy ground with darker rocky patches, fading into the haze.
+            float t = -ro.y / up;
+            vec3 p = ro + rd * t;
+            float big = fbm3(vec3(p.xz * 0.03, 4.0));
+            float small = fbm3(vec3(p.xz * 0.35, 7.0));
+            vec3 sand = mix(vec3(0.80, 0.74, 0.60), vec3(0.62, 0.56, 0.46), smoothstep(0.4, 0.7, big));
+            sand = mix(sand, vec3(0.45, 0.42, 0.37), smoothstep(0.62, 0.75, small) * 0.6);
+            sand *= 0.85 + 0.25 * max(0.0, sunDir.y);
+            col = mix(horizon * 0.95, sand, exp(-t * 0.006));
+        }
+        col = mix(col, vec3(0.86, 0.80, 0.70), clamp(dust, 0.0, 1.0) * (0.25 + 0.6 * exp(-max(up, 0.0) * 4.0)));
+    }
     if (Motion.y > 0.0) col = warpStreaks(col);
     if (scene != 6) col = mix(col, Tint.rgb, Tint.a);
     if (Motion.w > 0.0) {
