@@ -1,6 +1,6 @@
 # SuperheroMod — notes for Claude
 
-Forge 1.20.1 mod (Java 17, package `com.FIRNI.superheromod`). Heroes: **Ghost Rider**, **Cyclops**, **Sandman**, **Thor**.
+Forge 1.20.1 mod (Java 17, package `com.FIRNI.superheromod`). Heroes: **Ghost Rider**, **Cyclops**, **Sandman**, **Thor**, **Hulk**.
 Older background and per-feature notes live in `docs/` (Turkish); `docs/PROJE_DEVIR_DOKUMANI.md` is the original handover.
 
 ## Working with the user
@@ -19,7 +19,9 @@ The user does not want menus or steps. At the end of every request, give exactly
 Turkish labels), with the real branch name filled in. They paste them into IntelliJ's Terminal (PowerShell,
 project folder), then press Run in IntelliJ as usual. Their PC never has local edits, so forced switches are safe.
 - **Denemek için** (try the new branch):
-  `git fetch origin; git switch -f -C deneme origin/<branch>`
+  `git fetch origin; git switch -f -C <name> origin/<branch>` — `<name>` describes the work so the user can tell
+  branches apart (e.g. `hulk`, `thor-cekic`), never a bare `deneme`.
+- **Naming:** commit and PR titles start with the hero they are about ("Hulk: ...", "Thor: ...").
 - **Beğenmedim, eski hale dön:**
   `git switch -f main`
 - **Beğendim:** the user just writes "beğendim" in chat; YOU merge the PR into `main` on GitHub, then give them:
@@ -94,6 +96,29 @@ landing spot and the target to the crater.
   handle with silver criss-cross cord, tan strap loop), held upright.
 - `ThorLayer` draws his whole body (the player model is hidden in `HeroArmPose`); `ThorMotion` is the pure pose math;
   `Mjolnir` the hammer mesh; `ThorBolts` the branching lightning; `ThorFx` world effects, thrown hammer, first person.
+
+## Hulk (PvP hero, `heroes/hulk/`, `client/render/hulk/`)
+- Bruce Banner ⇄ Hulk: **G** toggles (staged 2.2 s change: clutching the head, the body swells, shirt and glasses
+  tear away, the roar; reverting is shorter). All abilities work only as Hulk; Banner is an ordinary player.
+- `HulkAction` = every action id and tuning number; `HulkConfig` = server/common rules and numbers
+  (`config/superheromod-hulk-common.toml`: friendly fire, block damage on/off, regions, max blocks per attack, hardness
+  cap, banned blocks, every damage/range/cooldown) and client look (`superheromod-hulk-client.toml`: effects amount,
+  camera shake, calm cinematic camera, HUD). `HulkBlocks` decides which blocks may break (never bedrock/unbreakable,
+  block entities, banned ids, protected regions; fires the break event; per-attack budget).
+- `HulkController` (server) decides; clients animate from the synced clock (`HulkStatePacket`) and draw effects
+  from `HulkFxPacket`. Space as Hulk is the leap (`HulkInputPacket`), not the vanilla hop.
+- Keys: LMB alternating punches (small block breaking), LMB hold = charged destructive punch (forward wave),
+  RMB guard (front blocks more than back, stamina bar, slowed), **R** Thunderclap, **F** ground-shaking punch (wave
+  follows the terrain, trench), **C** rip up the ground and throw it, **Space hold** charged leap (one bounce on landing),
+  **X** GAMMA RAGE film (needs a target in front).
+- `HulkLayer` draws the whole body (player model hidden in `HeroArmPose`), one parametric body that grows from
+  Banner to Hulk with `pose.size` (×1.5 overall); `HulkMotion` is the pure pose math; `HulkFx` world effects
+  (rings, dust, chunks of the real ground, cracks, flying rock, first-person fists, the film's performers).
+- **GAMMA RAGE (X), `client/render/film/RageFilm.java`, ~14 s:** gamma gathers + roar, leap onto the target, one-arm
+  grab, up into the sky, held before his face + roar, thrown down (target crashes first: 25% max health), Hulk raises
+  both fists and dives after the configured delay (default 2 s), the big smash (50%, real limited crater), far shot,
+  power stance. `RagePath` = where both bodies are (stage space). Server `HulkRageSession` holds both, then puts
+  Hulk at the crater's edge and the target in the crater.
 
 ## Other state
 - Ghost Rider gameplay: chain combos with real chain physics, R hellfire breath (damage every second), Hell Cycle

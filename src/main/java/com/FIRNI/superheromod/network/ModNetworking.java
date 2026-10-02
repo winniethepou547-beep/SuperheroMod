@@ -46,7 +46,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
  */
 public final class ModNetworking {
 
-    private static final String PROTOCOL_VERSION = "12";
+    private static final String PROTOCOL_VERSION = "13";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(SuperheroMod.MODID, "main"),
@@ -192,5 +192,20 @@ public final class ModNetworking {
                 com.FIRNI.superheromod.network.packet.ThorFxPacket::decode,
                 com.FIRNI.superheromod.network.packet.ThorFxPacket::handle,
                 java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.HulkStatePacket.class,
+                com.FIRNI.superheromod.network.packet.HulkStatePacket::encode,
+                com.FIRNI.superheromod.network.packet.HulkStatePacket::decode,
+                com.FIRNI.superheromod.network.packet.HulkStatePacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.HulkFxPacket.class,
+                com.FIRNI.superheromod.network.packet.HulkFxPacket::encode,
+                com.FIRNI.superheromod.network.packet.HulkFxPacket::decode,
+                com.FIRNI.superheromod.network.packet.HulkFxPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.HulkInputPacket.class,
+                com.FIRNI.superheromod.network.packet.HulkInputPacket::encode,
+                com.FIRNI.superheromod.network.packet.HulkInputPacket::decode,
+                com.FIRNI.superheromod.network.packet.HulkInputPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
     }
 }

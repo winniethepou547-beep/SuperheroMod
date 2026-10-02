@@ -74,8 +74,9 @@ public final class HeroArmPose {
             return;
         }
 
-        // Thor draws his whole body himself (ThorLayer); the player model stays out of the way.
-        if (com.FIRNI.superheromod.client.render.thor.ThorClient.isThor(player)) {
+        // Thor and Hulk draw their whole bodies themselves (ThorLayer, HulkLayer); the player model stays out of the way.
+        if (com.FIRNI.superheromod.client.render.thor.ThorClient.isThor(player)
+                || com.FIRNI.superheromod.client.render.hulk.HulkClient.isHero(player)) {
             elbow.remove(id);
             model.head.visible = model.hat.visible = model.body.visible = model.jacket.visible = false;
             model.rightArm.visible = model.leftArm.visible = model.rightSleeve.visible = model.leftSleeve.visible = false;
