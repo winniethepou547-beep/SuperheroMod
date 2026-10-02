@@ -18,6 +18,8 @@ public final class ThorMotion {
         public float rLegX, rLegZ, rKnee, lLegX, lLegZ, lKnee;
         /** Mjolnir in the hand: tilt about the hand's x axis, then twist about the forearm. */
         public float wristX, wristY;
+        /** The wrist cocked sideways (in the swing's plane when the arm is out): lag before the blow, snap through it. */
+        public float wristZ;
         /** 0 = no blur ring, 1 = spinning beside the head (flight), 2 = whirling in front (guard). */
         public float spinRing, spinMode;
         public float eyes, mouth, aura;
@@ -34,7 +36,7 @@ public final class ThorMotion {
             torsoYaw = o.torsoYaw; torsoPitch = o.torsoPitch; torsoRoll = o.torsoRoll; headPitch = o.headPitch; headYaw = o.headYaw;
             rArmX = o.rArmX; rArmY = o.rArmY; rArmZ = o.rArmZ; rElbow = o.rElbow; lArmX = o.lArmX; lArmY = o.lArmY; lArmZ = o.lArmZ; lElbow = o.lElbow;
             rLegX = o.rLegX; rLegZ = o.rLegZ; rKnee = o.rKnee; lLegX = o.lLegX; lLegZ = o.lLegZ; lKnee = o.lKnee;
-            wristX = o.wristX; wristY = o.wristY; spinRing = o.spinRing; spinMode = o.spinMode;
+            wristX = o.wristX; wristY = o.wristY; wristZ = o.wristZ; spinRing = o.spinRing; spinMode = o.spinMode;
             eyes = o.eyes; mouth = o.mouth; aura = o.aura; twoHands = o.twoHands; noHammer = o.noHammer; upright = o.upright;
         }
         /** Blend toward another pose by k (0..1). Spin angles are not blended here (see ThorLayer). */
@@ -46,7 +48,7 @@ public final class ThorMotion {
             lArmX += (o.lArmX - lArmX) * k; lArmY += (o.lArmY - lArmY) * k; lArmZ += (o.lArmZ - lArmZ) * k; lElbow += (o.lElbow - lElbow) * k;
             rLegX += (o.rLegX - rLegX) * k; rLegZ += (o.rLegZ - rLegZ) * k; rKnee += (o.rKnee - rKnee) * k;
             lLegX += (o.lLegX - lLegX) * k; lLegZ += (o.lLegZ - lLegZ) * k; lKnee += (o.lKnee - lKnee) * k;
-            spinRing += (o.spinRing - spinRing) * k; spinMode = o.spinMode;
+            spinRing += (o.spinRing - spinRing) * k; spinMode = o.spinMode; wristZ += (o.wristZ - wristZ) * k;
             eyes += (o.eyes - eyes) * k; mouth += (o.mouth - mouth) * k; aura += (o.aura - aura) * k; twoHands += (o.twoHands - twoHands) * k;
             noHammer = o.noHammer; upright += (o.upright - upright) * k; upright = o.upright;
         }
@@ -141,8 +143,10 @@ public final class ThorMotion {
             p.bodyPitch = f.bodyPitch; p.rLegX = f.rLegX; p.lLegX = f.lLegX; p.rKnee = f.rKnee; p.lKnee = f.lKnee; p.crouch = 0;
         }
         if (in.powered()) p.eyes = Math.max(p.eyes, .75f);
-        // Only a still stance holds the hammer dead upright; any action steers it with the wrist.
-        if (in.action() != IDLE && in.action() != CATCH) p.upright = 0;
+        // A still stance holds the hammer dead upright; the swings hand it back to that hold themselves
+        // as they finish; every other action steers it with the wrist.
+        int act = in.action();
+        if (act != IDLE && act != CATCH && act != SWING_RIGHT && act != SWING_LEFT && act != UPPERCUT) p.upright = 0;
         return p;
     }
     /** Hammer away: the right hand open and a little forward, ready for it to come back. */
@@ -156,18 +160,24 @@ public final class ThorMotion {
         // Wind-up: chest turns left, the arm reaches across, weight on the left leg.
         p.torsoYaw = lerp(p.torsoYaw, -.65f, wind); p.torsoPitch = lerp(p.torsoPitch, .2f, wind);
         p.rArmX = lerp(p.rArmX, -1.25f, wind); p.rArmY = lerp(p.rArmY, -.95f, wind); p.rArmZ = lerp(p.rArmZ, -.15f, wind);
-        p.rElbow = lerp(p.rElbow, 1.05f, wind); p.wristX = lerp(p.wristX, -.35f, wind);
+        p.rElbow = lerp(p.rElbow, 1.05f, wind); p.wristX = lerp(p.wristX, -.1f, wind);
+        // The wrist cocks back: the hammer lies flat and trails behind the hand.
+        p.wristZ = lerp(0, -.95f, wind);
         p.lArmX = lerp(p.lArmX, -.3f, wind); p.lArmZ = lerp(p.lArmZ, -.55f, wind);
         p.crouch = lerp(p.crouch, 2f, wind); p.lKnee = lerp(p.lKnee, .5f, wind);
         // Strike: shoulders, chest, arm and hips all go round together; the arm straightens.
         p.torsoYaw = lerp(p.torsoYaw, .78f, strike); p.torsoRoll = lerp(0, -.08f, strike);
         p.rArmX = lerp(p.rArmX, -1.48f, strike); p.rArmY = lerp(p.rArmY, 1.05f, strike); p.rArmZ = lerp(p.rArmZ, .55f, strike);
-        p.rElbow = lerp(p.rElbow, .1f, strike); p.wristX = lerp(p.wristX, -.05f, strike);
+        p.rElbow = lerp(p.rElbow, .1f, strike); p.wristX = lerp(p.wristX, 0, strike);
+        // ...and snaps through at the blow, the head flat and leading.
+        p.wristZ = lerp(p.wristZ, .35f, strike);
         p.lArmX = lerp(p.lArmX, -.6f, strike); p.lArmY = lerp(p.lArmY, -.6f, strike); p.lArmZ = lerp(p.lArmZ, -.75f, strike);
         p.rLegX = lerp(p.rLegX, .25f, strike); p.lLegX = lerp(p.lLegX, -.35f, strike); p.rKnee = lerp(p.rKnee, .45f, strike);
         // Follow-through: momentum carries the arm on and down; it is NOT reset (the next hit starts here).
         p.torsoYaw = lerp(p.torsoYaw, .9f, settle); p.rArmY = lerp(p.rArmY, 1.3f, settle); p.rArmX = lerp(p.rArmX, -1.1f, settle);
         p.rElbow = lerp(p.rElbow, .4f, settle);
+        // Right after the blow the wrist gathers the hammer back up to its upright hold.
+        p.wristZ = lerp(p.wristZ, 0, settle); p.upright = settle;
         p.aura = strike * (1 - settle) * .6f;
         return p;
     }
@@ -177,17 +187,21 @@ public final class ThorMotion {
         // Starts from the first hit's follow-through: chest right, arm out right, elbow cocking.
         p.torsoYaw = lerp(.9f, .95f, wind); p.torsoPitch = .2f;
         p.rArmX = lerp(-1.1f, -1.3f, wind); p.rArmY = lerp(1.3f, 1.35f, wind); p.rArmZ = lerp(.55f, .3f, wind);
-        p.rElbow = lerp(.4f, .85f, wind); p.wristX = -.25f;
+        p.rElbow = lerp(.4f, .85f, wind); p.wristX = -.1f;
+        // Wrist cocked the other way: the hammer trails out to his right, flat.
+        p.wristZ = lerp(0, .95f, wind);
         p.lArmX = -.6f; p.lArmY = -.6f; p.lArmZ = -.75f;
         p.crouch = 2; p.rKnee = .5f; p.lKnee = .35f; p.rLegX = .25f; p.lLegX = -.35f;
         // Backhand: chest whips left, the arm crosses in front of the chest.
         p.torsoYaw = lerp(p.torsoYaw, -.75f, strike); p.torsoRoll = lerp(0, .08f, strike);
         p.rArmX = lerp(p.rArmX, -1.5f, strike); p.rArmY = lerp(p.rArmY, -1.05f, strike); p.rArmZ = lerp(p.rArmZ, -.2f, strike);
         p.rElbow = lerp(p.rElbow, .2f, strike); p.wristX = lerp(p.wristX, 0, strike);
+        p.wristZ = lerp(p.wristZ, -.35f, strike);
         p.lArmX = lerp(p.lArmX, -.2f, strike); p.lArmY = lerp(p.lArmY, .2f, strike); p.lArmZ = lerp(p.lArmZ, -.35f, strike);
         p.rLegX = lerp(p.rLegX, -.25f, strike); p.lLegX = lerp(p.lLegX, .25f, strike);
         p.torsoYaw = lerp(p.torsoYaw, -.9f, settle); p.rArmY = lerp(p.rArmY, -1.35f, settle); p.rArmX = lerp(p.rArmX, -1.15f, settle);
         p.rElbow = lerp(p.rElbow, .55f, settle);
+        p.wristZ = lerp(p.wristZ, 0, settle); p.upright = settle;
         p.aura = strike * (1 - settle) * .6f;
         return p;
     }
@@ -198,15 +212,16 @@ public final class ThorMotion {
         p.crouch = lerp(p.crouch, 4f, load); p.torsoPitch = lerp(p.torsoPitch, .5f, load); p.headPitch = lerp(p.headPitch, -.35f, load);
         p.rKnee = lerp(p.rKnee, 1.0f, load); p.lKnee = lerp(p.lKnee, .9f, load); p.rLegX = lerp(p.rLegX, -.55f, load); p.lLegX = lerp(p.lLegX, -.3f, load);
         p.rArmX = lerp(p.rArmX, .65f, load); p.rArmY = lerp(p.rArmY, .1f, load); p.rArmZ = lerp(p.rArmZ, .3f, load);
-        p.rElbow = lerp(p.rElbow, .2f, load); p.wristX = lerp(p.wristX, .35f, load);
+        p.rElbow = lerp(p.rElbow, .2f, load); p.wristX = lerp(p.wristX, .75f, load);   // cocked: the head hangs back and down
         p.lArmX = lerp(p.lArmX, -.75f, load); p.lArmZ = lerp(p.lArmZ, -.4f, load); p.lElbow = lerp(p.lElbow, .9f, load);
         // The drive: legs straighten, he lifts off a little, the hammer comes up past his face.
         p.crouch = lerp(p.crouch, -.5f, drive); p.rise = 3.5f * drive * (1 - settle);
         p.torsoPitch = lerp(p.torsoPitch, -.28f, drive); p.headPitch = lerp(p.headPitch, -.45f, drive);
         p.rKnee = lerp(p.rKnee, .1f, drive); p.lKnee = lerp(p.lKnee, .45f, drive); p.rLegX = lerp(p.rLegX, .1f, drive); p.lLegX = lerp(p.lLegX, -.4f, drive);
         p.rArmX = lerp(p.rArmX, -2.95f, drive); p.rArmZ = lerp(p.rArmZ, .12f, drive); p.rElbow = lerp(p.rElbow, .15f, drive);
-        p.wristX = lerp(p.wristX, -.25f, drive);
+        p.wristX = lerp(p.wristX, -.6f, drive);   // the wrist snaps it up through the blow
         p.lArmX = lerp(p.lArmX, .35f, drive); p.lArmZ = lerp(p.lArmZ, -.6f, drive);
+        p.upright = settle;   // gathered back upright as soon as it has landed
         p.aura = drive * (1 - settle);
         p.eyes = drive * (1 - settle);
         return p;

@@ -431,6 +431,8 @@ public final class ThorFx {
         VIEWS.put(p.getId(), view);
         return view;
     }
+    /** World height of the underside of the film's cloud ceiling. */
+    private static double cloudY(Ult v) { return v.world(new Vec3(0, ULT_CLOUDS - .5, 0)).y; }
     private static boolean crossed(float before, float now, float beat) { return before < beat && now >= beat; }
     /** The film's lightning, fired as the clock passes each beat; the storm thickens toward the whiteout. */
     private static void ultimateTick(Ult v, float before, float t, Random r) {
@@ -501,10 +503,12 @@ public final class ThorFx {
             Vec3 eyes = thor.add(0, 1.65, 0).add(v.forward.scale(.25));
             for (int side = -1; side <= 1; side += 2) {
                 Vec3 eye = eyes.add(v.right.scale(side * .12));
-                Vec3 up = eye.add(v.right.scale(side * (2 + r.nextDouble() * 10))).add(0, 18 + r.nextDouble() * 14, 0).add(v.forward.scale(r.nextDouble() * 10 - 3));
+                // Up into the cloud ceiling itself.
+                Vec3 up = eye.add(v.right.scale(side * (2 + r.nextDouble() * 10))).add(v.forward.scale(r.nextDouble() * 10 - 3));
+                up = new Vec3(up.x, cloudY(v) + r.nextDouble() * 1.5, up.z);
                 bolt(eye, up, t < ULT_STORM ? .2 : .14, 6, 3, .22, .9);
             }
-            if (crossed(before, t, ULT_EYEBOLT)) { flash(eyes, 3, 8, 1f); flash(eyes.add(0, 20, 0), 20, 10, .5f); }
+            if (crossed(before, t, ULT_EYEBOLT)) { flash(eyes, 3, 8, 1f); flash(new Vec3(eyes.x, cloudY(v), eyes.z), 20, 10, .6f); }
         }
         // Then the columns: one great strike after another all round them, ever more.
         if (t >= ULT_STORM && t < ULT_BLAST) {
@@ -513,11 +517,23 @@ public final class ThorFx {
             for (int i = 0; i < strikes; i++) {
                 double a = r.nextDouble() * Math.PI * 2, d = 2.5 + r.nextDouble() * (14 - 8 * density);
                 Vec3 col = thor.add(Math.cos(a) * d, 0, Math.sin(a) * d);
-                bolt(col.add(0, 30, 0), col.add(0, -26, 0), .28 + .2 * density, 6, 3, .15, .7);
+                // Out of the clouds, down past them, all the way to the ground.
+                Vec3 top = new Vec3(col.x, cloudY(v) - r.nextDouble(), col.z), bottom = new Vec3(col.x + (r.nextDouble() - .5) * 3, v.anchor.y, col.z + (r.nextDouble() - .5) * 3);
+                bolt(top, bottom, .28 + .2 * density, 6, 3, .12, .7);
                 flash(col.add(0, 1, 0), 3 + 4 * density, 5, .6f);
+                flash(top, 8 + 6 * density, 5, .5f);
             }
         }
-        if (crossed(before, t, ULT_BLAST)) flash(thor.add(0, 1, 0), 40, 18, 1f);
+        if (crossed(before, t, ULT_BLAST)) {
+            // The great discharge: the whole ceiling lets go at once, every bolt aimed at the two of them.
+            flash(thor.add(0, 1, 0), 40, 18, 1f);
+            for (int i = 0; i < 14; i++) {
+                double a = i * Math.PI * 2 / 14 + r.nextDouble() * .4, d = 3 + r.nextDouble() * 16;
+                Vec3 top = new Vec3(thor.x + Math.cos(a) * d, cloudY(v) - r.nextDouble(), thor.z + Math.sin(a) * d);
+                bolt(top, thor.add((r.nextDouble() - .5) * 2, .5 + r.nextDouble(), (r.nextDouble() - .5) * 2), .35, 10, 4, .14, .8);
+                flash(top, 12, 10, .7f);
+            }
+        }
         if (crossed(before, t, ULT_LET_GO)) { flash(target.add(0, 1, 0), 1.6, 5, .7f); burst(target.add(0, 1, 0), new Vec3(0, -1, 0), 3, 1.5, .05); }
         if (crossed(before, t, ULT_LANDED)) takeoff(thor, .7f);
         // Afterwards: small arcs still running over the ground round him.
@@ -745,7 +761,9 @@ public final class ThorFx {
         Vec3 eye = v.world(new Vec3(0, ULT_CLOUDS + 2, v.path.distance()));
         float fade = 1 - .3f * FilmFx.ease((t - ULT_LANDED) / 20f);
         // A flash inside the clouds every so often brightens the whole ceiling for a moment.
-        float bright = (FilmFx.hash(Math.floor(t * .6) * 1.37) > .7 ? 1.45f : 1f) * fade;
+        // During the storm of strikes the flashes come thick and fast.
+        double flashRate = t >= ULT_STORM && t < ULT_FADE ? 1.6 : .6, flashOdds = t >= ULT_STORM && t < ULT_FADE ? .45 : .7;
+        float bright = (FilmFx.hash(Math.floor(t * flashRate) * 1.37) > flashOdds ? 1.5f : 1f) * fade;
         double spin = t * .004;
         double cos = Math.cos(spin), sin = Math.sin(spin);
         int cells = 8;
