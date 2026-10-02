@@ -10,7 +10,7 @@ Minecraft **1.20.1**, **Forge** (Java 17). Kahramanı seçmek için: `/superhero
 | **Sol tık basılı tut** | Şarjlı Yıkıcı Yumruk (bar ~1 sn'de dolar): şok dalgası yolundaki her şeyi kırarak ilerler; ilk çarptığı kişide (o kişi ~20 blok uçar), çok sert bir duvarda ya da menzil sonunda patlar |
 | **Sağ tık basılı tut** | Gard: önden gelen hasarı çok, arkadan geleni az azaltır; yavaşlatır; dayanıklılık çubuğu biter |
 | **R** | Thunderclap: el çırpar, önüne yerden giden hava duvarı (havadayken de); iter, sersemletir, toprak parçaları fırlatır, arkasında toz bırakır; Hulk biraz geri itilir |
-| **F** | Yer Sarsan Yumruk: yarık 3 blok önünden başlar, 6 blok geniş ve 20 blok derin; toprak sırayla sağa-sola fırlar, üstündekiler havaya uçar, Hulk biraz geri itilir |
+| **F** | Yer Sarsan Yumruk: yarık 3 blok önünden başlar, hızlı ve düzensiz ilerler, ~6 blok geniş ve 15 blok derin; toprak sağa-sola fırlar, yarık fırlayan toprakla birlikte açılır |
 | **C** | Kaya Sök ve Fırlat: yerden dev bir kaya söker, başının üstünde taşır, fırlatır; çarptığı yerde alan hasarı ve yavaşlatma, kaya bir süre oraya saplı kalır |
 | **Boşluk (bas-çek)** | Normal zıplama, hiçbir şey kırılmaz |
 | **Boşluk basılı tut** | Şarjlı Sıçrama (bar yarım saniyede dolar): baktığın yöne fırlar, ağır ve hızlı düşer; iniş gücü düşüş hızına göre, krater, bir kez seker |
@@ -18,17 +18,19 @@ Minecraft **1.20.1**, **Forge** (Java 17). Kahramanı seçmek için: `/superhero
 
 Banner iken sadece **G** çalışır; diğer her şey Hulk'a özel. Hulk iken fare normal kazma / eşya kullanma yapmaz.
 
-## GAMA ÖFKESİ sırası
-1. Gama enerjisi toplanır, titreme, kükreme.
-2. Hedefe sıçrar, tek kolla yakalar.
-3. Gökyüzüne sıçrar, iki eliyle yüzünün önünde tutup kükrer.
-4. Aşağı fırlatır — hedef önce yere çakılır (**ilk hasar**, varsayılan: maks. canın %25'i).
-5. Hulk havada kalır, iki yumruğunu başının üstüne kaldırır, ayarlanan gecikmeden sonra (varsayılan **2 sn**) dalış.
-6. İkinci büyük darbe (**asıl hasar**, varsayılan %50) + gerçek ama sınırlı krater; yakındaki diğerleri savrulur.
-7. Uzak kamera, Hulk tozun içinden doğrulup güç pozu verir, kontrol geri gelir.
+## X — ONE PUNCH (Durdurulamaz Güç)
+1. Açık bir ova, uzakta dev bir dağ. Hulk solda, rakip sağda; sessiz bir bakışma.
+2. Beş ayrı, okunur yumruk (sağ-sol), her birinde bütün vücut dönüyor; rakip her darbede ters yöne sendeliyor.
+3. Yumruklar giderek hızlanıp makineli tüfek gibi oluyor; her darbede şok halkası, toz büyüyüp ikisini sarıyor.
+4. Aniden duruyor; sessizlik; toz dağılınca Hulk dimdik ayakta.
+5. Gerilme (Saitama pozu): geniş duruş, yumruk geride; zemin çatlıyor, kısa bir donma.
+6. Son yumruk: siyah-kırmızı titreşen darbe kareleri.
+7. Yumruktan doğan dev hava akımı ovada ileri koşup dağa çarpıyor, sonra yavaşça dağılıyor.
+8. Dağın ortasında devasa bir yarık; kayalar düşüyor. Geniş planda ikisi de minicik: Hulk solda, rakip sağda.
+9. Kol iner, kontrol geri gelir; rakip yumruğun yönünde savrulur.
 
-Hedef ölür ya da oyundan çıkarsa sahne güvenle biter. İkisi de sahne boyunca yerinde tutulur, sonda
-blok içine değil zeminin üstüne konur.
+Hasar: yumruk yağmuru toplamda maks. canın %25'i (her darbeye bölünür), son yumruk %50.
+Sinematik kendi sahnesinde oynar; gerçek dünyada arazi değişmez.
 
 ## Ayar dosyaları (oyun klasöründe `config/`)
 - `superheromod-hulk.toml` (sunucu kuralları ve denge):

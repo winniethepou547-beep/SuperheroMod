@@ -51,11 +51,37 @@ public final class HulkAction {
     /** How far in front of him the boulder is torn out (so the hole never opens under his feet). */
     public static final double ROCK_AHEAD = 2.9;
 
-    // ------------------------------------------------------------------ Gamma Rage (X)
-    /** Gather, leap at them, grab, up into the sky, the roar, the throw, their crash, the dive, the smash, the end. */
-    public static final int ULT_GATHER = 0, ULT_ROAR = 26, ULT_LEAP = 42, ULT_GRAB = 60, ULT_SKY = 78, ULT_HOLD = 104,
-            ULT_THROW = 150, ULT_CRASH = 172, ULT_RAISE = 182, ULT_SMASH_DEFAULT = 212, ULT_TOTAL_AFTER = 70;
-    public static final double ULT_HEIGHT = 26;
+    // ------------------------------------------------------------------ ONE PUNCH (X)
+    /**
+     * The film's beats, in ticks: the stare; five opening punches; the barrage speeding up to a blur;
+     * the sudden stop in the dust; the dust clearing on him standing upright; the wind-up; the freeze;
+     * the punch and its black-red impact frames; the air current racing out; the mountain revealed
+     * split open; the wide shot; the arm lowered; the end.
+     */
+    public static final int ULT_FIRST = 36, ULT_BARRAGE = 100, ULT_STOP = 172, ULT_CLEAR = 188, ULT_WINDUP = 222, ULT_FREEZE = 244,
+            ULT_PUNCH = 254, ULT_IMPACT_END = 268, ULT_REVEAL = 338, ULT_WIDE = 392, ULT_LOWER = 440, ULT_TOTAL = 480;
+    /** Every punch before the last one: when it lands, which hand (true = right), how hard (1 = full). */
+    public static final float[] ULT_HITS, ULT_POWER;
+    public static final boolean[] ULT_RIGHT;
+    static {
+        java.util.List<float[]> hits = new java.util.ArrayList<>();
+        // Five distinct punches, each one readable: right, left, right (short), left (turning), right (hard).
+        float[][] opening = {{ULT_FIRST + 10, 1, 1}, {ULT_FIRST + 22, 0, 1}, {ULT_FIRST + 31, 1, .8f}, {ULT_FIRST + 42, 0, 1}, {ULT_FIRST + 56, 1, 1.3f}};
+        hits.addAll(java.util.Arrays.asList(opening));
+        // Then faster and faster until the arms are a blur.
+        float t = ULT_BARRAGE, gap = 5.5f;
+        boolean right = false;
+        while (t < ULT_STOP - 1.5f) {
+            hits.add(new float[]{t, right ? 1 : 0, Math.max(.45f, gap / 6f)});
+            right = !right;
+            t += gap;
+            gap = Math.max(1.1f, gap * .9f);
+        }
+        // The last heavy one that stops it all.
+        hits.add(new float[]{ULT_STOP, 1, 1.4f});
+        ULT_HITS = new float[hits.size()]; ULT_POWER = new float[hits.size()]; ULT_RIGHT = new boolean[hits.size()];
+        for (int i = 0; i < hits.size(); i++) { ULT_HITS[i] = hits.get(i)[0]; ULT_RIGHT[i] = hits.get(i)[1] > .5f; ULT_POWER[i] = hits.get(i)[2]; }
+    }
 
     // ------------------------------------------------------------------ effects (HulkFxPacket kinds)
     public static final int FX_TRANSFORM = 0, FX_PUNCH = 1, FX_CHARGED_WAVE = 2, FX_CLAP = 3, FX_POUND_STEP = 4, FX_LANDING = 5,

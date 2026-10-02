@@ -131,11 +131,20 @@ landing spot and the target to the crater.
 - `HulkLayer` draws the whole body (player model hidden in `HeroArmPose`), one parametric body that grows from
   Banner to Hulk with `pose.size` (×1.5 overall); `HulkMotion` is the pure pose math; `HulkFx` world effects
   (rings, dust, chunks of the real ground, cracks, flying rock, first-person fists, the film's performers).
-- **GAMMA RAGE (X), `client/render/film/RageFilm.java`, ~14 s:** gamma gathers + roar, leap onto the target, one-arm
-  grab, up into the sky, held before his face + roar, thrown down (target crashes first: 25% max health), Hulk raises
-  both fists and dives after the configured delay (default 2 s), the big smash (50%, real limited crater), far shot,
-  power stance. `RagePath` = where both bodies are (stage space). Server `HulkRageSession` holds both, then puts
-  Hulk at the crater's edge and the target in the crater.
+- **ONE PUNCH — The Unstoppable Force (X), `client/render/film/RageFilm.java`, 24 s** (Saitama vs Genos reference):
+  played on its own virtual stage `OnePunchStage` (backdrop scene 8 PLAIN: blue sky, white clouds, pale plain; a
+  box-built mountain far down +z). Stage space as the camera uses it: +z = line of the punch, +x is the LEFT of the
+  frame when looking down +z (Hulk at +x, target at -x). Beats `HulkAction.ULT_*`; every barrage blow is in
+  `ULT_HITS/ULT_RIGHT/ULT_POWER` (5 readable punches, then gaps shrinking ×0.9 to 1.1 ticks, then a last heavy one).
+  Stare → punches (whole-body turn, `HulkMotion.ultimate`) → barrage blur with dust swelling into a cloud → dead stop,
+  dust clears, Hulk upright → wind-up (reference 5 pose) + freeze → punch with black/red impact frames (`grade` +
+  `impactFrame` overlay) → air current (320 two-tone puffs, streaks) runs into the mountain → split appears while it
+  is hidden (`SPLIT_AT`) → dispersal, falling rocks → wide shot, both tiny, arm lowers. `RagePath` = positions and the
+  target's reactions (jolts per blow, tumble, down, propped). Server `HulkRageSession`: barrage share spread over
+  every blow, the last punch's share at `ULT_PUNCH`, blown away down the line when control returns. No real terrain change.
+- F split: 1 block/tick, sides wander in and out and the line drifts (`waveLeft/waveRight/waveDrift`), top 3 layers
+  thrown, deeper layers cleared a tick or two later (`splitPos/splitAt`) so it opens as the earth flies; `splitDepth` 15.
+- Hulk runs at double speed (attribute); `HulkClient.fov` keeps the view from stretching.
 
 ## Other state
 - Ghost Rider gameplay: chain combos with real chain physics, R hellfire breath (damage every second), Hell Cycle

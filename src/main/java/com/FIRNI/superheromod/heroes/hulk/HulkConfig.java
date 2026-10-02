@@ -105,8 +105,8 @@ public final class HulkConfig {
         b.pop();
         b.push("gammaRage");
         ULT_RANGE = b.comment("How far the target may be").defineInRange("range", 16.0, 3, 40);
-        ULT_CRASH_SHARE = b.comment("Share of the target's max health taken when it hits the ground").defineInRange("crashShare", .25, 0, 1);
-        ULT_SMASH_SHARE = b.comment("Share of max health taken by Hulk's two-handed smash").defineInRange("smashShare", .5, 0, 1);
+        ULT_CRASH_SHARE = b.comment("Share of the target's max health the whole barrage of punches takes").defineInRange("crashShare", .25, 0, 1);
+        ULT_SMASH_SHARE = b.comment("Share of max health the last punch takes").defineInRange("smashShare", .5, 0, 1);
         ULT_DELAY = b.comment("Ticks between the target's crash and Hulk's smash (40 = 2 seconds)").defineInRange("smashDelay", 40, 15, 100);
         ULT_CRATER = b.comment("Radius of the real crater the smash digs (the blast itself looks much bigger)").defineInRange("crater", 4, 0, 8);
         ULT_COOLDOWN = b.defineInRange("cooldown", 900, 0, 20000);

@@ -427,7 +427,6 @@ public final class HulkFx {
     }
 
     // ------------------------------------------------------------------ every tick
-    private static final Map<Integer, Float> LAST_RAGE = new HashMap<>();
 
     @SubscribeEvent public static void tick(TickEvent.ClientTickEvent e) {
         if (e.phase != TickEvent.Phase.END) return;
@@ -515,138 +514,21 @@ public final class HulkFx {
                 particles(s.rock, 2, .6, .05, s.rockState());
                 if (r.nextFloat() < .5f) level.addParticle(ParticleTypes.POOF, s.rock.x, s.rock.y, s.rock.z, 0, 0, 0);
             }
-            // GAMMA RAGE: the client-side beats of the film (the crash and the smash come from the server).
-            float rage = HulkClient.rageTime(p, 0);
-            Float before = LAST_RAGE.get(p.getId());
-            if (rage < 0) { LAST_RAGE.remove(p.getId()); VIEWS.remove(p.getId()); continue; }
-            RageView v = view(p);
-            if (v == null) continue;
-            float last = before == null ? rage - 1 : before;
-            LAST_RAGE.put(p.getId(), rage);
-            rageTick(v, last, rage, r);
-        }
-        if (CASTS.size() > 8) CASTS.clear();
-    }
-    private static boolean crossed(float before, float now, float beat) { return before < beat && now >= beat; }
-    private static void rageTick(RageView v, float before, float t, Random r) {
-        var level = Minecraft.getInstance().level;
-        Vec3 start = v.world(v.path.start());
-        BlockState ground = level.getBlockState(BlockPos.containing(start).below());
-        if (t < ULT_LEAP) {
-            // Gamma gathering: motes streaming in, the ground starting to give under him.
-            float g = HulkMotion.clamp(t / ULT_ROAR);
-            gammaMotes(start.add(0, .8, 0), 2 + (int) (6 * g), 1.5 + g * 2, .1 + g * .15);
-            if (r.nextFloat() < g * .6f) particles(start, 3, 3, .12, ground);
-        }
-        if (crossed(before, t, ULT_ROAR)) {
-            ring(start.add(0, .1, 0), null, 10, 1, 16, GAMMA, .55f, true, 0);
-            ring(start.add(0, 2, 0), v.forward, 3, .6, 8, AIR, .6f, true, 0);
-            glow(start.add(0, 2.4, 0), 5, 16, GAMMA, .55f);
-            dust(start, 26, 2, .22, 1.3, 50, ground, .02);
-            cracks(start, 4, 8, 200, true, null);
-            shake(start, .8f, 20);
-        }
-        if (crossed(before, t, ULT_LEAP)) {
-            ring(start.add(0, .1, 0), null, 5, .7, 10, AIR, .55f, true, 0);
-            dust(start, 22, 1, .2, 1.2, 50, ground, .05);
-            cracks(start, 3, 6, 200, false, null);
-            shake(start, .6f, 16);
-        }
-        if (crossed(before, t, ULT_GRAB)) {
-            Vec3 grab = v.world(v.path.target(ULT_GRAB).add(0, 1, 0));
-            ring(grab, v.forward, 1.6, .4, 6, AIR, .7f, true, 0);
-            glow(grab, 2, 5, AIR, .6f);
-            shake(grab, .5f, 14);
-        }
-        if (crossed(before, t, ULT_SKY)) {
-            Vec3 spot = v.world(v.path.hulk(ULT_SKY));
-            BlockState under = level.getBlockState(BlockPos.containing(spot).below());
-            ring(spot.add(0, .1, 0), null, 7, .9, 12, AIR, .6f, true, 0);
-            dust(spot, 34, 1.4, .26, 1.4, 60, under, .06);
-            cracks(spot, 5, 9, 220, false, null);
-            shake(spot, 1f, 24);
-        }
-        if (crossed(before, t, ULT_HOLD + 12)) {
-            // The roar into their face: a ring of air blown out of him, high in the sky.
-            Vec3 face = v.world(v.path.hulk(ULT_HOLD + 12).add(0, 2.6, .6));
-            ring(face, v.forward, 2.5, .6, 10, AIR, .6f, true, 0);
-            ring(face, v.forward, 4.5, .8, 14, GAMMA, .35f, true, 3);
-        }
-        if (crossed(before, t, ULT_THROW + 1)) {
-            Vec3 at = v.world(v.path.target(ULT_THROW + 1).add(0, 1, 0));
-            ring(at, new Vec3(0, 1, 0), 3, .6, 8, AIR, .6f, true, 0);
-            glow(at, 2.5, 5, AIR, .6f);
         }
     }
-
-    // ------------------------------------------------------------------ GAMMA RAGE in the world
-    /** One Hulk's running film: his stage (anchor, facing) and the path both bodies follow on it. */
-    static final class RageView {
-        final Player hulk; final RagePath path; final Vec3 anchor, forward, right; final float yaw; final int target;
-        RageView(Player hulk, RagePath path, Vec3 anchor, Vec3 forward, float yaw, int target) {
-            this.hulk = hulk; this.path = path; this.anchor = anchor; this.forward = forward; this.yaw = yaw; this.target = target;
-            right = forward.cross(new Vec3(0, 1, 0)).normalize();
-        }
-        Vec3 world(Vec3 stage) { return anchor.add(right.scale(stage.x)).add(0, stage.y, 0).add(forward.scale(stage.z)); }
-    }
-    private static final Map<Integer, RageView> VIEWS = new HashMap<>();
-    /** The film this Hulk is in, or null; the target's distance is read once and kept for the whole film. */
-    static RageView view(Player p) {
-        var film = FilmSessionClient.get(p.getId());
-        var level = Minecraft.getInstance().level;
-        if (film == null || level == null || !HulkRageSession.ID.equals(film.film)) return null;
-        RageView known = VIEWS.get(p.getId());
-        if (known != null && known.anchor.distanceToSqr(film.anchor) < 1e-4) return known;
-        RageView v = new RageView(p, ragePath(film, HulkClient.smashTick(p)), film.anchor, FilmSessionClient.forward(film), film.yaw, film.target);
-        VIEWS.put(p.getId(), v);
-        return v;
-    }
-    /**
-     * The film's path: the gather and the roar happen some way back along the line (on the ground
-     * there), so that the leap onto the target is always a long one.
-     */
-    public static RagePath ragePath(FilmSessionClient.State film, int smash) {
-        double d = distance(film), back = Math.max(0, 13 - d);
-        var level = Minecraft.getInstance().level;
-        double y = 0;
-        if (level != null && back > 0) {
-            Vec3 f = FilmSessionClient.forward(film);
-            Vec3 at = film.anchor.subtract(f.scale(back));
-            for (int dy = 4; dy >= -6; dy--) {
-                BlockPos pos = BlockPos.containing(at.x, film.anchor.y + dy - 1, at.z);
-                if (!level.getBlockState(pos).getCollisionShape(level, pos).isEmpty() && level.getBlockState(pos.above()).getCollisionShape(level, pos.above()).isEmpty()) {
-                    y = pos.getY() + 1 - film.anchor.y;
-                    break;
-                }
-            }
-        }
-        return new RagePath(d, smash, new Vec3(0, y, -back));
-    }
-    /** Flat distance from Hulk to his target when the film starts. */
-    public static double distance(FilmSessionClient.State film) {
-        var level = Minecraft.getInstance().level;
-        double d = 5;
-        var target = level == null ? null : level.getEntity(film.target);
-        if (target != null) {
-            Vec3 to = target.position().subtract(film.anchor);
-            d = Math.max(1.5, Math.min(20, Math.sqrt(to.x * to.x + to.z * to.z)));
-        }
-        return d;
-    }
-
     // ------------------------------------------------------------------ drawing: light and dust
-    private static void put(VertexConsumer v, Matrix4f m, Vec3 p, int rgb, float a) {
+    static void put(VertexConsumer v, Matrix4f m, Vec3 p, int rgb, float a) {
         v.vertex(m, (float) p.x, (float) p.y, (float) p.z).color((rgb >> 16 & 255) / 255f, (rgb >> 8 & 255) / 255f, (rgb & 255) / 255f, Math.max(0, Math.min(1, a))).endVertex();
     }
-    private static Vec3 perpendicular(Vec3 d) {
+    static Vec3 perpendicular(Vec3 d) {
         Vec3 a = Math.abs(d.y) < .9 ? new Vec3(0, 1, 0) : new Vec3(1, 0, 0);
         return d.cross(a).normalize();
     }
     /** A ring standing in the plane across `normal`: a shock front travelling that way. */
-    private static void tiltedRing(FilmContext c, Vec3 centre, Vec3 normal, double radius, double width, int rgb, float alpha) {
+    static void tiltedRing(FilmContext c, Vec3 centre, Vec3 normal, double radius, double width, int rgb, float alpha) {
         tiltedRing(c, centre, normal, radius, width, rgb, alpha, FilmFx.ADD);
     }
-    private static void tiltedRing(FilmContext c, Vec3 centre, Vec3 normal, double radius, double width, int rgb, float alpha, net.minecraft.client.renderer.RenderType type) {
+    static void tiltedRing(FilmContext c, Vec3 centre, Vec3 normal, double radius, double width, int rgb, float alpha, net.minecraft.client.renderer.RenderType type) {
         if (alpha <= .003f || radius <= 0) return;
         VertexConsumer v = c.buffers().getBuffer(type);
         Matrix4f m = c.pose().last().pose();
@@ -663,7 +545,7 @@ public final class HulkFx {
         }
     }
     /** A flat ribbon lying on the ground from a to b. */
-    private static void flat(VertexConsumer v, Matrix4f m, Vec3 a, Vec3 b, double width, int rgb, float alpha) {
+    static void flat(VertexConsumer v, Matrix4f m, Vec3 a, Vec3 b, double width, int rgb, float alpha) {
         Vec3 d = b.subtract(a);
         if (d.lengthSqr() < 1e-6) return;
         Vec3 side = d.cross(new Vec3(0, 1, 0)).normalize().scale(width / 2);
@@ -675,7 +557,7 @@ public final class HulkFx {
         if (e.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) return;
         var mc = Minecraft.getInstance();
         if (mc.level == null) return;
-        if (PUFFS.isEmpty() && GLOWS.isEmpty() && RINGS.isEmpty() && ARCS.isEmpty() && WAVES.isEmpty() && CRACKS.isEmpty() && VIEWS.isEmpty()) return;
+        if (PUFFS.isEmpty() && GLOWS.isEmpty() && RINGS.isEmpty() && ARCS.isEmpty() && WAVES.isEmpty() && CRACKS.isEmpty()) return;
         float partial = e.getPartialTick();
         float time = now() + partial;
         PoseStack p = e.getPoseStack();
@@ -741,19 +623,6 @@ public final class HulkFx {
                 Vec3 at = k.at().add(k.drift().scale(travel));
                 float alpha = k.alpha() * FilmFx.ease(age / .08f) * (float) Math.pow(1 - age, 1.6);
                 FilmFx.puff(c, at, k.size() * (.6 + 1.2 * Math.sqrt(age)), k.rgb(), alpha);
-            }
-            // GAMMA RAGE: gamma round him, his trail through the air.
-            for (RageView v : VIEWS.values()) {
-                float t = HulkClient.rageTime(v.hulk, partial);
-                if (t < 0) continue;
-                Vec3 chest = v.world(v.path.hulk(t)).add(0, 2.1, 0);
-                float g = t < ULT_LEAP ? HulkMotion.clamp(t / ULT_ROAR) : t < v.path.smash() + 10 ? .45f : .2f * (1 - HulkMotion.clamp((t - v.path.smash() - 10) / 40));
-                if (g > .02f) FilmFx.glow(c, chest, 2.6 + 1.5 * g, GAMMA, .22f * g * (.85f + .15f * (float) Math.sin(time * 1.1)));
-                boolean leaping = t > ULT_LEAP && t < ULT_GRAB, rising = t > ULT_SKY && t < ULT_HOLD, diving = t > v.path.smash() - 14 && t < v.path.smash();
-                if (leaping || rising || diving) {
-                    Vec3 tail = v.world(v.path.hulk(Math.max(0, t - 4))).add(0, 1.8, 0), head = v.world(v.path.hulk(t)).add(0, 1.8, 0);
-                    FilmFx.streak(c, tail, head, diving ? 1.4 : .9, diving ? GAMMA : AIR, 0, diving ? .45f : .25f, true);
-                }
             }
             buffers.endBatch();
         } finally {
@@ -885,63 +754,8 @@ public final class HulkFx {
                 pose.popPose();
                 any = true;
             }
-            float rage = HulkClient.rageTime(p, partial);
-            RageView v = rage >= 0 ? view(p) : null;
-            if (v != null) { performers(pose, buffers, cam, v, rage, partial); any = true; }
         }
         if (any) buffers.endBatch();
-    }
-
-    private static final Map<Integer, FilmCast> CASTS = new HashMap<>();
-    private static boolean drawingProxy, drawingCast;
-    /** The film's two bodies: Hulk where the path puts him (his real body stays held), the target as a jointed puppet. */
-    private static void performers(PoseStack pose, MultiBufferSource.BufferSource buffers, Vec3 cam, RageView v, float t, float partial) {
-        var mc = Minecraft.getInstance();
-        Player p = v.hulk;
-        Vec3 at = v.world(v.path.hulk(t));
-        var dispatcher = mc.getEntityRenderDispatcher();
-        float yaw = v.yaw;
-        float body = p.yBodyRot, bodyO = p.yBodyRotO, head = p.yHeadRot, headO = p.yHeadRotO, xRot = p.getXRot(), xRotO = p.xRotO;
-        p.yBodyRot = p.yBodyRotO = p.yHeadRot = p.yHeadRotO = yaw;
-        p.setXRot(0); p.xRotO = 0;
-        drawingProxy = true;
-        dispatcher.setRenderShadow(false);
-        try {
-            dispatcher.render(p, at.x - cam.x, at.y - cam.y, at.z - cam.z, yaw, partial, pose, buffers, LevelRenderer.getLightColor(mc.level, BlockPos.containing(at.add(0, 1, 0))));
-        } finally {
-            drawingProxy = false;
-            dispatcher.setRenderShadow(mc.options.entityShadows().get());
-            p.yBodyRot = body; p.yBodyRotO = bodyO; p.yHeadRot = head; p.yHeadRotO = headO; p.setXRot(xRot); p.xRotO = xRotO;
-        }
-        var target = mc.level.getEntity(v.target);
-        if (target == null) return;
-        var cast = CASTS.get(v.target);
-        if (cast == null || cast.entity() != target) { cast = FilmCast.of(target); CASTS.put(v.target, cast); }
-        if (cast == null) return;
-        pose.pushPose();
-        pose.translate(-cam.x, -cam.y, -cam.z);
-        var rotation = mc.gameRenderer.getMainCamera().rotation();
-        var r = new Vector3f(1, 0, 0).rotate(rotation); var u = new Vector3f(0, 1, 0).rotate(rotation);
-        FilmContext c = new FilmContext(pose, buffers, cam, new Vec3(r.x, r.y, r.z), new Vec3(u.x, u.y, u.z), t, t, partial);
-        drawingCast = true;
-        try {
-            Vec3 feet = v.world(v.path.target(t));
-            if (t < ULT_GRAB || t >= ULT_CRASH) FilmFx.shadow(c, new Vec3(feet.x, Math.floor(feet.y + .2), feet.z), .6, .35f);
-            cast.draw(c, feet, v.yaw + 180, RagePath.targetPose(t), 1, 0xffffff);
-        } finally {
-            drawingCast = false;
-            pose.popPose();
-        }
-    }
-    /** During the film the real bodies stay held at the start; only the performers are drawn. */
-    @SubscribeEvent public static void hideHeld(RenderPlayerEvent.Pre e) {
-        if (drawingProxy || drawingCast || !HulkClient.isHero(e.getEntity())) return;
-        if (HulkClient.rageTime(e.getEntity(), e.getPartialTick()) >= 0) e.setCanceled(true);
-    }
-    @SubscribeEvent public static void hideTarget(RenderLivingEvent.Pre<?, ?> e) {
-        if (drawingCast || drawingProxy) return;
-        int id = e.getEntity().getId();
-        for (RageView v : VIEWS.values()) if (v.target == id) { e.setCanceled(true); return; }
     }
 
     // ------------------------------------------------------------------ first person
@@ -1057,7 +871,7 @@ public final class HulkFx {
     }
 
     private static void clear() {
-        WAVES.clear(); STUCK.clear(); PUFFS.clear(); GLOWS.clear(); RINGS.clear(); ARCS.clear(); CRACKS.clear(); VIEWS.clear(); LAST_RAGE.clear(); CASTS.clear(); screenFlash = 0;
+        WAVES.clear(); STUCK.clear(); PUFFS.clear(); GLOWS.clear(); RINGS.clear(); ARCS.clear(); CRACKS.clear(); screenFlash = 0;
     }
     @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) { clear(); }
 

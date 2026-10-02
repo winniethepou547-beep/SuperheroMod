@@ -83,7 +83,7 @@ public final class HulkClient {
         if (film == null || !HulkRageSession.ID.equals(film.film)) return -1;
         return FilmSessionClient.time(film, partial);
     }
-    public static int smashTick(Entity e) { State s = get(e); return ULT_CRASH + (s == null ? 40 : s.smashDelay); }
+    public static int smashTick(Entity e) { return ULT_PUNCH; }
 
     /** The pose to draw this frame, eased from the last one so nothing snaps. */
     public static HulkMotion.Pose pose(Player e, float partial, float time) {

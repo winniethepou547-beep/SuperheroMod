@@ -287,94 +287,115 @@ public final class HulkMotion {
         return p;
     }
 
-    // ------------------------------------------------------------------ Gamma Rage
-    /** Hulk's own performance in the film; where his body is comes from RagePath. */
-    static Pose ultimate(float t, float time, int smash) {
+    // ------------------------------------------------------------------ ONE PUNCH
+    /** How far one punch's arm is out at time t: a short draw back, a snap out to the hit, a pull back. */
+    private static float punchCurve(float t, float hit, float dur) {
+        float wind = hit - dur * .55f, back = hit + dur * .45f;
+        if (t < wind - dur * .2f || t > back) return 0;
+        if (t < wind) return -.3f * k(t, wind - dur * .2f, wind);
+        if (t < hit) return lerp(-.3f, 1, snap(t, wind, hit));
+        return 1 - k(t, hit + dur * .1f, back);
+    }
+    /** The furthest out each arm is right now (right, left) across every punch of the barrage. */
+    private static float[] arms(float t) {
+        float r = 0, l = 0;
+        for (int i = 0; i < ULT_HITS.length; i++) {
+            float hit = ULT_HITS[i];
+            if (Math.abs(t - hit) > 14) continue;
+            float gap = Math.max(i > 0 ? hit - ULT_HITS[i - 1] : 10, i + 1 < ULT_HITS.length ? ULT_HITS[i + 1] - hit : 10);
+            float dur = Math.max(2.2f, Math.min(11, gap * 1.7f));
+            if (i == ULT_HITS.length - 1) dur = 14;
+            float e = punchCurve(t, hit, dur);
+            if (ULT_RIGHT[i]) r = Math.abs(e) > Math.abs(r) ? e : r; else l = Math.abs(e) > Math.abs(l) ? e : l;
+        }
+        return new float[]{r, l};
+    }
+    /** The fighting stance he punches from: low, fists up by the jaw. */
+    private static Pose stance(float time) {
         Pose p = hulk(time);
-        if (t < ULT_ROAR) {
-            // Gamma gathers: fists clenched, braced, trembling harder and harder.
-            float g = k(t, 0, ULT_ROAR);
-            p.rArmX = .15f; p.lArmX = .15f; p.rArmZ = .6f; p.lArmZ = -.6f; p.rElbow = .9f; p.lElbow = .9f; p.crouch = 3; p.rKnee = p.lKnee = .4f;
-            p.torsoPitch = .15f; p.headPitch = .1f; p.fists = 1; p.gamma = g; p.tremble = g;
+        p.crouch = 2.5f; p.torsoPitch = .32f; p.headPitch = -.25f;
+        p.rArmX = -1.05f; p.rElbow = 1.75f; p.rArmZ = .25f; p.rArmY = .2f;
+        p.lArmX = -1.05f; p.lElbow = 1.75f; p.lArmZ = -.25f; p.lArmY = -.2f;
+        p.rLegX = .25f; p.lLegX = -.35f; p.rKnee = .45f; p.lKnee = .35f; p.rLegZ = .12f; p.lLegZ = -.12f;
+        p.fists = 1;
+        return p;
+    }
+    /**
+     * Hulk's own performance in ONE PUNCH (where his body is comes from RagePath): the stare, the punches
+     * thrown with the whole body (shoulders, chest and hips turning into each one), the barrage, standing
+     * tall in the clearing dust, the wind-up coiled like a spring, the freeze, the punch, the follow-through.
+     */
+    static Pose ultimate(float t, float time, int smash) {
+        if (t < ULT_FIRST - 6) {
+            // The stare: still, heavy breathing, eyes on them.
+            Pose p = hulk(time);
+            p.headPitch = -.1f; p.fists = 1; p.mouth = .15f;
             return p;
         }
-        if (t < ULT_LEAP) {
-            float roar = k(t, ULT_ROAR, ULT_ROAR + 4);
-            p.headPitch = lerp(.1f, -.75f, roar); p.mouth = roar; p.torsoPitch = lerp(.15f, -.3f, roar);
-            p.rArmZ = 1.1f; p.lArmZ = -1.1f; p.rArmX = -.4f; p.lArmX = -.4f; p.rElbow = 1.7f; p.lElbow = 1.7f; p.crouch = 2;
-            p.fists = 1; p.gamma = 1; p.tremble = .7f;
-            Pose crouch = squat(hulk(time), 10, 1);
-            p.toward(crouch, k(t, ULT_LEAP - 6, ULT_LEAP));
+        if (t < ULT_STOP + 16) {
+            Pose p = stance(time);
+            if (t < ULT_FIRST) p.toward(hulk(time), 1 - k(t, ULT_FIRST - 6, ULT_FIRST));
+            float[] a = arms(t);
+            float er = Math.max(0, a[0]), el = Math.max(0, a[1]), dr = Math.min(0, a[0]), dl = Math.min(0, a[1]);
+            // The arm drives straight out from the shoulder toward the middle line; the elbow opens.
+            p.rArmX = lerp(p.rArmX, -1.6f, er) - .35f * dr; p.rElbow = lerp(p.rElbow, .05f, er) + .3f * -dr; p.rArmY = lerp(p.rArmY, -.12f, er);
+            p.lArmX = lerp(p.lArmX, -1.6f, el) - .35f * dl; p.lElbow = lerp(p.lElbow, .05f, el) + .3f * -dl; p.lArmY = lerp(p.lArmY, .12f, el);
+            // The body turns into each punch: the punching shoulder forward, chest and hips after it.
+            p.torsoYaw = -.55f * er + .55f * el + .2f * dr - .2f * dl;
+            p.torsoRoll = .08f * (er - el);
+            p.torsoPitch += .12f * (er + el);
+            p.rLegX = lerp(p.rLegX, .55f, er) + lerp(0, -.2f, el); p.lLegX = lerp(p.lLegX, -.6f, el) + lerp(0, .2f, er);
+            p.headYaw = .25f * (er - el);
+            float speed = clamp((t - ULT_BARRAGE) / (ULT_STOP - ULT_BARRAGE));
+            p.mouth = .25f + .5f * speed; p.gamma = .3f * speed; p.tremble = .4f * speed;
+            // The last heavy one stays out a moment before he straightens.
+            if (t > ULT_STOP) p.toward(stance(time), k(t, ULT_STOP + 4, ULT_STOP + 16) * .3f);
             return p;
         }
-        if (t < ULT_GRAB) {
-            Pose a = air(hulk(time), 5, t > (ULT_LEAP + ULT_GRAB) / 2f ? .6f : 0);
-            // Reaching out for them as he comes down on them.
-            float reach = k(t, ULT_GRAB - 6, ULT_GRAB);
-            a.rArmX = lerp(a.rArmX, -1.7f, reach); a.rElbow = lerp(a.rElbow, .3f, reach); a.rArmZ = lerp(a.rArmZ, .2f, reach);
-            a.gamma = .8f;
-            return a;
-        }
-        if (t < ULT_SKY) {
-            // One arm up, the target hanging from his fist, kicking.
-            float lift = k(t, ULT_GRAB, ULT_GRAB + 8);
-            p.rArmX = lerp(-1.7f, -2.6f, lift); p.rArmZ = .2f; p.rElbow = lerp(.3f, .25f, lift);
-            p.lArmX = -.3f; p.lArmZ = -.7f; p.lElbow = .6f;
-            p.torsoPitch = -.1f; p.headPitch = -.5f; p.crouch = 2 * (1 - lift);
-            p.gamma = .8f; p.fists = 1;
-            p.toward(squat(p.copy(), 10, 1), k(t, ULT_SKY - 5, ULT_SKY) * .5f);
-            p.rArmX = lerp(-1.7f, -2.6f, lift);
+        if (t < ULT_WINDUP) {
+            // Standing tall as the dust clears: upright, not winded, arms hanging heavy, looking at them.
+            Pose p = hulk(time);
+            p.crouch = 0; p.torsoPitch = .06f; p.headPitch = -.06f;
+            p.rArmZ = .34f; p.lArmZ = -.34f; p.rArmX = .02f; p.lArmX = .02f; p.rElbow = .2f; p.lElbow = .2f;
+            p.rLegZ = .16f; p.lLegZ = -.16f; p.rKnee = .05f; p.lKnee = .05f; p.fists = 1;
+            p.toward(stance(time), 1 - k(t, ULT_STOP + 16, ULT_CLEAR));
             return p;
         }
-        if (t < ULT_HOLD) {
-            Pose a = air(hulk(time), 5, 0);
-            a.rArmX = -2.9f; a.rArmZ = .15f; a.rElbow = .2f;
-            a.headPitch = -.7f; a.gamma = .9f;
-            return a;
-        }
-        if (t < ULT_THROW) {
-            // Both hands on them, held up in front of his face; the roar into them.
-            float both = k(t, ULT_HOLD, ULT_HOLD + 6), roar = k(t, ULT_HOLD + 10, ULT_HOLD + 14) * (1 - k(t, ULT_THROW - 6, ULT_THROW));
-            p.crouch = 0; p.rLegX = .3f; p.lLegX = -.1f; p.rKnee = .7f; p.lKnee = .5f;
-            p.rArmX = lerp(-2.9f, -1.75f, both); p.rArmY = lerp(0, -.45f, both); p.rElbow = lerp(.2f, .9f, both); p.rArmZ = lerp(.15f, 0, both);
-            p.lArmX = lerp(-.3f, -1.75f, both); p.lArmY = lerp(0, .45f, both); p.lElbow = lerp(.6f, .9f, both); p.lArmZ = lerp(-.7f, 0, both);
-            p.torsoPitch = lerp(-.1f, .25f, roar); p.headPitch = lerp(-.3f, .15f, roar); p.mouth = roar; p.tremble = roar;
-            p.gamma = .9f + .1f * roar;
+        // The wind-up (after the reference): feet wide, knees bent, hips and chest turned away, the right
+        // fist drawn back to the hip, the left arm out in front, head and eyes locked on the target.
+        Pose coil = hulk(time);
+        coil.crouch = 4.2f; coil.rLegZ = .42f; coil.lLegZ = -.36f; coil.rKnee = .75f; coil.lKnee = .55f; coil.rLegX = .35f; coil.lLegX = -.3f;
+        coil.torsoYaw = .75f; coil.torsoPitch = .22f; coil.torsoRoll = -.06f;
+        coil.rArmX = .75f; coil.rArmZ = .35f; coil.rElbow = 2.05f; coil.rArmY = .2f;
+        coil.lArmX = -1.3f; coil.lArmZ = -.45f; coil.lElbow = .35f; coil.lArmY = -.3f;
+        coil.headYaw = -.7f; coil.headPitch = -.12f; coil.mouth = .35f; coil.fists = 1; coil.gamma = .6f;
+        if (t < ULT_PUNCH - 3) {
+            Pose p = hulk(time);
+            p.toward(coil, snap(t, ULT_WINDUP, ULT_WINDUP + 5));
+            // Every muscle locks: a fine tremble that stops dead for the freeze.
+            p.tremble = t < ULT_FREEZE ? .35f + .5f * clamp((t - ULT_WINDUP) / (ULT_FREEZE - ULT_WINDUP)) : 0;
             return p;
         }
-        if (t < ULT_CRASH + 10) {
-            // The throw: both arms whip down, flinging them at the ground.
-            float fling = snap(t, ULT_THROW, ULT_THROW + 5);
-            p.crouch = 0; p.rLegX = .4f; p.lLegX = .1f; p.rKnee = .9f; p.lKnee = .7f;
-            p.rArmX = lerp(-1.75f, .3f, fling); p.lArmX = lerp(-1.75f, .3f, fling); p.rArmY = lerp(-.45f, 0, fling); p.lArmY = lerp(.45f, 0, fling);
-            p.rElbow = lerp(.9f, .2f, fling); p.lElbow = lerp(.9f, .2f, fling); p.rArmZ = .3f; p.lArmZ = -.3f;
-            p.torsoPitch = lerp(.25f, .6f, fling); p.headPitch = -.6f; p.gamma = .8f;
+        // The punch: the drive comes up from the feet through the hips and chest into the arm.
+        Pose strike = hulk(time);
+        strike.crouch = 2.6f; strike.rLegZ = .3f; strike.lLegZ = -.3f; strike.rLegX = .6f; strike.rKnee = .2f; strike.lLegX = -.7f; strike.lKnee = .85f;
+        strike.torsoYaw = -.85f; strike.torsoPitch = .35f; strike.torsoRoll = .08f;
+        strike.rArmX = -1.62f; strike.rElbow = 0; strike.rArmY = -.15f; strike.rArmZ = .05f;
+        strike.lArmX = .55f; strike.lArmZ = -.5f; strike.lElbow = 1.2f;
+        strike.headYaw = .2f; strike.headPitch = -.15f; strike.mouth = .9f; strike.fists = 1; strike.gamma = .8f;
+        if (t < ULT_LOWER) {
+            Pose p = coil.copy();
+            p.toward(strike, snap(t, ULT_PUNCH - 3, ULT_PUNCH));
+            p.gamma = .8f - .5f * clamp((t - ULT_PUNCH) / 80f);
+            p.mouth = lerp(.9f, .2f, k(t, ULT_PUNCH + 10, ULT_PUNCH + 40));
             return p;
         }
-        if (t < smash) {
-            // Hanging up there, then both fists raised high overhead for the dive.
-            float raise = k(t, ULT_RAISE, ULT_RAISE + 8);
-            p.crouch = 0; p.rLegX = .3f; p.lLegX = .1f; p.rKnee = .6f; p.lKnee = .4f;
-            p.rArmX = lerp(.3f, -3.0f, raise); p.lArmX = lerp(.3f, -3.0f, raise); p.rArmY = lerp(0, -.25f, raise); p.lArmY = lerp(0, .25f, raise);
-            p.rElbow = lerp(.2f, .5f, raise); p.lElbow = lerp(.2f, .5f, raise); p.rArmZ = lerp(.3f, .05f, raise); p.lArmZ = lerp(-.3f, -.05f, raise);
-            p.torsoPitch = lerp(.3f, -.3f, raise); p.headPitch = lerp(-.6f, .1f, raise); p.mouth = raise * .7f;
-            p.gamma = .8f + .2f * raise; p.fists = 1;
-            return p;
-        }
-        if (t < smash + 30) {
-            // The smash: both fists driven into the ground, kneeling in the crater.
-            float hit = snap(t, smash, smash + 2);
-            p.crouch = 8 * hit; p.torsoPitch = .9f * hit; p.headPitch = -.5f;
-            p.rArmX = -.7f; p.lArmX = -.7f; p.rElbow = .05f; p.lElbow = .05f; p.rArmY = -.25f; p.lArmY = .25f;
-            p.rKnee = 1.4f; p.lKnee = 1.5f; p.rLegX = -.6f; p.lLegX = .3f;
-            p.gamma = 1 - k(t, smash + 4, smash + 30) * .7f; p.fists = 1;
-            return p;
-        }
-        // Up out of the dust: the power stance, a last roar.
-        float rise = k(t, smash + 30, smash + 42), roar = k(t, smash + 42, smash + 48);
-        p.rArmZ = lerp(.28f, .9f, rise); p.lArmZ = lerp(-.28f, -.9f, rise); p.rElbow = lerp(.35f, 1.4f, rise); p.lElbow = lerp(.35f, 1.4f, rise);
-        p.torsoPitch = lerp(.26f, -.15f, rise); p.headPitch = lerp(-.18f, -.55f, roar); p.mouth = roar;
-        p.crouch = 2 * rise; p.rKnee = p.lKnee = .3f; p.fists = 1; p.gamma = .3f + .3f * roar;
+        // At last the arm comes down; he straightens.
+        Pose p = strike.copy();
+        Pose rest = hulk(time);
+        rest.headPitch = -.05f; rest.fists = 1;
+        p.toward(rest, k(t, ULT_LOWER, ULT_TOTAL - 8));
+        p.gamma = .3f * (1 - k(t, ULT_LOWER, ULT_TOTAL));
         return p;
     }
 }
