@@ -46,7 +46,8 @@ final class RageFilm implements Film {
         double d = s == null ? 5 : HulkFx.distance(s);
         int smash = ULT_CRASH + 40;
         if (s != null && level != null && level.getEntity(attacker) != null) smash = HulkClient.smashTick(level.getEntity(attacker));
-        path = new RagePath(d, smash);
+        path = s == null ? new RagePath(d, smash) : HulkFx.ragePath(s, smash);
+        Vec3 st = path.start();
         calm = HulkConfig.get(HulkConfig.CALM_CAMERA);
         shake = (float) (double) HulkConfig.get(HulkConfig.SHAKE) * (calm ? .3f : 1);
         double D = d, H = ULT_HEIGHT;
@@ -54,14 +55,14 @@ final class RageFilm implements Film {
         int dive = smash - 14, total = path.total();
         List<FilmShot> shots = new ArrayList<>();
         // Low in front of him, pushing in as the gamma builds; he trembles, the ground with him.
-        shots.add(shot(0, ULT_ROAR, .02f, .2f).path(v(-1.6, .7, 4.2), v(-.9, 1.2, 2.9)).look(v(0, 2.1, 0), v(0, 2.5, 0)).fov(60, 50).build());
+        shots.add(shot(0, ULT_ROAR, .02f, .2f).path(st.add(-1.6, .7, 4.2), st.add(-.9, 1.2, 2.9)).look(st.add(0, 2.1, 0), st.add(0, 2.5, 0)).fov(60, 50).build());
         // The roar: right on his face, the camera thrown back by it.
-        shots.add(shot(ULT_ROAR, ULT_ROAR + 10, .5f, .35f).path(v(-.5, 2.9, 2.2), v(-.6, 2.95, 2.6)).look(v(0, 3.0, 0)).fov(44, 54).roll(0, -3).build());
+        shots.add(shot(ULT_ROAR, ULT_ROAR + 10, .5f, .35f).path(st.add(-.5, 2.9, 2.2), st.add(-.6, 2.95, 2.6)).look(st.add(0, 3.0, 0)).fov(44, 54).roll(0, -3).build());
         // Behind him, wide: the target ahead, the crouch.
-        shots.add(shot(ULT_ROAR + 10, ULT_LEAP, .08f, .1f).path(v(1.8, 2.4, -4.2), v(1.6, 2.2, -3.8)).look(v(0, 1.4, D * .6)).fov(64, 62).whip(!calm).build());
+        shots.add(shot(ULT_ROAR + 10, ULT_LEAP, .08f, .1f).path(st.add(1.8, 2.4, -4.2), st.add(1.6, 2.2, -3.8)).look(st.add(0, 1.4, (D - st.z) * .6)).fov(64, 62).whip(!calm).build());
         // The leap, tracked side on.
-        shots.add(shot(ULT_LEAP, ULT_GRAB - 2, .1f, .15f).path(follow(path::hulk, new Vec3(6.5, 1.4, -.5), ULT_LEAP, ULT_LEAP + 9, ULT_GRAB - 2))
-                .look(follow(path::hulk, new Vec3(0, 2, .5), ULT_LEAP, ULT_LEAP + 9, ULT_GRAB - 2)).fov(70, 64).build());
+        shots.add(shot(ULT_LEAP, ULT_GRAB - 2, .15f, .2f).path(follow(path::hulk, new Vec3(5.5, 1.2, -2.5), ULT_LEAP, ULT_LEAP + 6, ULT_LEAP + 12, ULT_GRAB - 2))
+                .look(follow(path::hulk, new Vec3(0, 2, 1.5), ULT_LEAP, ULT_LEAP + 6, ULT_LEAP + 12, ULT_GRAB - 2)).fov(74, 66).roll(-3, 2).build());
         // The grab, low behind the target: his hand closing round them, hoisting.
         shots.add(shot(ULT_GRAB - 2, ULT_SKY, .45f, .1f).path(v(1.4, .5, D + 2.6), v(1.2, .45, D + 2.3)).look(grab.add(0, 2.6, 0), grab.add(0, 3.6, 0)).fov(62, 58).build());
         // Up into the sky: from the ground looking straight up after them, then rising alongside.
@@ -124,6 +125,33 @@ final class RageFilm implements Film {
         add(c, smash + 43, SoundEvents.RAVAGER_ROAR, 1f, .5f); add(c, smash + 44, SoundEvents.WARDEN_ROAR, .7f, .8f);
         return c.toArray(new Cue[0]);
     }
+    /** Film speed lines: thin wedges streaking in from the edges toward the middle, each living a few frames. */
+    private static void speedLines(GuiGraphics g, int w, int h, float strength, float time) {
+        float cx = w / 2f, cy = h / 2f, reach = (float) Math.hypot(cx, cy);
+        com.mojang.blaze3d.systems.RenderSystem.enableBlend(); com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
+        com.mojang.blaze3d.systems.RenderSystem.setShader(net.minecraft.client.renderer.GameRenderer::getPositionColorShader);
+        var buffer = com.mojang.blaze3d.vertex.Tesselator.getInstance().getBuilder();
+        buffer.begin(com.mojang.blaze3d.vertex.VertexFormat.Mode.TRIANGLES, com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_COLOR);
+        var m = g.pose().last().pose();
+        int count = (int) (70 * strength);
+        for (int i = 0; i < count; i++) {
+            float cycle = (float) Math.floor(time * .9f + i * .37f);
+            float seed = (float) hash(i * 31 + cycle * 17);
+            double angle = seed * Math.PI * 2;
+            float life = (time * .9f + i * .37f) - cycle;
+            float inner = reach * (.5f + .25f * (float) hash(i * 7 + cycle)) - life * reach * .15f, outer = reach * 1.05f;
+            float alpha = strength * (1 - life) * (.3f + .45f * (float) hash(i * 13 + cycle));
+            float half = (1.2f + 2.4f * (float) hash(i * 5 + cycle)) * (.6f + strength * .6f);
+            float cos = (float) Math.cos(angle), sin = (float) Math.sin(angle);
+            float tx = cx + cos * inner, ty = cy + sin * inner * .75f, ox = cx + cos * outer, oy = cy + sin * outer * .75f;
+            float px = -sin * half, py = cos * half;
+            buffer.vertex(m, tx, ty, 0).color(1f, 1f, 1f, 0f).endVertex();
+            buffer.vertex(m, ox + px, oy + py, 0).color(.92f, 1f, .9f, alpha).endVertex();
+            buffer.vertex(m, ox - px, oy - py, 0).color(.92f, 1f, .9f, alpha).endVertex();
+        }
+        com.mojang.blaze3d.vertex.BufferUploader.drawWithShader(buffer.end());
+        com.mojang.blaze3d.systems.RenderSystem.disableBlend();
+    }
     private static void add(List<Cue> list, float t, SoundEvent sound, float volume, float pitch) { list.add(new Cue(t, sound, volume, pitch)); }
 
     /** A green tinge while the gamma gathers; the white of the smash clearing. */
@@ -138,6 +166,9 @@ final class RageFilm implements Film {
     @Override public void overlay(GuiGraphics g, float t, int w, int h) {
         var font = Minecraft.getInstance().font;
         int smash = path.smash();
+        // Speed lines round the frame while he flies: the long leap, the climb into the sky, the dive.
+        float speed = Math.max(window(t, ULT_LEAP + 1, ULT_GRAB - 1, 3), Math.max(window(t, ULT_SKY, ULT_HOLD - 6, 4) * .8f, window(t, smash - 14, smash, 3)));
+        if (speed > .02f) speedLines(g, w, h, speed, t);
         float title = window(t, smash + 42, path.total() - 2, 4);
         if (title <= 0) return;
         String text = "GAMA ÖFKESİ";

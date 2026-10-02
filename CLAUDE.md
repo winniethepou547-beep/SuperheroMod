@@ -119,6 +119,13 @@ landing spot and the target to the crater.
 - Space: tap (< `LEAP_TAP` ticks) = ordinary jump, nothing breaks; hold = leap charge (full in `LEAP_CHARGE_MAX`),
   launched along the look direction, extra gravity on the way down (client). LMB tap = explosive jab (small blast);
   hold (bar `CHARGE_MAX`) = a shock wave that travels (`PUNCH_WAVE_SPEED`) and bursts ahead or at a wall.
+- Abilities work mid-leap (`leaping` flag runs under any action; the landing still lands). The ground wave opens
+  `POUND_START` blocks ahead, one block per `POUND_STEP_TICKS`, a canyon `trenchWidth` 6 × `trenchDepth` 20 (top two
+  layers thrown up-left/up-right, the rest cleared quietly by `HulkBlocks.clear`). Jabs hit what is in front of the
+  punching hand's side (capsule from that shoulder) and knock a fist-sized hole. The charged wave tunnels through
+  everything under the hardness cap and bursts at the first body (thrown ~20 blocks), a too-hard wall or its reach.
+  The rock is a boulder (`HulkFx.boulder`, ~2.3 blocks) in hand, in flight and stuck where it lands (`STUCK_LIFE`);
+  its impact slows everyone near. GAMMA RAGE starts the gather some way back (`HulkFx.ragePath`) so the leap is long.
 - Look follows Marvel Rivals' Hulk: V torso, huge traps/delts/forearms, fingered hands, navy torn shorts, purple
   waistband shreds, silver gamma belt with green lights and buckle, black swept hair, glowing green eyes, toes. The rules file is `superheromod-hulk.toml` (renamed so the bigger defaults apply).
 - `HulkLayer` draws the whole body (player model hidden in `HeroArmPose`), one parametric body that grows from

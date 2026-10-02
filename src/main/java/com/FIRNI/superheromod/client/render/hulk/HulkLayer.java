@@ -131,9 +131,14 @@ public final class HulkLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
         p.pushPose();
         // Hulk's head sits low and forward between the traps.
         px(p, 0, l(0, 2.2f, k), l(0, -2f, k));
-        float headYaw = model.head.yRot - pose.torsoYaw + pose.headYaw;
-        float headPitch = model.head.xRot + pose.headPitch - pose.torsoPitch * .6f - pose.bodyPitch * .8f;
+        float headYaw = Mth.clamp(Mth.wrapDegrees((model.head.yRot - pose.torsoYaw + pose.headYaw) * Mth.RAD_TO_DEG), -75, 75) * Mth.DEG_TO_RAD;
+        // His thick neck: the head turns about its own middle (not the neck's base, which buried it in his back
+        // when he looked up) and only so far up or down.
+        float headPitch = Mth.clamp(model.head.xRot + pose.headPitch - pose.torsoPitch * .6f - pose.bodyPitch * .8f, l(-1.4f, -.65f, k), l(1.4f, .7f, k));
+        float pivot = l(0, -4.2f, k);
+        px(p, 0, pivot, 0);
         p.mulPose(Axis.YP.rotation(headYaw)); p.mulPose(Axis.XP.rotation(headPitch));
+        px(p, 0, -pivot, 0);
         head(p, b, light, k, skin, shade, pose);
         p.popPose();
 
@@ -146,12 +151,10 @@ public final class HulkLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
             p.pushPose();
             Vector3f mid = new Vector3f(fistsAt[0]).add(fistsAt[1]).mul(.5f);
             // Pushed a little away from the body, so it sits in the hands rather than in the chest.
-            p.translate(mid.x, mid.y, mid.z - .25f * scale);
-            float size = 1.15f * scale;
-            p.scale(size, size, size);
+            // Held up in both hands; pushed out a little (model space: -y is up, -z in front).
+            p.translate(mid.x, mid.y - .35f * scale, mid.z - .45f * scale);
             p.mulPose(Axis.YP.rotationDegrees(25));
-            p.translate(-.5, -.5, -.5);
-            Minecraft.getInstance().getBlockRenderer().renderSingleBlock(state.rockState(), p, b, light, OverlayTexture.NO_OVERLAY);
+            HulkFx.boulder(p, b, state.rockState(), light, HulkFx.BOULDER * scale / HULK_SCALE, e.getId());
             p.popPose();
         }
     }
@@ -352,19 +355,24 @@ public final class HulkLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
         }
     }
 
-    /** Gamma: soft green light round his chest, fists and eyes, flickering with the anger. */
+    /**
+     * Gamma: wisps of green light rising off his shoulders, arms and back, flickering with the anger.
+     * Drawn as glowing (emissive, additive) boxes in the body's own render pass, so the light stays on him.
+     */
     private void glow(PoseStack p, MultiBufferSource b, float gamma, float time, float k) {
-        p.pushPose();
-        p.scale(1 / 16f, 1 / 16f, 1 / 16f);
-        var m = p.last().pose();
-        float flicker = .8f + .2f * (float) Math.sin(time * 1.3);
-        var v = b.getBuffer(FilmFx.ADD);
-        for (int i = 0; i < 10; i++) {
-            double a = i * Math.PI * 2 / 10 + time * .05, r = l(6, 10, k);
-            float y = (float) (2 + 9 * (.5 + .5 * Math.sin(time * .2 + i)));
-            com.FIRNI.superheromod.client.render.thor.ThorBolts.cross(v, m, new net.minecraft.world.phys.Vec3(Math.cos(a) * r, y, Math.sin(a) * r),
-                    new net.minecraft.world.phys.Vec3(Math.cos(a) * r * 1.1, y - 3, Math.sin(a) * r * 1.1), 2.2 * gamma, 0x5aff3a, .14f * gamma * flicker);
+        var v = b.getBuffer(net.minecraft.client.renderer.RenderType.eyes(GhostMaterials.TEXTURE));
+        float flicker = .75f + .25f * (float) Math.sin(time * 1.3);
+        for (int i = 0; i < 12; i++) {
+            double a = i * Math.PI * 2 / 12 + time * .04;
+            float life = (float) ((time * .05 + i * .37) % 1);
+            float r = l(5, 9.5f, k), x = (float) Math.cos(a) * r, z = (float) Math.sin(a) * r * .7f;
+            float y = 9 - 13 * life, size = (1.4f - life) * 1.6f;
+            float bright = gamma * flicker * (1 - life) * .55f;
+            p.pushPose();
+            px(p, x, y, z);
+            p.scale(size, size * 2.2f, size);
+            UNIT.render(p, v, FULL, OverlayTexture.NO_OVERLAY, .35f * bright, 1f * bright, .25f * bright, 1);
+            p.popPose();
         }
-        p.popPose();
     }
 }

@@ -16,8 +16,12 @@ import static com.FIRNI.superheromod.heroes.hulk.HulkAction.*;
 public final class RagePath {
     private final double d;
     private final int smash;
+    private final Vec3 start;
 
-    public RagePath(double distance, int smash) { this.d = distance; this.smash = smash; }
+    public RagePath(double distance, int smash) { this(distance, smash, Vec3.ZERO); }
+    /** start: where the gather and the roar happen; set further back than his real spot so the leap onto the target is a long one. */
+    public RagePath(double distance, int smash, Vec3 start) { this.d = distance; this.smash = smash; this.start = start; }
+    public Vec3 start() { return start; }
     public double distance() { return d; }
     public int smash() { return smash; }
     public int total() { return smash + ULT_TOTAL_AFTER; }
@@ -31,10 +35,12 @@ public final class RagePath {
 
     public Vec3 hulk(float t) {
         Vec3 grab = new Vec3(0, 0, d - 1.3);
-        if (t < ULT_LEAP) return Vec3.ZERO;
+        if (t < ULT_LEAP) return start;
         if (t < ULT_GRAB) {
+            // One huge bound from far off, coming down on them.
             float x = k(t, ULT_LEAP, ULT_GRAB);
-            return new Vec3(0, 4.5 * Math.sin(Math.PI * x), grab.z * ease(x));
+            double far = grab.z - start.z;
+            return new Vec3(0, start.y * (1 - ease(x)) + (3 + .4 * far) * Math.sin(Math.PI * x), start.z + far * ease(x));
         }
         if (t < ULT_SKY) return grab;
         double H = ULT_HEIGHT;

@@ -6,12 +6,12 @@ Minecraft **1.20.1**, **Forge** (Java 17). Kahramanı seçmek için: `/superhero
 | Tuş | Ne yapar |
 |---|---|
 | **G** | Bruce Banner ⇄ Hulk dönüşümü (aşamalı: başını tutar, vücut büyür, gömlek ve gözlük yırtılır, kükreme) |
-| **Sol tık (bas-çek)** | Sırayla sağ–sol patlayıcı yumruk: vurduğu yerde küçük patlama, yakındakileri de iter; zayıf blokları fırlatır |
-| **Sol tık basılı tut** | Şarjlı Yıkıcı Yumruk (bar ~1 sn'de dolar): bırakınca şok dalgası ileri gider, ileride (ya da çarptığı duvarda) patlar; asıl hasar ve krater orada |
+| **Sol tık (bas-çek)** | Sırayla sağ–sol patlayıcı yumruk: sağ el sağ önündekine, sol el sol önündekine vurur (nişan almak gerekmez); vurduğu yerde küçük patlama, yumruk büyüklüğünde blok koparıp fırlatır |
+| **Sol tık basılı tut** | Şarjlı Yıkıcı Yumruk (bar ~1 sn'de dolar): şok dalgası yolundaki her şeyi kırarak ilerler; ilk çarptığı kişide (o kişi ~20 blok uçar), çok sert bir duvarda ya da menzil sonunda patlar |
 | **Sağ tık basılı tut** | Gard: önden gelen hasarı çok, arkadan geleni az azaltır; yavaşlatır; dayanıklılık çubuğu biter |
-| **R** | Thunderclap: diz çöküp el çırpar, önüne yerden giden hava duvarı; iter ve sersemletir, duvar arkasına geçmez |
-| **F** | Yer Sarsan Yumruk: yere vurur, dalga yeri takip ederek ilerler, hendek açar, üstündekileri havaya atar |
-| **C** | Kaya Sök ve Fırlat: önündeki uygun zeminden blok söker, ellerinde taşır, baktığı yere fırlatır |
+| **R** | Thunderclap: el çırpar, önüne yerden giden hava duvarı (havadayken de); iter, sersemletir, toprak parçaları fırlatır, arkasında toz bırakır; Hulk biraz geri itilir |
+| **F** | Yer Sarsan Yumruk: yarık 3 blok önünden başlar, 6 blok geniş ve 20 blok derin; toprak sırayla sağa-sola fırlar, üstündekiler havaya uçar, Hulk biraz geri itilir |
+| **C** | Kaya Sök ve Fırlat: yerden dev bir kaya söker, başının üstünde taşır, fırlatır; çarptığı yerde alan hasarı ve yavaşlatma, kaya bir süre oraya saplı kalır |
 | **Boşluk (bas-çek)** | Normal zıplama, hiçbir şey kırılmaz |
 | **Boşluk basılı tut** | Şarjlı Sıçrama (bar yarım saniyede dolar): baktığın yöne fırlar, ağır ve hızlı düşer; iniş gücü düşüş hızına göre, krater, bir kez seker |
 | **X** | GAMA ÖFKESİ (ulti, önünde bir hedef ister) |

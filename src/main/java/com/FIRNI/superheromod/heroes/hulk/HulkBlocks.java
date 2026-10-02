@@ -88,6 +88,15 @@ public final class HulkBlocks {
         DEBRIS.add(flying);
         return true;
     }
+    /** Quietly removes a block deep in a split (no particles, no drop) if the rules and the budget allow. */
+    public static boolean clear(ServerPlayer p, BlockPos pos, Budget budget) {
+        if (budget.spent()) return false;
+        ServerLevel level = p.serverLevel();
+        BlockState state = level.getBlockState(pos);
+        if (!allowed(p, pos, state)) return false;
+        budget.left--;
+        return level.setBlock(pos, state.getFluidState().createLegacyBlock(), 2);
+    }
     /** Flying blocks that hit the ground burst into dust and grit there. */
     public static void tickDebris() {
         for (var it = DEBRIS.iterator(); it.hasNext(); ) {

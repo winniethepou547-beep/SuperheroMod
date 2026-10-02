@@ -53,7 +53,7 @@ public final class HulkConfig {
                 .define("flyingBlocks", true);
         DEBRIS_LANDS = b.comment("Flying blocks settle where they land (off = they shatter on landing and leave nothing)")
                 .define("debrisLands", false);
-        MAX_DEBRIS = b.comment("Most flying blocks in the air at once, for the whole server").defineInRange("maxFlyingBlocks", 160, 0, 1000);
+        MAX_DEBRIS = b.comment("Most flying blocks in the air at once, for the whole server").defineInRange("maxFlyingBlocks", 260, 0, 1000);
         b.pop();
         b.push("punches");
         PUNCH_DAMAGE = b.defineInRange("damage", 7.0, 0, 100);
@@ -74,7 +74,7 @@ public final class HulkConfig {
         b.pop();
         b.push("thunderclap");
         CLAP_DAMAGE = b.defineInRange("damage", 11.0, 0, 200);
-        CLAP_RANGE = b.comment("How far the wall of air travels").defineInRange("range", 18.0, 4, 40);
+        CLAP_RANGE = b.comment("How far the wall of air travels").defineInRange("range", 22.0, 4, 48);
         CLAP_KNOCKBACK = b.defineInRange("knockback", 2.8, 0, 8);
         CLAP_STUN = b.comment("Ticks the wave slows and dazes those it hits").defineInRange("stun", 50, 0, 400);
         CLAP_COOLDOWN = b.defineInRange("cooldown", 160, 0, 4000);
@@ -83,8 +83,8 @@ public final class HulkConfig {
         POUND_DAMAGE = b.defineInRange("damage", 11.0, 0, 200);
         POUND_RANGE = b.comment("Blocks the earth wave travels").defineInRange("range", 22.0, 3, 48);
         POUND_LAUNCH = b.defineInRange("launch", 1.15, 0, 4);
-        POUND_WIDTH = b.comment("Width of the trench it leaves (0 = no trench)").defineInRange("trenchWidth", 3, 0, 5);
-        POUND_DEPTH = b.comment("Depth of the trench in blocks").defineInRange("trenchDepth", 2, 0, 3);
+        POUND_WIDTH = b.comment("Width of the trench it leaves (0 = no trench)").defineInRange("trenchWidth", 6, 0, 12);
+        POUND_DEPTH = b.comment("Depth of the trench in blocks").defineInRange("trenchDepth", 20, 0, 40);
         POUND_COOLDOWN = b.defineInRange("cooldown", 200, 0, 4000);
         b.pop();
         b.push("leap");

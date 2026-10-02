@@ -32,12 +32,15 @@ public final class HulkAction {
     // ------------------------------------------------------------------ Thunderclap (R)
     public static final int CLAP_TICKS = 32, CLAP_HIT = 13;
     /** The Thunderclap's wall of air: blocks it travels per tick, and its half-width in degrees past his hands. */
-    public static final double CLAP_SPEED = 1.7, CLAP_SPREAD = 38;
+    public static final double CLAP_SPEED = 1.7, CLAP_SPREAD = 42;
 
     // ------------------------------------------------------------------ ground pound (F)
     public static final int POUND_TICKS = 30, POUND_HIT = 11;
     /** How far to each side of the ground wave bodies are thrown up. */
     public static final double POUND_WIDTH_HIT = 2.6;
+    /** Where the ground splits open (blocks in front of him), and ticks per block it runs. */
+    public static final double POUND_START = 2.8;
+    public static final int POUND_STEP_TICKS = 2;
 
     // ------------------------------------------------------------------ leap (space)
     /** Space held shorter than LEAP_TAP is an ordinary jump; held longer it charges (full after LEAP_CHARGE_MAX more). */

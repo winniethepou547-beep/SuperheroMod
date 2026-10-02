@@ -91,7 +91,7 @@ public final class HulkMotion {
             case LANDING -> landing(base.copy(), t);
             case ROCK -> rock(base.copy(), t);
             case ULTIMATE -> ultimate(t, in.time(), in.smash());
-            default -> base;
+            default -> in.hulk() && !in.grounded() ? hop(base.copy(), in.fallSpeed()) : base;
         };
         if (p.tremble > 0) {
             float s = p.tremble * .05f;
@@ -245,6 +245,16 @@ public final class HulkMotion {
         p.fists = 1;
         return p;
     }
+    /** An ordinary jump as Hulk: knees tucked, arms lifting out for balance, then reaching down for the ground. */
+    static Pose hop(Pose p, float fallSpeed) {
+        float falling = clamp(fallSpeed / .5f);
+        p.crouch = 0; p.torsoPitch = lerp(.1f, .3f, falling); p.headPitch = -.25f;
+        p.rArmX = lerp(-.7f, .2f, falling); p.lArmX = lerp(-.7f, .2f, falling); p.rArmZ = lerp(.75f, .55f, falling); p.lArmZ = lerp(-.75f, -.55f, falling);
+        p.rElbow = lerp(.9f, .5f, falling); p.lElbow = lerp(.9f, .5f, falling);
+        p.rLegX = lerp(-.7f, -.2f, falling); p.lLegX = lerp(-.4f, -.3f, falling); p.rKnee = lerp(1.2f, .5f, falling); p.lKnee = lerp(.9f, .5f, falling);
+        p.fists = 1;
+        return p;
+    }
     /** Touchdown: driven deep into a crouch, one fist slammed into the ground, then up. */
     static Pose landing(Pose p, float t) {
         float hit = 1 - k(t, 3, LANDING_TICKS);
@@ -270,9 +280,10 @@ public final class HulkMotion {
         // And out: the arms whip over and forward.
         p.rArmX = lerp(p.rArmX, -1.4f, throwing); p.lArmX = lerp(p.lArmX, -1.4f, throwing); p.rElbow = lerp(p.rElbow, .1f, throwing); p.lElbow = lerp(p.lElbow, .1f, throwing);
         p.torsoPitch = lerp(p.torsoPitch, .45f, throwing); p.lLegX = lerp(p.lLegX, -.6f, throwing); p.lKnee = lerp(p.lKnee, .6f, throwing);
-        p.rock = t >= ROCK_GRAB - 1 && t < ROCK_THROW ? 1 : 0;
         p.fists = .2f;
         p.toward(hulk(t), back);
+        // Set after the blend back (blending takes the other pose's rock as it is).
+        p.rock = t >= ROCK_GRAB - 1 && t < ROCK_THROW ? 1 : 0;
         return p;
     }
 
