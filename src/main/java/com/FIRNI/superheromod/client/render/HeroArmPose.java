@@ -74,6 +74,15 @@ public final class HeroArmPose {
             return;
         }
 
+        // Thor draws his whole body himself (ThorLayer); the player model stays out of the way.
+        if (com.FIRNI.superheromod.client.render.thor.ThorClient.isThor(player)) {
+            elbow.remove(id);
+            model.head.visible = model.hat.visible = model.body.visible = model.jacket.visible = false;
+            model.rightArm.visible = model.leftArm.visible = model.rightSleeve.visible = model.leftSleeve.visible = false;
+            model.rightLeg.visible = model.leftLeg.visible = model.rightPants.visible = model.leftPants.visible = false;
+            return;
+        }
+
         if (!isHero(player)) {
             elbow.remove(id);
             return;

@@ -104,6 +104,7 @@ public class SuperheroMod
         CharacterRegistry.register(new com.FIRNI.superheromod.heroes.ghostrider.GhostRiderCharacter());
         CharacterRegistry.register(
                 new com.FIRNI.superheromod.heroes.sandman.SandmanCharacter());
+        CharacterRegistry.register(new com.FIRNI.superheromod.heroes.thor.ThorCharacter());
         com.FIRNI.superheromod.heroes.cyclops.MaximumPowerCinematic.register();
         com.FIRNI.superheromod.heroes.sandman.SandArmyPreview.register();
 
