@@ -46,7 +46,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
  */
 public final class ModNetworking {
 
-    private static final String PROTOCOL_VERSION = "15";
+    private static final String PROTOCOL_VERSION = "16";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(SuperheroMod.MODID, "main"),
@@ -217,5 +217,10 @@ public final class ModNetworking {
                 com.FIRNI.superheromod.network.packet.ZedFxPacket::decode,
                 com.FIRNI.superheromod.network.packet.ZedFxPacket::handle,
                 java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.ChampionLockPacket.class,
+                com.FIRNI.superheromod.network.packet.ChampionLockPacket::encode,
+                com.FIRNI.superheromod.network.packet.ChampionLockPacket::decode,
+                com.FIRNI.superheromod.network.packet.ChampionLockPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
     }
 }

@@ -47,8 +47,9 @@ import java.util.List;
 public final class PoseStudio {
 
     public static final KeyMapping KEY_STUDIO = new KeyMapping(
-            "key.superheromod.pose_studio", InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_P, "key.categories.superheromod");
+            // P is the champion select now; the studio (a tool for making animations) moved to F8.
+            "key.superheromod.pose_studio_tool", InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_F8, "key.categories.superheromod");
 
     /** Klipteki tek kare: poz + bir sonrakine gecis suresi ve egrisi. */
     public static final class Keyframe {

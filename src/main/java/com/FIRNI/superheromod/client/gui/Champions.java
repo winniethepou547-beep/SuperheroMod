@@ -1,0 +1,79 @@
+package com.FIRNI.superheromod.client.gui;
+
+import com.FIRNI.superheromod.SuperheroMod;
+import net.minecraft.resources.ResourceLocation;
+
+import java.util.List;
+
+/**
+ * The roster on the champion select screen: each hero's name, title, colour, splash art and the skills
+ * it introduces (as many as the hero has). New heroes go here; the empty "?" slots fill up in order.
+ */
+public final class Champions {
+    public record Skill(String key, String name, String text) {}
+    public record Champion(String id, String name, String title, int accent, List<Skill> skills) {
+        public ResourceLocation splash() { return new ResourceLocation(SuperheroMod.MODID, "textures/gui/champions/" + id + ".png"); }
+    }
+
+    public static final List<Champion> ALL = List.of(
+            new Champion("ghost_rider", "GHOST RIDER", "Johnny Blaze — Cehennemin Süvarisi", 0xFFFF7A1A, List.of(
+                    new Skill("SOL", "Zincir Kombosu", "Üç vuruşluk zincir kombosu. Dövüştükçe zincir kızışır, alev alır ve daha çok yakar."),
+                    new Skill("SAĞ", "Zincir Fırlat", "Zinciri fırlatır. Bir canlıya tutunursa sağ tık onu çeker, sol tık seni ona götürür."),
+                    new Skill("SHIFT", "Hell Cycle", "Alevli motosikleti çağırır, arkasında ateş izi bırakır. Yakıt bitince sürücüsüz gidip ilk çarptığı yerde patlar."),
+                    new Skill("R", "Cehennem Nefesi", "Basılı tut: genişleyen bir alev nefesi. Saniye saniye yakar ve yavaşlatır."),
+                    new Skill("F", "Cehennem Çukuru", "Zinciri yere vurur; yer yarılır, cehennem ateşi fışkırır."),
+                    new Skill("X", "Penance Stare", "Sinematik: kurbanın gözlerinin içine bakar, işlediği her günahı ona yaşatır."))),
+            new Champion("cyclops", "CYCLOPS", "Scott Summers — X-Men'in Lideri", 0xFFFF3040, List.of(
+                    new Skill("SOL", "Optic Blast", "Tek ve sert bir göz ışını: küçük bir patlama, yolundaki bloğu kırar."),
+                    new Skill("SAĞ", "Sarsıcı Işın", "Sürekli ışın; hedef hasar aldıkça ışın güçlenir."),
+                    new Skill("R", "Seri Atış", "Art arda kısa ışınlar tarar."),
+                    new Skill("C", "Seken Işın", "Yüzeylerden seken ışın; sektiği yerleri kırar."),
+                    new Skill("SHIFT", "İtki Patlaması", "Işınla kendini ileri fırlatır."),
+                    new Skill("F", "Optik Yükseliş", "Işını yere vererek havaya yükselir."),
+                    new Skill("Q", "Ruby Rage", "Ultimate: büyük bir öfke ışını, canın yarısı kadar hasar."),
+                    new Skill("X", "MAXIMUM POWER", "Sinematik: vizörü söker, dev ışınla rakibini sise fırlatır."))),
+            new Champion("sandman", "SANDMAN", "Flint Marko — Yaşayan Kum", 0xFFE8B45A, List.of(
+                    new Skill("SOL", "Kum Yumruğu", "Kolu kumdan uzayıp ileri vurur, yolundaki blokları kırar."),
+                    new Skill("SAĞ", "Kum Pençesi", "Bir alanı kumla kavrar ve içindekileri kendine çeker."),
+                    new Skill("V", "Dikenli Duvar", "Önüne dikenli bir kum duvarı yükseltir."),
+                    new Skill("F", "Kum Yolculuğu", "Kuma dönüşüp akarak yol alır."),
+                    new Skill("C", "Kum Askerleri", "Yerden savaşan kum askerleri çıkarır."),
+                    new Skill("R", "Kum Sarkıtları", "Bir alana yerden kum mızrakları fışkırtır."),
+                    new Skill("G", "Kum Patlaması", "Kum zırhını boşaltıp çevresine patlatır."),
+                    new Skill("Z", "Kum Kulesi", "Altında bir kum kulesi yükselir."),
+                    new Skill("X", "Dev Kum Askeri", "Dev bir kum askeri çağırır."))),
+            new Champion("thor", "THOR", "Odinson — Gök Gürültüsü Tanrısı", 0xFF7FB8FF, List.of(
+                    new Skill("SOL", "Mjolnir Kombosu", "Üç vuruş: soldan sağa, sağdan sola, sonra havaya kaldıran bir aparkat."),
+                    new Skill("SAĞ", "Çekiç Fırlat", "Mjolnir'i fırlatır; tekrar basınca eline geri döner."),
+                    new Skill("SHIFT", "Fırlatılış", "Basılı tut: çekiç yanında döner; bırakınca baktığın yere fırlarsın. Çarptığını çekiçle birlikte sürüklersin."),
+                    new Skill("E", "Dönen Kalkan", "Çekici döndürerek korunur; doğru anda basarsan mükemmel savuşturma."),
+                    new Skill("R", "Wakanda Darbesi", "Havada şimşekler saçarak yere iner."),
+                    new Skill("F", "Gök Işını", "Çekici göğe kaldırır, ardından iki saniyelik bir yıldırım ışını."),
+                    new Skill("X", "God of Thunder", "Sinematik: rakibi bulutların üstüne taşır ve yeri yararcasına geri çakar."))),
+            new Champion("hulk", "HULK", "Bruce Banner — Durdurulamaz Güç", 0xFF6BE04A, List.of(
+                    new Skill("G", "Dönüşüm", "Bruce Banner ile Hulk arasında dönüşür. Yetenekler yalnızca Hulk'ta."),
+                    new Skill("SOL", "Patlayıcı Yumruk", "Sağ-sol yumruklar; basılı tutunca yolundaki her şeyi delen şarjlı yumruk."),
+                    new Skill("SAĞ", "Gard", "Önden gelen hasarı büyük ölçüde keser; dayanıklılığı var."),
+                    new Skill("R", "Thunderclap", "El çırpar: önüne ilerleyen bir hava duvarı, iter ve sersemletir."),
+                    new Skill("F", "Yer Sarsan Yumruk", "Yere vurur; önünde derin bir yarık açılır."),
+                    new Skill("C", "Kaya Fırlat", "Yerden dev bir kaya söker ve fırlatır."),
+                    new Skill("BOŞLUK", "Dev Sıçrama", "Basılı tut: baktığın yöne uzun bir sıçrama, inişte krater."),
+                    new Skill("X", "ONE PUNCH", "Sinematik: yumruk yağmuru, sonra dağı ikiye bölen tek yumruk."))),
+            new Champion("zed", "ZED", "Gölgelerin Efendisi", 0xFFE0303A, List.of(
+                    new Skill("SOL", "Gölge Kesişleri", "Üç vuruşluk kombo: sağ, sol, derin bitiriş. Kanatır; canı az olanı daha derin keser."),
+                    new Skill("Q", "Keskin Shuriken", "Kıvrık bıçaklı shuriken fırlatır; gölgen varsa o da kendi yerinden atar."),
+                    new Skill("F", "Canlı Gölge", "Gölgeni ileri yollar; tekrar basınca onunla yer değiştirirsin."),
+                    new Skill("E", "Gölge Darbesi", "Etrafını keser; gölgen de keser ve yavaşlatır."),
+                    new Skill("R", "Ölüm İşareti", "İki gölge kopyan hedefe girer, üstünde X yanar; sen kaybolur, arkasında belirirsin ve X patlar."),
+                    new Skill("X", "Gölge İnfazı", "Sinematik: gölge ordusu kurbanı yutar, içinde kırmızı bir ışık patlar."))));
+
+    /** How many card slots the grid always shows (the rest are "?" for the heroes to come). */
+    public static final int MIN_SLOTS = 18;
+
+    private Champions() {}
+
+    public static Champion byId(String id) {
+        for (Champion c : ALL) if (c.id.equals(id)) return c;
+        return null;
+    }
+}

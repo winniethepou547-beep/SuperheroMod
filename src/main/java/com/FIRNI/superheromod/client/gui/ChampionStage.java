@@ -1,0 +1,902 @@
+package com.FIRNI.superheromod.client.gui;
+
+import com.FIRNI.superheromod.client.ClientHeroRegistry;
+import com.FIRNI.superheromod.client.render.entity.SandSoldierModel;
+import com.FIRNI.superheromod.client.render.ghost.GhostRiderLayer;
+import com.FIRNI.superheromod.client.render.hulk.HulkClient;
+import com.FIRNI.superheromod.client.render.thor.Mjolnir;
+import com.FIRNI.superheromod.client.render.zed.ZedBody;
+import com.FIRNI.superheromod.client.render.zed.ZedMotion;
+import com.FIRNI.superheromod.core.entity.ModEntities;
+import com.FIRNI.superheromod.heroes.ghostrider.HellCycleEntity;
+import com.FIRNI.superheromod.heroes.ghostrider.HellCycleRig;
+import com.FIRNI.superheromod.heroes.hulk.HulkAction;
+import com.FIRNI.superheromod.heroes.sandman.SandSoldierEntity;
+import com.FIRNI.superheromod.heroes.thor.ThorAction;
+import com.FIRNI.superheromod.heroes.zed.ZedAction;
+import com.mojang.authlib.GameProfile;
+import com.mojang.blaze3d.platform.GlStateManager;
+import com.mojang.blaze3d.platform.Lighting;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.math.Axis;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.player.RemotePlayer;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.Vec3;
+import org.joml.Matrix4f;
+import org.joml.Quaternionf;
+
+import java.util.UUID;
+
+/**
+ * The stage in the champion select's big frame: a stand-in body (its own identity, so the player's
+ * real hero is never touched) dressed as the chosen hero, turning after the mouse; and after LOCK IN,
+ * a show of what the hero does, timed from the moment of the lock and eased, nothing snaps:
+ * Cyclops sweeps his beam across the floor to the right, then turns and pours the right-click beam
+ * out to the left, hand at his visor; Thor whirls Mjolnir, throws it, catches it on the way back,
+ * strikes twice and looks out of the frame with lightning in his eyes; Zed casts his Death Mark
+ * (sinks into shadow, two shadow copies run in, the X burns, he steps out behind it and it bursts);
+ * sand soldiers rise either side of Sandman and a giant one behind him; Hulk claps a shock wave;
+ * Ghost Rider rides in on the Hell Cycle and turns his skull to the screen. Every hero ends looking
+ * out of the frame; the LOCKED IN banner comes after the show.
+ */
+final class ChampionStage {
+    /** How long the banner stays once a show has finished (ticks). */
+    static final int BANNER = 36;
+    private static final ResourceLocation SAND = new ResourceLocation("minecraft", "textures/block/sand.png");
+    private final RemotePlayer actor;
+    private HellCycleEntity bike;
+    private SandSoldierModel<SandSoldierEntity> soldier;
+    private final UUID id = UUID.nameUUIDFromBytes("superheromod:champion_stage".getBytes());
+    /** Which way the body faces this frame (degrees), for the effects that leave from its eyes. */
+    private float faceYaw = 180, facePitch;
+
+    ChampionStage() {
+        var mc = Minecraft.getInstance();
+        actor = mc.level == null ? null : new RemotePlayer(mc.level, new GameProfile(id, "Champion"));
+    }
+    void tick() {
+        if (actor != null) { actor.tickCount++; }
+        if (bike != null) bike.tickCount++;
+    }
+    void close() { ClientHeroRegistry.set(id, null); Showcase.stop(); }
+
+    private static float ease(float x) { x = Mth.clamp(x, 0, 1); return x * x * (3 - 2 * x); }
+    private static float easeOut(float x) { x = Mth.clamp(x, 0, 1); return 1 - (1 - x) * (1 - x) * (1 - x); }
+    private static float easeIn(float x) { x = Mth.clamp(x, 0, 1); return x * x * x; }
+    /** 0 before a, 1 after b, eased between. */
+    private static float span(float t, float a, float b) { return ease((t - a) / (b - a)); }
+    private static float hash(float n) { double v = Math.sin(n * 12.9898) * 43758.5453; return (float) (v - Math.floor(v)); }
+
+    /** How long each hero's show lasts (ticks); the banner comes after it. */
+    static int length(String hero) {
+        return switch (hero) {
+            case "cyclops" -> 86;
+            case "thor" -> 116;
+            case "zed" -> 78;
+            case "sandman" -> 84;
+            case "hulk", "ghost_rider" -> 50;
+            default -> 40;
+        };
+    }
+
+    /** The sounds of a show, each on its beat: n = whole ticks since LOCK IN. */
+    static void cues(String hero, int n) {
+        var s = Minecraft.getInstance().getSoundManager();
+        switch (hero) {
+            case "zed" -> {
+                if (n == 0) play(s, SoundEvents.ENDERMAN_TELEPORT, .5f, .5f);
+                if (n == 8) play(s, SoundEvents.PLAYER_ATTACK_SWEEP, 1.4f, .8f);
+                if (n == 17) { play(s, SoundEvents.PLAYER_ATTACK_SWEEP, .8f, .9f); play(s, SoundEvents.FIRECHARGE_USE, .6f, .6f); }
+                if (n == 44) play(s, SoundEvents.ENDERMAN_TELEPORT, 1.4f, .5f);
+                if (n == 48) { play(s, SoundEvents.PLAYER_ATTACK_CRIT, .9f, .9f); play(s, SoundEvents.GENERIC_EXPLODE, 1.6f, .45f); }
+            }
+            case "thor" -> {
+                if (n == 2) play(s, SoundEvents.ELYTRA_FLYING, 1.7f, .35f);
+                if (n == 40) play(s, SoundEvents.TRIDENT_THROW, .7f, 1f);
+                if (n == 44) play(s, SoundEvents.LIGHTNING_BOLT_IMPACT, 1.6f, .3f);
+                if (n == 56) { play(s, SoundEvents.TRIDENT_RETURN, .9f, 1f); play(s, SoundEvents.ANVIL_LAND, 1.6f, .25f); }
+                if (n == 70) { play(s, SoundEvents.PLAYER_ATTACK_KNOCKBACK, .8f, 1f); play(s, SoundEvents.LIGHTNING_BOLT_IMPACT, 1.4f, .4f); }
+                if (n == 82) { play(s, SoundEvents.PLAYER_ATTACK_STRONG, .7f, 1f); play(s, SoundEvents.LIGHTNING_BOLT_IMPACT, 1.2f, .5f); }
+                if (n == 98) play(s, SoundEvents.LIGHTNING_BOLT_THUNDER, 1.1f, .6f);
+            }
+            case "cyclops" -> {
+                if (n == 4) play(s, SoundEvents.BEACON_ACTIVATE, 1.6f, .6f);
+                if (n == 8) play(s, SoundEvents.FIRECHARGE_USE, 1.5f, .5f);
+                if (n == 18 || n == 28) play(s, SoundEvents.FIRE_EXTINGUISH, 1.3f, .25f);
+                if (n == 38) play(s, SoundEvents.BEACON_POWER_SELECT, 1.4f, .6f);
+                if (n == 41) play(s, SoundEvents.BLAZE_SHOOT, .6f, .8f);
+                if (n == 50 || n == 60) play(s, SoundEvents.GENERIC_EXPLODE, n == 50 ? 1.5f : 1.2f, .35f);
+            }
+            case "sandman" -> {
+                if (n == 0) { play(s, SoundEvents.SAND_BREAK, .6f, 1f); play(s, SoundEvents.ELYTRA_FLYING, 1.2f, .3f); }
+                if (n == 6 || n == 9 || n == 13 || n == 16) play(s, SoundEvents.SAND_FALL, .7f + n * .02f, .9f);
+                if (n == 24) play(s, SoundEvents.WARDEN_EMERGE, 1f, .6f);
+                if (n == 58) play(s, SoundEvents.RAVAGER_ROAR, .55f, .6f);
+            }
+            case "hulk" -> {
+                if (n == 0) play(s, SoundEvents.RAVAGER_ROAR, .8f, .7f);
+                if (n == 13) play(s, SoundEvents.GENERIC_EXPLODE, .6f, .7f);
+            }
+            case "ghost_rider" -> {
+                if (n == 0) { play(s, SoundEvents.BLAZE_AMBIENT, .7f, .8f); play(s, SoundEvents.FIRECHARGE_USE, .8f, .7f); }
+                if (n == 10) play(s, SoundEvents.RAVAGER_STEP, .5f, .9f);
+                if (n == 28) play(s, SoundEvents.BLAZE_AMBIENT, .5f, .6f);
+            }
+            default -> {}
+        }
+    }
+    private static void play(net.minecraft.client.sounds.SoundManager s, SoundEvent e, float pitch, float volume) { s.play(SimpleSoundInstance.forUI(e, pitch, volume)); }
+
+    /**
+     * Draws the hero in the frame. st = ticks since LOCK IN (negative: no show yet, the body follows the mouse).
+     */
+    void draw(GuiGraphics g, String hero, int fx0, int fy0, int fx1, int fy1, int mx, int my, float st, float partial) {
+        if (actor == null) return;
+        int fh = fy1 - fy0;
+        boolean showing = st >= 0;
+        boolean hulk = "hulk".equals(hero);
+        int len = length(hero);
+        float zoom = showing && !"sandman".equals(hero) ? 1 + .08f * ease(st / 10f) * (1 - span(st, len - 10, len)) : 1;
+        float s = fh * (hulk ? .26f : .36f) * zoom;
+        float px = (fx0 + fx1) / 2f, py = fy1 - 6;
+        if (showing) px += shake(hero, st) * s / 40f;
+        // Facing: after the mouse until the show, then the show's own angles.
+        float yaw = 180 + (float) Math.atan((px - mx) / 40f) * 20, pitch = -(float) Math.atan((py - fh * .6f - my) / 40f) * 20, head = yaw;
+        if (showing) { float[] f = facing(hero, st); yaw = f[0]; pitch = f[1]; head = f[2]; }
+        faceYaw = yaw; facePitch = pitch;
+        final float x = px, bodyYaw = yaw, headYaw = head, headPitch = pitch;
+        g.enableScissor(fx0, fy0, fx1, fy1);
+        try {
+            if (showing) behind(g, hero, st, x, py, s, fx0, fy0, fx1, fy1, partial);
+            ClientHeroRegistry.set(id, hero);
+            choreograph(hero, st);
+            if (showing && "ghost_rider".equals(hero)) rideIn(g, st, x, py, s, fx0, headYaw, partial);
+            else {
+                float z = "sandman".equals(hero) ? 120 : 50;
+                Runnable draw = () -> body(g, actor, x, py, z, s, bodyYaw, headYaw, headPitch, Vec3.ZERO, partial);
+                if (hulk) HulkClient.asHulk(actor, draw); else draw.run();
+            }
+            Showcase.stop();
+            ClientHeroRegistry.set(id, null);
+            if (showing) {
+                // In front of everything drawn so far.
+                g.pose().pushPose();
+                g.pose().translate(0, 0, 600);
+                try { front(g, hero, st, x, py, s, fx0, fy0, fx1, fy1, partial); }
+                finally { g.pose().popPose(); }
+            }
+        } catch (Throwable ignored) {
+            // A hero that cannot be drawn here still has its art behind.
+        } finally {
+            Showcase.stop();
+            ClientHeroRegistry.set(id, null);
+            normal();
+            g.disableScissor();
+        }
+    }
+
+    /** Body yaw, head pitch and head yaw (degrees) through each show; every one ends looking out of the frame. */
+    private static float[] facing(String hero, float st) {
+        float yaw = 180, pitch = 0, head;
+        switch (hero) {
+            case "cyclops" -> {
+                // Turned to the right for the sweep, the head following the beam down; round to the left for the beam.
+                yaw = Mth.lerp(span(st, 0, 5), 180, 140);
+                yaw = Mth.lerp(span(st, 34, 40), yaw, 214);
+                pitch = sweep(st) * .9f;
+                pitch = Mth.lerp(span(st, 34, 40), pitch, 4);
+            }
+            case "thor" -> {
+                yaw = Mth.lerp(span(st, 0, 6), 180, 200);
+                yaw = Mth.lerp(span(st, 32, 38), yaw, 216);
+                yaw = Mth.lerp(span(st, 58, 64), yaw, 196);
+            }
+            case "ghost_rider" -> {
+                // On the bike the body stays with it; only the skull turns to the screen.
+                return new float[]{118, Mth.lerp(span(st, 26, 36), 0, 4), Mth.lerp(span(st, 26, 36), 118, 180)};
+            }
+            default -> {}
+        }
+        // Last of all: round to face the screen.
+        float turn = switch (hero) { case "thor" -> 88; case "cyclops" -> 70; default -> length(hero) - 16; };
+        float end = span(st, turn, turn + 8);
+        yaw = Mth.lerp(end, yaw, 180);
+        pitch = Mth.lerp(end, pitch, 0);
+        head = yaw;
+        return new float[]{yaw, pitch, head};
+    }
+    /** Cyclops' sweep: the angle of the beam below level (screen degrees). */
+    private static float sweep(float st) { return Mth.lerp(ease((st - 8) / 26f), -14, 30); }
+
+    /** How far the stage shakes (pixels at a 40-pixel block) at this moment. */
+    private static float shake(String hero, float st) {
+        float shake = 0;
+        float[] hits = switch (hero) {
+            case "hulk" -> new float[]{13};
+            case "thor" -> new float[]{56, 70, 82, 98};
+            case "zed" -> new float[]{18, 48};
+            case "cyclops" -> new float[]{50, 60};
+            case "sandman" -> new float[]{24, 58};
+            default -> new float[0];
+        };
+        for (float hit : hits) if (st > hit) shake += 3 * (float) Math.exp(-(st - hit) / 3.5) * Mth.sin(st * 3.7f);
+        return shake;
+    }
+
+    /** Which of their own actions the heroes play, and when. */
+    private void choreograph(String hero, float st) {
+        if (st < 0) { Showcase.stop(); return; }
+        switch (hero) {
+            case "zed" -> {
+                if (st < 6) Showcase.play(actor, ZedAction.MARK_LOCK, st);
+                else if (st < 46) Showcase.play(actor, ZedAction.MARK_HIDDEN, st - 6);
+                else if (st < 58) Showcase.play(actor, ZedAction.MARK_STRIKE, st - 46);
+                else Showcase.play(actor, ZedAction.IDLE, st);
+            }
+            case "thor" -> {
+                if (st < 36) Showcase.play(actor, ThorAction.CHARGE, st);
+                else if (st < 56) { Showcase.play(actor, ThorAction.THROW, st - 34); Showcase.emptyHanded(st >= 40); }
+                else if (st < 64) Showcase.play(actor, ThorAction.CATCH, st - 56);
+                else if (st < 76) Showcase.play(actor, ThorAction.SWING_RIGHT, st - 64);
+                else if (st < 88) Showcase.play(actor, ThorAction.SWING_LEFT, st - 76);
+                else { Showcase.play(actor, ThorAction.IDLE, st - 88); Showcase.glow(span(st, 92, 98), .5f * span(st, 92, 98)); }
+            }
+            case "hulk" -> Showcase.play(actor, HulkAction.THUNDERCLAP, Math.min(st, 31));
+            // Cyclops: the hand goes to the visor while a beam is out.
+            case "cyclops" -> Showcase.play(actor, st >= 4 && st < 36 || st >= 37 && st < 70 ? 1 : 0, st);
+            default -> Showcase.stop();
+        }
+    }
+
+    /** The Hell Cycle sliding in from the left with him on it, braking hard in the middle, fire behind. */
+    private void rideIn(GuiGraphics g, float st, float px, float py, float s, int fx0, float headYaw, float partial) {
+        var level = Minecraft.getInstance().level;
+        if (bike == null || bike.level() != level) bike = new HellCycleEntity(ModEntities.HELL_CYCLE.get(), level);
+        float k = easeOut(st / 14f);
+        float x = Mth.lerp(k, fx0 - s * 2.2f, px - s * .2f);
+        float speed = 3 * (1 - k) + .15f;
+        bike.filmPose(speed, st * (1.4f - k));
+        float bikeYaw = 118;
+        Vec3 seat = HellCycleRig.riderFeet(bikeYaw, 0, 0);
+        body(g, bike, x, py, 50, s * .85f, bikeYaw, bikeYaw, 0, Vec3.ZERO, partial);
+        GhostRiderLayer.filmBike = bike;
+        try { body(g, actor, x, py, 50, s * .85f, bikeYaw, headYaw, 0, seat, partial); }
+        finally { GhostRiderLayer.filmBike = null; }
+        // The fire it leaves on the road.
+        float trail = 1 - ease((st - 18) / 16f);
+        if (trail > .01f) {
+            light();
+            for (int i = 0; i < 26; i++) {
+                float tx = x - s * .9f - i * s * .16f;
+                if (tx < fx0 - 10) break;
+                float hgt = s * (.35f + .25f * hash(i + (int) (st * 1.7f))) * (1 - i / 26f) * trail;
+                flame(g, tx, py - 2, s * .09f, hgt, 0xFFFF7A1A, .7f * (1 - i / 26f));
+                flame(g, tx, py - 2, s * .05f, hgt * .6f, 0xFFFFE08A, .6f * (1 - i / 26f));
+            }
+            normal();
+        }
+        // Sparks off the tyres as it brakes.
+        if (st > 8 && st < 20) {
+            light();
+            for (int i = 0; i < 14; i++) {
+                float a = (st - 8) / 12f, h = hash(i * 3.3f);
+                float sx = x - s * .5f - a * s * (.6f + h), sy = py - 3 - a * s * .4f * h + a * a * s * .3f;
+                line(g, sx, sy, sx - s * .12f, sy + s * .04f, 1.2f, 0xFFFFC060, (1 - a) * .9f);
+            }
+            normal();
+        }
+        // The skull's fire flares as it turns to look out.
+        if (st > 26 && st < 44) {
+            float a = (float) Math.sin(Math.PI * (st - 26) / 18);
+            light();
+            glowDisc(g, x - s * .05f, py - s * 1.45f, s * .45f, 0xFFFF8A20, .35f * a);
+            normal();
+        }
+    }
+
+    // ------------------------------------------------------------------ the shows, behind and in front of the body
+    private void behind(GuiGraphics g, String hero, float st, float px, float py, float s, int fx0, int fy0, int fx1, int fy1, float partial) {
+        int len = length(hero);
+        float in = ease(st / 6f), out = 1 - span(st, len - 8, len + 8);
+        switch (hero) {
+            case "sandman" -> {
+                sand(g, st, px, py, s, false, .7f * in * out);
+                army(g, st, px, py, s, fx0, fy0, fx1, partial);
+            }
+            case "thor" -> {
+                light();
+                glowDisc(g, px, py - s * 1.2f, s * 1.5f, 0xFF7FB8FF, .16f * in * out + .2f * span(st, 20, 34) * (1 - span(st, 40, 50)));
+                // The sky answers his look: one great bolt behind him into the ground.
+                float age = st - 98;
+                if (age >= 0 && age < 7) {
+                    float a = 1 - age / 7;
+                    float bx = px + s * 1.1f;
+                    bolt(g, bx - s * .4f, fy0 - 4, bx, py - 2, 98, s * .14f, 0xFF8CC8FF, a);
+                    bolt(g, bx - s * .4f, fy0 - 4, bx, py - 2, 98, s * .04f, 0xFFFFFFFF, a);
+                    glowDisc(g, bx, py - 2, s * .9f, 0xFFBFE0FF, .6f * a);
+                }
+                normal();
+            }
+            case "hulk" -> { light(); glowDisc(g, px, py - s * 1.2f, s * 1.6f, 0xFF4FE03A, .18f * in * out); normal(); }
+            case "zed" -> { light(); glowDisc(g, px, py - s * 1.0f, s * 1.4f, 0xFFB01020, .22f * in * out); normal(); }
+            case "cyclops" -> { light(); glowDisc(g, px, py - s * 1.4f, s * 1.3f, 0xFFFF2030, .12f * in * out); normal(); }
+            default -> {}
+        }
+    }
+    private void front(GuiGraphics g, String hero, float st, float px, float py, float s, int fx0, int fy0, int fx1, int fy1, float partial) {
+        switch (hero) {
+            case "zed" -> zed(g, st, px, py, s, fx0, fx1, partial);
+            case "thor" -> thor(g, st, px, py, s, fx0, fy0, fx1, fy1, partial);
+            case "hulk" -> hulk(g, st, px, py, s, fx0, fx1);
+            case "cyclops" -> cyclops(g, st, px, py, s, fx0, fx1);
+            case "sandman" -> {
+                sand(g, st, px, py, s, true, .6f * ease(st / 6f) * (1 - span(st, length(hero) - 8, length(hero) + 8)));
+                risings(g, st, px, py, s);
+            }
+            case "ghost_rider" -> { if (st > 12) { light(); glowDisc(g, px, py - s * .9f, s * 1.3f, 0xFFFF6A10, .25f * (1 - ease((st - 30) / 14f))); normal(); } }
+            default -> {}
+        }
+    }
+
+    // ------------------------------------------------------------------ Zed: Death Mark
+    /**
+     * He sinks into a pool of his own shadow; two shadow copies of him run in from both sides and meet
+     * where he stood; the red X burns there while he is gone (1.5 s); he steps out behind it, crouched,
+     * blades out, and the X bursts.
+     */
+    private void zed(GuiGraphics g, float st, float px, float py, float s, int fx0, int fx1, float partial) {
+        float cx = px, cy = py - s * 1.0f;
+        // The pool he sinks into, and the smoke he goes down in.
+        float pool = ease(st / 4f) * (1 - span(st, 14, 22));
+        if (pool > .01f) {
+            normal(); oval(g, px, py - 2, s * .7f * pool, s * .14f * pool, 0xFF050307, .85f);
+            light(); ringFill(g, px, py - 2, s * .7f * pool, s * .14f * pool, s * .05f, 0xFFE0303A, .6f * pool); normal();
+        }
+        if (st < 10) for (int i = 0; i < 10; i++) {
+            float k = (st + hash(i) * 4) / 10f;
+            if (k > 1) continue;
+            blob(g, px + (hash(i + 3) - .5f) * s * .8f, py - s * (.2f + 1.4f * k), s * (.2f + .15f * hash(i + 5)), 0xFF07050A, .5f * (1 - k));
+        }
+        // Two shadow copies run in from either side and meet in the middle.
+        if (st > 7 && st < 20) {
+            float k = easeIn((st - 7) / 11f);
+            for (int side = -1; side <= 1; side += 2) {
+                float from = side < 0 ? fx0 - s * .7f : fx1 + s * .7f;
+                float x = Mth.lerp(k, from, px + side * s * .12f);
+                float back = Mth.lerp(easeIn(Math.max(0, (st - 9.5f) / 11f)), from, px + side * s * .12f);
+                // Shadow torn off behind them, and the red line their eyes draw.
+                for (int i = 0; i < 7; i++) {
+                    float bx = Mth.lerp(i / 7f, x, back);
+                    blob(g, bx, py - s * (.5f + .6f * hash(i + side * 9)), s * (.22f + .1f * hash(i + 4)), 0xFF07050A, .45f * (1 - i / 7f));
+                }
+                light();
+                line(g, back, py - s * 1.46f, x, py - s * 1.46f, s * .05f, 0xFFFF2A1C, .8f);
+                line(g, back, py - s * 1.46f, x, py - s * 1.46f, s * .015f, 0xFFFFF0DC, .7f);
+                normal();
+                zedShadow(g, x, py, s, side < 0 ? 90 : 270, actor.tickCount + partial, .85f * (1 - span(st, 16, 19)));
+            }
+        }
+        // They strike home: the X.
+        if (st > 17 && st < 56) {
+            float hit = st - 18;
+            light();
+            if (hit > 0 && hit < 8) glowDisc(g, cx, cy, s * 1.1f, 0xFFFF2030, .7f * (1 - hit / 8));
+            float stroke1 = easeOut((st - 18) / 3f), stroke2 = easeOut((st - 21) / 3f);
+            float burst = span(st, 48, 55);
+            float r = s * .5f * (1 + .7f * burst), a = 1 - burst;
+            float pulse = .8f + .2f * Mth.sin(st * .9f);
+            for (int k = 0; k < 2; k++) {
+                float grow = k == 0 ? stroke1 : stroke2;
+                if (grow <= 0) continue;
+                float dx = k == 0 ? -r : r;
+                float x0 = cx + dx, y0 = cy - r, x1 = Mth.lerp(grow, x0, cx - dx), y1 = Mth.lerp(grow, y0, cy + r);
+                line(g, x0, y0, x1, y1, s * .22f, 0xFFB0101A, .55f * a * pulse);
+                line(g, x0, y0, x1, y1, s * .09f, 0xFFFF2A2A, .95f * a);
+                line(g, x0, y0, x1, y1, s * .03f, 0xFFFFE8E0, a);
+            }
+            glowDisc(g, cx, cy, s * .7f, 0xFFFF2030, .25f * a * pulse * stroke2);
+            // Embers lifting off it while it burns.
+            if (st > 22 && st < 48) for (int i = 0; i < 8; i++) {
+                float life = ((st - 22) * .08f + hash(i)) % 1;
+                float ex = cx + (hash(i + 2) - .5f) * s * .9f, ey = cy + s * .4f - life * s * 1.2f;
+                glowDisc(g, ex, ey, s * .04f, 0xFFFF5030, .8f * (1 - life));
+            }
+            // It bursts: a flash, shards of red flung out, a ring.
+            if (st > 48) {
+                float b = (st - 48) / 8f;
+                glowDisc(g, cx, cy, s * 1.4f, 0xFFFF3030, .8f * (1 - b));
+                for (int i = 0; i < 10; i++) {
+                    float ang = i * .63f + hash(i) * .3f, d = s * (.3f + 1.5f * easeOut(b) * (.6f + .5f * hash(i + 7)));
+                    float sx = cx + Mth.cos(ang) * d, sy = cy + Mth.sin(ang) * d * .8f;
+                    line(g, sx, sy, sx + Mth.cos(ang) * s * .25f, sy + Mth.sin(ang) * s * .2f, s * .05f, 0xFFFF3A30, 1 - b);
+                }
+                ringFill(g, cx, cy, s * (.4f + 1.4f * easeOut(b)), s * (.3f + 1.1f * easeOut(b)), s * .08f, 0xFFFF2A2A, .7f * (1 - b));
+            }
+            normal();
+        }
+        // The smoke he steps out of.
+        if (st > 44 && st < 56) {
+            float k = (st - 44) / 12f;
+            for (int i = 0; i < 9; i++) {
+                float ang = i * .7f;
+                blob(g, px + Mth.cos(ang) * s * (.3f + .6f * k), py - s * (.4f + .7f * hash(i)) + Mth.sin(ang) * s * .1f, s * (.25f + .1f * hash(i + 2)), 0xFF07050A, .5f * (1 - k));
+            }
+        }
+    }
+    /** One of Zed's shadow copies, mid-lunge, drawn with his own body in shadow. */
+    private static void zedShadow(GuiGraphics g, float x, float y, float s, float yaw, float time, float alpha) {
+        if (alpha <= .01f) return;
+        PoseStack p = g.pose();
+        p.pushPose();
+        p.translate(x, y, -200);
+        p.mulPoseMatrix(new Matrix4f().scaling(s, s, -s));
+        p.mulPose(new Quaternionf().rotateZ((float) Math.PI));
+        p.mulPose(Axis.YP.rotationDegrees(180 - yaw));
+        p.scale(-.9375f, -.9375f, .9375f);
+        p.translate(0, -1.501, 0);
+        Lighting.setupForEntityInInventory();
+        try {
+            ZedBody.draw(p, g.bufferSource(), 15728880, ZedMotion.dash(time), 0, 0, 0, 0, time, ZedBody.SHADOW, alpha);
+            g.flush();
+        } finally {
+            p.popPose();
+            Lighting.setupFor3DItems();
+        }
+    }
+
+    // ------------------------------------------------------------------ Thor
+    /** Where the thrown hammer is (x, y) at a moment of the show, and how far it has spun. */
+    private static float[] hammerAt(float st, float px, float py, float s, int fx0) {
+        float rx = px - s * .55f, ry = py - s * 1.8f;          // where it leaves his hand
+        float cx = px - s * .42f, cy = py - s * 1.2f;          // where he catches it
+        float far = fx0 - s * .9f, high = py - s * 2.1f;
+        float x, y;
+        if (st < 48) {
+            float k = easeOut((st - 40) / 8f);
+            x = Mth.lerp(k, rx, far); y = Mth.lerp(k, ry, high);
+        } else {
+            float k = Mth.clamp((st - 48) / 8f, 0, 1);
+            k = k * k;
+            x = Mth.lerp(k, far, cx); y = Mth.lerp(k, high, cy) - Mth.sin(Mth.PI * k) * s * .3f;
+        }
+        return new float[]{x, y, (st - 40) * 1.25f};
+    }
+    /**
+     * Thor: Mjolnir whirled up to a blur at his side, thrown out of the frame trailing lightning and
+     * caught on its way back; two blows, each with its crack of light; then he looks out of the frame
+     * and the storm comes into his eyes.
+     */
+    private void thor(GuiGraphics g, float st, float px, float py, float s, int fx0, int fy0, int fx1, int fy1, float partial) {
+        float time = actor.tickCount + partial;
+        light();
+        // The whirl: wind round it, and once it is at full speed, sparks thrown off the wheel.
+        if (st > 4 && st < 38) {
+            float k = span(st, 4, 30), hx = px - s * .5f, hy = py - s * 1.0f;
+            for (int i = 0; i < 3; i++) {
+                float start = st * (.6f + .2f * k) + i * 2.1f;
+                arc(g, hx, hy, s * (.5f + .1f * i), s * (.5f + .1f * i), start, start + 1.4f, s * .03f, 0xFFDDE8FF, .35f * k);
+            }
+            if (st > 22) for (int i = 0; i < 2; i++) {
+                int seed = (int) (st * 2) + i * 13;
+                float ang = hash(seed) * Mth.TWO_PI, r = s * .5f;
+                float ax = hx + Mth.cos(ang) * r, ay = hy + Mth.sin(ang) * r;
+                bolt(g, ax, ay, ax + Mth.cos(ang) * s * .35f, ay + Mth.sin(ang) * s * .35f, seed, s * .025f, 0xFFBFE0FF, .9f);
+            }
+        }
+        // The throw: a flash where it leaves his hand.
+        if (st > 39 && st < 45) glowDisc(g, px - s * .55f, py - s * 1.8f, s * .6f, 0xFFDDEEFF, .7f * (1 - (st - 39) / 6));
+        normal();
+        // In flight: the hammer itself, tumbling, with lightning trailing it.
+        if (st >= 40 && st < 56.5f) {
+            light();
+            float[] last = null;
+            for (int j = 0; j <= 10; j++) {
+                float at = st - j * .5f;
+                if (at < 40) break;
+                float[] h = hammerAt(at, px, py, s, fx0);
+                if (last != null) {
+                    float a = 1 - j / 10f;
+                    line(g, last[0], last[1], h[0], h[1], s * .14f * a, 0xFF6FA8FF, .35f * a);
+                    line(g, last[0], last[1], h[0], h[1], s * .04f * a, 0xFFFFFFFF, .8f * a);
+                }
+                last = h;
+            }
+            float[] h = hammerAt(st, px, py, s, fx0);
+            glowDisc(g, h[0], h[1], s * .5f, 0xFF8CC8FF, .4f);
+            int seed = (int) (st * 3);
+            bolt(g, h[0], h[1], h[0] + (hash(seed) - .5f) * s * .8f, h[1] + (hash(seed + 1) - .5f) * s * .8f, seed, s * .02f, 0xFFDDEEFF, .9f);
+            normal();
+            hammer(g, h[0], h[1], s, h[2], time);
+        }
+        light();
+        // The catch.
+        if (st > 56 && st < 63) {
+            float k = (st - 56) / 7f, hx = px - s * .42f, hy = py - s * 1.2f;
+            glowDisc(g, hx, hy, s * .7f, 0xFFDDEEFF, .8f * (1 - k));
+            for (int i = 0; i < 8; i++) {
+                float ang = i * .785f + .3f, d = s * (.15f + .5f * easeOut(k));
+                line(g, hx + Mth.cos(ang) * d, hy + Mth.sin(ang) * d, hx + Mth.cos(ang) * (d + s * .15f), hy + Mth.sin(ang) * (d + s * .15f), s * .03f, 0xFFFFF4D8, 1 - k);
+            }
+        }
+        // Two blows: a crescent of light the hammer head draws, a crack where it lands.
+        for (int b = 0; b < 2; b++) {
+            float hit = b == 0 ? 70 : 82, age = st - hit;
+            if (age < -3 || age > 6) continue;
+            float draw = easeOut((age + 3) / 4f), fade = 1 - Mth.clamp(age / 6f, 0, 1);
+            float a0 = b == 0 ? Mth.PI * 1.05f : -.05f, a1 = b == 0 ? -.05f : Mth.PI * 1.05f;
+            float end = Mth.lerp(draw, a0, a1);
+            arc(g, px, py - s * 1.05f, s * 1.0f, s * .35f, Math.min(a0, end), Math.max(a0, end), s * .12f, 0xFF7FB8FF, .6f * fade);
+            arc(g, px, py - s * 1.05f, s * 1.0f, s * .35f, Math.min(a0, end), Math.max(a0, end), s * .035f, 0xFFFFFFFF, .9f * fade);
+            if (age >= 0) {
+                float hx = px + (b == 0 ? s * .9f : -s * .9f), hy = py - s * 1.0f;
+                glowDisc(g, hx, hy, s * .8f, 0xFFBFE0FF, .8f * fade);
+                for (int i = 0; i < 3; i++) {
+                    int seed = (int) hit * 7 + i;
+                    bolt(g, hx, hy, hx + (b == 0 ? 1 : -1) * s * (.4f + .5f * hash(seed)), hy + (hash(seed + 1) - .5f) * s * .9f, seed, s * .025f, 0xFFDDEEFF, fade);
+                }
+            }
+        }
+        // The look: his own eyes light up (the layer draws them); the bolt behind him lights the whole frame for a moment.
+        if (st > 92) {
+            float age = st - 98;
+            if (age >= 0 && age < 5) g.fill(fx0, fy0, fx1, fy1, alphaOf(0xFFDDEEFF, .35f * (1 - age / 5)));
+        }
+        normal();
+    }
+    /** Mjolnir itself, tumbling end over end in the frame. */
+    private static void hammer(GuiGraphics g, float x, float y, float s, float spin, float time) {
+        PoseStack p = g.pose();
+        p.pushPose();
+        p.translate(x, y, 0);
+        p.scale(s, s, s);
+        p.mulPose(Axis.ZP.rotation(spin));
+        p.mulPose(Axis.YP.rotation(.6f));
+        p.translate(0, -6 / 16f, 0);
+        Lighting.setupForEntityInInventory();
+        try {
+            RenderSystem.runAsFancy(() -> Mjolnir.draw(p, g.bufferSource(), Mjolnir.FULL_BRIGHT, 1, time));
+            g.flush();
+        } finally {
+            p.popPose();
+            Lighting.setupFor3DItems();
+        }
+    }
+
+    // ------------------------------------------------------------------ Hulk
+    /** Hulk: the clap: rings of air and dust racing out along the ground, chunks thrown. */
+    private void hulk(GuiGraphics g, float st, float px, float py, float s, int fx0, int fx1) {
+        if (st < 13) return;
+        for (int r = 0; r < 2; r++) {
+            float k = (st - 13 - r * 3) / 14f;
+            if (k < 0 || k > 1) continue;
+            float rx = Mth.lerp(easeOut(k), s * .4f, (fx1 - fx0) * .75f), ry = rx * .2f, a = (1 - k);
+            ringFill(g, px, py - 2, rx, ry, s * .12f, 0xFF8A7A5A, .45f * a);
+            light();
+            ringFill(g, px, py - 2, rx, ry, s * .05f, 0xFF7CFF5A, .8f * a);
+            normal();
+        }
+        float k = (st - 13) / 20f;
+        if (k < 1) for (int i = 0; i < 12; i++) {
+            float side = i % 2 == 0 ? 1 : -1, h = hash(i * 7.1f);
+            float x = px + side * s * (.3f + 2.2f * k * (.6f + h)), y = py - 4 - s * (1.3f * k * (.5f + h)) + s * 1.6f * k * k;
+            g.fill((int) x, (int) y, (int) (x + 2 + 3 * h), (int) (y + 2 + 3 * h), alphaOf(0xFF5A4630, 1 - k));
+        }
+    }
+
+    // ------------------------------------------------------------------ Cyclops
+    /** Where the beam leaves: between his eyes, following the way he faces and looks. */
+    private float[] eyes(float px, float py, float s) {
+        float turn = (180 - faceYaw) * Mth.DEG_TO_RAD, look = facePitch * Mth.DEG_TO_RAD;
+        return new float[]{px + Mth.sin(turn) * .25f * s * Mth.cos(look), py - s * 1.53f + Mth.sin(look) * .2f * s};
+    }
+    /**
+     * Cyclops: hand to the visor; the beam sweeps across the floor to the right, scorching a line into
+     * it; he turns, and the right-click beam pours out to the left, thickening as it holds, shock
+     * rings running down it, bursting where it leaves the frame.
+     */
+    private void cyclops(GuiGraphics g, float st, float px, float py, float s, int fx0, int fx1) {
+        float[] e = eyes(px, py, s);
+        float ex = e[0], ey = e[1];
+        light();
+        float charge = span(st, 3, 7) * (1 - span(st, 32, 37)) + span(st, 37, 41) * (1 - span(st, 66, 72));
+        glowDisc(g, ex, ey, s * .22f + s * .06f * Mth.sin(st * 1.3f), 0xFFFF3040, .9f * charge);
+        // The sweep to the right, down across the floor.
+        if (st > 7 && st < 36) {
+            float k = span(st, 7, 9) * (1 - span(st, 32, 35));
+            float[] end = sweepEnd(st, ex, ey, py, fx1);
+            float w = s * .08f * (1 + .15f * Mth.sin(st * 2.3f)) * k;
+            line(g, ex, ey, end[0], end[1], w * 3.2f, 0xFFFF1A28, .35f * k);
+            line(g, ex, ey, end[0], end[1], w * 1.6f, 0xFFFF3A40, .8f * k);
+            line(g, ex, ey, end[0], end[1], w * .5f, 0xFFFFE8E0, k);
+            glowDisc(g, end[0], end[1], s * .45f, 0xFFFF5030, .6f * k);
+            // Where it touches the floor: the scorch it leaves, still glowing behind it, and sparks.
+            if (end[2] > 0) for (int i = 0; i < 10; i++) {
+                float h = hash(i + (int) (st * 3)), sx = end[0] + (h - .5f) * s * .2f, sy = end[1] - 2;
+                line(g, sx, sy, sx - s * (.1f + .3f * h), sy - s * (.15f + .35f * hash(i * 3 + (int) st)), 1, 0xFFFFC0A0, .9f * k);
+            }
+        }
+        if (st > 14) for (int j = 0; j < 30; j++) {
+            float at = 14 + j * .8f;
+            if (at > Math.min(st, 33)) break;
+            float[] mark = sweepEnd(at, px + s * .16f, py - s * 1.53f, py, fx1);
+            if (mark[2] <= 0) continue;
+            float cool = 1 - Mth.clamp((st - at) / 40f, 0, 1);
+            glowDisc(g, mark[0], py - 2, s * .12f, 0xFFFF6A20, .7f * cool);
+        }
+        // The right-click beam, out to the left.
+        if (st > 39 && st < 72) {
+            float k = span(st, 39, 42) * (1 - span(st, 66, 71));
+            float grow = .5f + span(st, 42, 62);
+            float tx = fx0 - 6, ty = ey + (ex - tx) * .07f;
+            float w = s * .075f * grow * (1 + .12f * Mth.sin(st * 2.7f)) * k;
+            line(g, ex, ey, tx, ty, w * 3.6f, 0xFFFF1A28, .35f * k);
+            line(g, ex, ey, tx, ty, w * 1.7f, 0xFFFF3A40, .85f * k);
+            line(g, ex, ey, tx, ty, w * .55f, 0xFFFFF0E8, k);
+            // Shock rings running down it.
+            for (int i = 0; i < 4; i++) {
+                float run = ((st - 40) / 6f + i * .25f) % 1;
+                float rx = Mth.lerp(run, ex, tx), ry = Mth.lerp(run, ey, ty);
+                arc(g, rx, ry, s * .05f * grow, w * 2.4f, -Mth.HALF_PI, Mth.HALF_PI * 3, s * .02f, 0xFFFFB0A0, .7f * k * (1 - run));
+            }
+            float pulse = .8f + .2f * Mth.sin(st * 1.9f);
+            glowDisc(g, tx + 4, ty, s * .7f * grow, 0xFFFF4030, .6f * k * pulse);
+            for (int i = 0; i < 12; i++) {
+                float h = hash(i + (int) (st * 3)), sx = tx + 4 + h * 10, sy = ty + (hash(i * 3 + (int) st) - .5f) * s * .7f * grow;
+                line(g, sx, sy, sx + s * .25f * h, sy + (h - .5f) * s * .3f, 1, 0xFFFFC0A0, .8f * k);
+            }
+        }
+        normal();
+    }
+    /** Where the sweeping beam ends: the frame's right edge, or the floor; [2] is 1 on the floor. */
+    private static float[] sweepEnd(float st, float ex, float ey, float py, int fx1) {
+        float a = sweep(st) * Mth.DEG_TO_RAD, c = Mth.cos(a), sn = Mth.sin(a);
+        float toEdge = (fx1 + 6 - ex) / Math.max(.05f, c);
+        float toFloor = sn > .01f ? (py - 2 - ey) / sn : Float.MAX_VALUE;
+        float t = Math.min(toEdge, toFloor);
+        return new float[]{ex + c * t, ey + sn * t, toFloor < toEdge ? 1 : 0};
+    }
+
+    // ------------------------------------------------------------------ Sandman
+    /** The soldiers either side of him and the giant behind: where, how big, when each starts to rise. */
+    private static final float[][] ARMY = {
+            // x (in blocks from him), scale, born (ticks), feet raised (blocks), depth (z)
+            {-1.05f, .92f, 6, 0, 80}, {1.05f, .92f, 9, 0, 80}, {-1.85f, .8f, 13, .1f, 60}, {1.85f, .8f, 16, .1f, 60}};
+    private static final float GIANT_BORN = 24, GIANT_RISEN = 58, GIANT_SCALE = 1.35f;
+
+    /** The soldiers rising out of the ground either side of him, and the giant rising behind him. */
+    private void army(GuiGraphics g, float st, float px, float py, float s, int fx0, int fy0, int fx1, float partial) {
+        var model = soldierModel();
+        float idle = (actor.tickCount + partial) / 20f;
+        // Nothing of them shows below the ground line while they come up out of it.
+        g.enableScissor(fx0, fy0, fx1, (int) py + 1);
+        try {
+            if (st > GIANT_BORN) {
+                if (st < GIANT_RISEN) model.filmPose(idle, 0, 0, "spawn", (st - GIANT_BORN) / (GIANT_RISEN - GIANT_BORN) * 1.2f, 1.12f);
+                else {
+                    // Risen: chest up, arms thrown wide, a roar over his head.
+                    model.filmPose(idle, 0, 0, null, 0, 1.12f);
+                    float up = span(st, GIANT_RISEN, GIANT_RISEN + 10);
+                    for (String side : new String[]{"right", "left"}) {
+                        model.bone(side + "_upper_arm").zRot += (side.equals("right") ? 1.05f : -1.05f) * up;
+                        model.bone(side + "_upper_arm").xRot += -.35f * up;
+                        model.bone(side + "_forearm").xRot += -.5f * up;
+                    }
+                    model.bone("chest").xRot += -.18f * up;
+                    model.bone("head").xRot += -.25f * up;
+                }
+                soldier(g, model, px, py - s * .3f, 20, s, GIANT_SCALE, 180, .78f, 1);
+            }
+            for (float[] a : ARMY) {
+                float born = a[2];
+                if (st < born) continue;
+                if (st < born + 24) model.filmPose(idle, 0, 0, "spawn", (st - born) / 20f, .94f);
+                else model.filmPose(idle + a[0], 0, 0, null, 0, .94f);
+                float yaw = Mth.lerp(span(st, length("sandman") - 16, length("sandman") - 8), 180 - a[0] * 8, 180);
+                soldier(g, model, px + a[0] * s, py - a[3] * s, a[4], s, a[1], yaw, a[3] > 0 ? .86f : .95f, 1);
+            }
+        } finally {
+            g.disableScissor();
+        }
+    }
+    /** Sand thrown up where each of them breaks out of the ground, and pouring off the giant as it rises. */
+    private void risings(GuiGraphics g, float st, float px, float py, float s) {
+        for (float[] a : ARMY) {
+            float k = (st - a[2]) / 14f;
+            if (k < 0 || k > 1) continue;
+            float x = px + a[0] * s, y = py - a[3] * s;
+            for (int i = 0; i < 18; i++) {
+                float h = hash(i + a[2] * 7), vx = (h - .5f) * s * 1.1f, vy = s * (.6f + .9f * hash(i + 3 + a[2]));
+                float gx = x + vx * k, gy = y - vy * k + s * 1.4f * k * k, size = 1 + 1.5f * hash(i * 1.3f);
+                g.fill((int) gx, (int) gy, (int) (gx + size), (int) (gy + size), alphaOf(h > .5f ? 0xFFE8C080 : 0xFFC8984E, 1 - k));
+            }
+            blob(g, x, y - s * .15f, s * .55f * easeOut(k), 0xFFD8B070, .35f * (1 - k));
+        }
+        if (st > GIANT_BORN && st < GIANT_RISEN + 14) {
+            float pour = span(st, GIANT_BORN, GIANT_BORN + 6) * (1 - span(st, GIANT_RISEN, GIANT_RISEN + 14));
+            for (int i = 0; i < 30; i++) {
+                float fall = (hash(i) + st * .05f) % 1;
+                float x = px + (hash(i + 3) - .5f) * s * 1.6f, top = py - s * (1.2f + 1.6f * hash(i + 7));
+                float y = Mth.lerp(fall, top, py);
+                g.fill((int) x, (int) y, (int) x + 1, (int) (y + 3), alphaOf(0xFFD8B070, .5f * pour * (1 - fall)));
+            }
+        }
+    }
+    private SandSoldierModel<SandSoldierEntity> soldierModel() {
+        if (soldier == null) soldier = new SandSoldierModel<>(Minecraft.getInstance().getEntityModels().bakeLayer(SandSoldierModel.LAYER));
+        return soldier;
+    }
+    /** The shared soldier model as it is posed now, standing at (x, y) in the frame. */
+    private static void soldier(GuiGraphics g, SandSoldierModel<SandSoldierEntity> model, float x, float y, float z, float s, float scale, float yaw, float tint, float alpha) {
+        PoseStack p = g.pose();
+        p.pushPose();
+        p.translate(x, y, z);
+        p.mulPoseMatrix(new Matrix4f().scaling(s, s, -s));
+        p.mulPose(new Quaternionf().rotateZ((float) Math.PI));
+        p.mulPose(Axis.YP.rotationDegrees(180 - yaw));
+        p.scale(-scale, -scale, scale);
+        p.translate(0, -1.501, 0);
+        Lighting.setupForEntityInInventory();
+        try {
+            model.renderToBuffer(p, g.bufferSource().getBuffer(RenderType.entityTranslucent(SAND)), 15728880, OverlayTexture.NO_OVERLAY,
+                    tint, tint * .93f, tint * .8f, alpha);
+            g.flush();
+        } finally {
+            p.popPose();
+            Lighting.setupFor3DItems();
+        }
+    }
+    /** Sandman: a storm of sand spinning up round him, grains in front and behind. */
+    private void sand(GuiGraphics g, float st, float px, float py, float s, boolean front, float strength) {
+        if (strength <= .01f) return;
+        int n = 170;
+        for (int i = 0; i < n; i++) {
+            float h = (i + .5f) / n;
+            float ang = i * 2.399f + st * (.22f + .1f * hash(i));
+            float sin = Mth.sin(ang);
+            if (front != sin > 0) continue;
+            float rad = s * (.42f + .45f * h) * (1 + .15f * Mth.sin(st * .3f + i));
+            float x = px + Mth.cos(ang) * rad, y = py - h * s * 2.3f + sin * rad * .16f - st * .2f * hash(i + 9);
+            float size = 1 + 1.6f * hash(i * 1.7f);
+            g.fill((int) x, (int) y, (int) (x + size), (int) (y + size), alphaOf(hash(i) > .5f ? 0xFFE8C080 : 0xFFC8984E, strength * (front ? .9f : .55f)));
+        }
+    }
+
+    // ------------------------------------------------------------------ drawing an entity in the frame
+    /**
+     * An entity standing at (x, y) in the GUI at depth z, scale pixels per block, its body facing yaw and
+     * its head headYaw, offset (blocks, world axes).
+     */
+    private static void body(GuiGraphics g, Entity e, float x, float y, float z, float scale, float yaw, float headYaw, float headPitch, Vec3 offset, float partial) {
+        if (e instanceof LivingEntity living) {
+            living.yBodyRot = living.yBodyRotO = yaw;
+            living.yHeadRot = living.yHeadRotO = headYaw;
+        }
+        e.setYRot(yaw); e.yRotO = yaw; e.setXRot(headPitch); e.xRotO = headPitch;
+        var dispatcher = Minecraft.getInstance().getEntityRenderDispatcher();
+        g.pose().pushPose();
+        g.pose().translate(x, y, z);
+        g.pose().mulPoseMatrix(new Matrix4f().scaling(scale, scale, -scale));
+        g.pose().mulPose(new Quaternionf().rotateZ((float) Math.PI));
+        Lighting.setupForEntityInInventory();
+        dispatcher.overrideCameraOrientation(new Quaternionf());
+        dispatcher.setRenderShadow(false);
+        try {
+            RenderSystem.runAsFancy(() -> dispatcher.render(e, offset.x, offset.y, offset.z, yaw, partial, g.pose(), g.bufferSource(), 15728880));
+            g.flush();
+        } finally {
+            dispatcher.setRenderShadow(true);
+            g.pose().popPose();
+            Lighting.setupFor3DItems();
+        }
+    }
+
+    // ------------------------------------------------------------------ 2D light and matter
+    static int alphaOf(int colour, float a) { return ((int) (Mth.clamp(a, 0, 1) * 255) << 24) | (colour & 0xFFFFFF); }
+    private static void light() { RenderSystem.enableBlend(); RenderSystem.blendFunc(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE); }
+    private static void normal() { RenderSystem.defaultBlendFunc(); }
+    private static BufferBuilder begin(VertexFormat.Mode mode) {
+        RenderSystem.enableBlend();
+        RenderSystem.setShader(GameRenderer::getPositionColorShader);
+        BufferBuilder b = Tesselator.getInstance().getBuilder();
+        b.begin(mode, DefaultVertexFormat.POSITION_COLOR);
+        return b;
+    }
+    private static void v(BufferBuilder b, Matrix4f m, float x, float y, int c, float a) {
+        b.vertex(m, x, y, 0).color((c >> 16 & 255) / 255f, (c >> 8 & 255) / 255f, (c & 255) / 255f, Mth.clamp(a, 0, 1)).endVertex();
+    }
+    /** A soft round light: full in the middle, nothing at the edge. */
+    private static void glowDisc(GuiGraphics g, float x, float y, float r, int c, float a) { oval(g, x, y, r, r, c, a); }
+    /** A soft oval: full in the middle, nothing at the edge. */
+    private static void oval(GuiGraphics g, float x, float y, float rx, float ry, int c, float a) {
+        if (a <= .01f || rx <= .5f || ry <= .2f) return;
+        BufferBuilder b = begin(VertexFormat.Mode.TRIANGLES);
+        Matrix4f m = g.pose().last().pose();
+        int n = 28;
+        for (int i = 0; i < n; i++) {
+            float a0 = Mth.TWO_PI * i / n, a1 = Mth.TWO_PI * (i + 1) / n;
+            v(b, m, x, y, c, a); v(b, m, x + Mth.cos(a1) * rx, y + Mth.sin(a1) * ry, c, 0); v(b, m, x + Mth.cos(a0) * rx, y + Mth.sin(a0) * ry, c, 0);
+        }
+        BufferUploader.drawWithShader(b.end());
+    }
+    private static void blob(GuiGraphics g, float x, float y, float r, int c, float a) { normal(); glowDisc(g, x, y, r, c, a); }
+    /** A line with soft edges, bright along its middle. */
+    private static void line(GuiGraphics g, float x0, float y0, float x1, float y1, float w, int c, float a) {
+        float dx = x1 - x0, dy = y1 - y0, len = (float) Math.sqrt(dx * dx + dy * dy);
+        if (len < .01f || a <= .01f) return;
+        float nx = -dy / len * w * .5f, ny = dx / len * w * .5f;
+        BufferBuilder b = begin(VertexFormat.Mode.QUADS);
+        Matrix4f m = g.pose().last().pose();
+        for (int side = -1; side <= 1; side += 2) {
+            v(b, m, x0, y0, c, a); v(b, m, x1, y1, c, a); v(b, m, x1 + nx * side, y1 + ny * side, c, 0); v(b, m, x0 + nx * side, y0 + ny * side, c, 0);
+        }
+        BufferUploader.drawWithShader(b.end());
+    }
+    /** A crescent: part of an ellipse, thick in the middle, sharp at both ends. */
+    private static void arc(GuiGraphics g, float cx, float cy, float rx, float ry, float a0, float a1, float w, int c, float a) {
+        if (a <= .01f) return;
+        BufferBuilder b = begin(VertexFormat.Mode.QUADS);
+        Matrix4f m = g.pose().last().pose();
+        int n = 20;
+        for (int i = 0; i < n; i++) {
+            float t0 = i / (float) n, t1 = (i + 1) / (float) n;
+            float b0 = a0 + (a1 - a0) * t0, b1 = a0 + (a1 - a0) * t1, w0 = w * Mth.sin(Mth.PI * t0), w1 = w * Mth.sin(Mth.PI * t1);
+            float c0 = Mth.cos(b0), s0 = Mth.sin(b0), c1 = Mth.cos(b1), s1 = Mth.sin(b1);
+            v(b, m, cx + c0 * (rx - w0), cy + s0 * (ry - w0 * .3f), c, a * t0); v(b, m, cx + c1 * (rx - w1), cy + s1 * (ry - w1 * .3f), c, a * t1);
+            v(b, m, cx + c1 * (rx + w1), cy + s1 * (ry + w1 * .3f), c, a * t1); v(b, m, cx + c0 * (rx + w0), cy + s0 * (ry + w0 * .3f), c, a * t0);
+        }
+        BufferUploader.drawWithShader(b.end());
+    }
+    /** A flat ring on the ground (an ellipse band, bright in its middle). */
+    private static void ringFill(GuiGraphics g, float cx, float cy, float rx, float ry, float w, int c, float a) {
+        if (a <= .01f) return;
+        BufferBuilder b = begin(VertexFormat.Mode.QUADS);
+        Matrix4f m = g.pose().last().pose();
+        int n = 40;
+        for (int i = 0; i < n; i++) {
+            float b0 = Mth.TWO_PI * i / n, b1 = Mth.TWO_PI * (i + 1) / n;
+            float c0 = Mth.cos(b0), s0 = Mth.sin(b0), c1 = Mth.cos(b1), s1 = Mth.sin(b1);
+            for (int side = -1; side <= 1; side += 2) {
+                v(b, m, cx + c0 * rx, cy + s0 * ry, c, a); v(b, m, cx + c1 * rx, cy + s1 * ry, c, a);
+                v(b, m, cx + c1 * (rx + side * w), cy + s1 * (ry + side * w * .25f), c, 0); v(b, m, cx + c0 * (rx + side * w), cy + s0 * (ry + side * w * .25f), c, 0);
+            }
+        }
+        BufferUploader.drawWithShader(b.end());
+    }
+    /** A tongue of flame rising from (x, y). */
+    private static void flame(GuiGraphics g, float x, float y, float w, float h, int c, float a) {
+        BufferBuilder b = begin(VertexFormat.Mode.TRIANGLES);
+        Matrix4f m = g.pose().last().pose();
+        v(b, m, x - w, y, c, a); v(b, m, x + w, y, c, a); v(b, m, x + w * .3f, y - h, c, 0);
+        BufferUploader.drawWithShader(b.end());
+    }
+    /** A jagged bolt from one point to another. */
+    private static void bolt(GuiGraphics g, float x0, float y0, float x1, float y1, int seed, float w, int c, float a) {
+        float px = x0, py = y0;
+        int n = 8;
+        float len = (float) Math.hypot(x1 - x0, y1 - y0);
+        for (int i = 1; i <= n; i++) {
+            float k = i / (float) n;
+            float jag = i == n ? 0 : (hash(seed * 31 + i) - .5f) * len * .18f;
+            float nx = Mth.lerp(k, x0, x1) + jag, ny = Mth.lerp(k, y0, y1);
+            line(g, px, py, nx, ny, w, c, a);
+            px = nx; py = ny;
+        }
+    }
+}

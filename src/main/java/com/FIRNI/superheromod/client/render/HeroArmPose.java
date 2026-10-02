@@ -221,6 +221,8 @@ public final class HeroArmPose {
      */
     private static boolean isFiring(Player player) {
         if (isSandman(player)) return false;
+        // The champion select's stand-in fires when its show says so.
+        if (com.FIRNI.superheromod.client.gui.Showcase.is(player)) return com.FIRNI.superheromod.client.gui.Showcase.action() != 0;
 
         var channel = ClientBeamData.getChannelBeams().get(player.getUUID());
         if (channel != null && channel.fadeAlpha > 0) return true;
