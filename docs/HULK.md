@@ -30,7 +30,7 @@ Hedef ölür ya da oyundan çıkarsa sahne güvenle biter. İkisi de sahne boyun
 blok içine değil zeminin üstüne konur.
 
 ## Ayar dosyaları (oyun klasöründe `config/`)
-- `superheromod-hulk-common.toml` (sunucu kuralları ve denge):
+- `superheromod-hulk.toml` (sunucu kuralları ve denge):
   dost ateşi, blok kırma açık/kapalı, korumalı bölgelerde kırma, saldırı başına en fazla blok, en fazla blok sertliği,
   yasaklı bloklar listesi, ağır düşmanların geri itilme direnci; her yeteneğin hasarı, menzili, geri itmesi,
   sersemletme süresi, bekleme süresi; ultinin menzili, iki darbenin hasar payı, dalış gecikmesi, krater boyutu.

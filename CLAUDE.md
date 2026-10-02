@@ -101,7 +101,7 @@ landing spot and the target to the crater.
 - Bruce Banner ⇄ Hulk: **G** toggles (staged 2.2 s change: clutching the head, the body swells, shirt and glasses
   tear away, the roar; reverting is shorter). All abilities work only as Hulk; Banner is an ordinary player.
 - `HulkAction` = every action id and tuning number; `HulkConfig` = server/common rules and numbers
-  (`config/superheromod-hulk-common.toml`: friendly fire, block damage on/off, regions, max blocks per attack, hardness
+  (`config/superheromod-hulk.toml`: friendly fire, block damage on/off, regions, max blocks per attack, hardness
   cap, banned blocks, every damage/range/cooldown) and client look (`superheromod-hulk-client.toml`: effects amount,
   camera shake, calm cinematic camera, HUD). `HulkBlocks` decides which blocks may break (never bedrock/unbreakable,
   block entities, banned ids, protected regions; fires the break event; per-attack budget).
@@ -111,6 +111,10 @@ landing spot and the target to the crater.
   RMB guard (front blocks more than back, stamina bar, slowed), **R** Thunderclap, **F** ground-shaking punch (wave
   follows the terrain, trench), **C** rip up the ground and throw it, **Space hold** charged leap (one bounce on landing),
   **X** GAMMA RAGE film (needs a target in front).
+- Scale: everything is sized for his 1.5× body (effects start at his fists/chest, not the vanilla eye height).
+  Thunderclap is a travelling wall of air (`CLAP_SPEED`, `CLAP_SPREAD`): hits land when the front reaches them,
+  grass is torn to dirt along its path. The ground wave throws up slabs of earth (`HulkFx` spikes), a V trench and
+  a crater where the fists go in. The rules file is `superheromod-hulk.toml` (renamed so the bigger defaults apply).
 - `HulkLayer` draws the whole body (player model hidden in `HeroArmPose`), one parametric body that grows from
   Banner to Hulk with `pose.size` (×1.5 overall); `HulkMotion` is the pure pose math; `HulkFx` world effects
   (rings, dust, chunks of the real ground, cracks, flying rock, first-person fists, the film's performers).

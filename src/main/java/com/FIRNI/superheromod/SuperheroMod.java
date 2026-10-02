@@ -92,7 +92,7 @@ public class SuperheroMod
 
         // Register our mod's ForgeConfigSpec so that Forge can create and load the config file for us
         context.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
-        context.registerConfig(ModConfig.Type.COMMON, com.FIRNI.superheromod.heroes.hulk.HulkConfig.COMMON, "superheromod-hulk-common.toml");
+        context.registerConfig(ModConfig.Type.COMMON, com.FIRNI.superheromod.heroes.hulk.HulkConfig.COMMON, "superheromod-hulk.toml");
         context.registerConfig(ModConfig.Type.CLIENT, com.FIRNI.superheromod.heroes.hulk.HulkConfig.CLIENT, "superheromod-hulk-client.toml");
     }
 

@@ -67,7 +67,9 @@ public final class HulkFx {
     /** A shock ring; normal null = flat on the ground. */
     private record Ring(Vec3 at, Vec3 normal, double radius, double width, long start, float life, int rgb, float alpha, boolean light) {}
     /** The Thunderclap's wall of air, sweeping forward along the ground in an arc. */
-    private record Arc(Vec3 at, Vec3 dir, double range, double spread, double height, long start, float life) {}
+    private record Arc(Vec3 at, Vec3 dir, double range, double spread, double height, long start, float life, BlockState ground) {}
+    /** A slab of ground forced up out of the earth, leaning out along `lean` (radians), that sinks back after its life. */
+    private record Spike(Vec3 base, BlockState state, long start, double height, double lean, int life, float tilt) {}
     private record Crack(Vec3 centre, List<List<Vec3>> lines, long start, float life, boolean gamma) {}
 
     private static final List<Chunk> CHUNKS = new ArrayList<>();
@@ -76,6 +78,7 @@ public final class HulkFx {
     private static final List<Ring> RINGS = new ArrayList<>();
     private static final List<Arc> ARCS = new ArrayList<>();
     private static final List<Crack> CRACKS = new ArrayList<>();
+    private static final List<Spike> SPIKES = new ArrayList<>();
     private static float screenFlash;
     private static int flashColor = 0xFFFFFF;
 
@@ -104,7 +107,7 @@ public final class HulkFx {
     }
     private static void ring(Vec3 at, Vec3 normal, double radius, double width, float life, int rgb, float alpha, boolean light, int delay) {
         if (amount() <= 0) return;
-        RINGS.add(new Ring(at, normal, radius, width, now() + delay, life, rgb, alpha, light)); cap(RINGS, 48);
+        RINGS.add(new Ring(at, normal, radius, width, now() + delay, life, rgb, alpha, light)); cap(RINGS, 72);
     }
     /** Dust from this ground: the block's own colour, greyed toward earth. */
     private static int dustColor(BlockState s) {
@@ -128,7 +131,7 @@ public final class HulkFx {
             Vec3 drift = new Vec3(Math.cos(a) * speed * (.6 + r.nextDouble() * .6), lift * (.4 + r.nextDouble() * .8), Math.sin(a) * speed * (.6 + r.nextDouble() * .6));
             PUFFS.add(new Puff(from, drift, size * (.7 + r.nextDouble() * .6), now(), life * (.7f + r.nextFloat() * .6f), rgb, .55f + r.nextFloat() * .25f));
         }
-        cap(PUFFS, 260);
+        cap(PUFFS, 420);
     }
     /** Chunks of the ground thrown up: real blocks, tumbling. */
     private static void chunks(Vec3 at, int count, double spread, double up, double out, float size, BlockState state, Vec3 bias) {
@@ -140,7 +143,15 @@ public final class HulkFx {
             Vec3 vel = new Vec3(Math.cos(a) * out * (.4 + r.nextDouble()), up * (.6 + r.nextDouble() * .7), Math.sin(a) * out * (.4 + r.nextDouble())).add(bias);
             CHUNKS.add(new Chunk(from, vel, state, size * (.5f + r.nextFloat() * .7f), r, 50 + r.nextInt(40)));
         }
-        cap(CHUNKS, 220);
+        cap(CHUNKS, 360);
+    }
+    private static void spike(Vec3 at, BlockState state, double height, double lean, int life) {
+        if (amount() <= 0) return;
+        if (state == null || state.isAir() || !state.isSolid()) state = Blocks.DIRT.defaultBlockState();
+        Random r = random();
+        Vec3 base = new Vec3(Math.floor(at.x) + .5, Math.floor(at.y + .2), Math.floor(at.z) + .5).add((r.nextDouble() - .5) * .4, 0, (r.nextDouble() - .5) * .4);
+        SPIKES.add(new Spike(base, state, now(), height * Math.min(1.3, .7 + .3 * amount()), lean, life, .25f + r.nextFloat() * .35f));
+        cap(SPIKES, 90);
     }
     private static void particles(Vec3 at, int count, double spread, double speed, BlockState state) {
         var level = Minecraft.getInstance().level;
@@ -233,101 +244,154 @@ public final class HulkFx {
                 glow(at.add(0, 1.2, 0), 1.6, 8, GAMMA, .25f);
             }
             case FX_PUNCH -> {
-                ring(at, dir, .5 + .35 * power, .2, 5, AIR, .6f * power, true, 0);
-                glow(at, .9 * power, 4, AIR, .5f);
+                ring(at, dir, .8 + .5 * power, .28, 6, AIR, .7f * power, true, 0);
+                glow(at, 1.3 * power, 4, AIR, .55f);
                 var level = mc.level;
                 Random r = random();
-                for (int i = 0; i < n(6); i++) level.addParticle(ParticleTypes.CRIT, at.x, at.y, at.z, (r.nextDouble() - .5) * .6 + dir.x * .4, r.nextDouble() * .4, (r.nextDouble() - .5) * .6 + dir.z * .4);
-                if (p.block() != 0) particles(at, 10, .4, .2, ground);
-                shake(at, .14f * power + .06f, 6);
+                for (int i = 0; i < n(8); i++) level.addParticle(ParticleTypes.CRIT, at.x, at.y, at.z, (r.nextDouble() - .5) * .7 + dir.x * .5, r.nextDouble() * .45, (r.nextDouble() - .5) * .7 + dir.z * .5);
+                if (p.block() != 0) { particles(at, 14, .5, .25, ground); chunks(at, 2, .2, .2, .12, .35f, ground, dir.scale(.1)); }
+                shake(at, .18f * power + .08f, 7);
             }
             case FX_BLOCK -> {
-                chunks(at, 2, .3, .25, .1, .38f, ground, dir.scale(.12 * power));
-                particles(at, 8, .8, .15, ground);
+                chunks(at, 3, .3, .4, .14, .5f, ground, dir.scale(.16 * power));
+                particles(at, 10, .9, .18, ground);
+            }
+            case FX_WAVE_HIT -> {
+                // Someone caught by a wave: a burst of air and dust off them as they are thrown.
+                ring(at, dir, 1.1 + .6 * power, .35, 6, AIR, .6f, true, 0);
+                glow(at, 1.4 * power, 4, AIR, .5f);
+                dust(at.add(0, -.8, 0), 6, .6, .14, 1.1, 30, ground, .05);
+                particles(at.add(0, -.9, 0), 12, .9, .3, ground);
+                shake(at, .3f * power, 9);
             }
             case FX_CHARGED_WAVE -> {
-                // A cone of air punched straight out: rings travelling forward, dust pulled along.
-                double length = 4 + 9 * power;
-                for (int i = 0; i < 6; i++) {
-                    double d = length * i / 6.0;
-                    ring(at.add(dir.scale(d)), dir, .6 + (1.4 + 1.6 * power) * i / 6.0, .3 + .1 * i, 6 + i, AIR, (.65f - .07f * i) * (.5f + .5f * power), true, i);
+                // A cone of air punched straight out of his fist: rings travelling forward, a tunnel of dust behind them.
+                double length = 6 + 14 * power;
+                for (int i = 0; i < 8; i++) {
+                    double d = length * i / 8.0;
+                    ring(at.add(dir.scale(d)), dir, 1 + (2.2 + 2.8 * power) * i / 8.0, .4 + .12 * i, 7 + i, AIR, (.75f - .06f * i) * (.5f + .5f * power), true, i);
                 }
-                glow(at, 1.5 + power, 5, AIR, .7f);
-                glow(at, .9 + power * .5, 6, GAMMA, .35f * power);
+                ring(at, dir, 1.4 + power, .5, 5, GAMMA_CORE, .5f * power, true, 0);
+                glow(at, 2.2 + 1.5 * power, 6, AIR, .8f);
+                glow(at, 1.4 + power, 7, GAMMA, .4f * power);
                 var level = mc.level;
                 Random r = random();
-                for (int i = 0; i < n(30 * (.4 + power)); i++) {
-                    double s = r.nextDouble() * length * .4;
-                    Vec3 q = at.add(dir.scale(s)).add((r.nextDouble() - .5) * 1.2, (r.nextDouble() - .5) * 1.2, (r.nextDouble() - .5) * 1.2);
-                    Vec3 v = dir.scale(.6 + r.nextDouble() * .9 * (.5 + power));
+                int rgb = dustColor(ground);
+                for (int i = 0; i < n(14 * (.4 + power)); i++) {
+                    double d = r.nextDouble() * length * .8;
+                    Vec3 q = at.add(dir.scale(d)).add((r.nextDouble() - .5) * 1.6, (r.nextDouble() - .5) * 1.6, (r.nextDouble() - .5) * 1.6);
+                    PUFFS.add(new Puff(q, dir.scale(.25 + r.nextDouble() * .2), 1.1 + r.nextDouble() * .8, now() + (long) (d / 3), 26 + r.nextFloat() * 14, rgb, .35f + r.nextFloat() * .2f));
+                }
+                for (int i = 0; i < n(40 * (.4 + power)); i++) {
+                    double sAlong = r.nextDouble() * length * .5;
+                    Vec3 q = at.add(dir.scale(sAlong)).add((r.nextDouble() - .5) * 1.6, (r.nextDouble() - .5) * 1.6, (r.nextDouble() - .5) * 1.6);
+                    Vec3 v = dir.scale(.8 + r.nextDouble() * 1.1 * (.5 + power));
                     level.addParticle(i % 3 == 0 ? ParticleTypes.CLOUD : ParticleTypes.POOF, q.x, q.y, q.z, v.x, v.y, v.z);
                 }
-                shake(at, .3f + .5f * power, 12);
-                screenFlash(at, .1f * power, 6, AIR);
+                cap(PUFFS, 420);
+                shake(at, .4f + .7f * power, 16);
+                screenFlash(at, .14f * power, 8, AIR);
             }
             case FX_CLAP -> {
-                // The clap: a flash between the hands, then the wall of air rolling across the ground.
-                Vec3 f = flatDir(dir);
-                glow(at, 2.6, 5, AIR, .9f);
-                ring(at, f, 1.2, .35, 6, AIR, .8f, true, 0);
-                ring(at.add(f.scale(1.5)), f, 2.2, .4, 7, AIR, .55f, true, 1);
-                Vec3 feet = at.add(0, -1.9, 0);
-                if (amount() > 0) { ARCS.add(new Arc(feet.add(f.scale(1)), f, power, Math.toRadians(42), 2.4, now(), 11)); cap(ARCS, 8); }
+                // The clap: a flash between his hands at chest height, a burst of rings, then the wall of air
+                // rolling forward across the ground (it moves exactly as fast as the server's wave).
+                Vec3 f = flatDir(dir), hands = at.add(0, 1.75, 0);
+                glow(hands, 4, 6, AIR, 1f);
+                glow(hands, 2.2, 8, GAMMA_CORE, .5f);
+                ring(hands, f, 1.8, .5, 6, AIR, .9f, true, 0);
+                ring(hands.add(f.scale(2)), f, 3.4, .6, 8, AIR, .7f, true, 1);
+                ring(hands.add(f.scale(4.5)), f, 5, .8, 10, AIR, .5f, true, 3);
+                ring(at.add(0, .1, 0), null, 4, .6, 8, AIR, .5f, true, 0);
+                if (amount() > 0) { ARCS.add(new Arc(at, f, power, Math.toRadians(CLAP_SPREAD), 4.2, now(), (float) (power / CLAP_SPEED) + 6, ground)); cap(ARCS, 8); }
                 var level = mc.level;
                 Random r = random();
-                for (int i = 0; i < n(50); i++) {
-                    double a = (r.nextDouble() - .5) * Math.toRadians(84);
-                    Vec3 d = new Vec3(f.x * Math.cos(a) - f.z * Math.sin(a), 0, f.x * Math.sin(a) + f.z * Math.cos(a));
-                    Vec3 q = feet.add(d.scale(1 + r.nextDouble() * 2)).add(0, r.nextDouble() * 1.4, 0);
-                    Vec3 v = d.scale(.7 + r.nextDouble() * .8);
+                for (int i = 0; i < n(60); i++) {
+                    double a = (r.nextDouble() - .5) * Math.toRadians(CLAP_SPREAD * 2);
+                    Vec3 d = rotY(f, a);
+                    Vec3 q = at.add(d.scale(1 + r.nextDouble() * 2)).add(0, r.nextDouble() * 2.4, 0);
+                    Vec3 v = d.scale(1 + r.nextDouble() * 1.2);
                     level.addParticle(i % 2 == 0 ? ParticleTypes.CLOUD : ParticleTypes.POOF, q.x, q.y, q.z, v.x, .02, v.z);
                 }
-                // Grass, flowers and leaves in the way are torn up by the server; the dust follows it.
-                dust(feet.add(f.scale(2)), 14, 1.5, .25, 1, 30, level.getBlockState(BlockPos.containing(feet).below()), .01);
-                shake(at, .6f, 16);
-                screenFlash(at, .15f, 8, AIR);
+                dust(at.add(f.scale(1.5)), 16, 1.5, .3, 1.6, 40, ground, .02);
+                shake(at, 1f, 22);
+                screenFlash(hands, .2f, 9, AIR);
             }
             case FX_POUND_STEP -> {
-                // One step of the ground wave: the earth heaves up and falls back.
-                Vec3 f = flatDir(dir);
-                chunks(at, power > 1.2f ? 8 : 4, .7, .38 * power, .06, .5f, ground, f.scale(.05));
-                particles(at, 14, 1.4, .25, ground);
-                dust(at, power > 1.2f ? 10 : 4, .8, .06, .9, 26, ground, .03);
-                if (power > 1.2f) {
-                    ring(at.add(0, .1, 0), null, 3.5, .5, 9, AIR, .5f, true, 0);
-                    cracks(at, 4, 4, 100, false, f);
-                    shake(at, .7f, 14);
+                // The ground wave: the earth heaves up in jagged slabs, chunks fly high, dust rolls out to the sides.
+                Vec3 f = flatDir(dir), side = f.cross(new Vec3(0, 1, 0)).normalize();
+                Random r = random();
+                boolean first = power > 1.5f;
+                if (first) {
+                    // Where his fists went in.
+                    ring(at.add(0, .1, 0), null, 7, .9, 12, AIR, .6f, true, 0);
+                    ring(at.add(0, .15, 0), null, 4, .6, 8, AIR, .55f, true, 2);
+                    glow(at.add(0, .5, 0), 3.5, 6, AIR, .7f);
+                    chunks(at, 26, 1.6, .9, .3, .8f, ground, Vec3.ZERO);
+                    dust(at, 26, 1.8, .26, 1.8, 60, ground, .05);
+                    particles(at, 50, 3, .45, ground);
+                    for (int i = 0; i < 6; i++) {
+                        double a = i * Math.PI / 3 + r.nextDouble() * .5;
+                        spike(at.add(Math.cos(a) * (1.6 + r.nextDouble()), 0, Math.sin(a) * (1.6 + r.nextDouble())), ground, 1.2 + r.nextDouble() * 1.2, a, 30 + r.nextInt(10));
+                    }
+                    cracks(at, 6, 10, 160, false, null);
+                    shake(at, 1.2f, 24);
+                    screenFlash(at, .12f, 8, AIR);
                 } else {
-                    cracks(at, 1.6, 2, 70, false, f);
-                    shake(at, .25f, 10);
+                    chunks(at, 9, .9, .78, .12, .7f, ground, f.scale(.06));
+                    dust(at, 7, 1.2, .1, 1.4, 42, ground, .04);
+                    particles(at, 22, 2.4, .32, ground);
+                    // Slabs of ground forced up along both edges of the wave, leaning outward.
+                    int count = 2 + (r.nextFloat() < .5f ? 1 : 0);
+                    for (int i = 0; i < count; i++) {
+                        double off = (r.nextBoolean() ? 1 : -1) * (.6 + r.nextDouble() * 1.8);
+                        double lean = Math.atan2(side.z * Math.signum(off), side.x * Math.signum(off));
+                        spike(at.add(side.scale(off)).add(f.scale(r.nextDouble() - .5)), ground, .9 + r.nextDouble() * 1.4, lean, 26 + r.nextInt(14));
+                    }
+                    cracks(at, 2.4, 3, 110, false, f);
+                    shake(at, .4f, 14);
                 }
-                mc.level.playLocalSound(at.x, at.y, at.z, SoundEvents.ROOTED_DIRT_BREAK, SoundSource.PLAYERS, .8f, .6f, false);
+                mc.level.playLocalSound(at.x, at.y, at.z, SoundEvents.ROOTED_DIRT_BREAK, SoundSource.PLAYERS, 1f, .55f, false);
             }
             case FX_LANDING -> {
-                // Landing: dust rolling out, a ring, cracks, chunks - all by how hard he hit.
+                // Landing: dust rolling out, rings, cracks, chunks and slabs - all by how hard he hit.
                 double s = Math.max(.3, power);
-                ring(at.add(0, .1, 0), null, 2 + 4 * s, .4 + .4 * s, 8 + 6 * (float) s, AIR, .55f, true, 0);
-                dust(at, (int) (10 + 22 * s), .8 + s, .12 + .18 * s, .9 + .5 * s, 30 + 20 * (float) s, ground, .02);
-                chunks(at, (int) (3 + 10 * s), 1 + s, .3 + .25 * s, .12 + .12 * s, .45f, ground, Vec3.ZERO);
-                particles(at, (int) (10 + 20 * s), 1.5 + s, .3, ground);
-                cracks(at, 1.5 + 2.5 * s, 5 + (int) (3 * s), 120, false, null);
-                shake(at, .25f + .6f * (float) s, 10 + 8 * (float) s);
+                ring(at.add(0, .1, 0), null, 3 + 6 * s, .5 + .5 * s, 9 + 7 * (float) s, AIR, .6f, true, 0);
+                if (s > .5) ring(at.add(0, .15, 0), null, 2 + 3 * s, .4, 7, AIR, .5f, true, 2);
+                glow(at.add(0, .4, 0), 2 + 2 * s, 5, AIR, .5f * (float) s);
+                dust(at, (int) (14 + 30 * s), 1 + 1.5 * s, .16 + .24 * s, 1.2 + .7 * s, 40 + 24 * (float) s, ground, .03);
+                chunks(at, (int) (5 + 18 * s), 1 + 1.4 * s, .45 + .4 * s, .16 + .16 * s, .65f, ground, Vec3.ZERO);
+                particles(at, (int) (16 + 34 * s), 2 + 1.5 * s, .35, ground);
+                if (s > .55) {
+                    Random r = random();
+                    int count = (int) (3 + 5 * s);
+                    for (int i = 0; i < count; i++) {
+                        double a = i * Math.PI * 2 / count + r.nextDouble() * .4, d = 1.8 + s * 1.4 + r.nextDouble();
+                        spike(at.add(Math.cos(a) * d, 0, Math.sin(a) * d), ground, .7 + s + r.nextDouble() * .6, a, 28 + r.nextInt(10));
+                    }
+                }
+                cracks(at, 2 + 3.5 * s, 6 + (int) (4 * s), 140, false, null);
+                shake(at, .35f + .8f * (float) s, 12 + 10 * (float) s);
             }
             case FX_ROCK_PULL -> {
-                chunks(at, 6, .6, .35, .1, .4f, ground, Vec3.ZERO);
-                particles(at, 20, 1.2, .3, ground);
-                dust(at, 8, .6, .06, .8, 24, ground, .04);
-                cracks(at.add(0, -.5, 0), 2, 5, 90, false, null);
-                shake(at, .3f, 8);
+                chunks(at, 10, .8, .5, .14, .55f, ground, Vec3.ZERO);
+                particles(at, 30, 1.6, .35, ground);
+                dust(at, 12, .8, .08, 1.2, 30, ground, .05);
+                cracks(at.add(0, -.5, 0), 2.6, 6, 110, false, null);
+                shake(at, .4f, 10);
             }
             case FX_ROCK_HIT -> {
-                ring(at.add(0, .05, 0), null, 4.5, .6, 10, AIR, .5f, true, 0);
-                glow(at, 2.2, 5, AIR, .6f);
-                chunks(at, 14, .8, .4, .22, .5f, ground, dir.scale(.08));
-                particles(at, 30, 2, .35, ground);
-                dust(at, 18, 1.2, .14, 1.1, 40, ground, .03);
-                cracks(at, 3, 6, 110, false, null);
-                shake(at, .55f, 14);
+                ring(at.add(0, .05, 0), null, 6.5, .8, 12, AIR, .6f, true, 0);
+                glow(at, 3, 6, AIR, .7f);
+                chunks(at, 24, 1, .6, .28, .7f, ground, dir.scale(.1));
+                particles(at, 46, 2.6, .4, ground);
+                dust(at, 26, 1.6, .2, 1.6, 50, ground, .04);
+                Random r = random();
+                for (int i = 0; i < 4; i++) {
+                    double a = r.nextDouble() * Math.PI * 2;
+                    spike(at.add(Math.cos(a) * 1.5, -.5, Math.sin(a) * 1.5), ground, .8 + r.nextDouble(), a, 26);
+                }
+                cracks(at, 4, 8, 130, false, null);
+                shake(at, .75f, 18);
             }
             case FX_ULT_CRASH -> {
                 // The target hits the ground: a column of dust and a first ring.
@@ -397,6 +461,25 @@ public final class HulkFx {
         GLOWS.removeIf(g -> now - g.start() > g.life());
         RINGS.removeIf(r -> now - r.start() > r.life());
         ARCS.removeIf(a -> now - a.start() > a.life());
+        SPIKES.removeIf(k -> now - k.start() > k.life());
+        // The Thunderclap's front kicks up a curtain of dust and grit wherever it is passing.
+        Random dustRandom = random();
+        for (Arc a : ARCS) {
+            double reach = Math.min(a.range(), 1.5 + CLAP_SPEED * (now - a.start()));
+            if (reach >= a.range() - .1 && now - a.start() > a.range() / CLAP_SPEED + 1) continue;
+            for (int i = 0; i < n(7); i++) {
+                Vec3 d = rotY(a.dir(), (dustRandom.nextDouble() * 2 - 1) * a.spread());
+                Vec3 q = a.at().add(d.scale(reach - dustRandom.nextDouble() * 1.2));
+                BlockPos column = BlockPos.containing(q);
+                BlockState under = level.getBlockState(column.below());
+                if (under.isAir()) { under = level.getBlockState(column.below(2)); q = q.add(0, -1, 0); }
+                if (under.isAir()) continue;
+                PUFFS.add(new Puff(q.add(0, dustRandom.nextDouble() * .5, 0), d.scale(.22).add(0, .05, 0), 1.3 + dustRandom.nextDouble() * .9, now,
+                        34 + dustRandom.nextFloat() * 16, dustColor(under), .45f + dustRandom.nextFloat() * .2f));
+                if (i % 2 == 0) particles(q, 2, .8, .3, under);
+            }
+            cap(PUFFS, 420);
+        }
         CRACKS.removeIf(c -> now - c.start() > c.life());
         screenFlash *= .8f;
 
@@ -643,26 +726,46 @@ public final class HulkFx {
             p.popPose();
         }
     }
-    /** The Thunderclap's wall: a curved sheet of air sweeping out along the ground and thinning. */
+    /** The Thunderclap's wall: a tall curved sheet of air sweeping out along the ground, a bright seam where it meets the ground. */
     private static void drawArc(FilmContext c, Matrix4f m, Arc a, float time) {
-        float age = (time - a.start()) / a.life();
-        if (age < 0 || age > 1) return;
+        float age = time - a.start();
+        if (age < 0 || age > a.life()) return;
+        double reach = Math.min(a.range(), 1.5 + CLAP_SPEED * age);
+        float fade = 1 - FilmFx.ease((float) ((age - a.range() / CLAP_SPEED) / 6f));
+        if (fade <= 0) return;
+        double h = a.height() * (.8 + .3 * Math.min(1, reach / a.range()));
+        float alpha = .62f * fade;
+        int count = 28;
+        for (int layer = 0; layer < 3; layer++) {
+            VertexConsumer v = c.buffers().getBuffer(FilmFx.ADD);
+            double back = reach - layer * .9, lh = h * (1 - layer * .22);
+            float la = alpha * (layer == 0 ? 1 : layer == 1 ? .5f : .25f);
+            if (back <= .5) continue;
+            for (int i = 0; i < count; i++) {
+                double a0 = -a.spread() + 2 * a.spread() * i / count, a1 = -a.spread() + 2 * a.spread() * (i + 1) / count;
+                Vec3 d0 = rotY(a.dir(), a0), d1 = rotY(a.dir(), a1);
+                Vec3 p0 = a.at().add(d0.scale(back)), p1 = a.at().add(d1.scale(back));
+                float e0 = edge(i, count), e1 = edge(i + 1, count);
+                // Brightest in its lower third, fading out toward the top.
+                put(v, m, p0, AIR, la * e0); put(v, m, p1, AIR, la * e1);
+                put(v, m, p1.add(0, lh * .35, 0), AIR, la * e1 * .8f); put(v, m, p0.add(0, lh * .35, 0), AIR, la * e0 * .8f);
+                put(v, m, p0.add(0, lh * .35, 0), AIR, la * e0 * .8f); put(v, m, p1.add(0, lh * .35, 0), AIR, la * e1 * .8f);
+                put(v, m, p1.add(0, lh, 0), AIR, 0); put(v, m, p0.add(0, lh, 0), AIR, 0);
+            }
+        }
+        // The seam on the ground and the wind lines streaming behind the front.
         VertexConsumer v = c.buffers().getBuffer(FilmFx.ADD);
-        double reach = a.range() * (1 - Math.pow(1 - age, 2));
-        double h = a.height() * (1 - age * .5);
-        float alpha = .45f * (1 - age);
-        int count = 18;
         for (int i = 0; i < count; i++) {
             double a0 = -a.spread() + 2 * a.spread() * i / count, a1 = -a.spread() + 2 * a.spread() * (i + 1) / count;
-            Vec3 d0 = rotY(a.dir(), a0), d1 = rotY(a.dir(), a1);
-            Vec3 p0 = a.at().add(d0.scale(reach)), p1 = a.at().add(d1.scale(reach));
-            float e0 = edge(i, count), e1 = edge(i + 1, count);
-            put(v, m, p0, AIR, alpha * e0); put(v, m, p1, AIR, alpha * e1);
-            put(v, m, p1.add(0, h, 0), AIR, 0); put(v, m, p0.add(0, h, 0), AIR, 0);
-            // A thinner trailing sheet just behind the front.
-            Vec3 q0 = a.at().add(d0.scale(reach * .85)), q1 = a.at().add(d1.scale(reach * .85));
-            put(v, m, q0, AIR, alpha * .4f * e0); put(v, m, q1, AIR, alpha * .4f * e1);
-            put(v, m, q1.add(0, h * .6, 0), AIR, 0); put(v, m, q0.add(0, h * .6, 0), AIR, 0);
+            Vec3 p0 = a.at().add(rotY(a.dir(), a0).scale(reach)).add(0, .06, 0), p1 = a.at().add(rotY(a.dir(), a1).scale(reach)).add(0, .06, 0);
+            flat(v, m, p0, p1, .7, GAMMA_CORE, .55f * fade * edge(i, count));
+        }
+        for (int i = 0; i < 14; i++) {
+            double ang = (FilmFx.hash(i * 7.3 + a.start()) * 2 - 1) * a.spread();
+            double y = .4 + FilmFx.hash(i * 3.1 + a.start()) * h * .7, len = 1.5 + 2 * FilmFx.hash(i * 5.7);
+            Vec3 d = rotY(a.dir(), ang);
+            Vec3 head = a.at().add(d.scale(reach - .3)).add(0, y, 0), tail = head.subtract(d.scale(len));
+            FilmFx.streak(c, tail, head, .12, AIR, 0, .35f * fade, true);
         }
     }
     private static float edge(int i, int count) { float x = Math.abs(i / (float) count * 2 - 1); return 1 - x * x; }
@@ -693,6 +796,30 @@ public final class HulkFx {
             pose.scale(s, s, s);
             pose.translate(-.5, -.5, -.5);
             blocks.renderSingleBlock(c.state, pose, buffers, LevelRenderer.getLightColor(mc.level, BlockPos.containing(at)), OverlayTexture.NO_OVERLAY);
+            pose.popPose();
+            any = true;
+        }
+        // Slabs of earth forced up: they burst out in a few ticks, hold, and sink back.
+        for (Spike k : SPIKES) {
+            float age = time - k.start();
+            float up = FilmFx.ease(age / 2.5f), down = FilmFx.ease((age - (k.life() - 12)) / 12f);
+            double top = k.height() * up * (1 - down) - .15;
+            if (top <= -.9) continue;
+            pose.pushPose();
+            pose.translate(k.base().x - cam.x, k.base().y - cam.y, k.base().z - cam.z);
+            pose.mulPose(Axis.YP.rotation((float) (-k.lean() + Math.PI / 2)));
+            pose.mulPose(Axis.XP.rotation(k.tilt()));
+            int light = LevelRenderer.getLightColor(mc.level, BlockPos.containing(k.base().add(0, 1, 0)));
+            float size = .92f;
+            for (int i = 0; top - i * size > -1.2 && i < 5; i++) {
+                float w = size * (1 - Math.min(i, 2) * -.06f) * (i == 0 ? .82f : 1);
+                pose.pushPose();
+                pose.translate(-w / 2, top - (i + 1) * size, -w / 2);
+                pose.mulPose(Axis.YP.rotationDegrees(i * 9));
+                pose.scale(w, size, w);
+                blocks.renderSingleBlock(k.state(), pose, buffers, light, OverlayTexture.NO_OVERLAY);
+                pose.popPose();
+            }
             pose.popPose();
             any = true;
         }
@@ -886,7 +1013,7 @@ public final class HulkFx {
     }
 
     private static void clear() {
-        CHUNKS.clear(); PUFFS.clear(); GLOWS.clear(); RINGS.clear(); ARCS.clear(); CRACKS.clear(); VIEWS.clear(); LAST_RAGE.clear(); CASTS.clear(); screenFlash = 0;
+        CHUNKS.clear(); SPIKES.clear(); PUFFS.clear(); GLOWS.clear(); RINGS.clear(); ARCS.clear(); CRACKS.clear(); VIEWS.clear(); LAST_RAGE.clear(); CASTS.clear(); screenFlash = 0;
     }
     @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) { clear(); }
 

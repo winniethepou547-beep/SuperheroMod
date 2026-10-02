@@ -63,5 +63,14 @@ public final class HulkBlocks {
         return p.serverLevel().destroyBlock(pos, false, p);
     }
 
+    /** Turns the block into another (grass torn off to bare dirt) if the rules and the budget allow. */
+    public static boolean change(ServerPlayer p, BlockPos pos, BlockState to, Budget budget) {
+        if (budget.spent()) return false;
+        BlockState state = p.serverLevel().getBlockState(pos);
+        if (!allowed(p, pos, state)) return false;
+        budget.left--;
+        return p.serverLevel().setBlock(pos, to, 3);
+    }
+
     public static int id(BlockState state) { return Block.getId(state); }
 }

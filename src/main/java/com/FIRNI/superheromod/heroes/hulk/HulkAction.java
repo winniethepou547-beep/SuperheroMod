@@ -29,9 +29,13 @@ public final class HulkAction {
 
     // ------------------------------------------------------------------ Thunderclap (R)
     public static final int CLAP_TICKS = 32, CLAP_HIT = 13;
+    /** The Thunderclap's wall of air: blocks it travels per tick, and its half-width in degrees past his hands. */
+    public static final double CLAP_SPEED = 1.7, CLAP_SPREAD = 38;
 
     // ------------------------------------------------------------------ ground pound (F)
     public static final int POUND_TICKS = 30, POUND_HIT = 11;
+    /** How far to each side of the ground wave bodies are thrown up. */
+    public static final double POUND_WIDTH_HIT = 2.6;
 
     // ------------------------------------------------------------------ leap (space)
     public static final int LEAP_CHARGE_MAX = 30, LANDING_TICKS = 16;
@@ -47,7 +51,7 @@ public final class HulkAction {
 
     // ------------------------------------------------------------------ effects (HulkFxPacket kinds)
     public static final int FX_TRANSFORM = 0, FX_PUNCH = 1, FX_CHARGED_WAVE = 2, FX_CLAP = 3, FX_POUND_STEP = 4, FX_LANDING = 5,
-            FX_ROCK_PULL = 6, FX_ROCK_HIT = 7, FX_ULT_CRASH = 8, FX_ULT_SMASH = 9, FX_GUARD_HIT = 10, FX_REVERT = 11, FX_BLOCK = 12;
+            FX_ROCK_PULL = 6, FX_ROCK_HIT = 7, FX_ULT_CRASH = 8, FX_ULT_SMASH = 9, FX_GUARD_HIT = 10, FX_REVERT = 11, FX_BLOCK = 12, FX_WAVE_HIT = 13;
 
     private HulkAction() {}
 }
