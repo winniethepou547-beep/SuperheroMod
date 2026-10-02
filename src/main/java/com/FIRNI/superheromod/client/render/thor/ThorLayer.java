@@ -179,7 +179,7 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
                     float rise = pose.holdRise;
                     org.joml.Vector3f out = new org.joml.Vector3f(-.45f, 0, -.89f).normalize();   // forward, a little to his right
                     org.joml.Vector3f handle = new org.joml.Vector3f(out).mul((float) Math.cos(rise)).add(0, (float) -Math.sin(rise), 0).normalize();
-                    orient(p, root, handle, out, pose.upright);
+                    orient(p, root, handle, out, pose.upright, true);
                 }
                 if (pose.lever > .01f) {
                     lever(p, root, rootInverse, pose.lever);
@@ -285,13 +285,20 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
      * Turns the hammer in the fist so its handle points along `handle` (in the body's frame), with the
      * head's long axis level and square to `out`, blended in by weight.
      */
-    private static void orient(PoseStack p, Quaternionf root, org.joml.Vector3f handle, org.joml.Vector3f out, float weight) {
+    private static void orient(PoseStack p, Quaternionf root, org.joml.Vector3f handle, org.joml.Vector3f out, float weight, boolean headStanding) {
         org.joml.Vector3f up = new org.joml.Vector3f(0, -1, 0);
         org.joml.Vector3f along = new org.joml.Vector3f(up).cross(out);
         if (along.lengthSquared() < 1e-6f) along.set(1, 0, 0);
         along.normalize();
-        org.joml.Vector3f third = new org.joml.Vector3f(along).cross(handle).normalize();
-        along.set(new org.joml.Vector3f(handle).cross(third)).normalize();
+        org.joml.Vector3f third;
+        if (headStanding) {
+            // The head stands up across the handle (its long axis in the upright plane through the handle).
+            third = new org.joml.Vector3f(along);
+            along = new org.joml.Vector3f(handle).cross(third).normalize();
+        } else {
+            third = new org.joml.Vector3f(along).cross(handle).normalize();
+            along.set(new org.joml.Vector3f(handle).cross(third)).normalize();
+        }
         Quaternionf local = new Quaternionf().setFromNormalized(new org.joml.Matrix3f(along, handle, third));
         Quaternionf now = p.last().pose().getNormalizedRotation(new Quaternionf());
         Quaternionf want = new Quaternionf(root).mul(local);
