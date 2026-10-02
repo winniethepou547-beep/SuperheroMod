@@ -31,6 +31,8 @@ public final class ThorMotion {
         public float upright;
         /** While held upright: the handle leaned over sideways (radians, positive leans the top to his left). */
         public float tilt;
+        /** During a swing: the hammer turned out as a lever, head leading (see ThorLayer.lever). */
+        public float lever;
 
         public Pose copy() { Pose p = new Pose(); p.set(this); return p; }
         public void set(Pose o) {
@@ -39,7 +41,7 @@ public final class ThorMotion {
             rArmX = o.rArmX; rArmY = o.rArmY; rArmZ = o.rArmZ; rElbow = o.rElbow; lArmX = o.lArmX; lArmY = o.lArmY; lArmZ = o.lArmZ; lElbow = o.lElbow;
             rLegX = o.rLegX; rLegZ = o.rLegZ; rKnee = o.rKnee; lLegX = o.lLegX; lLegZ = o.lLegZ; lKnee = o.lKnee;
             wristX = o.wristX; wristY = o.wristY; wristZ = o.wristZ; spinRing = o.spinRing; spinMode = o.spinMode;
-            eyes = o.eyes; mouth = o.mouth; aura = o.aura; twoHands = o.twoHands; noHammer = o.noHammer; upright = o.upright; tilt = o.tilt;
+            eyes = o.eyes; mouth = o.mouth; aura = o.aura; twoHands = o.twoHands; noHammer = o.noHammer; upright = o.upright; tilt = o.tilt; lever = o.lever;
         }
         /** Blend toward another pose by k (0..1). Spin angles are not blended here (see ThorLayer). */
         public void toward(Pose o, float k) {
@@ -52,7 +54,7 @@ public final class ThorMotion {
             lLegX += (o.lLegX - lLegX) * k; lLegZ += (o.lLegZ - lLegZ) * k; lKnee += (o.lKnee - lKnee) * k;
             spinRing += (o.spinRing - spinRing) * k; spinMode = o.spinMode; wristZ += (o.wristZ - wristZ) * k;
             eyes += (o.eyes - eyes) * k; mouth += (o.mouth - mouth) * k; aura += (o.aura - aura) * k; twoHands += (o.twoHands - twoHands) * k;
-            noHammer = o.noHammer; upright += (o.upright - upright) * k; tilt += (o.tilt - tilt) * k; upright = o.upright;
+            noHammer = o.noHammer; upright += (o.upright - upright) * k; tilt += (o.tilt - tilt) * k; lever += (o.lever - lever) * k;
         }
     }
 
@@ -180,9 +182,9 @@ public final class ThorMotion {
         p.rElbow = lerp(p.rElbow, .4f, settle);
         // Right after the blow the wrist gathers the hammer back up to its upright hold.
         p.wristZ = lerp(p.wristZ, 0, settle);
-        // Left to right: the handle leans over 45 degrees to his left as the swing starts, stays leaned
-        // through the blow, and comes back upright as he gathers it.
-        p.upright = 1; p.tilt = .785f * wind * (1 - settle);
+        // As the swing starts the hammer turns out in the fist: handle pointing away from him and 45 degrees
+        // up, the head leading, so the head is what lands. Gathered back upright after the blow.
+        p.upright = settle; p.tilt = 0; p.lever = wind * (1 - settle);
         p.aura = strike * (1 - settle) * .6f;
         return p;
     }
@@ -207,8 +209,8 @@ public final class ThorMotion {
         p.torsoYaw = lerp(p.torsoYaw, -.9f, settle); p.rArmY = lerp(p.rArmY, -1.35f, settle); p.rArmX = lerp(p.rArmX, -1.15f, settle);
         p.rElbow = lerp(p.rElbow, .55f, settle);
         p.wristZ = lerp(p.wristZ, 0, settle);
-        // Right to left: leaned 45 degrees the other way, to his right.
-        p.upright = 1; p.tilt = -.785f * wind * (1 - settle);
+        // The same lever on the way back.
+        p.upright = settle; p.tilt = 0; p.lever = wind * (1 - settle);
         p.aura = strike * (1 - settle) * .6f;
         return p;
     }

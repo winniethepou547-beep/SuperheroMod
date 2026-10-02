@@ -117,6 +117,7 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
         Cloth c = cloth(e, time, flying);
         // The model's own frame, to stand the hammer upright against it later.
         Quaternionf root = p.last().pose().getNormalizedRotation(new Quaternionf());
+        org.joml.Matrix4f rootInverse = new org.joml.Matrix4f(p.last().pose()).invert();
 
         p.pushPose();
         px(p, 0, -pose.rise, 0);
@@ -180,6 +181,7 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
                     Quaternionf fix = new Quaternionf(now).conjugate().mul(want);
                     p.mulPose(new Quaternionf().slerp(fix, Math.min(1, pose.upright)));
                 }
+                if (pose.lever > .01f) lever(p, root, rootInverse, pose.lever);
                 boolean whirling = pose.spinRing > .02f;
                 if (whirling) spinRing(p, b, pose.spinRing, pose.spinMode >= 2);
                 Mjolnir.draw(p, b, light, whirling ? 0 : Math.max(power, pose.eyes > .9f ? .5f : 0), time);
@@ -226,6 +228,31 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
             p.popPose();
         }
         draw(FIST, p, b, light, LEATHER);
+    }
+
+    /**
+     * A swing: the hammer is turned in the fist so the handle points out away from his body and 45
+     * degrees up, the head out at the end of it leading the blow with its striking face, so it is the
+     * head that lands, not the handle.
+     */
+    private static void lever(PoseStack p, Quaternionf root, org.joml.Matrix4f rootInverse, float weight) {
+        var rel = new org.joml.Matrix4f(rootInverse).mul(p.last().pose());
+        var hand = rel.getTranslation(new org.joml.Vector3f());
+        // Out from the middle of his body, level; up is -y in the model's frame.
+        org.joml.Vector3f out = new org.joml.Vector3f(hand.x, 0, hand.z);
+        if (out.lengthSquared() < 1e-6f) out.set(0, 0, -1);
+        out.normalize();
+        org.joml.Vector3f up = new org.joml.Vector3f(0, -1, 0);
+        org.joml.Vector3f handle = new org.joml.Vector3f(out).mul(.7071f).add(new org.joml.Vector3f(up).mul(.7071f)).normalize();
+        // The head's long axis runs along the swing (round the body), so its end face meets the target.
+        org.joml.Vector3f along = new org.joml.Vector3f(up).cross(out).normalize();
+        org.joml.Vector3f third = new org.joml.Vector3f(along).cross(handle).normalize();
+        along.set(new org.joml.Vector3f(handle).cross(third)).normalize();
+        Quaternionf local = new Quaternionf().setFromNormalized(new org.joml.Matrix3f(along, handle, third));
+        Quaternionf now = p.last().pose().getNormalizedRotation(new Quaternionf());
+        Quaternionf want = new Quaternionf(root).mul(local);
+        Quaternionf fix = new Quaternionf(now).conjugate().mul(want);
+        p.mulPose(new Quaternionf().slerp(fix, Math.min(1, weight)));
     }
 
     /** Lift of cape and hair: speed through the air pushes them back, falling lifts them, they sway. */
