@@ -808,7 +808,7 @@ public final class PantherFx {
         FilmFx.ring(c, ground, r * .95, .9 * (1 + k), surfaceColour(b.pos()), .35f * fade, false);
     }
     /** A sphere of light, brighter at its rim than across its face. */
-    private static void sphere(FilmContext c, Vec3 centre, double r, int rgb, float alpha) {
+    static void sphere(FilmContext c, Vec3 centre, double r, int rgb, float alpha) {
         if (alpha < .01f || r < .05) return;
         VertexConsumer v = c.buffers().getBuffer(FilmFx.ADD);
         Matrix4f m = c.pose().last().pose();
@@ -831,7 +831,7 @@ public final class PantherFx {
     }
     private static Vec3 dirAt(double theta, double phi) { return new Vec3(Math.sin(theta) * Math.cos(phi), Math.cos(theta), Math.sin(theta) * Math.sin(phi)); }
     /** The Wakandan lattice: the edges of a geodesic sphere drawn in light across the surface, turning slowly. */
-    private static void lattice(FilmContext c, Vec3 centre, double r, float time, float alpha) {
+    static void lattice(FilmContext c, Vec3 centre, double r, float time, float alpha) {
         if (alpha < .01f || r < .2) return;
         double spin = time * .04;
         double cs = Math.cos(spin), sn = Math.sin(spin);

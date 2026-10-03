@@ -427,13 +427,14 @@ public final class PantherClient {
         int h = e.getWindow().getGuiScaledHeight(), w = e.getWindow().getGuiScaledWidth();
         int violet = 0xFF9A6BFF;
         HudStyle.caption(g, font, "BLACK PANTHER", 10, h - 46, violet, -1);
-        int row = h - 106;
+        int row = h - 124;
         hint(g, font, mc.options.keyUse, "Pençe Atılışı (işaretli hedefe)", s.cooldowns[CD_DASH], 10, row - 24);
         hint(g, font, mc.options.keyShift, "Bas: Panter Atılışı / Basılı: Kamuflaj", s.cooldowns[CD_POUNCE], 10, row - 12);
         hint(g, font, mc.options.keyJump, "Havada: Çift Zıplama", 0, 10, row);
         hint(g, font, AbilityKeyHandler.KEY_ULTIMATE, "Dönen Üçlü Tekme", s.cooldowns[CD_SPIN], 10, row + 12);
         hint(g, font, mc.options.keyInventory, "Vibranyum Patlaması", s.cooldowns[CD_RELEASE], 10, row + 24);
         hint(g, font, AbilityKeyHandler.KEY_RAPID_FIRE, s.reflexLeft > 0 ? "Refleks açık" : "Panter Refleksi", s.reflexLeft > 0 ? 0 : s.cooldowns[CD_REFLEX], 10, row + 36);
+        hint(g, font, AbilityKeyHandler.KEY_XRAY, "Son Kovalamaca", s.cooldowns[CD_ULT], 10, row + 48);
         // The stored kinetic energy: a bar that brightens as it fills.
         int y = h - 58, bw = 92;
         float energy = s.energy;

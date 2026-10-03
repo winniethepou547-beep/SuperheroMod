@@ -6,7 +6,7 @@ package com.FIRNI.superheromod.heroes.panther;
  * a server owner may want to change (damage, distances, speeds, energy, cooldowns) are in PantherConfig.
  * Keys: left click claws (hold: the berserk frenzy), right click the marked dash, SHIFT pounce (tap) or
  * crouch (hold; two seconds of it and he fades into camouflage), double jump, Q the spinning triple kick,
- * E the kinetic release (the inventory key, like Thor's guard), R Panther Reflex, X kept free for a future ultimate.
+ * E the kinetic release (the inventory key, like Thor's guard), R Panther Reflex, X the car chase film (The Final Pursuit).
  */
 public final class PantherAction {
     public static final String ID = "black_panther";
@@ -23,7 +23,7 @@ public final class PantherAction {
     public static final int DODGE_LEFT = 0, DODGE_RIGHT = 1, DODGE_BACK = 2, DODGE_CROUCH = 3, DODGE_BACK_LEFT = 4, DODGE_BACK_RIGHT = 5;
 
     // ------------------------------------------------------------------ cooldown slots
-    public static final int CD_POUNCE = 0, CD_SPIN = 1, CD_RELEASE = 2, CD_REFLEX = 3, CD_FRENZY = 4, CD_DASH = 5, CD_CAMO = 6, COOLDOWNS = 7;
+    public static final int CD_POUNCE = 0, CD_SPIN = 1, CD_RELEASE = 2, CD_REFLEX = 3, CD_FRENZY = 4, CD_DASH = 5, CD_CAMO = 6, CD_ULT = 7, COOLDOWNS = 8;
 
     // ------------------------------------------------------------------ left click: Vibranium Claws
     /**
@@ -72,6 +72,34 @@ public final class PantherAction {
     public static final int DODGE_TICKS = 8;
     /** Ticks between two dodges (a second one may start while the first is still finishing). */
     public static final int DODGE_GAP = 2;
+
+    // ------------------------------------------------------------------ X: THE FINAL PURSUIT (film beats, film ticks)
+    /**
+     * The car chase film (FinalPursuitFilm, PursuitPath). Up to ULT_BOOM film time is scene time; after it the
+     * scene runs on PursuitPath's time warp (the slow motion), so later beats are found from the warp.
+     *   OPEN     the eye of his mask, so close nothing else shows; the camera draws back to a car's driver's seat
+     *   MIRROR   from beside the mirror across to the driver: the city streaming past the windows
+     *   NPC      the gunman in the back seat, bracing, racking his pistol, watching him
+     *   GLANCE   his eyes on the mirror
+     *   RAISE..  the gun comes up, the rear window smashed, he leans out of it
+     *   FIRE     eight shots through the driver's window: some spark off the car, some hit (the suit drinks them)
+     *   EXIT     out through the window
+     *   REVEAL   the camera turns: he is on the roof, looking in
+     *   ROOF_FIRE shots up through the roof; HOP he springs back onto the car behind
+     *   COIL / LEAP / TOUCH  he crouches on it and leaps back across onto the roof
+     *   INSIDE   from inside: the dents, the holes, the gunman firing up at him
+     *   TURN, CLAW_R/L, PRESS, TEAR, ROOF_FREE  he turns, drives both hands through the roof and tears it away
+     *   REACH / THROW  he hauls the gunman out and flings him into the sky
+     *   CHARGE / HOLD / BOOM  the stance, the energy at its height, a held breath, the release
+     * The rest (the slow motion, the car going end over end, his landing, the crash, the dust) runs on the warp.
+     */
+    public static final int ULT_MIRROR = 64, ULT_NPC = 108, ULT_GLANCE = 126, ULT_RAISE = 134, ULT_SMASH = 142, ULT_LEAN = 146,
+            ULT_FIRE = 156, ULT_SHOT_GAP = 5, ULT_SHOTS = 8, ULT_EXIT = 198, ULT_REVEAL = 212, ULT_ROOF_FIRE = 236, ULT_HOP = 244,
+            ULT_COIL = 258, ULT_LEAP = 272, ULT_TOUCH = 290, ULT_INSIDE = 306, ULT_TURN = 328, ULT_CLAW_R = 346, ULT_CLAW_L = 356,
+            ULT_PRESS = 362, ULT_TEAR = 370, ULT_ROOF_FREE = 382, ULT_REACH = 392, ULT_THROW = 400, ULT_CHARGE = 418, ULT_HOLD = 462,
+            ULT_BOOM = 470;
+    /** Where the film's own stage ends (a last moment in the real world hands the camera back) and its whole length. */
+    public static final int ULT_STAGE_END = 748, ULT_TOTAL = 760;
 
     // ------------------------------------------------------------------ hit reactions (on him)
     public static final int HURT_TICKS = 10;

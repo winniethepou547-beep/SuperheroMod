@@ -2,6 +2,7 @@
 // Procedural film backdrop, evaluated per pixel every frame.
 // Scene 0/3: rushing hell clouds (falling down / plunging back).
 // Scene 1/2: space with a burning banded star, its halo and a spinning ring.
+// Scene 9: a city at night (Black Panther's The Final Pursuit).
 uniform float Time;      // seconds
 uniform float Scene;
 uniform vec3 CamPos;     // stage space
@@ -367,6 +368,61 @@ void main() {
             col = mix(horizon * 0.95, sand, exp(-t * 0.006));
         }
         col = mix(col, vec3(0.86, 0.80, 0.70), clamp(dust, 0.0, 1.0) * (0.25 + 0.6 * exp(-max(up, 0.0) * 4.0)));
+    }
+    if (scene == 9) {
+        // A city at night (The Final Pursuit): a black sky warmed at the horizon by the city's light, low cloud
+        // lit from beneath, towers all round with lit windows and red lamps on their tops, hills behind dotted with
+        // flats, a long bridge strung with lights far off; the dust of the crash hanging in it (Motion.z).
+        float up = rd.y;
+        float dust = Motion.z;
+        vec3 zenith = vec3(0.010, 0.012, 0.028);
+        vec3 glow = vec3(0.13, 0.075, 0.13);
+        col = mix(glow, zenith, smoothstep(-0.02, 0.42, up));
+        col += vec3(0.06, 0.025, 0.012) * exp(-max(up, 0.0) * 10.0);
+        if (up > 0.0) {
+            vec2 cp = rd.xz / (up + 0.1) * 1.2 + vec2(Time * 0.004, 0.0);
+            float c = fbm3(vec3(cp * 0.7, 2.0));
+            float body = smoothstep(0.45, 0.72, c);
+            vec3 cloud = vec3(0.12, 0.065, 0.11) * (0.6 + 0.6 * c) * (0.4 + 0.6 * exp(-up * 3.0));
+            col = mix(col, cloud, body * smoothstep(0.0, 0.1, up) * 0.85);
+        }
+        float az = atan(rd.x, rd.z);
+        // The hills behind, their slopes full of the small lights of flats.
+        float hill = 0.035 + 0.07 * fbm3(vec3(az * 1.4, 0.0, 9.0));
+        if (up < hill && up > -0.01) {
+            col = mix(col, vec3(0.02, 0.018, 0.03), 0.92);
+            vec2 g = vec2(az * 900.0, up * 700.0);
+            vec2 cell = floor(g);
+            float h = hash13(vec3(cell, 4.0));
+            float spot = smoothstep(0.42, 0.0, length(fract(g) - 0.5));
+            if (h > 0.82) col += mix(vec3(1.0, 0.75, 0.42), vec3(0.75, 0.85, 1.0), step(0.95, h)) * spot * 0.55 * smoothstep(-0.01, hill, hill - up + 0.01);
+        }
+        // The towers: a ring of silhouettes, windows lit here and there, red lamps blinking on top.
+        float cellAz = floor(az * 46.0);
+        float th = 0.012 + 0.085 * hash13(vec3(cellAz, 2.0, 7.0)) * (0.45 + 0.55 * fbm3(vec3(az * 2.0, 3.0, 1.0)));
+        if (up < th && up > -0.01) {
+            col = vec3(0.016, 0.016, 0.026);
+            vec2 g = vec2(az * 520.0, up * 420.0);
+            vec2 cell = floor(g);
+            float h = hash13(vec3(cell, 1.0));
+            vec2 f = abs(fract(g) - 0.5);
+            float win = step(f.x, 0.3) * step(f.y, 0.26);
+            if (h > 0.62) col += mix(vec3(1.0, 0.78, 0.45), vec3(0.7, 0.82, 1.0), step(0.86, h)) * win * (0.25 + 0.35 * hash13(vec3(cell, 9.0)));
+            float top = smoothstep(0.003, 0.0, abs(up - th + 0.002)) * smoothstep(0.004, 0.0, abs(fract(az * 46.0) - 0.5) - 0.01);
+            col += vec3(1.0, 0.1, 0.08) * top * step(0.5, hash13(vec3(cellAz, 5.0, 1.0))) * (0.5 + 0.5 * sin(Time * 3.0 + cellAz));
+        }
+        // The bridge, far off on one side: a long sagging line of lights on the water, its towers marked.
+        if (az > 0.9 && az < 2.1) {
+            float u = (az - 0.9) / 1.2;
+            float sag = 0.022 - 0.012 * sin(3.14159 * fract(u * 3.0));
+            float line = smoothstep(0.0015, 0.0, abs(up - sag));
+            float beads = smoothstep(0.45, 0.0, abs(fract(az * 260.0) - 0.5));
+            vec3 tint = mix(vec3(0.4, 0.8, 1.0), vec3(0.85, 0.5, 1.0), 0.5 + 0.5 * sin(az * 7.0 + Time * 0.4));
+            col += tint * line * (0.35 + 0.65 * beads) * 0.9;
+            col += tint * smoothstep(0.004, 0.0, abs(up - 0.006)) * 0.2;
+        }
+        if (up < -0.01) col = mix(glow * 0.7, vec3(0.02, 0.02, 0.03), smoothstep(-0.01, -0.12, up));
+        col = mix(col, vec3(0.30, 0.22, 0.17), clamp(dust, 0.0, 1.0) * (0.45 + 0.4 * exp(-abs(up) * 3.0)));
     }
     if (Motion.y > 0.0) col = warpStreaks(col);
     if (scene != 6) col = mix(col, Tint.rgb, Tint.a);

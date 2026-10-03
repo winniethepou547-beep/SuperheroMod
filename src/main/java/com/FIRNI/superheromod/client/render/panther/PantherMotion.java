@@ -68,6 +68,10 @@ public final class PantherMotion {
     /** A move: key poses at times; sampled on a cubic curve through them (each key's speed set by its neighbours). */
     static final class Track {
         private final List<Key> keys = new ArrayList<>();
+        /** Held: a joint that rests between two keys (or turns back at one) stays put there instead of drifting past it. */
+        private final boolean held;
+        Track() { this(false); }
+        Track(boolean held) { this.held = held; }
         Track key(float t, Pose p) { keys.add(new Key(t, p)); return this; }
         Pose sample(float t) {
             int n = keys.size();
@@ -90,6 +94,10 @@ public final class PantherMotion {
         private float tangent(int i, int j) {
             if (i <= 0 || i >= keys.size() - 1) return 0;
             Key p = keys.get(i - 1), q = keys.get(i + 1);
+            if (held) {
+                float in = keys.get(i).p.v[j] - p.p.v[j], out = q.p.v[j] - keys.get(i).p.v[j];
+                if (Math.abs(in) < 1e-4f || Math.abs(out) < 1e-4f || in * out < 0) return 0;
+            }
             return (q.p.v[j] - p.p.v[j]) / (q.t - p.t);
         }
     }

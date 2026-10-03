@@ -55,10 +55,15 @@ public final class PantherBody {
             THIGH = 9, SHIN = 10, MASK = 11;
     private static final float[] THRESHOLD = {.02f, .08f, .22f, .3f, .36f, .48f, .6f, .75f, .3f, .68f, .8f, .92f};
     private static final float[] ORDER = {.62f, .55f, .45f, .5f, .7f, .8f, .9f, 1f, .3f, .15f, 0f, .66f};
+    /** When each region goes dark as the energy drains out after a release: the chest first, then the arms, the legs last. */
+    private static final float[] DRAIN = {0f, 0f, .05f, .05f, .3f, .38f, .46f, .54f, .62f, .7f, .78f, .1f};
+    /** Where a hit on a region starts its pulse along the suit's lines (0 feet .. 1 hands). */
+    public static float order(int region) { return ORDER[Mth.clamp(region, 0, ORDER.length - 1)]; }
 
     /** The light in the suit for the current draw: what is stored, a charge flowing up, a release flash, hits soaking in. */
     public static final class Charge {
-        public float level, flow = -1, flash, fade = 1;
+        /** drain: 0..1 as the light leaves the suit region by region (chest, arms, legs). */
+        public float level, flow = -1, flash, fade = 1, drain;
         public final List<float[]> pulses = new ArrayList<>();   // {age, side, start order}
         float time;
         float brightness(int region, int side) {
@@ -77,9 +82,10 @@ public final class PantherBody {
                 float match = side == 0 ? .7f : side == (int) pulse[1] ? 1 : .25f;
                 b += Math.max(0, 1 - age / 11f) * match * gauss(order - at, .1f) * 1.2f;
             }
+            if (drain > 0) b *= 1 - smooth((drain - DRAIN[region]) / .3f);
             return b * fade;
         }
-        public Charge reset() { level = 0; flow = -1; flash = 0; fade = 1; pulses.clear(); return this; }
+        public Charge reset() { level = 0; flow = -1; flash = 0; fade = 1; drain = 0; pulses.clear(); return this; }
     }
     private static float smooth(float x) { x = Mth.clamp(x, 0, 1); return x * x * (3 - 2 * x); }
     private static float gauss(float x, float w) { return (float) Math.exp(-(x * x) / (2 * w * w)); }
@@ -96,6 +102,10 @@ public final class PantherBody {
     /** With capture on: the four claw tips of each hand (right then left), each foot's toe, the eyes. */
     public static final Vec3[] CLAWS = new Vec3[8];
     public static Vec3 toeRight, toeLeft, eyeRight, eyeLeft;
+    /** How far the claws are out (1 out, 0 drawn into the fingertips). */
+    public static float clawLength = 1;
+    /** City light caught on the suit's sheen this draw (added to it; the film's neon). */
+    public static float[] reflect = {0, 0, 0};
 
     private PantherBody() {}
 
@@ -137,7 +147,7 @@ public final class PantherBody {
     }
     private static float[] sheen() {
         float l = Math.min(1, CHARGE.level);
-        return new float[]{SHEEN[0] + .1f * l, SHEEN[1] + .02f * l, SHEEN[2] + .18f * l};
+        return new float[]{Math.min(1, SHEEN[0] + .1f * l + reflect[0]), Math.min(1, SHEEN[1] + .02f * l + reflect[1]), Math.min(1, SHEEN[2] + .18f * l + reflect[2])};
     }
     /** A line of the suit's energy, over its silver line: dark until the region is charged. */
     private static void energy(PoseStack p, MultiBufferSource b, int region, int side, float x, float y, float z, float rx, float ry, float rz, float w, float h, float d) {
@@ -414,13 +424,16 @@ public final class PantherBody {
             px(p, 0, .9f * len, 0);
             // The claw: a curved blade in two pieces, a polished edge on the inside of the curve.
             p.mulPose(Axis.ZP.rotation(bend * .4f + s * .15f));
-            part(p, b, light, 0, .5f, 0, 0, 0, 0, .42f, 1.0f, .46f, CLAW);
-            shine(p, b, s * -.16f, .5f, 0, 0, 0, 0, .1f, .95f, .3f, CLAW);
-            px(p, 0, 1.0f, 0);
-            p.mulPose(Axis.ZP.rotation(s * .35f));
-            part(p, b, light, 0, .4f, 0, 0, 0, 0, .28f, .8f, .34f, CLAW);
-            shine(p, b, s * -.1f, .35f, 0, 0, 0, 0, .08f, .7f, .2f, CLAW);
-            if (capture) CLAWS[side * 4 + f] = world(p, 0, .85f, 0);
+            float out = Mth.clamp(clawLength, 0, 1);
+            if (out > .02f) {
+                part(p, b, light, 0, .5f * out, 0, 0, 0, 0, .42f, 1.0f * out, .46f, CLAW);
+                shine(p, b, s * -.16f, .5f * out, 0, 0, 0, 0, .1f, .95f * out, .3f, CLAW);
+                px(p, 0, 1.0f * out, 0);
+                p.mulPose(Axis.ZP.rotation(s * .35f * out));
+                part(p, b, light, 0, .4f * out, 0, 0, 0, 0, .28f, .8f * out, .34f, CLAW);
+                shine(p, b, s * -.1f, .35f * out, 0, 0, 0, 0, .08f, .7f * out, .2f, CLAW);
+            }
+            if (capture) CLAWS[side * 4 + f] = world(p, 0, .85f * out, 0);
             p.popPose();
         }
         // The thumb, in front of the fingers.

@@ -190,7 +190,7 @@ landing spot and the target to the crater.
   (`PantherInputPacket`, front flip `PantherMotion.flipJump`, white splash). Q spin (R-L-R kicks, one continuous turn),
   E release (energy from damage taken; radial knockback scaled by energy; lines off after), R reflex (guard stance
   `PantherMotion.guard` while active; LivingAttackEvent cancelled → DODGE with a shaped pose per direction + parry sparks),
-  X free for a future ultimate.
+  X = THE FINAL PURSUIT film (below).
 - Smoothness: his own client predicts SHIFT (load/pounce/crouch start on the key, `predicted`), runs every action on a
   local clock (`State.start`), and starts the pounce/flip/dash paths from where his body really is (`localFrom`); the
   server sweeps the pounce a little ahead. `PantherClient.action(s)`/`clock(s)` are what everything should read.
@@ -201,6 +201,25 @@ landing spot and the target to the crater.
   stance low/hunched with micro-motion; conventions at the top of the file. `PantherLayer`: crossfades, locomotion, air tuck,
   landing absorb, hurt overlay, look spread pelvis→spine→chest→head, `align` turns the body along path moves; reports claw
   tips/toes for trails and afterimage samples. Docs for the user: `docs/PANTHER.md`.
+- **THE FINAL PURSUIT (X), `client/render/film/FinalPursuitFilm.java`, 38 s**, no target, plays for him alone
+  (`FilmSessions.startSolo`, server `PantherUltSession`: held + untouchable, the real kinetic blast `PantherController.ultBlast`
+  at `ULT_BOOM`, `finalPursuit` config). Night city car chase on its own stage (backdrop scene 9 CITY): `PursuitPath` = the
+  master timeline (beats `PantherAction.ULT_*`; time warp `scene()/real()`: a held breath before the release, slow motion after;
+  car driving/weaving/suspension; after the release the slam, nose dig, pivot and a rigid-body flight (Euler's equations, the
+  end-over-end turn drifts into a roll) to `CRASH`; the car behind; traffic that brakes after the release; Panther's and the
+  gunman's places; shots, roof holes, peel). Car space is scaled by `PursuitPath.S` (1.35) because the players' long torsos
+  do not fit a real-sized car — bodies are not scaled; body measures in car space are divided by S. `PursuitMoves` = every pose
+  (film tracks use `Track(true)`: holds stay put); `PursuitRig` = forward kinematics mirroring `PantherBody.draw` (camera aims,
+  hit points, claw punctures, wheel placement); `PursuitCamera` = view per moment + directional kicks; `PursuitStage` = draw
+  order (opaque city/traffic/cars/bodies/debris, then city light, glass, smoke/dust, car lamps, effects); `PursuitCity`
+  (boulevard, wet-road light smears, neon with tube glyphs, lamps, gantries, crossings), `PursuitCar` (his car in full with
+  interior, damage, peel, wreck; SUV; traffic), `PursuitThug` (random-look gunman, left-handed, muzzle capture),
+  `PursuitFx`, `PursuitShade` (per-vertex night lighting from lamps/neon/effect lights + haze). Beats: eye close-up dolly
+  out → mirror angle → gunman → shots through the driver window (absorbed) → out of the window → face at the window →
+  shots up through the roof, hop back onto the SUV → coil + leap → roof landing → claws in (R, L) → roof torn off → gunman
+  thrown up → charge → BOOM (impact frame) → slow motion vault/flight → three-point landing → whip to the car → crash
+  (flash, violet, fireball, smoke) → dust parted by wind → rise, look off, claws in (`PantherBody.clawLength`), energy
+  drains chest → arms → legs (`Charge.drain`) → back to the world.
 
 ## Champion select (P)
 - `client/gui/ChampionSelectScreen` (key P; the dev Pose Studio moved to F8 under a new key id) + roster data

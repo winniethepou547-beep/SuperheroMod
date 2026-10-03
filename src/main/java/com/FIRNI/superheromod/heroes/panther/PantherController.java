@@ -117,6 +117,7 @@ public final class PantherController {
     public static void press(ServerPlayer p, AbilitySlot slot, boolean down) {
         if (!isHero(p)) return;
         State s = state(p);
+        if (com.FIRNI.superheromod.core.film.FilmSessions.busy(p.getUUID())) return;
         if (slot == AbilitySlot.LMB) {
             if (down && !s.held) s.heldSince = p.level().getGameTime();
             s.held = down;
@@ -130,7 +131,7 @@ public final class PantherController {
             case ULTIMATE -> spin(p, s);
             case SKILL_V -> release(p, s);
             case SKILL_E -> reflex(p, s);
-            case SKILL_X -> tell(p, "Black Panther'ın ultisi yakında");
+            case SKILL_X -> ultimate(p, s);
             default -> {}
         }
     }
@@ -517,6 +518,45 @@ public final class PantherController {
         fx(p, FX_SPIN_KICK, at, s.dir, last ? -2 : -1, -1);
     }
 
+    // ------------------------------------------------------------------ X: The Final Pursuit
+    /** The car chase film: he is held where he stands (and cannot be hurt) while it plays for him alone. */
+    private static void ultimate(ServerPlayer p, State s) {
+        if (busy(s) || !ready(p, s, CD_ULT, "Son Kovalamaca")) return;
+        if (!PantherUltSession.start(p)) return;
+        s.cooldowns[CD_ULT] = PantherConfig.ULT_COOLDOWN.get();
+        s.held = s.queued = false;
+        if (s.camoLeft > 0) camo(p, s, false, false);
+        set(s, IDLE);
+        s.lastCombat = p.level().getGameTime();
+    }
+    /**
+     * The film's release, in the world: the kinetic blast round him (those near are hurt and thrown outward), the
+     * sphere drawn for everyone watching, his stored energy spent.
+     */
+    public static void ultBlast(ServerPlayer p) {
+        State s = state(p);
+        double radius = PantherConfig.ULT_RADIUS.get(), knock = PantherConfig.ULT_KNOCK.get();
+        float damage = f(PantherConfig.ULT_DAMAGE);
+        Vec3 centre = p.position().add(0, 1.1, 0);
+        if (radius > 0) for (LivingEntity t : targets(p, new AABB(centre, centre).inflate(radius))) {
+            Vec3 to = t.getBoundingBox().getCenter().subtract(centre);
+            double d = to.length();
+            if (d > radius + t.getBbWidth() * .5) continue;
+            Vec3 flat = new Vec3(to.x, 0, to.z);
+            if (flat.lengthSqr() < 1e-4) flat = Vec3.directionFromRotation(0, p.getRandom().nextFloat() * 360);
+            flat = flat.normalize();
+            double fall = 1 - .45 * Math.min(1, d / radius);
+            if (damage > 0) hurt(p, t, (float) (damage * (.6 + .4 * fall)));
+            throwBody(p, t, flat.scale(knock * fall).add(0, .6 + .3 * fall, 0), Math.max(3, (int) (PantherConfig.SCRAPE_TICKS.get() * .7 * fall)));
+            fx(p, FX_LAUNCH, t.getBoundingBox().getCenter(), flat, 1, t.getId());
+        }
+        fx(p, FX_RELEASE, p.position(), new Vec3(Math.max(2, radius), 0, 0), 1, p.getId());
+        sound(p, SoundEvents.WARDEN_SONIC_BOOM, 1f, .7f);
+        sound(p, SoundEvents.GENERIC_EXPLODE, 1f, .6f);
+        sound(p, SoundEvents.BEACON_DEACTIVATE, .8f, .8f);
+        s.energy = 0;
+    }
+
     // ------------------------------------------------------------------ E: the kinetic release
     private static void release(ServerPlayer p, State s) {
         if (busy(s)) return;
@@ -766,6 +806,8 @@ public final class PantherController {
     /** Panther Reflex: a dodgeable attack is slipped instead of taken. */
     @SubscribeEvent public static void attacked(LivingAttackEvent e) {
         if (!(e.getEntity() instanceof ServerPlayer p) || !isHero(p)) return;
+        // Untouchable while his film plays (he is held still inside it).
+        if (com.FIRNI.superheromod.core.film.FilmSessions.playing(p.getUUID(), PantherUltSession.ID)) { e.setCanceled(true); return; }
         State s = STATES.get(p.getUUID());
         if (s == null || s.reflexLeft <= 0) return;
         if (dodge(p, s, e.getSource())) e.setCanceled(true);

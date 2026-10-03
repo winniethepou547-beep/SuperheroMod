@@ -74,7 +74,7 @@ public final class Champions {
                     new Skill("Q", "Dönen Üçlü Tekme", "Havada hiç inmeden dönerek sağ, sol, sağ tekme; sonuncusu fırlatır."),
                     new Skill("E", "Vibranyum Patlaması", "Aldığın hasar takımda enerji olarak birikir; kollarını açıp küre halinde patlatırsın, herkes bulunduğu yere göre fırlar."),
                     new Skill("R", "Panter Refleksi", "Koruma duruşuna geçer; kısa bir süre gelen saldırılardan pençeleriyle savuşturarak kendiliğinden kaçar."),
-                    new Skill("X", "Yakında", "Sinematik ulti daha sonra tasarlanacak."))));
+                    new Skill("X", "Son Kovalamaca", "Sinematik ulti: gece şehirde araba kovalamacası. Kurşunları zırhına emdirir, tavanı pençeleriyle söker, biriken enerjiyi tek seferde patlatır; patlama gerçek dünyada da yakındakileri savurur."))));
 
     /** How many card slots the grid always shows (the rest are "?" for the heroes to come). */
     public static final int MIN_SLOTS = 18;

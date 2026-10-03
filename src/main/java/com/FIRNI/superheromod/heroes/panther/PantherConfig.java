@@ -28,6 +28,8 @@ public final class PantherConfig {
     public static final ForgeConfigSpec.IntValue REFLEX_DURATION, REFLEX_COOLDOWN, REFLEX_MAX_DODGES;
     public static final ForgeConfigSpec.DoubleValue DODGE_DISTANCE;
     public static final ForgeConfigSpec.BooleanValue DODGE_PROJECTILES;
+    public static final ForgeConfigSpec.IntValue ULT_COOLDOWN;
+    public static final ForgeConfigSpec.DoubleValue ULT_DAMAGE, ULT_RADIUS, ULT_KNOCK;
 
     // ------------------------------------------------------------------ client
     public static final ForgeConfigSpec CLIENT;
@@ -104,6 +106,13 @@ public final class PantherConfig {
         REFLEX_MAX_DODGES = b.comment("Most attacks dodged in one activation").defineInRange("maxDodges", 10, 1, 200);
         DODGE_DISTANCE = b.comment("How far a sidestep carries him").defineInRange("dodgeDistance", 1.6, 0, 6);
         DODGE_PROJECTILES = b.comment("Arrows and other projectiles are dodged too").define("dodgeProjectiles", true);
+        b.pop();
+        b.comment("X: The Final Pursuit (the car chase film). He cannot be hurt while it plays; when its release goes off, the real",
+                "kinetic blast goes off round him in the world too").push("finalPursuit");
+        ULT_COOLDOWN = b.defineInRange("cooldown", 1800, 0, 72000);
+        ULT_DAMAGE = b.comment("Damage of the blast to those near him (0 = none)").defineInRange("damage", 14.0, 0, 200);
+        ULT_RADIUS = b.comment("How far the blast reaches").defineInRange("radius", 7.0, 0, 32);
+        ULT_KNOCK = b.comment("How hard it throws them outward").defineInRange("knockback", 2.2, 0, 8);
         b.pop();
         COMMON = b.build();
 
