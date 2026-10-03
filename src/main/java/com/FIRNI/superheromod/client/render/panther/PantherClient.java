@@ -49,19 +49,19 @@ public final class PantherClient {
         public Vec3 from = Vec3.ZERO, dir = new Vec3(0, 0, 1), apex = Vec3.ZERO, to = Vec3.ZERO, land = Vec3.ZERO;
         long received;
         /** When a strike of his last landed (level time): his body holds still for an instant there. */
-        float stopAt = -100, stopFor;
+        double stopAt = -100; float stopFor;
         /** Hits soaking into the suit: {level time, side, where on the body they start (flow order)}. */
         public final List<float[]> pulses = new ArrayList<>();
         /** For the flip: the local player's yaw when it began. */
         float flipYaw = Float.NaN;
         public int camoLeft;
         /** The local clock: the level time the current action began at, so its time runs smoothly between packets. */
-        float start;
+        double start;
         /**
          * What his own client already started without waiting for the server (the pounce on the key, the crouch):
          * the action, when, and the path it leaves on. Kept until the server's state catches up.
          */
-        int predicted = -1; float predAt;
+        int predicted = -1; double predAt;
         /** The path his own client steers: where the pounce / flip / dash left from, which way, how far. */
         Vec3 localFrom = Vec3.ZERO, localDir = new Vec3(0, 0, 1); float localReach; int localFor = -1;
     }
@@ -88,17 +88,21 @@ public final class PantherClient {
             // A move his client predicted keeps its own start, so nothing jumps when the server confirms it.
             if (local && s.predicted == p.action() && Math.abs(now - s.predAt - p.age()) < 4) { s.start = s.predAt; s.predicted = -1; }
             else s.start = now - p.age();
-            // Out of the moves that carry him, his own path is spent.
+            // Out of the moves that carry him, his own path is spent (unless the pounce he predicted is still on its way).
             int a = p.action();
-            if (a != POUNCE && a != POUNCE_FLIP && a != POUNCE_KICK && a != POUNCE_LAND && a != POUNCE_MISS && a != DASH && a != CROSS && a != SPIN) s.localFor = -1;
-            if (local) started(mc.player, s, p.action());
+            boolean waiting = s.predicted == POUNCE && (free(a) || a == POUNCE_LOAD || a == SNEAK);
+            if (!waiting && a != POUNCE && a != POUNCE_FLIP && a != POUNCE_KICK && a != POUNCE_LAND && a != POUNCE_MISS && a != DASH && a != CROSS && a != SPIN) s.localFor = -1;
+            // The server went somewhere the prediction never leads: drop it.
+            if (local && s.predicted >= 0 && !free(a) && a != POUNCE_LOAD && a != SNEAK && a != s.predicted) s.predicted = -1;
         } else if (Math.abs(now - s.start - p.age()) > 3) s.start = now - p.age();
+        boolean changed = p.action() != s.action;
         s.action = p.action(); s.age = p.age(); s.flags = p.flags(); s.cooldowns = p.cooldowns();
         s.energy = p.energy(); s.released = p.released(); s.reflex = p.reflex(); s.reflexLeft = p.reflexLeft(); s.camoLeft = p.camoLeft();
         s.hurtAge = p.hurtAge(); s.hurtPower = p.hurtPower(); s.hurtYaw = p.hurtYaw(); s.threatYaw = p.threatYaw(); s.quiet = p.quiet();
         s.target = p.target(); s.from = p.from(); s.dir = p.dir(); s.apex = p.apex(); s.to = p.to(); s.land = p.land();
         s.reach = p.reach(); s.speed = p.speed(); s.height = p.height();
         s.received = now;
+        if (changed && local) started(mc.player, s, p.action());
     }
     /** The local Panther starts a move: the view's kick, and where his own path for it leaves from. */
     private static void started(LocalPlayer player, State s, int action) {
@@ -129,9 +133,8 @@ public final class PantherClient {
     public static float clock(State s, float partial) {
         var level = Minecraft.getInstance().level;
         if (level == null) return s.age;
-        float now = level.getGameTime() + partial;
         boolean predicted = s.predicted >= 0 && action(s) == s.predicted && s.predicted != s.action;
-        float raw = Math.max(0, now - (predicted ? s.predAt : s.start));
+        float raw = (float) Math.max(0, level.getGameTime() - (predicted ? s.predAt : s.start)) + partial;
         // Hit-stop: the body holds an instant where a strike bit.
         if (s.stopAt > 0) raw -= Math.min(s.stopFor, Math.max(0, level.getGameTime() + partial - s.stopAt));
         return raw;
@@ -183,7 +186,7 @@ public final class PantherClient {
     private static void predictShift(LocalPlayer player) {
         State s = get(player);
         boolean down = Minecraft.getInstance().options.keyShift.isDown();
-        float now = player.level().getGameTime();
+        long now = player.level().getGameTime();
         if (s != null) {
             int a = action(s);
             if (down && !shiftDown && free(a)) {
@@ -192,8 +195,10 @@ public final class PantherClient {
                 Vec3 look = player.getLookAngle();
                 Vec3 flat = new Vec3(look.x, 0, look.z);
                 s.localDir = flat.lengthSqr() < 1e-4 ? Vec3.directionFromRotation(0, player.getYRot()) : flat.normalize();
-            } else if (!down && shiftDown && a == POUNCE_LOAD && clock(s, 0) < TAP_TICKS) {
+            } else if (!down && shiftDown && a == POUNCE_LOAD && clock(s, 0) < TAP_TICKS && s.cooldowns[CD_POUNCE] <= 0) {
                 Vec3 dir = s.predicted == POUNCE_LOAD ? s.localDir : s.dir;
+                // A tap: his client decides it and tells the server, which pounces from the same spot.
+                ModNetworking.CHANNEL.sendToServer(new com.FIRNI.superheromod.network.packet.PantherInputPacket(INPUT_POUNCE));
                 s.predicted = POUNCE;
                 s.predAt = now;
                 local(s, POUNCE, player.position(), dir, reach(player, dir, PantherConfig.POUNCE_DISTANCE.get()));
@@ -216,7 +221,7 @@ public final class PantherClient {
     /** The second jump: jump again in the air and he springs off nothing, flipping, a burst of air under his feet. */
     private static void doubleJump(LocalPlayer player) {
         boolean down = Minecraft.getInstance().options.keyJump.isDown();
-        if (player.onGround() || player.isInWater() || player.isPassenger()) { jumped = false; airTicks = 0; }
+        if (player.onGround() || player.isInWater() || player.isPassenger() || player.onClimbable() || player.isFallFlying()) { jumped = false; airTicks = 0; }
         else airTicks++;
         State s = get(player);
         if (down && !jumpDown && !jumped && airTicks > 1 && !player.getAbilities().flying && (s == null || free(action(s)) || action(s) == POUNCE_MISS)) {
@@ -278,7 +283,7 @@ public final class PantherClient {
                 // His own path, from where he really launched (the server's is the same line, a moment later).
                 boolean own = s.localFor == POUNCE;
                 float speed = s.speed > 0 ? s.speed : PantherConfig.POUNCE_SPEED.get().floatValue();
-                steer(player, PantherPath.pounce(own ? s.localFrom : s.from, own ? s.localDir : s.dir, speed, own ? s.localReach : s.reach, t));
+                if (own || s.reach > 0) steer(player, PantherPath.pounce(own ? s.localFrom : s.from, own ? s.localDir : s.dir, speed, own ? s.localReach : s.reach, t));
             }
             case POUNCE_FLIP -> {
                 // Over them from wherever his body really is at the contact (no pull back to the server's point).

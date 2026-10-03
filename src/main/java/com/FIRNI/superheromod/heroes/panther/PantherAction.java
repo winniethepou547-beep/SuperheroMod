@@ -81,7 +81,7 @@ public final class PantherAction {
             FX_SPIN_KICK = 6, FX_RELEASE = 7, FX_ABSORB = 8, FX_DODGE = 9, FX_REFLEX = 10, FX_LAND = 11, FX_UPPER = 12,
             FX_MARK = 13, FX_DASH = 14, FX_CROSS = 15, FX_CAMO = 16, FX_DOUBLE_JUMP = 17;
     /** What his client tells the server (PantherInputPacket). */
-    public static final int INPUT_DOUBLE_JUMP = 0;
+    public static final int INPUT_DOUBLE_JUMP = 0, INPUT_POUNCE = 1;
 
     private PantherAction() {}
 

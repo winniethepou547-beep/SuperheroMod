@@ -342,7 +342,7 @@ public final class PantherMotion {
                     .arm(side, WRIST_Z, Mth.lerp(in, p.arm(side, WRIST_Z), -.4f + .9f * down))
                     .arm(side, WRIST_X, Mth.lerp(in, p.arm(side, WRIST_X), -.4f + .5f * down))
                     .arm(side, CURL, Mth.lerp(in, p.arm(side, CURL), 0));
-            rock += (side == 0 ? -1 : 1) * down;
+            rock += (side == 0 ? 1 : -1) * down;     // a right-hand slash wrings the chest round to his left, as in the combo
         }
         // The body rocks after the striking hand.
         p.add(CHEST_YAW, -.5f * rock * in).add(SPINE_YAW, -.15f * rock * in).add(PELVIS_YAW, -.12f * rock * in).add(CHEST_ROLL, .12f * rock * in)

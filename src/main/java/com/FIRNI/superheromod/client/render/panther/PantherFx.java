@@ -496,9 +496,11 @@ public final class PantherFx {
             }
             for (Burst b : BURSTS) burst(c, b, time, partial);
             for (var tag : TAGS.entrySet()) {
-                Entity e = mc.level.getEntity(tag.getKey());
-                if (e == null || !e.isAlive()) continue;
-                scratch(c, e, tag.getValue() - time, time, partial);
+                Entity who = mc.level.getEntity(tag.getKey());
+                if (who == null || !who.isAlive()) continue;
+                // Not on his own view's camera in first person (it would cover the screen).
+                if (who == mc.player && mc.options.getCameraType().isFirstPerson()) continue;
+                scratch(c, who, tag.getValue() - time, time, partial);
             }
             buffers.endBatch();
         } finally {
@@ -925,7 +927,6 @@ public final class PantherFx {
         centre = centre.add(toCam.scale(e.getBbWidth() * .55 + .1));
         Vec3 right = c.viewRight(), up = c.viewUp();
         double size = Math.max(.75, e.getBbHeight() * .45);
-        VertexConsumer soft = c.buffers().getBuffer(FilmFx.SOFT);
         Matrix4f m = c.pose().last().pose();
         for (int k = 0; k < 4; k++) {
             // Each scratch runs top-right to bottom-left, the outer ones shorter.
@@ -940,9 +941,8 @@ public final class PantherFx {
                 double width = size * .07 * Math.sin(Math.PI * u) * (.75 + .5 * FilmFx.hash(k * 13 + i * 3.7 + e.getId()));
                 Vec3 at = start.add(along.scale(len * u)).add(across.scale((FilmFx.hash(k * 7 + i * 1.3) - .5) * size * .03));
                 Vec3 l = at.add(across.scale(width)), r = at.subtract(across.scale(width));
-                if (prevL != null) {
-                    quadSoft(soft, m, prevL, l, r, prevR, 0x3a0d6a, .92f * a);
-                }
+                // Fetched fresh each time: the streaks in between switch the shared buffer to additive light.
+                if (prevL != null) quadSoft(c.buffers().getBuffer(FilmFx.SOFT), m, prevL, l, r, prevR, 0x3a0d6a, .92f * a);
                 prevL = l; prevR = r;
             }
             Vec3 end = start.add(along.scale(len));
