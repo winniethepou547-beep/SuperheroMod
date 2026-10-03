@@ -67,11 +67,13 @@ public final class Champions {
                     new Skill("R", "Ölüm İşareti", "İki gölge kopyan hedefe girer, üstünde X yanar; sen kaybolur, arkasında belirirsin ve X patlar."),
                     new Skill("X", "Gölge İnfazı", "Sinematik: gölge ordusu kurbanı yutar, içinde kırmızı bir ışık patlar."))),
             new Champion("black_panther", "BLACK PANTHER", "T'Challa — Wakanda'nın Kralı", 0xFF9A6BFF, List.of(
-                    new Skill("SOL", "Vibranyum Pençeleri", "Sağ pençe, sol pençe, çift pençe, havaya kaldıran pençe aparkatı. Basılı tut: yakındaki rakibe çılgın pençe saldırısı."),
-                    new Skill("SHIFT", "Panter Atılışı", "Avına atılır; isabet ederse üstünden takla atıp arkasından tekmeler, rakip uçup yerde sürünür."),
+                    new Skill("SOL", "Vibranyum Pençeleri", "Önündeki alana sağ, sol, çift pençe ve aparkat. Basılı tut: durmadan vuran vahşi pençe saldırısı. Vurduğun herkese 2 saniyelik mor çizik işareti."),
+                    new Skill("SAĞ", "Pençe Atılışı", "İşaretli hedefe atılır, çapraz tuttuğu pençelerini içten dışa açarak keser."),
+                    new Skill("SHIFT", "Panter Atılışı", "Bas: avına atılır, üstünden takla atıp arkasından tekmeler, rakip uçup sürünür. Basılı tut: çömelir, 2 saniye sonra 5 saniyelik kamuflaj; hasar alınca bozulur."),
+                    new Skill("BOŞLUK", "Çift Zıplama", "Havada bir kez daha zıplar, takla atar."),
                     new Skill("Q", "Dönen Üçlü Tekme", "Havada hiç inmeden dönerek sağ, sol, sağ tekme; sonuncusu fırlatır."),
                     new Skill("E", "Vibranyum Patlaması", "Aldığın hasar takımda enerji olarak birikir; kollarını açıp küre halinde patlatırsın, herkes bulunduğu yere göre fırlar."),
-                    new Skill("R", "Panter Refleksi", "Kısa bir süre gelen saldırılardan kendiliğinden kaçarsın; her yöne başka bir kaçış."),
+                    new Skill("R", "Panter Refleksi", "Koruma duruşuna geçer; kısa bir süre gelen saldırılardan pençeleriyle savuşturarak kendiliğinden kaçar."),
                     new Skill("X", "Yakında", "Sinematik ulti daha sonra tasarlanacak."))));
 
     /** How many card slots the grid always shows (the rest are "?" for the heroes to come). */

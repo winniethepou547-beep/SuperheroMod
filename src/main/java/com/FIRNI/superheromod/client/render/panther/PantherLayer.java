@@ -47,11 +47,14 @@ public final class PantherLayer extends RenderLayer<AbstractClientPlayer, Player
 
     @Override
     public void render(PoseStack p, MultiBufferSource b, int light, AbstractClientPlayer e, float walk, float amount, float partial, float time, float yaw, float pitch) {
-        if (!PantherClient.isHero(e) || e.isInvisible()) return;
+        if (!PantherClient.isHero(e)) return;
         var level = Minecraft.getInstance().level;
         if (level == null) return;
         PantherClient.State s = PantherClient.get(e);
-        int action = s == null ? IDLE : s.action;
+        // Invisible for his camouflage: still drawn, as glass. Invisible for any other reason: not drawn.
+        boolean camo = s != null && s.camoLeft > 0;
+        if (e.isInvisible() && !camo) return;
+        int action = s == null ? IDLE : PantherClient.action(s);
         float t = s == null ? 0 : PantherClient.clock(s, partial);
         boolean shown = Showcase.is(e);
         if (shown) { action = Showcase.action(); t = Showcase.time(); }
@@ -85,7 +88,8 @@ public final class PantherLayer extends RenderLayer<AbstractClientPlayer, Player
         if (blend.ground && !ground) blend.airSince = now;
         if (!blend.ground && ground && blend.airSince >= 0 && now - blend.airSince > 5 && (action == IDLE || clawing(action))) blend.landAt = now;
         blend.ground = ground;
-        float legs = action == IDLE ? 1 : clawing(action) ? .7f : action == POUNCE_LAND || action == SPIN_LAND || action == RELEASE_RECOVER ? .4f : 0;
+        float legs = action == IDLE ? 1 : clawing(action) && action != CROSS ? .7f : action == SNEAK ? .55f
+                : action == POUNCE_LAND || action == SPIN_LAND || action == RELEASE_RECOVER ? .4f : 0;
         float arms = action == IDLE ? 1 : action == POUNCE_LAND || action == RELEASE_RECOVER ? .3f : 0;
         float want = e.isSprinting() && amount > .3f ? 1 : 0;
         float dt = Math.max(0, Math.min(2, now - blend.runAt));
@@ -104,15 +108,17 @@ public final class PantherLayer extends RenderLayer<AbstractClientPlayer, Player
             pose.add(CROUCH, 4.5f * w).add(SPINE_PITCH, .25f * w).add(HEAD_PITCH, -.2f * w);
             for (int side = 0; side < 2; side++) pose.armAdd(side, ARM_Z, .3f * w);
         }
+        // The second jump's flip.
+        if (!shown) PantherMotion.flipJump(pose, PantherFx.jumpAge(e.getId(), now));
         if (s != null && !shown) PantherMotion.hurt(pose, (int) Math.min(100, s.hurtAge + Math.max(0, level.getGameTime() - s.received)), s.hurtPower, s.hurtYaw);
 
         // ---- his look, spread down the body: pelvis a little, then the spine and chest, the head the rest.
         var model = getParentModel();
         boolean path = action == POUNCE || action == POUNCE_FLIP || action == POUNCE_KICK || action == POUNCE_LAND || action == POUNCE_MISS
-                || action == SPIN || action == SPIN_LAND || action == POUNCE_LOAD;
+                || action == SPIN || action == SPIN_LAND || action == POUNCE_LOAD || action == DASH || action == CROSS;
         float look = path ? 0 : 1;
         float lookYaw = model.head.yRot * look, lookPitch = model.head.xRot * look;
-        float spread = action == IDLE || clawing(action) || action == DODGE ? 1 : .4f;
+        float spread = action == IDLE || clawing(action) || action == DODGE || action == SNEAK ? 1 : .4f;
         pose.add(PELVIS_YAW, .12f * lookYaw * spread * ground(pose)).add(SPINE_YAW, .14f * lookYaw * spread).add(CHEST_YAW, .2f * lookYaw * spread)
                 .add(CHEST_PITCH, .2f * lookPitch * spread);
         float headYaw = lookYaw * (1 - (.12f * ground(pose) + .14f + .2f) * spread), headPitch = lookPitch * (1 - .2f * spread);
@@ -150,21 +156,70 @@ public final class PantherLayer extends RenderLayer<AbstractClientPlayer, Player
         PantherBody.eyeRight = PantherBody.toeRight = PantherBody.toeLeft = null;
         java.util.Arrays.fill(PantherBody.CLAWS, null);
         try {
-            PantherBody.draw(p, b, light, pose, headYaw, headPitch, time, PantherBody.NORMAL, 1, blend.align);
+            body(p, b, light, e.getId(), pose, headYaw, headPitch, time, now, camo, blend.align, charge);
         } finally {
             PantherBody.capture = false;
         }
         // Only a draw in the world counts (not the one in a menu).
         if (shown || PantherBody.eyeRight == null || PantherBody.eyeRight.distanceTo(e.getPosition(partial)) > 4) return;
-        if (clawing(action) || action == DODGE) PantherFx.claws(e.getId(), PantherBody.CLAWS, now, action == FRENZY ? 1.3f : action == CLAW_UPPER || action == CLAW_DOUBLE ? 1.2f : 1);
+        if (clawing(action) || action == DODGE) PantherFx.claws(e.getId(), PantherBody.CLAWS, now, action == FRENZY ? 1.3f : action == CLAW_UPPER || action == CLAW_DOUBLE || action == CROSS ? 1.4f : 1);
         if (action == POUNCE_KICK || action == SPIN || action == POUNCE_FLIP) PantherFx.kicks(e.getId(), PantherBody.toeRight, PantherBody.toeLeft, now, action == POUNCE_KICK ? 1.3f : 1);
-        if (fast(action) && now - blend.lastGhost >= .5f) {
+        if (fast(action) && !camo && now - blend.lastGhost >= .5f) {
             blend.lastGhost = now;
             float bodyYaw = Mth.rotLerp(partial, e.yBodyRotO, e.yBodyRot) + blend.align * Mth.RAD_TO_DEG;
             PantherFx.ghost(e.getId(), e.getPosition(partial), bodyYaw, pose, headYaw, headPitch, now, time);
         }
     }
     private static float ground(Pose p) { return clamp(p.get(PLANT)); }
+
+    /**
+     * The body as it is this frame: the suit; the camouflage (glass) and its fading in and out; or, just after a
+     * hit tore the camouflage, the glitch: the body stuttering in and out with cyan and magenta copies of it
+     * jittering either side.
+     */
+    private static void body(PoseStack p, MultiBufferSource b, int light, int id, Pose pose, float headYaw, float headPitch, float time, float now,
+                             boolean camo, float align, PantherBody.Charge charge) {
+        float[] change = PantherFx.camoChange(id);     // {level time, kind: 1 on, 0 off, -1 torn}
+        float since = change == null ? 99 : now - change[0];
+        int kind = change == null ? 0 : (int) change[1];
+        float savedLevel = charge.level;
+        if (camo) {
+            charge.level = 0;
+            PantherBody.draw(p, b, light, pose, headYaw, headPitch, time, PantherBody.CAMO, 1, align);
+            // Fading into it: a pale copy of the suit melting away.
+            if (kind == 1 && since < 10) {
+                PantherBody.tint = new float[]{.55f, .62f, .75f};
+                PantherBody.draw(p, b, light, pose, headYaw, headPitch, time, PantherBody.GHOST, .9f * (1 - since / 10f), align);
+                PantherBody.tint = new float[]{.14f, .07f, .28f};
+            }
+            charge.level = savedLevel;
+            return;
+        }
+        if (kind == -1 && since < 12) {
+            // The glitch: stuttering frames, colour-split copies jumping about.
+            int frame = (int) (now * 2.5f);
+            float strength = 1 - since / 12f;
+            boolean shown = PantherFx.hash(frame * 1.7f + id) > .3f * strength;
+            if (shown) PantherBody.draw(p, b, light, pose, headYaw, headPitch, time, PantherBody.NORMAL, 1, align);
+            for (int i = 0; i < 2; i++) {
+                float jx = (PantherFx.hash(frame * 3.1f + i * 7 + id) - .5f) * 3.5f * strength, jy = (PantherFx.hash(frame * 5.3f + i * 11) - .5f) * 1.2f * strength;
+                p.pushPose();
+                p.translate((i == 0 ? -1.2f : 1.2f) * strength / 16 + jx / 16, jy / 16, 0);
+                PantherBody.tint = i == 0 ? new float[]{.15f, .95f, 1f} : new float[]{1f, .2f, .85f};
+                PantherBody.draw(p, b, light, pose, headYaw, headPitch, time, PantherBody.GHOST, .5f * strength, align);
+                p.popPose();
+            }
+            PantherBody.tint = new float[]{.14f, .07f, .28f};
+            return;
+        }
+        PantherBody.draw(p, b, light, pose, headYaw, headPitch, time, PantherBody.NORMAL, 1, align);
+        // Coming out of it at its natural end: the glass filling back in.
+        if (kind == 0 && change != null && since < 8) {
+            PantherBody.tint = new float[]{.55f, .62f, .75f};
+            PantherBody.draw(p, b, light, pose, headYaw, headPitch, time, PantherBody.GHOST, .5f * (1 - since / 8f), align);
+            PantherBody.tint = new float[]{.14f, .07f, .28f};
+        }
+    }
 
     /**
      * Under the move: a low athletic run (leaning in, knees driving, arms pumping, the chest countering the

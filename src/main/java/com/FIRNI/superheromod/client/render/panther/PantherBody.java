@@ -36,7 +36,12 @@ import static com.FIRNI.superheromod.client.render.panther.PantherMotion.*;
  * at y 0, hips at 12, feet at 24). In GHOST mode the body is drawn as a faint violet afterimage.
  */
 public final class PantherBody {
-    public static final int NORMAL = 0, GHOST = 1;
+    /** NORMAL: the suit. GHOST: a see-through copy in one colour (afterimages, the glitch). CAMO: the camouflage, glassy and shimmering. */
+    public static final int NORMAL = 0, GHOST = 1, CAMO = 2;
+    /** The colour a GHOST draw takes (violet afterimages; cyan and magenta for the glitch). */
+    public static float[] tint = {.14f, .07f, .28f};
+    private static int boxIndex;
+    private static float drawTime;
     private static final ModelPart UNIT = GhostMaterials.box(0, 0, 0, 1, 1, 1);
     private static final int FULL = 15728880;
     static final float[] SUIT = {.045f, .045f, .055f}, SUIT_PANEL = {.075f, .075f, .09f}, SUIT_DEEP = {.025f, .025f, .03f},
@@ -105,10 +110,16 @@ public final class PantherBody {
         p.scale(w, h, d);
         if (mode == GHOST) {
             if (alpha > .01f) {
-                float lum = (c[0] + c[1] + c[2]) / 3;
+                float lum = .6f + (c[0] + c[1] + c[2]) / 3;
                 UNIT.render(p, b.getBuffer(RenderType.entityTranslucent(GhostMaterials.TEXTURE)), FULL, OverlayTexture.NO_OVERLAY,
-                        .12f + lum * .25f, .06f + lum * .15f, .24f + lum * .35f, alpha);
+                        Math.min(1, tint[0] * lum), Math.min(1, tint[1] * lum), Math.min(1, tint[2] * lum), alpha);
             }
+        } else if (mode == CAMO) {
+            // Glass that bends the light: barely there, with a ripple of brighter edges running through it.
+            float ripple = Math.max(0, Mth.sin(drawTime * .32f + boxIndex++ * .37f));
+            float a = alpha * (.1f + .14f * ripple * ripple * ripple);
+            if (a > .005f) UNIT.render(p, b.getBuffer(RenderType.entityTranslucent(GhostMaterials.TEXTURE)), light, OverlayTexture.NO_OVERLAY,
+                    .62f + .2f * ripple, .68f + .2f * ripple, .78f + .15f * ripple, a);
         } else UNIT.render(p, b.getBuffer(RenderType.entityCutoutNoCull(GhostMaterials.TEXTURE)), light, OverlayTexture.NO_OVERLAY, c[0], c[1], c[2], 1);
         p.popPose();
     }
@@ -130,7 +141,7 @@ public final class PantherBody {
     }
     /** A line of the suit's energy, over its silver line: dark until the region is charged. */
     private static void energy(PoseStack p, MultiBufferSource b, int region, int side, float x, float y, float z, float rx, float ry, float rz, float w, float h, float d) {
-        float g = CHARGE.brightness(region, side) * (mode == GHOST ? .4f * alpha : 1);
+        float g = CHARGE.brightness(region, side) * (mode == GHOST ? .4f * alpha : mode == CAMO ? .15f : 1);
         if (g < .015f) return;
         float core = Math.max(0, g - .8f) * .7f;
         float r = Math.min(1, .55f * g + core), gr = Math.min(1, .26f * g + core), bl = Math.min(1, 1f * g + core);
@@ -164,7 +175,7 @@ public final class PantherBody {
      * whole body about the vertical (radians) for moves whose facing differs from the player's.
      */
     public static void draw(PoseStack p, MultiBufferSource b, int light, Pose pose, float lookYaw, float lookPitch, float time, int drawMode, float opacity, float align) {
-        mode = drawMode; alpha = opacity; eyes = pose.get(EYES);
+        mode = drawMode; alpha = opacity; eyes = pose.get(EYES); boxIndex = 0; drawTime = time;
         CHARGE.time = time;
         float[] v = pose.v;
         p.pushPose();
@@ -448,7 +459,7 @@ public final class PantherBody {
         for (int side = -1; side <= 1; side += 2) {
             part(p, b, light, side * 1.65f, -5.25f, -3.95f, 0, 0, side * -.28f, 2.3f, .8f, .25f, LENS);
             float e = Mth.clamp(eyes, 0, 1.5f);
-            float glow = (mode == GHOST ? .6f * alpha : 1) * (.08f + .92f * e);
+            float glow = (mode == GHOST ? .6f * alpha : mode == CAMO ? .35f : 1) * (.08f + .92f * e);
             glowBox(p, b, side * 1.65f, -5.25f, -4.1f, side * -.28f, 2.2f, .7f, .15f, .85f * glow, .9f * glow, glow);
         }
         // The silver lines of the mask: down the forehead to the nose, round the eyes and down the cheeks,
@@ -471,8 +482,8 @@ public final class PantherBody {
 
     // ------------------------------------------------------------------ first person: the arms in front of the camera
     /** One arm for the first-person view, from the elbow down (the pose stack is at the elbow, forearm along +y). */
-    public static void firstPersonArm(PoseStack p, MultiBufferSource b, int light, int side, float wristX, float wristZ, float curl) {
-        mode = NORMAL; alpha = 1;
+    public static void firstPersonArm(PoseStack p, MultiBufferSource b, int light, int side, float wristX, float wristZ, float curl, boolean camo, float time) {
+        mode = camo ? CAMO : NORMAL; alpha = camo ? 1.6f : 1; boxIndex = side * 40; drawTime = time;
         int s = side == 0 ? -1 : 1;
         float[] hi = sheen();
         part(p, b, light, 0, 1.3f, 0, 0, 0, 0, 3.4f, 2.8f, 3.4f, SUIT);

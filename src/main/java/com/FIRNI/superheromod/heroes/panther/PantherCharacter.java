@@ -5,7 +5,8 @@ import com.FIRNI.superheromod.core.character.SuperCharacter;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * Black Panther, King of Wakanda. Left click: Vibranium Claws (held: the frenzy); SHIFT: Panther Pounce;
+ * Black Panther, King of Wakanda. Left click: Vibranium Claws (held: the frenzy); right click: the marked
+ * dash; SHIFT: Panther Pounce (held: crouch, then camouflage);
  * Q: the spinning triple kick; E: the kinetic release; R: Panther Reflex; X: kept for a future ultimate.
  * Everything lives per player in PantherController.
  */
@@ -14,7 +15,7 @@ public final class PantherCharacter extends SuperCharacter {
 
     public PantherCharacter() {
         super(ID, "Black Panther — Wakanda'nın Kralı");
-        for (AbilitySlot slot : new AbilitySlot[]{AbilitySlot.LMB, AbilitySlot.SHIFT, AbilitySlot.ULTIMATE, AbilitySlot.SKILL_V, AbilitySlot.SKILL_E, AbilitySlot.SKILL_X})
+        for (AbilitySlot slot : new AbilitySlot[]{AbilitySlot.LMB, AbilitySlot.RMB, AbilitySlot.SHIFT, AbilitySlot.ULTIMATE, AbilitySlot.SKILL_V, AbilitySlot.SKILL_E, AbilitySlot.SKILL_X})
             registerAbility(new Press(slot));
     }
 

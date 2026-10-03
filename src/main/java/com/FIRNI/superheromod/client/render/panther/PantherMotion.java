@@ -106,51 +106,80 @@ public final class PantherMotion {
 
     // ------------------------------------------------------------------ the stance
     /**
-     * Low and alert: hunched forward, knees bent, feet apart with the left foot ahead, hips turned a little,
-     * shoulders forward, arms open and bent, hands in front with the claws ready, head up on the target.
-     * combat (0..1) takes it lower and tighter; reflex (0..1) makes everything twitch-ready.
+     * Standing tall and easy, as on the poster: legs long and straight, the weight on the right leg, the left foot
+     * a little ahead and out, the hips settled over it; the chest up, the shoulders broad; the arms hanging a
+     * little away from the body, elbows soft, the hands half open with the claws showing. Alive with tiny
+     * movements. combat (0..1) makes him a little readier (knees softer, hands up a touch); reflex (0..1) adds
+     * the twitch-ready quickness (the guard itself is guard()).
      */
     public static Pose stance(float time, float combat, float reflex) {
         Pose p = new Pose();
         float c = combat;
-        p.set(CROUCH, 2.4f + 1.5f * c).set(PELVIS_YAW, -.22f - .06f * c).set(PELVIS_PITCH, .12f)
-                .set(SPINE_PITCH, .2f + .06f * c).set(CHEST_PITCH, .14f + .05f * c).set(CHEST_YAW, .14f).set(SPINE_YAW, .04f)
-                .set(HEAD_PITCH, -.38f - .1f * c).set(HEAD_YAW, .06f).set(NECK, .6f).set(PLANT, 1).set(EYES, .12f);
-        // Left foot ahead, right foot back and out, both knees soft.
-        p.leg(0, LEG_X, .2f).leg(0, LEG_Z, .12f).leg(0, LEG_Y, .2f).leg(0, KNEE, .12f);
-        p.leg(1, LEG_X, -.26f).leg(1, LEG_Z, .08f).leg(1, LEG_Y, -.1f).leg(1, KNEE, .2f);
-        // Arms open, elbows bent, hands in front and to the sides, claws ready; the lead (left) hand a little higher.
+        p.set(CROUCH, .9f * c).set(PELVIS_YAW, -.07f).set(PELVIS_PITCH, .02f).set(PELVIS_ROLL, .035f)
+                .set(SPINE_PITCH, .02f + .08f * c).set(SPINE_ROLL, -.02f).set(CHEST_PITCH, .06f * c).set(CHEST_YAW, .05f)
+                .set(HEAD_PITCH, -.02f - .08f * c).set(NECK, .2f + .2f * c).set(PLANT, 1).set(EYES, .1f);
+        // The weight on the right leg (straight); the left a little forward, out and relaxed.
+        p.leg(0, LEG_X, .04f).leg(0, LEG_Z, .05f).leg(0, LEG_Y, .1f).leg(0, KNEE, .02f + .12f * c);
+        p.leg(1, LEG_X, -.13f).leg(1, LEG_Z, .07f).leg(1, LEG_Y, .16f).leg(1, KNEE, .1f + .12f * c);
+        // Arms a little away from the body, elbows soft, hands half open, claws showing.
         for (int side = 0; side < 2; side++) {
-            boolean lead = side == 1;
-            p.arm(side, SH_FWD, .7f + .3f * c).arm(side, ARM_X, (lead ? -.62f : -.45f) - .2f * c).arm(side, ARM_Z, .36f + .06f * c)
-                    .arm(side, ARM_Y, lead ? -.1f : .05f).arm(side, ELBOW, (lead ? 1.05f : .9f) + .15f * c)
-                    .arm(side, WRIST_X, -.25f).arm(side, WRIST_Z, .12f).arm(side, CURL, .42f - .1f * c);
+            p.arm(side, SH_FWD, .2f + .4f * c).arm(side, ARM_X, -.06f - .34f * c).arm(side, ARM_Z, .27f + .04f * c).arm(side, ARM_Y, .05f)
+                    .arm(side, ELBOW, .25f + .5f * c).arm(side, WRIST_X, -.05f).arm(side, WRIST_Z, .05f).arm(side, CURL, .55f - .15f * c);
         }
-        // Alive: breathing, a slow weight shift, the shoulders and head never quite still, the claws flexing now and then.
+        // Alive: breathing, a slow drift of the weight, the head never quite still, the claws flexing now and then.
         float breath = Mth.sin(time * .1f);
-        p.add(CHEST_PITCH, -.022f * breath).add(SPINE_PITCH, -.01f * breath);
-        for (int side = 0; side < 2; side++) p.armAdd(side, SH_UP, .18f * breath);
-        float shift = noise(time * .021f);
-        p.add(SHIFT_X, .3f * shift).add(PELVIS_ROLL, -.025f * shift).add(CROUCH, .15f * noise(time * .033f + 9));
-        p.legAdd(0, KNEE, .03f * shift).legAdd(1, KNEE, -.03f * shift);
-        p.add(HEAD_YAW, .035f * noise(time * .027f + 4)).add(HEAD_PITCH, .02f * noise(time * .031f + 7));
+        p.add(CHEST_PITCH, -.02f * breath).add(SPINE_PITCH, -.008f * breath);
+        for (int side = 0; side < 2; side++) p.armAdd(side, SH_UP, .16f * breath).armAdd(side, ARM_Z, .012f * breath);
+        float shift = noise(time * .019f);
+        p.add(SHIFT_X, .2f * shift).add(PELVIS_ROLL, -.015f * shift);
+        p.legAdd(1, KNEE, .03f * Math.max(0, shift));
+        p.add(HEAD_YAW, .03f * noise(time * .025f + 4)).add(HEAD_PITCH, .018f * noise(time * .031f + 7));
         for (int side = 0; side < 2; side++) {
-            // Every few seconds one hand flexes its claws, slowly.
             float flex = Math.max(0, Mth.sin(time * .045f + side * 2.4f));
             flex = flex * flex * flex * flex * flex * flex;
-            p.armAdd(side, CURL, -.25f * flex).armAdd(side, WRIST_X, -.08f * flex).armAdd(side, ELBOW, .03f * noise(time * .04f + side * 3));
+            p.armAdd(side, CURL, -.25f * flex).armAdd(side, WRIST_X, -.06f * flex).armAdd(side, ELBOW, .03f * noise(time * .04f + side * 3));
         }
         if (reflex > .01f) {
-            // Hyper-alert: tiny quick corrections everywhere, nothing shaking.
             float q = reflex;
-            p.add(HEAD_YAW, .045f * q * noise(time * .9f)).add(HEAD_PITCH, .03f * q * noise(time * .7f + 3));
-            for (int side = 0; side < 2; side++) {
-                p.armAdd(side, SH_UP, .25f * q * noise(time * .8f + side * 5)).armAdd(side, WRIST_X, .08f * q * noise(time * 1.1f + side * 2));
-                p.armAdd(side, CURL, .06f * q * noise(time * 1.3f + side));
-            }
-            p.add(CHEST_YAW, .02f * q * noise(time * .6f + 11)).add(CROUCH, .4f * q).add(EYES, .25f * q);
+            p.add(HEAD_YAW, .04f * q * noise(time * .9f)).add(HEAD_PITCH, .03f * q * noise(time * .7f + 3));
+            for (int side = 0; side < 2; side++) p.armAdd(side, WRIST_X, .07f * q * noise(time * 1.1f + side * 2)).armAdd(side, CURL, .06f * q * noise(time * 1.3f + side));
+            p.add(EYES, .25f * q);
         }
         return p;
+    }
+    /**
+     * The reflex guard (after Daredevil's deflecting stance): low and wide on the balls of the feet, forearms up
+     * in front, the right one standing before the face, the left across the chest, claws out, the head down
+     * behind them; the claws never still, flicking back and forth like a parry waiting to happen.
+     */
+    public static Pose guard(Pose base, float time, float weight) {
+        if (weight <= .001f) return base;
+        Pose g = base.copy();
+        g.set(CROUCH, 3.2f).set(PELVIS_YAW, -.3f).set(SPINE_PITCH, .2f).set(CHEST_PITCH, .14f).set(CHEST_YAW, .2f).set(HEAD_PITCH, -.3f)
+                .set(HEAD_YAW, .1f).set(NECK, .5f);
+        g.leg(0, LEG_X, .3f).leg(0, LEG_Z, .2f).leg(0, KNEE, .25f).leg(0, ANKLE, .2f).leg(1, LEG_X, -.32f).leg(1, LEG_Z, .16f).leg(1, KNEE, .3f).leg(1, ANKLE, .25f);
+        g.arm(0, SH_FWD, 1.2f).arm(0, ARM_X, -1.5f).arm(0, ARM_Z, -.12f).arm(0, ARM_Y, -.2f).arm(0, ELBOW, 1.8f).arm(0, WRIST_X, .25f).arm(0, CURL, .1f);
+        g.arm(1, SH_FWD, 1.0f).arm(1, ARM_X, -1.05f).arm(1, ARM_Z, .08f).arm(1, ARM_Y, -.35f).arm(1, ELBOW, 1.65f).arm(1, WRIST_X, .2f).arm(1, CURL, .1f);
+        // The claws flicking, the hands taking turns, quick and small.
+        for (int side = 0; side < 2; side++) {
+            float f = Mth.sin(time * 1.25f + side * Mth.PI);
+            g.armAdd(side, WRIST_Z, .3f * f).armAdd(side, ARM_Y, .06f * f).armAdd(side, SH_UP, .2f * Math.abs(f));
+        }
+        g.add(SHIFT_X, .25f * Mth.sin(time * .3f)).add(CHEST_YAW, .04f * Mth.sin(time * .43f));
+        Pose out = base.copy();
+        out.toward(g, clamp(weight));
+        return out;
+    }
+    /** The second jump: a tight front flip, knees to the chest, arms wrapped round them, opening out as it ends. */
+    public static void flipJump(Pose p, float age) {
+        if (age < 0 || age > 11) return;
+        float k = ease(age / 9f), tuck = (float) Math.sin(Math.PI * clamp(age / 9f));
+        p.add(ROOT_PITCH, Mth.TWO_PI * k).set(PLANT, 0).add(SPINE_PITCH, .4f * tuck).add(HEAD_PITCH, .3f * tuck);
+        for (int side = 0; side < 2; side++) {
+            p.leg(side, LEG_X, Mth.lerp(tuck, p.leg(side, LEG_X), -1.35f)).leg(side, KNEE, Mth.lerp(tuck, p.leg(side, KNEE), 1.9f))
+                    .arm(side, ARM_X, Mth.lerp(tuck, p.arm(side, ARM_X), -1.2f)).arm(side, ELBOW, Mth.lerp(tuck, p.arm(side, ELBOW), 1.5f))
+                    .arm(side, ARM_Z, Mth.lerp(tuck, p.arm(side, ARM_Z), .3f));
+        }
     }
 
     // ------------------------------------------------------------------ sampling
@@ -159,6 +188,8 @@ public final class PantherMotion {
 
     public static Pose sample(int action, float t, Ctx c) {
         Pose base = stance(c.time(), c.combat(), c.reflex());
+        // While the reflex is on, the guard is his stance (and every dodge comes back to it).
+        if (c.reflex() > .01f && (action == IDLE || action == DODGE)) base = guard(base, c.time(), c.reflex());
         Pose p = switch (action) {
             case CLAW_RIGHT -> clawSingle(base, false).sample(t);
             case CLAW_LEFT -> clawSingle(base, true).sample(t);
@@ -178,6 +209,9 @@ public final class PantherMotion {
             case RELEASE -> releasePose(base, t);
             case RELEASE_RECOVER -> recover(base).sample(t);
             case DODGE -> dodge(base, c.flags(), c.threatYaw()).sample(t);
+            case SNEAK -> crouch(base, t, c.time());
+            case DASH -> dash(base, t);
+            case CROSS -> cross(base).sample(t);
             default -> base;
         };
         return p;
@@ -192,27 +226,29 @@ public final class PantherMotion {
      */
     static Track clawSingle(Pose base, boolean left) {
         Pose load = base.copy(), hit = base.copy(), through = base.copy(), settle = base.copy();
-        // Wind-up: right shoulder back, chest turned to his right, arm cocked high and outside.
-        load.add(CHEST_YAW, .42f).add(SPINE_YAW, .12f).add(PELVIS_YAW, .1f).add(SHIFT_X, -.5f).add(CROUCH, .4f).add(SPINE_PITCH, .04f)
-                .arm(0, SH_FWD, -.6f).arm(0, ARM_X, -2.05f).arm(0, ARM_Z, .95f).arm(0, ARM_Y, .25f).arm(0, ELBOW, 1.35f)
-                .arm(0, WRIST_X, -.45f).arm(0, WRIST_Z, -.35f).arm(0, CURL, .05f)
-                .arm(1, ARM_X, -.8f).arm(1, ELBOW, 1.25f).arm(1, ARM_Z, .25f)
-                .leg(0, KNEE, .32f).leg(0, LEG_X, .3f).add(HEAD_YAW, -.4f);
-        // The cut: diagonally down across, chest wrung round to his left, hips following, back foot pushing.
-        hit.add(CHEST_YAW, -.5f).add(SPINE_YAW, -.16f).add(PELVIS_YAW, -.14f).add(SHIFT_X, .7f).add(SHIFT_Z, -.6f).add(CROUCH, 1f)
-                .add(SPINE_PITCH, .14f).add(CHEST_ROLL, .1f)
-                .arm(0, SH_FWD, 1.8f).arm(0, ARM_X, -1.15f).arm(0, ARM_Z, -.38f).arm(0, ARM_Y, -.35f).arm(0, ELBOW, .32f)
-                .arm(0, WRIST_X, .1f).arm(0, WRIST_Z, .45f).arm(0, CURL, 0)
-                .arm(1, ARM_X, -.35f).arm(1, ARM_Z, .5f).arm(1, ELBOW, 1.4f).arm(1, SH_FWD, -.2f)
-                .leg(0, LEG_X, .42f).leg(0, ANKLE, .45f).leg(0, KNEE, .2f).leg(1, KNEE, .34f).add(HEAD_YAW, .55f);
-        // Follow-through: the arm carries on low and across, the body still turning a little.
-        through.add(CHEST_YAW, -.62f).add(SPINE_YAW, -.18f).add(PELVIS_YAW, -.18f).add(SHIFT_X, .6f).add(SHIFT_Z, -.4f).add(CROUCH, .9f)
-                .add(SPINE_PITCH, .12f)
-                .arm(0, SH_FWD, 1.4f).arm(0, ARM_X, -.7f).arm(0, ARM_Z, -.55f).arm(0, ARM_Y, -.5f).arm(0, ELBOW, .55f)
-                .arm(0, WRIST_X, .25f).arm(0, WRIST_Z, .3f).arm(0, CURL, .15f)
-                .arm(1, ARM_X, -.45f).arm(1, ELBOW, 1.3f).leg(0, LEG_X, .36f).leg(0, ANKLE, .3f).add(HEAD_YAW, .65f);
-        settle.add(CHEST_YAW, -.12f).add(CROUCH, .3f).arm(0, ARM_X, -.6f).arm(0, ELBOW, .95f);
-        Track tr = new Track().key(0, base).key(1.3f, load).key(CLAW_HIT, hit).key(5.2f, through).key(7.4f, settle).key(CLAW_TICKS + 1, base);
+        // Wind-up: the right arm thrown far back, high and wide, the chest wrung round to his right, the weight
+        // sinking onto the back leg, the left hand up in front, the left foot already stepping in.
+        load.add(CHEST_YAW, .62f).add(SPINE_YAW, .16f).add(PELVIS_YAW, .16f).add(SHIFT_X, -.7f).add(CROUCH, 1.6f).add(SPINE_PITCH, .12f)
+                .add(CHEST_ROLL, -.08f)
+                .arm(0, SH_FWD, -1.1f).arm(0, SH_UP, .8f).arm(0, ARM_X, -2.45f).arm(0, ARM_Z, 1.35f).arm(0, ARM_Y, .55f).arm(0, ELBOW, 1.5f)
+                .arm(0, WRIST_X, -.6f).arm(0, WRIST_Z, -.5f).arm(0, CURL, 0)
+                .arm(1, ARM_X, -1.0f).arm(1, ELBOW, 1.35f).arm(1, ARM_Z, .2f).arm(1, SH_FWD, .6f)
+                .leg(0, KNEE, .35f).leg(0, LEG_X, .3f).leg(1, LEG_X, -.35f).leg(1, KNEE, .35f).add(HEAD_YAW, -.6f);
+        // The cut: one great diagonal from high outside to low across the body; chest, hips and the back foot drive it.
+        hit.add(CHEST_YAW, -.72f).add(SPINE_YAW, -.22f).add(PELVIS_YAW, -.2f).add(SHIFT_X, .8f).add(SHIFT_Z, -1.1f).add(CROUCH, 2.5f)
+                .add(SPINE_PITCH, .28f).add(CHEST_ROLL, .14f)
+                .arm(0, SH_FWD, 2.3f).arm(0, ARM_X, -1.05f).arm(0, ARM_Z, -.6f).arm(0, ARM_Y, -.5f).arm(0, ELBOW, .22f)
+                .arm(0, WRIST_X, .12f).arm(0, WRIST_Z, .55f).arm(0, CURL, 0)
+                .arm(1, ARM_X, -.15f).arm(1, ARM_Z, .7f).arm(1, ELBOW, 1.4f).arm(1, SH_FWD, -.6f)
+                .leg(1, LEG_X, -.52f).leg(1, KNEE, .58f).leg(0, LEG_X, .48f).leg(0, ANKLE, .5f).leg(0, KNEE, .22f).add(HEAD_YAW, .75f);
+        // Follow-through: the arm carries on low and across, the body still turning.
+        through.add(CHEST_YAW, -.85f).add(SPINE_YAW, -.24f).add(PELVIS_YAW, -.24f).add(SHIFT_X, .7f).add(SHIFT_Z, -.8f).add(CROUCH, 2.2f)
+                .add(SPINE_PITCH, .24f)
+                .arm(0, SH_FWD, 1.7f).arm(0, ARM_X, -.5f).arm(0, ARM_Z, -.8f).arm(0, ARM_Y, -.65f).arm(0, ELBOW, .5f)
+                .arm(0, WRIST_X, .28f).arm(0, WRIST_Z, .3f).arm(0, CURL, .2f)
+                .arm(1, ARM_X, -.3f).arm(1, ELBOW, 1.3f).leg(1, LEG_X, -.48f).leg(1, KNEE, .5f).leg(0, LEG_X, .4f).leg(0, ANKLE, .35f).add(HEAD_YAW, .85f);
+        settle.add(CHEST_YAW, -.15f).add(CROUCH, .9f).arm(0, ARM_X, -.5f).arm(0, ELBOW, .7f).leg(1, LEG_X, -.25f);
+        Track tr = new Track().key(0, base).key(1.4f, load).key(CLAW_HIT, hit).key(5.4f, through).key(7.6f, settle).key(CLAW_TICKS + 1.5f, base);
         return left ? mirrorKeys(tr, base) : tr;
     }
     /** A track with every pose mirrored except that it starts and ends in the real stance. */
@@ -237,22 +273,24 @@ public final class PantherMotion {
      * hands forward together, the torso and hips going with them, a step in.
      */
     static Track clawDouble(Pose base) {
-        Pose drop = base.copy(), hit = base.copy(), through = base.copy();
-        drop.add(CROUCH, 2.2f).add(SPINE_PITCH, .22f).add(CHEST_YAW, -.14f).add(PELVIS_YAW, .05f).add(HEAD_PITCH, -.15f);
+        Pose open = base.copy(), hit = base.copy(), through = base.copy();
+        // Both arms flung up and wide, the chest opened, rising onto the toes...
+        open.add(CROUCH, .6f).add(SPINE_PITCH, -.08f).add(CHEST_PITCH, -.2f).add(HEAD_PITCH, -.15f).add(LIFT, .5f);
         for (int side = 0; side < 2; side++)
-            drop.arm(side, SH_FWD, -1f).arm(side, ARM_X, .25f).arm(side, ARM_Z, .5f).arm(side, ELBOW, 1.5f).arm(side, WRIST_X, -.6f).arm(side, CURL, .05f);
-        drop.leg(0, KNEE, .4f).leg(1, KNEE, .45f);
-        hit.add(CROUCH, 1.1f).add(SPINE_PITCH, .32f).add(CHEST_PITCH, .12f).add(SHIFT_Z, -1.4f).add(CHEST_YAW, -.1f).add(PELVIS_YAW, .1f)
-                .add(HEAD_PITCH, -.25f);
+            open.arm(side, SH_FWD, -1f).arm(side, SH_UP, 1f).arm(side, ARM_X, -2.2f).arm(side, ARM_Z, 1.25f).arm(side, ARM_Y, .45f).arm(side, ELBOW, 1.0f)
+                    .arm(side, WRIST_X, -.6f).arm(side, CURL, 0);
+        open.leg(0, ANKLE, .35f).leg(1, ANKLE, .35f);
+        // ...then both claws crash down and in together, crossing in front, a long step in, the whole back behind it.
+        hit.add(CROUCH, 3.2f).add(SPINE_PITCH, .42f).add(CHEST_PITCH, .16f).add(SHIFT_Z, -1.6f).add(HEAD_PITCH, -.3f);
         for (int side = 0; side < 2; side++)
-            hit.arm(side, SH_FWD, 2.2f).arm(side, ARM_X, -1.5f).arm(side, ARM_Z, .1f).arm(side, ARM_Y, -.15f).arm(side, ELBOW, .22f)
-                    .arm(side, WRIST_X, .15f).arm(side, CURL, 0);
-        hit.leg(1, LEG_X, -.45f).leg(1, KNEE, .45f).leg(0, LEG_X, .45f).leg(0, ANKLE, .5f);
-        through.add(CROUCH, 1.3f).add(SPINE_PITCH, .3f).add(SHIFT_Z, -1.1f).add(CHEST_PITCH, .1f).add(HEAD_PITCH, -.22f);
+            hit.arm(side, SH_FWD, 2.4f).arm(side, ARM_X, -1.0f).arm(side, ARM_Z, -.42f).arm(side, ARM_Y, -.3f).arm(side, ELBOW, .25f)
+                    .arm(side, WRIST_X, .25f).arm(side, CURL, 0);
+        hit.leg(1, LEG_X, -.6f).leg(1, KNEE, .65f).leg(0, LEG_X, .5f).leg(0, ANKLE, .55f).leg(0, KNEE, .25f);
+        through.add(CROUCH, 2.6f).add(SPINE_PITCH, .36f).add(SHIFT_Z, -1.2f).add(CHEST_PITCH, .12f).add(HEAD_PITCH, -.26f);
         for (int side = 0; side < 2; side++)
-            through.arm(side, SH_FWD, 1.6f).arm(side, ARM_X, -1.15f).arm(side, ARM_Z, -.12f).arm(side, ELBOW, .45f).arm(side, WRIST_X, .35f).arm(side, CURL, .2f);
-        through.leg(1, LEG_X, -.4f).leg(1, KNEE, .4f).leg(0, LEG_X, .4f);
-        return new Track().key(0, base).key(1.8f, drop).key(DOUBLE_HIT, hit).key(6.2f, through).key(DOUBLE_TICKS + 1.5f, base);
+            through.arm(side, SH_FWD, 1.7f).arm(side, ARM_X, -.6f).arm(side, ARM_Z, -.5f).arm(side, ELBOW, .45f).arm(side, WRIST_X, .35f).arm(side, CURL, .2f);
+        through.leg(1, LEG_X, -.52f).leg(1, KNEE, .55f).leg(0, LEG_X, .44f);
+        return new Track().key(0, base).key(2.0f, open).key(DOUBLE_HIT, hit).key(6.4f, through).key(DOUBLE_TICKS + 2f, base);
     }
     /**
      * The claw uppercut: the centre of gravity sinks, knees and hips load, the right arm goes down past the
@@ -261,55 +299,116 @@ public final class PantherMotion {
      */
     static Track uppercut(Pose base) {
         Pose load = base.copy(), drive = base.copy(), top = base.copy(), down = base.copy();
-        load.add(CROUCH, 4.6f).add(SPINE_PITCH, .42f).add(CHEST_YAW, .35f).add(PELVIS_YAW, .1f).add(HEAD_PITCH, -.35f).add(SHIFT_X, -.4f)
-                .arm(0, SH_FWD, -.4f).arm(0, ARM_X, .35f).arm(0, ARM_Z, .2f).arm(0, ELBOW, .55f).arm(0, WRIST_X, -.5f).arm(0, CURL, 0)
-                .arm(1, ARM_X, -.9f).arm(1, ELBOW, 1.3f).arm(1, ARM_Z, .3f)
-                .leg(0, KNEE, .6f).leg(1, KNEE, .65f).leg(0, LEG_X, .35f);
-        drive.add(CROUCH, -.6f).add(LIFT, 1.4f).add(SPINE_PITCH, -.12f).add(CHEST_PITCH, -.12f).add(CHEST_YAW, -.35f).add(PELVIS_YAW, -.1f)
-                .add(HEAD_PITCH, -.6f).add(SHIFT_Z, -.8f).add(PLANT, -.6f)
-                .arm(0, SH_FWD, 1.6f).arm(0, SH_UP, 1.4f).arm(0, ARM_X, -2.75f).arm(0, ARM_Z, .25f).arm(0, ARM_Y, -.2f).arm(0, ELBOW, .3f)
+        load.add(CROUCH, 5.8f).add(SPINE_PITCH, .5f).add(CHEST_YAW, .45f).add(PELVIS_YAW, .12f).add(HEAD_PITCH, -.45f).add(SHIFT_X, -.5f)
+                .arm(0, SH_FWD, -.6f).arm(0, ARM_X, .55f).arm(0, ARM_Z, .35f).arm(0, ELBOW, .5f).arm(0, WRIST_X, -.5f).arm(0, CURL, 0)
+                .arm(1, ARM_X, -1.0f).arm(1, ELBOW, 1.35f).arm(1, ARM_Z, .3f)
+                .leg(0, KNEE, .7f).leg(1, KNEE, .75f).leg(0, LEG_X, .4f).leg(1, LEG_X, -.35f);
+        drive.add(LIFT, 2.0f).add(SPINE_PITCH, -.12f).add(CHEST_PITCH, -.14f).add(CHEST_YAW, -.45f).add(PELVIS_YAW, -.12f)
+                .add(HEAD_PITCH, -.55f).add(SHIFT_Z, -.9f).add(PLANT, -.6f)
+                .arm(0, SH_FWD, 1.7f).arm(0, SH_UP, 1.5f).arm(0, ARM_X, -2.85f).arm(0, ARM_Z, .25f).arm(0, ARM_Y, -.2f).arm(0, ELBOW, .3f)
                 .arm(0, WRIST_X, .35f).arm(0, CURL, 0)
-                .arm(1, ARM_X, .3f).arm(1, ARM_Z, .6f).arm(1, ELBOW, .9f)
-                .leg(0, LEG_X, .5f).leg(0, ANKLE, .9f).leg(1, ANKLE, .55f).leg(1, KNEE, .05f);
-        top.add(LIFT, 1.8f).add(CROUCH, -.4f).add(SPINE_PITCH, -.08f).add(CHEST_YAW, -.42f).add(HEAD_PITCH, -.55f).add(SHIFT_Z, -.6f).add(PLANT, -.7f)
-                .arm(0, SH_UP, 1.6f).arm(0, ARM_X, -2.95f).arm(0, ARM_Z, .1f).arm(0, ELBOW, .45f).arm(0, WRIST_X, .5f).arm(0, CURL, .2f)
-                .arm(1, ARM_X, .2f).arm(1, ARM_Z, .7f).arm(1, ELBOW, .8f)
-                .leg(0, LEG_X, .45f).leg(0, ANKLE, .8f).leg(1, ANKLE, .45f);
-        down.add(CROUCH, 1.2f).add(CHEST_YAW, -.1f).arm(0, ARM_X, -1.2f).arm(0, ELBOW, .9f).arm(0, SH_UP, .4f);
-        return new Track().key(0, base).key(3f, load).key(UPPER_HIT, drive).key(8f, top).key(11f, down).key(UPPER_TICKS + 1.5f, base);
+                .arm(1, ARM_X, .35f).arm(1, ARM_Z, .7f).arm(1, ELBOW, .9f)
+                .leg(0, LEG_X, .5f).leg(0, ANKLE, .95f).leg(1, ANKLE, .6f).leg(1, KNEE, .05f).leg(1, LEG_X, -.2f);
+        top.add(LIFT, 2.4f).add(SPINE_PITCH, -.08f).add(CHEST_YAW, -.5f).add(HEAD_PITCH, -.5f).add(SHIFT_Z, -.7f).add(PLANT, -.7f)
+                .arm(0, SH_UP, 1.7f).arm(0, ARM_X, -3.05f).arm(0, ARM_Z, .1f).arm(0, ELBOW, .45f).arm(0, WRIST_X, .5f).arm(0, CURL, .2f)
+                .arm(1, ARM_X, .25f).arm(1, ARM_Z, .8f).arm(1, ELBOW, .8f)
+                .leg(0, LEG_X, .45f).leg(0, ANKLE, .85f).leg(1, ANKLE, .5f);
+        down.add(CROUCH, 1.8f).add(CHEST_YAW, -.12f).arm(0, ARM_X, -1.0f).arm(0, ELBOW, .8f).arm(0, SH_UP, .4f);
+        return new Track().key(0, base).key(3.2f, load).key(UPPER_HIT, drive).key(8f, top).key(11f, down).key(UPPER_TICKS + 2f, base);
     }
     /**
-     * The frenzy: short, fast, compact strikes alternating right and left, one every FRENZY_STRIKE ticks; the
-     * shoulders, chest and hips swap with every strike, the feet keep shuffling to hold the range, the head
-     * stays dead on the target.
+     * The berserk frenzy (after Wolverine's): hunched over, both claws taking turns without a breath, each one a
+     * wild diagonal from high outside down through the front and across, the other recoiling up behind it
+     * like a pair of scissors; the chest and hips rocking side to side with every slash, the feet stamping
+     * forward under him, the head down and dead on the target. Nothing like the measured combo.
      */
     static Pose frenzy(Pose base, float t) {
         Pose p = base.copy();
-        float in = k(t, 0, 2);
-        float period = FRENZY_STRIKE * 2;
-        float phase = (t % period) / period * Mth.TWO_PI;
-        // A sharpened wave: quick out, quick back, a beat held at each end.
-        float w = Mth.sin(phase);
-        float sharp = Math.signum(w) * (float) Math.pow(Math.abs(w), .55);
-        float right = Math.max(0, sharp), left = Math.max(0, -sharp);
-        p.add(CROUCH, 1.4f * in).add(SPINE_PITCH, .18f * in).add(SHIFT_Z, -.5f * in);
-        p.add(CHEST_YAW, (-.45f * right + .45f * left) * in).add(SPINE_YAW, (-.12f * right + .12f * left) * in)
-                .add(PELVIS_YAW, (-.12f * right + .12f * left) * in).add(HEAD_YAW, (.55f * right - .55f * left) * in)
-                .add(CHEST_ROLL, (.06f * right - .06f * left) * in);
+        float in = k(t, 0, 1.5f);
+        float cycle = FRENZY_STRIKE * 2;
+        p.add(CROUCH, 3.4f * in).add(SPINE_PITCH, .38f * in).add(CHEST_PITCH, .12f * in).add(HEAD_PITCH, -.4f * in).add(SHIFT_Z, -.7f * in);
+        float rock = 0;
         for (int side = 0; side < 2; side++) {
-            float out = side == 0 ? right : left, back = side == 0 ? left : right;
-            p.armAdd(side, SH_FWD, (1.6f * out - .4f * back) * in)
-                    .arm(side, ARM_X, Mth.lerp(in, p.arm(side, ARM_X), -1.25f - .25f * out + .4f * back))
-                    .arm(side, ARM_Z, Mth.lerp(in, p.arm(side, ARM_Z), .35f - .5f * out))
-                    .arm(side, ARM_Y, Mth.lerp(in, p.arm(side, ARM_Y), -.3f * out))
-                    .arm(side, ELBOW, Mth.lerp(in, p.arm(side, ELBOW), 1.35f - .95f * out))
-                    .arm(side, WRIST_Z, Mth.lerp(in, p.arm(side, WRIST_Z), .45f * out))
-                    .arm(side, CURL, Mth.lerp(in, p.arm(side, CURL), .25f - .25f * out));
+            // Each hand's slash: down fast (the first 45% of its half), back up slower; the hands half a cycle apart.
+            float u = ((t / cycle) + (side == 0 ? 0 : .5f)) % 1;
+            float x = u < .45f ? u / .45f * .5f : .5f + (u - .45f) / .55f * .5f;
+            float down = .5f - .5f * Mth.cos(Mth.TWO_PI * x);     // 0 high outside .. 1 low across
+            p.arm(side, SH_FWD, Mth.lerp(in, p.arm(side, SH_FWD), -.6f + 2.6f * down))
+                    .arm(side, SH_UP, Mth.lerp(in, p.arm(side, SH_UP), .9f * (1 - down)))
+                    .arm(side, ARM_X, Mth.lerp(in, p.arm(side, ARM_X), -2.4f + 1.6f * down))
+                    .arm(side, ARM_Z, Mth.lerp(in, p.arm(side, ARM_Z), 1.15f - 1.75f * down))
+                    .arm(side, ARM_Y, Mth.lerp(in, p.arm(side, ARM_Y), .45f - .95f * down))
+                    .arm(side, ELBOW, Mth.lerp(in, p.arm(side, ELBOW), 1.4f - 1.1f * down))
+                    .arm(side, WRIST_Z, Mth.lerp(in, p.arm(side, WRIST_Z), -.4f + .9f * down))
+                    .arm(side, WRIST_X, Mth.lerp(in, p.arm(side, WRIST_X), -.4f + .5f * down))
+                    .arm(side, CURL, Mth.lerp(in, p.arm(side, CURL), 0));
+            rock += (side == 0 ? -1 : 1) * down;
         }
-        // The feet: a quick shuffle on the balls of the feet.
-        float step = Mth.sin(t * .8f);
-        p.legAdd(0, LEG_X, .1f * step * in).legAdd(1, LEG_X, -.1f * step * in).legAdd(0, ANKLE, .2f * in).legAdd(1, ANKLE, .2f * in);
+        // The body rocks after the striking hand.
+        p.add(CHEST_YAW, -.5f * rock * in).add(SPINE_YAW, -.15f * rock * in).add(PELVIS_YAW, -.12f * rock * in).add(CHEST_ROLL, .12f * rock * in)
+                .add(HEAD_YAW, .45f * rock * in).add(SHIFT_X, .5f * rock * in);
+        // The feet: stamping forward, one then the other.
+        float step = Mth.sin(t * Mth.TWO_PI / cycle);
+        p.leg(0, LEG_X, Mth.lerp(in, p.leg(0, LEG_X), .35f + .12f * step)).leg(1, LEG_X, Mth.lerp(in, p.leg(1, LEG_X), -.4f + .12f * step))
+                .legAdd(0, KNEE, (.3f + .15f * Math.max(0, step)) * in).legAdd(1, KNEE, (.4f + .15f * Math.max(0, -step)) * in)
+                .leg(0, LEG_Z, Mth.lerp(in, p.leg(0, LEG_Z), .18f)).leg(1, LEG_Z, Mth.lerp(in, p.leg(1, LEG_Z), .15f))
+                .legAdd(0, ANKLE, .25f * in).legAdd(1, ANKLE, .25f * in);
         return p;
+    }
+    /**
+     * The crouch (SHIFT held): down low like a cat about to spring, hips back, the back long, the head up,
+     * the claws near the ground; it sinks a little more as the camouflage gathers.
+     */
+    static Pose crouch(Pose base, float t, float time) {
+        Pose p = base.copy();
+        float in = k(t, 0, 3), charge = clamp(t / CAMO_CHARGE);
+        p.set(CROUCH, (6.6f + .8f * charge) * in + base.get(CROUCH) * (1 - in)).add(SPINE_PITCH, .55f * in).add(CHEST_PITCH, .12f * in)
+                .add(PELVIS_PITCH, .15f * in).add(HEAD_PITCH, -.75f * in).add(NECK, .5f * in).set(PELVIS_YAW, -.1f).set(CHEST_YAW, .05f);
+        p.leg(0, LEG_X, Mth.lerp(in, p.leg(0, LEG_X), .25f)).leg(0, LEG_Z, Mth.lerp(in, p.leg(0, LEG_Z), .22f))
+                .leg(1, LEG_X, Mth.lerp(in, p.leg(1, LEG_X), -.2f)).leg(1, LEG_Z, Mth.lerp(in, p.leg(1, LEG_Z), .2f));
+        for (int side = 0; side < 2; side++)
+            p.arm(side, SH_FWD, Mth.lerp(in, p.arm(side, SH_FWD), 1f)).arm(side, ARM_X, Mth.lerp(in, p.arm(side, ARM_X), side == 0 ? -.5f : -.7f))
+                    .arm(side, ARM_Z, Mth.lerp(in, p.arm(side, ARM_Z), .3f)).arm(side, ELBOW, Mth.lerp(in, p.arm(side, ELBOW), .6f))
+                    .arm(side, CURL, Mth.lerp(in, p.arm(side, CURL), .3f)).arm(side, WRIST_X, Mth.lerp(in, p.arm(side, WRIST_X), -.4f));
+        // Slow, deep breaths while he waits.
+        p.add(CHEST_PITCH, -.025f * Mth.sin(time * .08f) * in);
+        return p;
+    }
+
+    // ------------------------------------------------------------------ right click: the marked dash
+    /** The dash: leaning hard into it, a long low stride, both arms crossed in an X in front of the chest, claws out. */
+    static Pose dash(Pose base, float t) {
+        Pose p = base.copy();
+        float in = snap(t, 0, 1.2f);
+        p.set(ROOT_PITCH, .5f * in).set(CROUCH, 2.2f * in).set(PLANT, 1 - .7f * in).set(SPINE_PITCH, .12f).set(CHEST_PITCH, .05f)
+                .set(HEAD_PITCH, -.55f * in).set(PELVIS_YAW, 0).set(CHEST_YAW, 0).set(SHIFT_X, 0);
+        for (int side = 0; side < 2; side++)
+            p.arm(side, SH_FWD, 1.4f).arm(side, ARM_X, -1.35f).arm(side, ARM_Z, -.75f).arm(side, ARM_Y, -.3f).arm(side, ELBOW, 1.25f)
+                    .arm(side, WRIST_X, .2f).arm(side, CURL, 0);
+        float stride = Mth.sin(t * 1.4f) * .15f;
+        p.leg(0, LEG_X, .7f + stride).leg(0, KNEE, .25f).leg(0, ANKLE, .75f).leg(1, LEG_X, -.65f - stride).leg(1, KNEE, .75f).leg(1, ANKLE, .2f);
+        return p;
+    }
+    /**
+     * The cross: out of the X the claws are thrown open outward and up on two diagonals, the chest bursting
+     * forward through the gap; he skids to a stop in a long lunge, holds it a beat, and straightens.
+     */
+    static Track cross(Pose base) {
+        Pose x = base.copy(), open = base.copy(), hold = base.copy();
+        x.set(ROOT_PITCH, .4f).add(CROUCH, 2.2f).set(PLANT, .5f).set(HEAD_PITCH, -.5f);
+        for (int side = 0; side < 2; side++)
+            x.arm(side, SH_FWD, 1.5f).arm(side, ARM_X, -1.4f).arm(side, ARM_Z, -.8f).arm(side, ARM_Y, -.3f).arm(side, ELBOW, 1.2f).arm(side, CURL, 0);
+        x.leg(0, LEG_X, .6f).leg(0, KNEE, .3f).leg(1, LEG_X, -.6f).leg(1, KNEE, .7f);
+        open.set(ROOT_PITCH, .1f).add(CROUCH, 3.2f).set(PLANT, 1).add(SPINE_PITCH, .12f).add(CHEST_PITCH, -.25f).add(HEAD_PITCH, -.3f);
+        for (int side = 0; side < 2; side++)
+            open.arm(side, SH_FWD, -.8f).arm(side, SH_UP, .8f).arm(side, ARM_X, -1.65f).arm(side, ARM_Z, 1.45f).arm(side, ARM_Y, .5f).arm(side, ELBOW, .1f)
+                    .arm(side, WRIST_X, -.5f).arm(side, CURL, 0);
+        open.leg(1, LEG_X, -.72f).leg(1, KNEE, .9f).leg(0, LEG_X, .7f).leg(0, KNEE, .3f).leg(0, ANKLE, .3f);
+        hold.add(CROUCH, 2.6f).add(SPINE_PITCH, .1f).add(CHEST_PITCH, -.12f);
+        for (int side = 0; side < 2; side++)
+            hold.arm(side, ARM_X, -1.2f).arm(side, ARM_Z, 1.2f).arm(side, ARM_Y, .35f).arm(side, ELBOW, .35f).arm(side, CURL, .1f);
+        hold.leg(1, LEG_X, -.6f).leg(1, KNEE, .75f).leg(0, LEG_X, .6f);
+        return new Track().key(0, x).key(1.6f, open).key(5f, hold).key(CROSS_TICKS + 2f, base);
     }
 
     // ------------------------------------------------------------------ SHIFT: the pounce
@@ -555,45 +654,52 @@ public final class PantherMotion {
     static Track dodge(Pose base, int type, float threatYaw) {
         float face = Mth.clamp(threatYaw * Mth.DEG_TO_RAD, -1.3f, 1.3f);
         Pose prep = base.copy(), slip = base.copy(), hold = base.copy(), back = base.copy();
-        prep.add(CROUCH, .8f);
+        prep.add(CROUCH, 1f);
         switch (type) {
             case DODGE_LEFT, DODGE_RIGHT -> {
+                // A deep slip to the side, bending away like a reed; the near forearm sweeps out to parry, the far one guards the face.
                 int s = type == DODGE_LEFT ? 1 : -1;     // +1: he goes to his left
-                slip.add(SPINE_ROLL, .5f * s).add(CHEST_ROLL, .22f * s).add(HEAD_ROLL, .25f * s).add(SHIFT_X, 2.6f * s).add(CROUCH, 2.6f)
-                        .add(SPINE_PITCH, .1f);
                 int near = s > 0 ? 1 : 0, far = 1 - near;
-                slip.leg(near, LEG_Z, .5f).leg(near, KNEE, .55f).leg(far, LEG_Z, -.05f).leg(far, KNEE, .2f).leg(far, ANKLE, .5f)
-                        .arm(far, ARM_X, -1.2f).arm(far, ELBOW, 1.6f).arm(far, ARM_Z, -.1f).arm(far, SH_FWD, 1.2f)
-                        .arm(near, ARM_Z, .9f).arm(near, ARM_X, -.3f).arm(near, ELBOW, .6f);
-                hold.add(SPINE_ROLL, .25f * s).add(SHIFT_X, 1.6f * s).add(CROUCH, 1.8f).leg(near, LEG_Z, .35f).leg(near, KNEE, .4f);
+                slip.add(SPINE_ROLL, .72f * s).add(CHEST_ROLL, .3f * s).add(HEAD_ROLL, .3f * s).add(SHIFT_X, 3.4f * s).add(CROUCH, 3.6f)
+                        .add(SPINE_PITCH, .12f).add(CHEST_YAW, -.2f * s);
+                slip.leg(near, LEG_Z, .65f).leg(near, KNEE, .75f).leg(far, LEG_Z, .08f).leg(far, KNEE, .05f).leg(far, ANKLE, .6f)
+                        .arm(far, SH_FWD, 1.3f).arm(far, ARM_X, -1.6f).arm(far, ARM_Z, -.25f).arm(far, ELBOW, 1.9f).arm(far, CURL, .1f)
+                        .arm(near, ARM_X, -1.1f).arm(near, ARM_Z, 1.1f).arm(near, ARM_Y, .5f).arm(near, ELBOW, .35f).arm(near, WRIST_X, -.4f).arm(near, CURL, 0);
+                hold.add(SPINE_ROLL, .35f * s).add(SHIFT_X, 2.2f * s).add(CROUCH, 2.6f).leg(near, LEG_Z, .45f).leg(near, KNEE, .5f);
             }
             case DODGE_BACK -> {
-                slip.add(SPINE_PITCH, -.42f).add(CHEST_PITCH, -.2f).add(HEAD_PITCH, .25f).add(SHIFT_Z, 2.2f).add(CROUCH, 1.4f)
-                        .leg(0, LEG_X, .6f).leg(0, KNEE, .55f).leg(1, LEG_X, -.4f).leg(1, KNEE, .2f).leg(1, ANKLE, -.25f);
-                for (int side = 0; side < 2; side++) slip.arm(side, ARM_X, -1.15f).arm(side, ELBOW, 1.5f).arm(side, ARM_Z, .1f).arm(side, SH_FWD, .4f);
-                hold.add(SPINE_PITCH, -.15f).add(SHIFT_Z, 1.2f).add(CROUCH, 1.2f).leg(0, LEG_X, .45f);
+                // Bent right back under it, knees forward, arms out for balance, the chest and face away from the blow.
+                slip.add(SPINE_PITCH, -.7f).add(CHEST_PITCH, -.32f).add(HEAD_PITCH, .4f).add(ROOT_PITCH, -.12f).add(SHIFT_Z, 2.6f).add(CROUCH, 2.8f);
+                for (int side = 0; side < 2; side++)
+                    slip.leg(side, LEG_X, -.35f).leg(side, KNEE, .95f).leg(side, ANKLE, -.2f).arm(side, ARM_X, -.5f).arm(side, ARM_Z, 1.15f).arm(side, ELBOW, .4f).arm(side, CURL, .1f);
+                hold.add(SPINE_PITCH, -.25f).add(SHIFT_Z, 1.4f).add(CROUCH, 1.8f);
             }
             case DODGE_CROUCH -> {
-                slip.add(CROUCH, 7f).add(SPINE_PITCH, .62f).add(CHEST_PITCH, .2f).add(HEAD_PITCH, .15f)
-                        .leg(0, LEG_Z, .35f).leg(1, LEG_Z, .3f).leg(0, KNEE, .3f).leg(1, KNEE, .3f);
-                for (int side = 0; side < 2; side++) slip.arm(side, ARM_X, -1.35f).arm(side, ELBOW, 1.25f).arm(side, ARM_Z, .5f).arm(side, CURL, .2f);
-                hold.add(CROUCH, 5f).add(SPINE_PITCH, .45f);
+                // Ducked under it, low as he goes, both forearms crossed over the head in an X.
+                slip.add(CROUCH, 8.2f).add(SPINE_PITCH, .78f).add(CHEST_PITCH, .2f).add(HEAD_PITCH, .2f)
+                        .leg(0, LEG_Z, .38f).leg(1, LEG_Z, .32f);
+                for (int side = 0; side < 2; side++)
+                    slip.arm(side, SH_FWD, .6f).arm(side, ARM_X, -2.65f).arm(side, ARM_Z, -.35f).arm(side, ELBOW, 1.2f).arm(side, WRIST_X, .3f).arm(side, CURL, .1f);
+                hold.add(CROUCH, 6f).add(SPINE_PITCH, .55f);
+                for (int side = 0; side < 2; side++) hold.arm(side, ARM_X, -2.0f).arm(side, ELBOW, 1.4f);
             }
             default -> {
+                // A pivot: the body spins a quarter away from the blow and back, low, a forearm across.
                 int s = type == DODGE_BACK_LEFT ? 1 : -1;
-                slip.add(SPINE_PITCH, -.25f).add(SPINE_ROLL, .35f * s).add(SHIFT_Z, 1.6f).add(SHIFT_X, 1.8f * s).add(CROUCH, 2f).add(HEAD_ROLL, .2f * s);
                 int near = s > 0 ? 1 : 0, far = 1 - near;
-                slip.leg(near, LEG_X, .4f).leg(near, LEG_Z, .4f).leg(near, KNEE, .5f).leg(far, ANKLE, .4f)
-                        .arm(far, ARM_X, -1.2f).arm(far, ELBOW, 1.5f).arm(far, SH_FWD, 1f).arm(near, ARM_Z, .8f);
-                hold.add(SPINE_ROLL, .15f * s).add(SHIFT_Z, 1f).add(SHIFT_X, 1f * s).add(CROUCH, 1.5f);
+                slip.add(ROOT_YAW, -.95f * s).add(SPINE_ROLL, .35f * s).add(SPINE_PITCH, .2f).add(SHIFT_Z, 1.8f).add(SHIFT_X, 2f * s).add(CROUCH, 3f);
+                slip.leg(near, LEG_X, .45f).leg(near, LEG_Z, .45f).leg(near, KNEE, .6f).leg(far, ANKLE, .5f)
+                        .arm(far, SH_FWD, 1.2f).arm(far, ARM_X, -1.5f).arm(far, ELBOW, 1.8f).arm(far, ARM_Z, -.2f)
+                        .arm(near, ARM_Z, 1.0f).arm(near, ARM_X, -.6f).arm(near, ELBOW, .5f);
+                hold.add(ROOT_YAW, -.3f * s).add(SPINE_ROLL, .15f * s).add(SHIFT_Z, 1f).add(SHIFT_X, 1f * s).add(CROUCH, 2f);
             }
         }
         // Square back up to the attacker: the pelvis first, then the chest, the head leading.
         prep.add(HEAD_YAW, face * .5f);
-        slip.add(PELVIS_YAW, face * .3f).add(CHEST_YAW, face * .3f).add(HEAD_YAW, face * .35f).set(EYES, .5f);
+        slip.add(PELVIS_YAW, face * .3f).add(CHEST_YAW, face * .3f).add(HEAD_YAW, face * .35f).set(EYES, .55f);
         hold.add(PELVIS_YAW, face * .45f).add(CHEST_YAW, face * .35f).add(HEAD_YAW, face * .2f);
-        back.add(PELVIS_YAW, face * .3f).add(CHEST_YAW, face * .2f).add(HEAD_YAW, face * .1f).add(CROUCH, .6f);
-        return new Track().key(0, base).key(.7f, prep).key(2.1f, slip).key(3.6f, hold).key(DODGE_TICKS + 2, back);
+        back.add(PELVIS_YAW, face * .3f).add(CHEST_YAW, face * .2f).add(HEAD_YAW, face * .1f);
+        return new Track().key(0, base).key(.6f, prep).key(2.2f, slip).key(4.2f, hold).key(DODGE_TICKS + 2.5f, back);
     }
 
     // ------------------------------------------------------------------ hit reactions (layered on top)

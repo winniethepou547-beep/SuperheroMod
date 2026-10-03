@@ -55,6 +55,10 @@ public final class PantherController {
         final int[] cooldowns = new int[COOLDOWNS];
         /** The claw combo: which strike comes next, a click waiting, when the last strike ended, the button held. */
         int combo; boolean queued, held; long lastStrike, heldSince;
+        /** SHIFT: still down (a tap pounces, a hold crouches); the camouflage's ticks left; the second jump used. */
+        boolean shiftHeld, jumped; int camoLeft;
+        /** Who his strikes have marked, and until when (level time). */
+        final Map<Integer, Long> marks = new HashMap<>();
         /** The stored kinetic energy, and how much went into the release on its way out. */
         float energy, released;
         int reflexLeft, dodges; long lastDodge = -100;
@@ -92,7 +96,7 @@ public final class PantherController {
     /** In the middle of a move that nothing else may start over. */
     private static boolean busy(State s) {
         return critical(s.action) || s.action == POUNCE_LOAD || s.action == POUNCE_LAND || s.action == POUNCE_MISS || s.action == SPIN_LAND
-                || s.action == RELEASE_RECOVER;
+                || s.action == RELEASE_RECOVER || s.action == CROSS || s.action == SNEAK;
     }
     private static void sprint(ServerPlayer p, boolean on) {
         var speed = p.getAttribute(Attributes.MOVEMENT_SPEED);
@@ -115,9 +119,10 @@ public final class PantherController {
             if (down) claw(p, s);
             return;
         }
+        if (slot == AbilitySlot.SHIFT) { if (down) shiftDown(p, s); else shiftUp(p, s); return; }
         if (!down) return;
         switch (slot) {
-            case SHIFT -> pounce(p, s);
+            case RMB -> dash(p, s);
             case ULTIMATE -> spin(p, s);
             case SKILL_V -> release(p, s);
             case SKILL_E -> reflex(p, s);
@@ -126,27 +131,40 @@ public final class PantherController {
         }
     }
 
+    /** What his own client reports: the second jump in the air. */
+    public static void input(ServerPlayer p, int kind) {
+        if (!isHero(p) || kind != INPUT_DOUBLE_JUMP) return;
+        State s = state(p);
+        if (s.jumped || p.onGround() || busy(s) && s.action != POUNCE_MISS) return;
+        s.jumped = true;
+        p.fallDistance = 0;
+        ModNetworking.CHANNEL.send(PacketDistributor.TRACKING_ENTITY.with(() -> p), new PantherFxPacket(FX_DOUBLE_JUMP, p.position(), Vec3.ZERO, 1, p.getId()));
+        sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, .35f, 1.5f);
+        sound(p, SoundEvents.WOOL_STEP, .7f, .7f);
+    }
+
     // ------------------------------------------------------------------ left click: the claws and the frenzy
     private static int chainAt(int action) { return action == CLAW_DOUBLE ? DOUBLE_CHAIN : action == CLAW_UPPER ? UPPER_CHAIN : CLAW_CHAIN; }
     private static int hitAt(int action) { return action == CLAW_DOUBLE ? DOUBLE_HIT : action == CLAW_UPPER ? UPPER_HIT : CLAW_HIT; }
     private static void claw(ServerPlayer p, State s) {
         if (busy(s) || s.action == FRENZY) return;
         // Mid-strike: remember the click; the next strike flows out of this one's follow-through.
-        if (clawing(s.action) && s.age < chainAt(s.action)) { s.queued = true; return; }
+        if (combo(s.action) && s.age < chainAt(s.action)) { s.queued = true; return; }
         nextStrike(p, s);
+    }
+    /** The button held: the berserk frenzy, straight out of whatever strike he is in. */
+    private static void frenzy(ServerPlayer p, State s) {
+        set(s, FRENZY);
+        s.flags = 0;
+        s.queued = false;
+        s.lastCombat = p.level().getGameTime();
+        sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, .6f, 1.9f);
+        sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, .5f, 1.4f);
     }
     private static void nextStrike(ServerPlayer p, State s) {
         s.queued = false;
         long now = p.level().getGameTime();
-        if (!clawing(s.action) && now - s.lastStrike > COMBO_RESET) s.combo = 0;
-        // Held through the whole combo with someone close: the frenzy.
-        // (Held, not clicked: the button has been down since well before the uppercut came round.)
-        if (s.combo == 0 && s.action == CLAW_UPPER && s.held && now - s.heldSince >= UPPER_CHAIN && s.cooldowns[CD_FRENZY] <= 0 && frenzyTarget(p) != null) {
-            set(s, FRENZY);
-            s.flags = 0;
-            sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, .6f, 1.9f);
-            return;
-        }
+        if (!combo(s.action) && now - s.lastStrike > COMBO_RESET) s.combo = 0;
         int step = s.combo;
         s.combo = (step + 1) % 4;
         set(s, step == 0 ? CLAW_RIGHT : step == 1 ? CLAW_LEFT : step == 2 ? CLAW_DOUBLE : CLAW_UPPER);
@@ -155,91 +173,153 @@ public final class PantherController {
         float[] pitch = {1.9f, 1.7f, 1.35f, 1.1f};
         hand(p, step == 1 ? 1 : step == 0 ? -1 : 0, SoundEvents.PLAYER_ATTACK_SWEEP, step >= 2 ? .6f : .4f, pitch[step] + (p.getRandom().nextFloat() - .5f) * .1f);
     }
-    private static LivingEntity frenzyTarget(ServerPlayer p) {
-        double range = PantherConfig.FRENZY_RANGE.get();
-        Vec3 look = p.getLookAngle(), eye = p.getEyePosition();
-        LivingEntity best = null;
-        double bestDist = Double.MAX_VALUE;
-        for (LivingEntity t : targets(p, p.getBoundingBox().inflate(range + 1))) {
-            Vec3 to = t.getBoundingBox().getCenter().subtract(eye);
-            double d = to.length();
-            if (d > range + t.getBbWidth() * .5 || to.normalize().dot(look) < .45) continue;
-            if (d < bestDist) { bestDist = d; best = t; }
+    /**
+     * Everyone in the area in front of him a strike sweeps: within reach on the flat, inside the arc either side
+     * of where he faces (not where the crosshair is), from his knees to over his head.
+     */
+    private static List<LivingEntity> area(ServerPlayer p, double reach, double arcDegrees) {
+        Vec3 facing = Vec3.directionFromRotation(0, p.getYRot());
+        double cos = Math.cos(Math.toRadians(arcDegrees));
+        List<LivingEntity> out = new ArrayList<>();
+        for (LivingEntity t : targets(p, p.getBoundingBox().inflate(reach + 1, 1.5, reach + 1))) {
+            Vec3 to = t.position().subtract(p.position());
+            Vec3 flat = new Vec3(to.x, 0, to.z);
+            double d = flat.length();
+            if (d > reach + t.getBbWidth() * .5) continue;
+            if (d > .4 && flat.normalize().dot(facing) < cos) continue;
+            if (t.getBoundingBox().maxY < p.getY() - .6 || t.getBoundingBox().minY > p.getY() + 2.9) continue;
+            out.add(t);
         }
-        return best;
-    }
-    /** Who a claw strike lands on: the nearest body in front of him within reach. */
-    private static LivingEntity clawTarget(ServerPlayer p, double reach, double cone) {
-        Vec3 look = p.getLookAngle(), eye = p.getEyePosition();
-        LivingEntity best = null;
-        double bestDist = Double.MAX_VALUE;
-        for (LivingEntity t : targets(p, p.getBoundingBox().inflate(reach + 1))) {
-            Vec3 to = t.getBoundingBox().getCenter().subtract(eye);
-            double d = to.length();
-            if (d > reach + t.getBbWidth() * .5 || to.normalize().dot(look) < cone) continue;
-            if (d < bestDist) { bestDist = d; best = t; }
-        }
-        return best;
+        return out;
     }
     private static void clawHit(ServerPlayer p, State s) {
         int a = s.action;
-        LivingEntity t = clawTarget(p, PantherConfig.CLAW_REACH.get(), a == CLAW_DOUBLE ? .45 : .55);
-        if (t == null) return;
+        double arc = PantherConfig.CLAW_ARC.get() * (a == CLAW_DOUBLE ? 1.2 : a == CLAW_UPPER ? .85 : 1);
+        List<LivingEntity> hit = area(p, PantherConfig.CLAW_REACH.get(), arc);
+        if (hit.isEmpty()) return;
         float damage = a == CLAW_DOUBLE ? f(PantherConfig.DOUBLE_DAMAGE) : a == CLAW_UPPER ? f(PantherConfig.UPPER_DAMAGE) : f(PantherConfig.CLAW_DAMAGE);
-        hurt(p, t, damage);
-        Vec3 look = p.getLookAngle(), flat = new Vec3(look.x, 0, look.z).normalize();
-        Vec3 at = t.getBoundingBox().getCenter();
+        Vec3 look = p.getLookAngle(), flat = Vec3.directionFromRotation(0, p.getYRot());
         float knock = f(PantherConfig.CLAW_KNOCK);
-        if (a == CLAW_UPPER) {
-            // Lifted off their feet by the upward claws.
-            t.setDeltaMovement(flat.x * knock * .6, f(PantherConfig.UPPER_LIFT), flat.z * knock * .6);
-            t.hurtMarked = true;
-            fx(p, FX_UPPER, at, flat, 1, t.getId());
-            sound(p, SoundEvents.PLAYER_ATTACK_KNOCKBACK, .9f, 1.15f);
-            sound(p, SoundEvents.PLAYER_ATTACK_CRIT, .8f, 1.3f);
-        } else {
-            // Pushed a little the way the claws went (across for the singles, straight back for the double).
-            Vec3 across = new Vec3(-flat.z, 0, flat.x).scale(a == CLAW_RIGHT ? -.35 : a == CLAW_LEFT ? .35 : 0);
-            Vec3 push = flat.add(across).normalize().scale(knock * (a == CLAW_DOUBLE ? 1.6 : 1));
-            t.push(push.x, .05, push.z);
-            t.hurtMarked = true;
-            fx(p, FX_CLAW_HIT, at, look, a == CLAW_DOUBLE ? 2 : a == CLAW_RIGHT ? 1 : -1, t.getId());
-            sound(p, SoundEvents.PLAYER_ATTACK_STRONG, .7f, a == CLAW_DOUBLE ? 1.1f : 1.4f);
+        for (LivingEntity t : hit) {
+            hurt(p, t, damage);
+            Vec3 at = t.getBoundingBox().getCenter();
+            if (a == CLAW_UPPER) {
+                // Lifted off their feet by the upward claws.
+                t.setDeltaMovement(flat.x * knock * .6, f(PantherConfig.UPPER_LIFT), flat.z * knock * .6);
+                t.hurtMarked = true;
+                fx(p, FX_UPPER, at, flat, 1, t.getId());
+            } else {
+                // Pushed a little the way the claws went (across for the singles, straight back for the double).
+                Vec3 across = new Vec3(-flat.z, 0, flat.x).scale(a == CLAW_RIGHT ? -.35 : a == CLAW_LEFT ? .35 : 0);
+                Vec3 push = flat.add(across).normalize().scale(knock * (a == CLAW_DOUBLE ? 1.6 : 1));
+                t.push(push.x, .05, push.z);
+                t.hurtMarked = true;
+                fx(p, FX_CLAW_HIT, at, look, a == CLAW_DOUBLE ? 2 : a == CLAW_RIGHT ? 1 : -1, t.getId());
+            }
+            // The claws themselves: a bright metallic bite.
+            p.level().playSound(null, at.x, at.y, at.z, SoundEvents.TRIDENT_HIT, SoundSource.PLAYERS, .45f, a == CLAW_DOUBLE ? 1.5f : 1.85f);
         }
-        // The claws themselves: a bright metallic bite.
-        p.level().playSound(null, at.x, at.y, at.z, SoundEvents.TRIDENT_HIT, SoundSource.PLAYERS, .45f, a == CLAW_DOUBLE ? 1.5f : 1.85f);
+        if (a == CLAW_UPPER) { sound(p, SoundEvents.PLAYER_ATTACK_KNOCKBACK, .9f, 1.15f); sound(p, SoundEvents.PLAYER_ATTACK_CRIT, .8f, 1.3f); }
+        else sound(p, SoundEvents.PLAYER_ATTACK_STRONG, .7f, a == CLAW_DOUBLE ? 1.1f : 1.4f);
         s.lastCombat = p.level().getGameTime();
     }
+    /** The berserk frenzy: a wild slash every FRENZY_STRIKE ticks, hands alternating, everything in front of him cut. */
     private static void frenzyTick(ServerPlayer p, State s) {
         int strike = s.age / FRENZY_STRIKE, phase = s.age % FRENZY_STRIKE;
         s.flags = strike % 2;
-        LivingEntity t = frenzyTarget(p);
-        // It ends when he lets go, when nobody is close any more, or when he runs out of breath.
-        if (!s.held || t == null || s.age >= FRENZY_MAX) {
+        // It ends when he lets go, or when he runs out of breath.
+        if (!s.held || s.age >= FRENZY_MAX) {
             s.cooldowns[CD_FRENZY] = PantherConfig.FRENZY_COOLDOWN.get();
             s.combo = 0; s.lastStrike = p.level().getGameTime();
             set(s, IDLE);
             return;
         }
-        s.target = t;
-        if (phase == 0) hand(p, s.flags == 0 ? -1 : 1, SoundEvents.PLAYER_ATTACK_SWEEP, .3f, 1.75f + .25f * Math.min(1, s.age / 30f) + p.getRandom().nextFloat() * .1f);
+        if (phase == 0) hand(p, s.flags == 0 ? -1 : 1, SoundEvents.PLAYER_ATTACK_SWEEP, .35f, 1.6f + .3f * Math.min(1, s.age / 30f) + p.getRandom().nextFloat() * .15f);
         if (phase == FRENZY_HIT) {
-            hurt(p, t, f(PantherConfig.FRENZY_DAMAGE));
-            t.setDeltaMovement(t.getDeltaMovement().multiply(.3, 1, .3));
-            t.hurtMarked = true;
-            t.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 8, 2, false, false));
-            Vec3 at = t.getBoundingBox().getCenter();
-            fx(p, FX_CLAW_HIT, at, p.getLookAngle(), s.flags == 0 ? 1.5f : -1.5f, t.getId());
-            p.level().playSound(null, at.x, at.y, at.z, SoundEvents.TRIDENT_HIT, SoundSource.PLAYERS, .3f, 1.7f + p.getRandom().nextFloat() * .3f);
+            for (LivingEntity t : area(p, PantherConfig.FRENZY_RANGE.get(), PantherConfig.CLAW_ARC.get() * 1.1)) {
+                hurt(p, t, f(PantherConfig.FRENZY_DAMAGE));
+                t.setDeltaMovement(t.getDeltaMovement().multiply(.3, 1, .3));
+                t.hurtMarked = true;
+                t.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 8, 2, false, false));
+                Vec3 at = t.getBoundingBox().getCenter();
+                fx(p, FX_CLAW_HIT, at, p.getLookAngle(), s.flags == 0 ? 1.5f : -1.5f, t.getId());
+                p.level().playSound(null, at.x, at.y, at.z, SoundEvents.TRIDENT_HIT, SoundSource.PLAYERS, .3f, 1.7f + p.getRandom().nextFloat() * .3f);
+                s.target = t;
+            }
             s.lastCombat = p.level().getGameTime();
         }
     }
 
-    // ------------------------------------------------------------------ SHIFT: Panther Pounce
-    private static void pounce(ServerPlayer p, State s) {
-        if (busy(s) || !ready(p, s, CD_POUNCE, "Panter Atılışı")) return;
-        s.cooldowns[CD_POUNCE] = PantherConfig.POUNCE_COOLDOWN.get();
+    // ------------------------------------------------------------------ right click: the marked dash
+    private static void dash(ServerPlayer p, State s) {
+        if (busy(s) && s.action != SNEAK) return;
+        long now = p.level().getGameTime();
+        // The marked target he is looking most toward (in reach, in sight).
+        LivingEntity best = null;
+        double bestScore = -9, range = PantherConfig.DASH_RANGE.get();
+        Vec3 eye = p.getEyePosition(), look = p.getLookAngle();
+        for (var mark : s.marks.entrySet()) {
+            if (mark.getValue() <= now || !(p.level().getEntity(mark.getKey()) instanceof LivingEntity t) || !t.isAlive()) continue;
+            Vec3 to = t.getBoundingBox().getCenter().subtract(eye);
+            double d = to.length();
+            if (d > range) continue;
+            if (p.level().clip(new ClipContext(eye, t.getEyePosition(), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, p)).getType() != HitResult.Type.MISS) continue;
+            double score = to.normalize().dot(look) * 2 - d / range;
+            if (score > bestScore) { bestScore = score; best = t; }
+        }
+        if (best == null) { tell(p, "Pençe Atılışı: işaretli hedef yok (önce vurarak işaretle)"); return; }
+        if (!ready(p, s, CD_DASH, "Pençe Atılışı")) return;
+        s.cooldowns[CD_DASH] = PantherConfig.DASH_COOLDOWN.get();
+        s.target = best;
         s.from = p.position();
+        Vec3 d = best.position().subtract(s.from);
+        Vec3 flat = new Vec3(d.x, 0, d.z);
+        s.dir = flat.lengthSqr() < 1e-4 ? Vec3.directionFromRotation(0, p.getYRot()) : flat.normalize();
+        Vec3 stop = best.position().subtract(s.dir.scale(best.getBbWidth() * .5 + .75));
+        s.to = ground(p.serverLevel(), new Vec3(stop.x, Math.max(stop.y, s.from.y) + .5, stop.z));
+        s.reach = s.from.distanceTo(s.to);
+        set(s, DASH);
+        s.lastCombat = now;
+        fx(p, FX_DASH, s.from, s.dir, 1, p.getId());
+        sound(p, SoundEvents.TRIDENT_RIPTIDE_1, .7f, 1.8f);
+        sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, .6f, 1.2f);
+    }
+    /** He arrives: the crossed claws thrown open outward through the target (and anyone right beside them). */
+    private static void crossHit(ServerPlayer p, State s) {
+        LivingEntity main = s.target;
+        boolean any = false;
+        for (LivingEntity t : area(p, PantherConfig.CLAW_REACH.get() + .4, 95)) {
+            boolean marked = t == main;
+            hurt(p, t, marked ? f(PantherConfig.DASH_DAMAGE) : f(PantherConfig.DASH_DAMAGE) * .5f);
+            Vec3 out = new Vec3(t.getX() - p.getX(), 0, t.getZ() - p.getZ());
+            out = out.lengthSqr() < 1e-4 ? s.dir : out.normalize();
+            t.setDeltaMovement(out.x * .55, .22, out.z * .55);
+            t.hurtMarked = true;
+            fx(p, FX_CLAW_HIT, t.getBoundingBox().getCenter(), out, 2, t.getId());
+            any = true;
+        }
+        // The dash spends the mark it went for.
+        if (main != null) s.marks.remove(main.getId());
+        fx(p, FX_CROSS, p.position().add(0, 1.1, 0), s.dir, any ? 1 : .6f, p.getId());
+        sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, 1f, .9f);
+        if (any) { sound(p, SoundEvents.PLAYER_ATTACK_CRIT, 1f, 1.1f); sound(p, SoundEvents.TRIDENT_HIT, .8f, 1.3f); }
+    }
+
+    // ------------------------------------------------------------------ marks
+    /** His strike leaves the purple claw scratch on them, renewed with every hit. */
+    private static void mark(ServerPlayer p, LivingEntity t) {
+        State s = STATES.get(p.getUUID());
+        if (s == null || !t.isAlive()) return;
+        s.marks.put(t.getId(), p.level().getGameTime() + MARK_TICKS);
+        fx(p, FX_MARK, t.position(), Vec3.ZERO, MARK_TICKS, t.getId());
+    }
+
+    // ------------------------------------------------------------------ SHIFT: Panther Pounce
+    /** SHIFT down: the load (a blink of compression that is also the start of a crouch). */
+    private static void shiftDown(ServerPlayer p, State s) {
+        s.shiftHeld = true;
+        if (busy(s)) return;
+        if (s.cooldowns[CD_POUNCE] > 0) { set(s, SNEAK); return; }
         Vec3 look = p.getLookAngle();
         Vec3 flat = new Vec3(look.x, 0, look.z);
         s.dir = flat.lengthSqr() < 1e-4 ? Vec3.directionFromRotation(0, p.getYRot()) : flat.normalize();
@@ -247,6 +327,38 @@ public final class PantherController {
         s.target = null;
         set(s, POUNCE_LOAD);
         s.lastCombat = p.level().getGameTime();
+    }
+    /** SHIFT up: a tap launches the pounce; out of a crouch he simply stands. */
+    private static void shiftUp(ServerPlayer p, State s) {
+        s.shiftHeld = false;
+        if (s.action == POUNCE_LOAD && s.age < TAP_TICKS) {
+            s.cooldowns[CD_POUNCE] = PantherConfig.POUNCE_COOLDOWN.get();
+            pounceStart(p, s);
+            fx(p, FX_POUNCE, p.position(), s.dir, 1, p.getId());
+            sound(p, SoundEvents.FIREWORK_ROCKET_LAUNCH, .5f, 1.8f);
+            sound(p, SoundEvents.TRIDENT_RIPTIDE_1, .5f, 1.7f);
+        } else if (s.action == SNEAK || s.action == POUNCE_LOAD) {
+            if (s.action == SNEAK && s.age < TAP_TICKS && s.cooldowns[CD_POUNCE] > 0) ready(p, s, CD_POUNCE, "Panter Atılışı");
+            set(s, IDLE);
+        }
+    }
+    /** The camouflage: the suit bends the light round him; any hit breaks it. */
+    private static void camo(ServerPlayer p, State s, boolean on, boolean broken) {
+        if (on) {
+            s.camoLeft = PantherConfig.CAMO_DURATION.get();
+            p.addEffect(new MobEffectInstance(MobEffects.INVISIBILITY, s.camoLeft + 2, 0, false, false, false));
+            fx(p, FX_CAMO, p.position(), Vec3.ZERO, 1, p.getId());
+            sound(p, SoundEvents.ILLUSIONER_PREPARE_MIRROR, .6f, 1.6f);
+            sound(p, SoundEvents.BEACON_POWER_SELECT, .3f, 1.9f);
+            return;
+        }
+        if (s.camoLeft <= 0) return;
+        s.camoLeft = 0;
+        s.cooldowns[CD_CAMO] = PantherConfig.CAMO_COOLDOWN.get();
+        p.removeEffect(MobEffects.INVISIBILITY);
+        fx(p, FX_CAMO, p.position(), Vec3.ZERO, broken ? -1 : 0, p.getId());
+        if (broken) { sound(p, SoundEvents.ILLUSIONER_MIRROR_MOVE, .8f, 1.4f); sound(p, SoundEvents.AMETHYST_BLOCK_BREAK, .7f, 1.6f); }
+        else sound(p, SoundEvents.ILLUSIONER_MIRROR_MOVE, .5f, .9f);
     }
     /** The leap leaves from where he really is once the load is over (he may have still been running when he pressed). */
     private static void pounceStart(ServerPlayer p, State s) {
@@ -263,7 +375,8 @@ public final class PantherController {
     }
     private static void pounceTick(ServerPlayer p, State s) {
         double speed = PantherConfig.POUNCE_SPEED.get();
-        Vec3 before = PantherPath.pounce(s.from, s.dir, speed, s.reach, s.age - 1), now = PantherPath.pounce(s.from, s.dir, speed, s.reach, s.age);
+        // A little ahead of the server's own clock: his client is already there (it launched on the key, not on this packet).
+        Vec3 before = PantherPath.pounce(s.from, s.dir, speed, s.reach, s.age - 1), now = PantherPath.pounce(s.from, s.dir, speed, s.reach, s.age + 1.2);
         // Anyone the leap passes through: the first along the way is hit.
         AABB sweep = p.getBoundingBox().move(before.subtract(p.position())).minmax(p.getBoundingBox().move(now.subtract(p.position()))).inflate(.35);
         LivingEntity first = null;
@@ -539,7 +652,8 @@ public final class PantherController {
         if (e.phase != TickEvent.Phase.END || !(e.player instanceof ServerPlayer p)) return;
         if (!isHero(p)) {
             sprint(p, false);
-            if (STATES.remove(p.getUUID()) != null) send(p, new State());
+            State gone = STATES.remove(p.getUUID());
+            if (gone != null) { if (gone.camoLeft > 0) p.removeEffect(MobEffects.INVISIBILITY); send(p, new State()); }
             return;
         }
         State s = state(p);
@@ -548,8 +662,30 @@ public final class PantherController {
         sprint(p, p.isSprinting() && !busy(s));
         for (int i = 0; i < s.cooldowns.length; i++) if (s.cooldowns[i] > 0) s.cooldowns[i]--;
         if (s.reflexLeft > 0) s.reflexLeft--;
+        if (p.onGround()) s.jumped = false;
+        if (s.camoLeft > 0 && --s.camoLeft <= 0) { s.camoLeft = 1; camo(p, s, false, false); }
+        if (!s.marks.isEmpty()) { long now = p.level().getGameTime(); s.marks.values().removeIf(t -> t <= now); }
+        // Held long enough: the berserk frenzy, out of any strike or the stance.
+        if (s.held && s.action != FRENZY && (s.action == IDLE || combo(s.action)) && p.level().getGameTime() - s.heldSince >= FRENZY_HOLD
+                && s.cooldowns[CD_FRENZY] <= 0) frenzy(p, s);
         if (s.action != IDLE && s.action != FRENZY && !clawing(s.action)) p.fallDistance = 0;
         switch (s.action) {
+            case SNEAK -> {
+                p.fallDistance = 0;
+                if (!s.shiftHeld) set(s, IDLE);
+                else if (s.age == CAMO_CHARGE && s.camoLeft <= 0) {
+                    if (s.cooldowns[CD_CAMO] <= 0) camo(p, s, true, false);
+                    else ready(p, s, CD_CAMO, "Kamuflaj");
+                }
+            }
+            case DASH -> {
+                p.fallDistance = 0;
+                if (s.age >= DASH_TICKS) { set(s, CROSS); }
+            }
+            case CROSS -> {
+                if (s.age == CROSS_HIT) crossHit(p, s);
+                if (s.age >= CROSS_TICKS) set(s, IDLE);
+            }
             case CLAW_RIGHT, CLAW_LEFT, CLAW_DOUBLE, CLAW_UPPER -> {
                 if (s.age == hitAt(s.action)) clawHit(p, s);
                 // Holding the button is the same as clicking again and again.
@@ -558,8 +694,10 @@ public final class PantherController {
                 else if (s.age >= length(s.action)) { s.lastStrike = p.level().getGameTime(); if (s.action == CLAW_UPPER) s.combo = 0; set(s, IDLE); }
             }
             case FRENZY -> frenzyTick(p, s);
-            case POUNCE_LOAD -> { if (s.age >= LOAD_TICKS) { pounceStart(p, s); fx(p, FX_POUNCE, p.position(), s.dir, 1, p.getId());
-                    sound(p, SoundEvents.FIREWORK_ROCKET_LAUNCH, .5f, 1.8f); sound(p, SoundEvents.TRIDENT_RIPTIDE_1, .5f, 1.7f); } }
+            case POUNCE_LOAD -> {
+                // Still down past a tap: it was never a pounce, he is crouching.
+                if (s.age >= TAP_TICKS) set(s, s.shiftHeld ? SNEAK : IDLE);
+            }
             case POUNCE -> pounceTick(p, s);
             case POUNCE_FLIP -> {
                 if (s.target != null && s.target.isAlive()) hold(s.target);
@@ -593,7 +731,7 @@ public final class PantherController {
             case RELEASE -> { if (s.age >= RELEASE_TICKS) set(s, RELEASE_RECOVER); }
             case RELEASE_RECOVER -> { if (s.age >= RECOVER_TICKS) set(s, IDLE); }
             case DODGE -> { if (s.age >= DODGE_TICKS) set(s, IDLE); }
-            default -> { if (s.held && s.age > 1) claw(p, s); }
+            default -> { if (s.held && s.age > 1 && s.action == IDLE) claw(p, s); }
         }
         // While he is at it, the energy he holds slowly leaks away only after a long quiet.
         if (p.level().getGameTime() - s.lastCombat > 600 && s.energy > 0) s.energy = Math.max(0, s.energy - .05f);
@@ -615,6 +753,8 @@ public final class PantherController {
             State s = state(p);
             float amount = e.getAmount();
             float before = s.energy;
+            // A hit tears the camouflage: it glitches and falls away.
+            if (s.camoLeft > 0) camo(p, s, false, true);
             s.energy = Math.min(f(PantherConfig.ENERGY_MAX), s.energy + amount * f(PantherConfig.ENERGY_PER_DAMAGE));
             s.hurtAge = 0;
             s.hurtPower = amount < 3 ? 0 : amount < 7 ? 1 : 2;
@@ -652,6 +792,7 @@ public final class PantherController {
     private static void hurt(ServerPlayer p, LivingEntity t, float damage) {
         t.invulnerableTime = 0;
         t.hurt(p.damageSources().playerAttack(p), damage);
+        mark(p, t);
     }
     /** The ground under this spot (a few blocks up or down). */
     private static Vec3 ground(ServerLevel level, Vec3 at) {
@@ -672,7 +813,7 @@ public final class PantherController {
         int reflexMax = PantherConfig.REFLEX_DURATION.get();
         ModNetworking.CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> p),
                 new PantherStatePacket(p.getId(), s.action, s.age, s.flags, s.cooldowns.clone(),
-                        Mth.clamp(s.energy / max, 0, 1), power(s), s.reflexLeft / (float) reflexMax, s.reflexLeft,
+                        Mth.clamp(s.energy / max, 0, 1), power(s), s.reflexLeft / (float) reflexMax, s.reflexLeft, s.camoLeft,
                         s.hurtAge, s.hurtPower, s.hurtYaw, s.threatYaw, quiet, target,
                         s.from, s.dir, s.apex, s.to, s.land, (float) s.reach,
                         f(PantherConfig.POUNCE_SPEED), f(PantherConfig.SPIN_HEIGHT)));

@@ -69,8 +69,13 @@ public final class PantherFx {
     private static final Map<Integer, Tumble> TUMBLES = new HashMap<>();
     private static final List<Mote> MOTES = new ArrayList<>();
     private static final Map<Integer, Streamer> STREAMERS = new HashMap<>();
+    /** The purple claw scratches on whoever he marked: entity id to the level time the mark runs out. */
+    private static final Map<Integer, Float> TAGS = new HashMap<>();
+    /** When each Panther last double jumped, and last went into or out of his camouflage ({time, kind}). */
+    private static final Map<Integer, Float> JUMPS = new HashMap<>();
+    private static final Map<Integer, float[]> CAMO = new HashMap<>();
     private static final Set<Integer> TUMBLING_NOW = new HashSet<>();
-    private static final float CLAW_WINDOW = 2.4f, KICK_WINDOW = 3.2f, GHOST_LIFE = 3.2f;
+    private static final float CLAW_WINDOW = 3.2f, KICK_WINDOW = 3.2f, GHOST_LIFE = 3.2f;
 
     private PantherFx() {}
 
@@ -78,6 +83,22 @@ public final class PantherFx {
     private static Random random() { return RANDOM; }
     private static final Random RANDOM = new Random();
     private static float amount() { return PantherConfig.EFFECTS.get().floatValue(); }
+
+    static float hash(float n) { return (float) FilmFx.hash(n); }
+    /** Ticks since this Panther's second jump (or -1). */
+    static float jumpAge(int id, float now) { Float t = JUMPS.get(id); return t == null ? -1 : now - t; }
+    /** His last change into or out of the camouflage: {level time, 1 on / 0 off / -1 torn}, or null. */
+    static float[] camoChange(int id) { return CAMO.get(id); }
+    /** His second jump, on his own client at once (the others hear of it from the server). */
+    static void doubleJump(int id, Vec3 at) {
+        float t = now();
+        JUMPS.put(id, t);
+        BURSTS.add(new Burst(FX_DOUBLE_JUMP, at, Vec3.ZERO, 1, id, t));
+        for (int i = 0; i < 9; i++) {
+            double a = random().nextDouble() * Math.PI * 2;
+            MOTES.add(new Mote(at.add(0, .05, 0), new Vec3(Math.cos(a) * .12, -.05 - random().nextDouble() * .1, Math.sin(a) * .12), .05, 0, WHITE, 6 + random().nextInt(4), t, true, true, .9f));
+        }
+    }
 
     // ------------------------------------------------------------------ what the layer reports each frame
     static void claws(int id, Vec3[] tips, float time, float power) {
@@ -198,7 +219,30 @@ public final class PantherFx {
                 Vec3 hit = e.position().add(0, e.getBbHeight() * Mth.clamp(p.power(), .15f, .9f), 0).add(dir.multiply(1, 0, 1).scale(.35));
                 BURSTS.add(new Burst(p.kind(), hit, dir, p.power(), p.entity(), t));
             }
-            case FX_DODGE, FX_REFLEX, FX_LAND -> BURSTS.add(new Burst(p.kind(), at, dir, p.power(), p.entity(), t));
+            case FX_DODGE -> {
+                BURSTS.add(new Burst(p.kind(), at, dir, p.power(), p.entity(), t));
+                // The parry: sparks off his forearm where the blow is turned aside.
+                sparks(at.add(0, 1.3, 0).add(dir.scale(.45)), dir, 6, WHITE);
+            }
+            case FX_REFLEX, FX_LAND, FX_DASH, FX_CROSS -> {
+                BURSTS.add(new Burst(p.kind(), at, dir, p.power(), p.entity(), t));
+                if (p.kind() == FX_DASH) dust(at, 10, .6, .9f);
+                if (p.kind() == FX_CROSS) PantherClient.shake(near(at, 12) ? .12f : .04f);
+            }
+            case FX_MARK -> TAGS.put(p.entity(), t + p.power());
+            case FX_DOUBLE_JUMP -> doubleJump(p.entity(), at);
+            case FX_CAMO -> {
+                CAMO.put(p.entity(), new float[]{t, p.power()});
+                BURSTS.add(new Burst(p.kind(), at, dir, p.power(), p.entity(), t));
+                if (p.power() < 0) {
+                    // Torn: shards of the light it was bending.
+                    for (int i = 0; i < 14; i++) {
+                        Vec3 o = at.add((random().nextDouble() - .5) * .9, .2 + random().nextDouble() * 1.7, (random().nextDouble() - .5) * .9);
+                        MOTES.add(new Mote(o, new Vec3((random().nextDouble() - .5) * .25, (random().nextDouble() - .3) * .15, (random().nextDouble() - .5) * .25),
+                                .05, 0, i % 2 == 0 ? 0x40f0ff : 0xff40d8, 5 + random().nextInt(5), t, true, false, .9f));
+                    }
+                }
+            }
             default -> {}
         }
         while (BURSTS.size() > 80) BURSTS.remove(0);
@@ -265,6 +309,10 @@ public final class PantherFx {
         BlockState s = level.getBlockState(pos);
         return s.isAir() ? level.getBlockState(pos.below()) : s;
     }
+    private static int darker(int rgb, float k) {
+        int r = Math.min(255, (int) ((rgb >> 16 & 255) * k)), g = Math.min(255, (int) ((rgb >> 8 & 255) * k)), b = Math.min(255, (int) ((rgb & 255) * k));
+        return r << 16 | g << 8 | b;
+    }
     private static int surfaceColour(Vec3 at) {
         return switch (surface(under(at))) {
             case DIRT -> 0x7a5d3e; case STONE -> 0x8c8c8e; case SAND -> 0xd9c58e; case WOOD -> 0xa88a62; case SNOW -> 0xf2f4f8; default -> 0x9a948a;
@@ -284,7 +332,15 @@ public final class PantherFx {
             Vec3 pos = ent.position();
             Vec3 moved = pos.subtract(sl.last);
             double speed = Math.sqrt(moved.x * moved.x + moved.z * moved.z);
-            if (speed < .04 || !ent.onGround()) { if (++sl.quiet > 4) it.remove(); sl.last = pos; continue; }
+            if (speed < .04 || !ent.onGround()) {
+                if (++sl.quiet > 4) {
+                    // Come to rest: a last spray of the ground piled up in front of him.
+                    if (ent.onGround() && t - sl.start > 3) { dust(pos, (int) (10 * amount()), .8, 1.1f); blocks(pos, (int) (8 * amount()), .5, .3); }
+                    it.remove();
+                }
+                sl.last = pos;
+                continue;
+            }
             sl.quiet = 0;
             scrape(ent, sl.last, pos, speed, t);
             sl.last = pos;
@@ -314,6 +370,9 @@ public final class PantherFx {
             return tu.landed >= 0 && t - tu.landed > 14;
         });
         GHOSTS.removeIf(g -> t + 1 - g.time > GHOST_LIFE + 1);
+        TAGS.values().removeIf(end -> end < t);
+        JUMPS.values().removeIf(at -> t - at > 20);
+        CAMO.values().removeIf(c -> t - c[0] > 40);
         BURSTS.removeIf(b -> t - b.start > 70);
     }
     /**
@@ -349,10 +408,27 @@ public final class PantherFx {
             for (int i = 0; i < 2; i++) MOTES.add(new Mote(to.add(side.scale((random().nextDouble() - .5) * w)).add(0, .08, 0),
                     dir.scale(.08 + random().nextDouble() * .1).add(side.scale((random().nextDouble() - .5) * .2)).add(0, .08 + random().nextDouble() * .1, 0),
                     .03, 0, 0xffd27a, 4 + random().nextInt(3), t, true, true, 1));
-        double markWidth = surface == Surface.SAND ? w * 1.3 : surface == Surface.WOOD ? w * .6 : w * .9;
-        int dark = switch (surface) { case DIRT -> 0x3a2a1a; case STONE -> 0x505052; case SAND -> 0xa89060; case SNOW -> 0xc8ccd4; case WOOD -> 0x5a4630; default -> 0x4a4640; };
+        // Clumps of the ground torn loose and thrown up and back behind him (not on wood or stone floors).
+        if (surface != Surface.WOOD && surface != Surface.STONE && !state.isAir()) {
+            int clumps = (int) ((surface == Surface.SAND ? 3 : 2) * Math.min(1.5, speed * 2) * amt + random().nextFloat());
+            for (int i = 0; i < clumps; i++)
+                MOTES.add(new Mote(to.add(side.scale((random().nextDouble() - .5) * w)).add(0, .12, 0),
+                        dir.scale(-.12 - random().nextDouble() * .1).add(side.scale((random().nextDouble() - .5) * .3)).add(0, .22 + random().nextDouble() * .2, 0),
+                        .1 + random().nextDouble() * .1, 0, darker(colour, .8f), 12 + random().nextInt(8), t, false, true, 1));
+        }
+        double markWidth = surface == Surface.SAND ? w * 1.4 : surface == Surface.WOOD ? w * .6 : w * 1.05;
+        int dark = switch (surface) { case DIRT -> 0x2e2014; case STONE -> 0x4a4a4c; case SAND -> 0x9a8050; case SNOW -> 0xb8bcc4; case WOOD -> 0x5a4630; default -> 0x4a4640; };
         double y = Math.floor(to.y + .001) + (to.y - Math.floor(to.y)) + .02;
-        MARKS.add(new Mark(new Vec3(from.x, y, from.z), new Vec3(to.x, y, to.z), markWidth, dark, t));
+        Vec3 a = new Vec3(from.x, y, from.z), b = new Vec3(to.x, y, to.z);
+        // The groove, and the ground pushed up in a lighter ridge along both sides of it.
+        MARKS.add(new Mark(a, b, markWidth, dark, t));
+        if (surface != Surface.WOOD && surface != Surface.STONE) {
+            int berm = darker(colour, 1.15f);
+            for (int sgn = -1; sgn <= 1; sgn += 2) {
+                Vec3 off = side.scale(sgn * markWidth * .62);
+                MARKS.add(new Mark(a.add(off).add(0, .005, 0), b.add(off).add(0, .005, 0), markWidth * .28, berm, t));
+            }
+        }
     }
 
     // ------------------------------------------------------------------ drawing
@@ -360,7 +436,7 @@ public final class PantherFx {
         if (e.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) return;
         var mc = Minecraft.getInstance();
         if (mc.level == null) return;
-        if (CLAWS.isEmpty() && KICKS.isEmpty() && GHOSTS.isEmpty() && BURSTS.isEmpty() && MARKS.isEmpty() && MOTES.isEmpty() && STREAMERS.isEmpty()) return;
+        if (CLAWS.isEmpty() && KICKS.isEmpty() && GHOSTS.isEmpty() && BURSTS.isEmpty() && MARKS.isEmpty() && MOTES.isEmpty() && STREAMERS.isEmpty() && TAGS.isEmpty()) return;
         float partial = e.getPartialTick();
         float time = mc.level.getGameTime() + partial;
         PoseStack p = e.getPoseStack();
@@ -419,6 +495,11 @@ public final class PantherFx {
                 }
             }
             for (Burst b : BURSTS) burst(c, b, time, partial);
+            for (var tag : TAGS.entrySet()) {
+                Entity e = mc.level.getEntity(tag.getKey());
+                if (e == null || !e.isAlive()) continue;
+                scratch(c, e, tag.getValue() - time, time, partial);
+            }
             buffers.endBatch();
         } finally {
             mv.popPose(); RenderSystem.applyModelViewMatrix();
@@ -440,11 +521,13 @@ public final class PantherFx {
                 for (int i = 0; i < 8; i++) {
                     Vec3 a = prev.tips[i], b = s.tips[i];
                     double speed = a.distanceTo(b) / dt;
-                    float show = Mth.clamp((float) (speed - .18) / .35f, 0, 1) * s.power;
+                    float show = Mth.clamp((float) (speed - .12) / .3f, 0, 1) * Math.min(1.2f, s.power);
                     if (show < .02f) continue;
                     float a0 = k0 * k0 * show, a1 = k1 * k1 * show;
-                    FilmFx.streak(c, a, b, .05, VIOLET, .32f * a0, .32f * a1, true);
-                    FilmFx.streak(c, a, b, .018, SILVER, .85f * a0, .85f * a1, true);
+                    // Wide and bold: a violet blade of air round a bright silver core, one per claw.
+                    FilmFx.streak(c, a, b, .16 * s.power, VIOLET, .3f * a0, .3f * a1, true);
+                    FilmFx.streak(c, a, b, .07 * s.power, 0xc8b0ff, .5f * a0, .5f * a1, true);
+                    FilmFx.streak(c, a, b, .028 * s.power, SILVER, .95f * a0, .95f * a1, true);
                 }
             }
             prev = s;
@@ -493,14 +576,14 @@ public final class PantherFx {
                 for (int h = 0; h < hands; h++) {
                     float sgn = dbl ? (h == 0 ? 1 : -1) : Math.signum(b.power());
                     Vec3 slash = across.scale(-sgn).add(up.scale(dbl ? .2 : -.7)).normalize();
-                    Vec3 step = slash.cross(look).normalize().scale(.13);
-                    Vec3 centre = at.subtract(look.scale(.5)).add(dbl ? across.scale(.18 * sgn) : Vec3.ZERO);
+                    Vec3 step = slash.cross(look).normalize().scale(.22);
+                    Vec3 centre = at.subtract(look.scale(.55)).add(dbl ? across.scale(.25 * sgn) : Vec3.ZERO);
                     float draw = Mth.clamp(age / 1.2f, 0, 1);
                     for (int i = 0; i < 4; i++) {
                         Vec3 o = centre.add(step.scale(i - 1.5));
-                        Vec3 s0 = o.subtract(slash.scale(.55)), s1 = s0.add(slash.scale(1.1 * draw));
-                        FilmFx.streak(c, s0, s1, .045, VIOLET, .2f * a, .55f * a, true);
-                        FilmFx.streak(c, s0, s1, .015, WHITE, .3f * a, .9f * a, true);
+                        Vec3 s0 = o.subtract(slash.scale(.9)), s1 = s0.add(slash.scale(1.8 * draw));
+                        FilmFx.streak(c, s0, s1, .14, VIOLET, .2f * a, .6f * a, true);
+                        FilmFx.streak(c, s0, s1, .045, WHITE, .3f * a, .95f * a, true);
                     }
                 }
             }
@@ -575,9 +658,85 @@ public final class PantherFx {
                 FilmFx.glow(c, at, .6 + age * .1, VIOLET, .55f * a);
                 FilmFx.glow(c, at, .2, WHITE, .6f * a * a);
             }
+            case FX_DOUBLE_JUMP -> {
+                // A white splash of air under his feet: a ring spreading out, spikes of it driven down.
+                if (age > 8) return;
+                float a = 1 - age / 8, out = 1 - (1 - Math.min(1, age / 4f)) * (1 - Math.min(1, age / 4f));
+                Vec3 base = at.add(0, .05, 0);
+                double r = .35 + .9 * out;
+                FilmFx.ring(c, base, r, .12 * a + .04, WHITE, .75f * a, true);
+                FilmFx.ring(c, base, r * .8, .2, AIR, .3f * a, false);
+                for (int i = 0; i < 14; i++) {
+                    double ang = i * Math.PI * 2 / 14 + FilmFx.hash(i + b.start()) * .3;
+                    Vec3 rim = base.add(Math.cos(ang) * r * .7, 0, Math.sin(ang) * r * .7);
+                    double len = (.35 + .45 * FilmFx.hash(i * 3.1 + b.start())) * (1 - age / 10);
+                    Vec3 tip = rim.add(Math.cos(ang) * len * .35, -len, Math.sin(ang) * len * .35);
+                    FilmFx.streak(c, rim, tip, .05, WHITE, .8f * a, 0, true);
+                }
+                FilmFx.glow(c, base, .9 * (1 + out), WHITE, .35f * a);
+            }
+            case FX_DASH -> {
+                if (age > 6) return;
+                float a = 1 - age / 6;
+                ring(c, at.add(0, .9, 0).subtract(dir.scale(.2 + age * .2)), dir, .45 + age * .2, .06, AIR, .4f * a);
+            }
+            case FX_CROSS -> {
+                // The claws thrown open: two great diagonal sweeps crossing in front of him, a circle of violet round him.
+                if (age > 9) return;
+                float a = 1 - age / 9, draw = Math.min(1, age / 1.5f);
+                Vec3 f = dir.normalize(), across = new Vec3(-f.z, 0, f.x);
+                Vec3 centre = at.add(f.scale(.6));
+                for (int arm = -1; arm <= 1; arm += 2) {
+                    Vec3 outward = across.scale(arm).add(0, .55, 0).normalize();
+                    for (int i = 0; i < 4; i++) {
+                        Vec3 o = centre.add(new Vec3(0, (i - 1.5) * .16, 0));
+                        Vec3 s0 = o.subtract(outward.scale(.5)), s1 = s0.add(outward.scale(2.2 * draw));
+                        FilmFx.streak(c, s0, s1, .16, VIOLET, .25f * a, .65f * a, true);
+                        FilmFx.streak(c, s0, s1, .05, WHITE, .35f * a, .95f * a, true);
+                    }
+                }
+                double r = 1.2 + .4 * draw;
+                for (int i = 0; i < 20; i++) {
+                    double a0 = Math.PI * 2 * i / 20 + age * .3, a1 = a0 + Math.PI * 2 / 20;
+                    Vec3 p0 = at.add(Math.cos(a0) * r, -.1 + .2 * Math.sin(a0 * 2), Math.sin(a0) * r), p1 = at.add(Math.cos(a1) * r, -.1 + .2 * Math.sin(a1 * 2), Math.sin(a1) * r);
+                    float fade = (float) (i / 20.0);
+                    FilmFx.streak(c, p0, p1, .14, VIOLET, .45f * a * fade, .45f * a * fade, true);
+                }
+                FilmFx.glow(c, centre, 1.6, VIOLET, .35f * a);
+            }
+            case FX_CAMO -> {
+                if (age > 12) return;
+                float a = 1 - age / 12;
+                Entity e = Minecraft.getInstance().level.getEntity(b.entity());
+                Vec3 feet = e != null ? e.getPosition(partial) : at;
+                if (b.power() > 0) {
+                    // Into it: a shimmer climbing the body, a faint ring of bent light at the feet.
+                    FilmFx.ring(c, feet.add(0, .05, 0), .5 + age * .08, .06, 0xb8d8f0, .5f * a, true);
+                    double y = Math.min(1.9, age * .22);
+                    FilmFx.ring(c, feet.add(0, y, 0), .45, .05, 0xd8f0ff, .6f * a, true);
+                } else if (b.power() < 0) {
+                    // Torn: colour-split slivers jumping round him.
+                    int frame = (int) (time * 3);
+                    for (int i = 0; i < 6; i++) {
+                        double y = .2 + 1.6 * FilmFx.hash(frame * 7 + i), x = (FilmFx.hash(frame * 3 + i * 5) - .5) * .9, z = (FilmFx.hash(frame * 11 + i) - .5) * .9;
+                        Vec3 o = feet.add(x, y, z), w = c.viewRight().scale(.25 + .3 * FilmFx.hash(i + frame));
+                        FilmFx.streak(c, o.subtract(w), o.add(w), .04, i % 2 == 0 ? 0x40f0ff : 0xff40d8, .8f * a, .8f * a, true);
+                    }
+                }
+            }
             case FX_DODGE -> {
                 if (age > 5) return;
                 float a = 1 - age / 5;
+                // The parry: a flash at the forearm and a quick arc of the claws turning the blow aside.
+                Vec3 arm = at.add(0, 1.3, 0).add(dir.scale(.45));
+                FilmFx.glow(c, arm, .7, VIOLET, .55f * a);
+                FilmFx.glow(c, arm, .25, WHITE, .8f * a * a);
+                Vec3 side = new Vec3(-dir.z, 0, dir.x).normalize();
+                for (int i = 0; i < 6; i++) {
+                    double a0 = -1.2 + i * .4, a1 = a0 + .4;
+                    Vec3 p0 = arm.add(side.scale(Math.cos(a0) * .5)).add(0, Math.sin(a0) * .5, 0), p1 = arm.add(side.scale(Math.cos(a1) * .5)).add(0, Math.sin(a1) * .5, 0);
+                    FilmFx.streak(c, p0, p1, .05, SILVER, .7f * a, .7f * a, true);
+                }
                 // Short streaks where his body just was, the way the attack came.
                 Vec3 from = at.add(0, 1, 0);
                 for (int i = 0; i < 3; i++) {
@@ -752,6 +911,56 @@ public final class PantherFx {
         for (Vec3 q : new Vec3[]{p0, p1, p2, p3}) v.vertex(m, (float) q.x, (float) q.y, (float) q.z).color(r, g, bl, alpha).endVertex();
     }
 
+    /**
+     * The mark on someone his claws have struck: four jagged purple scratches facing the viewer over their chest,
+     * fat in the middle and tapering to points, blinking as the mark runs out.
+     */
+    private static void scratch(FilmContext c, Entity e, float left, float time, float partial) {
+        if (left <= 0) return;
+        float a = Math.min(1, left / 3f) * Math.min(1, (MARK_TICKS - left) / 2f + .3f);
+        if (left < MARK_BLINK && Mth.sin(time * 1.9f) < -.1f) a *= .15f;
+        if (a < .02f) return;
+        Vec3 centre = e.getPosition(partial).add(0, e.getBbHeight() * .62, 0);
+        Vec3 toCam = c.camera().subtract(centre).normalize();
+        centre = centre.add(toCam.scale(e.getBbWidth() * .55 + .1));
+        Vec3 right = c.viewRight(), up = c.viewUp();
+        double size = Math.max(.75, e.getBbHeight() * .45);
+        VertexConsumer soft = c.buffers().getBuffer(FilmFx.SOFT);
+        Matrix4f m = c.pose().last().pose();
+        for (int k = 0; k < 4; k++) {
+            // Each scratch runs top-right to bottom-left, the outer ones shorter.
+            double offset = (k - 1.5) * .2 * size, len = size * (k == 0 || k == 3 ? .78 : 1);
+            Vec3 along = right.scale(-.55).add(up.scale(-1)).normalize();
+            Vec3 across = right.scale(1).add(up.scale(-.55)).normalize();
+            Vec3 start = centre.add(across.scale(offset)).subtract(along.scale(len * .5));
+            int n = 10;
+            Vec3 prevL = null, prevR = null;
+            for (int i = 0; i <= n; i++) {
+                double u = i / (double) n;
+                double width = size * .07 * Math.sin(Math.PI * u) * (.75 + .5 * FilmFx.hash(k * 13 + i * 3.7 + e.getId()));
+                Vec3 at = start.add(along.scale(len * u)).add(across.scale((FilmFx.hash(k * 7 + i * 1.3) - .5) * size * .03));
+                Vec3 l = at.add(across.scale(width)), r = at.subtract(across.scale(width));
+                if (prevL != null) {
+                    quadSoft(soft, m, prevL, l, r, prevR, 0x3a0d6a, .92f * a);
+                }
+                prevL = l; prevR = r;
+            }
+            Vec3 end = start.add(along.scale(len));
+            FilmFx.streak(c, start, end, size * .08, VIOLET, .55f * a, .55f * a, true);
+            FilmFx.streak(c, start.add(along.scale(len * .2)), start.add(along.scale(len * .8)), size * .02, 0xd8c0ff, .6f * a, .6f * a, true);
+        }
+    }
+    private static void quadSoft(VertexConsumer v, Matrix4f m, Vec3 a, Vec3 b, Vec3 c, Vec3 d, int rgb, float alpha) {
+        float r = (rgb >> 16 & 255) / 255f, g = (rgb >> 8 & 255) / 255f, bl = (rgb & 255) / 255f;
+        for (Vec3 q : new Vec3[]{a, b, c, d}) v.vertex(m, (float) q.x, (float) q.y, (float) q.z).color(r, g, bl, alpha).endVertex();
+    }
+    /** No name over a Panther in his camouflage. */
+    @SubscribeEvent public static void nameTag(RenderNameTagEvent e) {
+        if (!(e.getEntity() instanceof net.minecraft.world.entity.player.Player pl) || !PantherClient.isHero(pl)) return;
+        PantherClient.State s = PantherClient.get(pl);
+        if (s != null && s.camoLeft > 0) e.setResult(net.minecraftforge.eventbus.api.Event.Result.DENY);
+    }
+
     // ------------------------------------------------------------------ thrown bodies tumble
     // Last of all, and never for a cancelled render (its Post never comes, the push would never be popped).
     @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.LOWEST)
@@ -810,12 +1019,22 @@ public final class PantherFx {
                 curl = .4f - .4f * hit * w;
             }
             case FRENZY -> {
-                float period = FRENZY_STRIKE * 2;
-                float phase = (t % period) / period * Mth.TWO_PI;
-                float wv = Mth.sin(phase);
-                float out = Math.max(0, (right ? 1 : -1) * Math.signum(wv) * (float) Math.pow(Math.abs(wv), .55));
-                x += -.45f * sx * out; y += .1f * out; z += -.3f * out; yaw += -45 * sx * out; roll += -40 * sx * out; curl = .4f - .35f * out;
+                // Wild alternating slashes: each hand from high outside down across the view, the other recoiling up.
+                float cycle = FRENZY_STRIKE * 2;
+                float u = ((t / cycle) + (right ? 0 : .5f)) % 1;
+                float xx = u < .45f ? u / .45f * .5f : .5f + (u - .45f) / .55f * .5f;
+                float down = .5f - .5f * Mth.cos(Mth.TWO_PI * xx);
+                x += (.2f - .75f * down) * sx; y += .38f * (1 - down) - .25f * down; z += -.2f * down;
+                yaw += (20 - 70 * down) * sx; roll += (45 - 85 * down) * sx; pitch += -25 * (1 - down) + 20 * down; curl = .05f;
             }
+            case DASH -> { x += -.32f * sx; y += .18f; z += -.1f; yaw += -40 * sx; roll += -35 * sx; curl = 0; }
+            case CROSS -> {
+                float open = PantherMotion.snap(t, 0, 1.6f), back = PantherMotion.k(t, 5, CROSS_TICKS);
+                float w = 1 - back;
+                x += (-.32f * (1 - open) + .55f * open) * sx * w; y += (.18f * (1 - open) + .3f * open) * w;
+                yaw += (-40 * (1 - open) + 35 * open) * sx * w; roll += (-35 * (1 - open) + 60 * open) * sx * w; curl = .4f * back;
+            }
+            case SNEAK -> { y += -.12f; z += -.05f; pitch += 12; curl = .3f; }
             case RELEASE_CHARGE -> {
                 float open = PantherMotion.k(t, 3, 10.5f), gather = PantherMotion.k(t, 10.5f, CHARGE_TICKS);
                 x += (.55f * open - .25f * gather) * sx; y += .15f * open; yaw += 30 * sx * open; roll += 40 * sx * open; curl = .4f - .4f * open + .2f * gather;
@@ -849,7 +1068,7 @@ public final class PantherFx {
         e.setCanceled(true);
         if (e.getHand() != InteractionHand.MAIN_HAND) return;
         PantherClient.State s = PantherClient.get(mc.player);
-        int action = s == null ? IDLE : s.action;
+        int action = s == null ? IDLE : PantherClient.action(s);
         float t = s == null ? 0 : PantherClient.clock(s, e.getPartialTick());
         int flags = s == null ? 0 : s.flags;
         float time = mc.player.tickCount + e.getPartialTick();
@@ -868,7 +1087,7 @@ public final class PantherFx {
             float[] f = fpPose(side, action, t, flags);
             p.pushPose();
             fpApply(p, f, bob);
-            PantherBody.firstPersonArm(p, b, light, side, f[6], 0, f[7]);
+            PantherBody.firstPersonArm(p, b, light, side, f[6], 0, f[7], s != null && s.camoLeft > 0, time);
             p.popPose();
             // The claws' trails: the same arm at moments just past, joined up.
             if (clawing(action)) fpTrails(p, b, side, action, t, flags, bob);
@@ -913,6 +1132,7 @@ public final class PantherFx {
     }
 
     private static void clear() {
+        TAGS.clear(); JUMPS.clear(); CAMO.clear();
         CLAWS.clear(); KICKS.clear(); GHOSTS.clear(); BURSTS.clear(); SLIDERS.clear(); MARKS.clear(); TUMBLES.clear(); MOTES.clear(); STREAMERS.clear();
         TUMBLING_NOW.clear();
     }

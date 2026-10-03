@@ -60,6 +60,13 @@ public final class PantherPath {
         return new Vec3(start.x + (end.x - start.x) * h, y, start.z + (end.z - start.z) * h);
     }
 
+    /** The marked dash: low along the ground to the target, explosive off the mark, braking into the arrival. */
+    public static Vec3 dash(Vec3 from, Vec3 to, double t, int ticks) {
+        double k = Math.max(0, Math.min(1, t / ticks));
+        double s = 1 - Math.pow(1 - k, 2.2);
+        return from.lerp(to, s).add(0, .25 * Math.sin(Math.PI * k), 0);
+    }
+
     /** The spinning triple kick: up and forward in one arc, the spin carrying him on. */
     public static Vec3 spin(Vec3 from, Vec3 dir, double distance, double height, double t, int ticks) {
         double k = Math.max(0, Math.min(1, t / ticks));

@@ -5,15 +5,19 @@ T'Challa, Wakanda'nın Kralı. `/superhero hero black_panther` ile ya da P (şam
 ## Tuşlar
 | Tuş | Yetenek | Ne yapar |
 |---|---|---|
-| Sol tık | Vibranyum Pençeleri | Sağ pençe → sol pençe → çift pençe → pençe aparkatı (rakibi havaya kaldırır). Her pençeden 4 ince iz (çiftte 8). |
-| Sol tık basılı | Çılgın Pençe | Kombo bitince yakında rakip varsa sağ-sol-sağ-sol hızlı kısa vuruşlar; rakip kaçarsa ayakları mesafeyi korur. |
-| SHIFT | Panter Atılışı | Bir an çömelip öne fırlar. Rakibe çarparsa üstünden burgulu takla atar (kamera aksiyonun etrafında döner), arkasından uçan yan tekme atar, rakip uçar, yere düşer ve zemine göre toz/toprak/taş/kum saçarak sürünür. Iskalarsa öne takla atıp yumuşakça iner. |
+| Sol tık | Vibranyum Pençeleri | Önündeki alana (nişangaha değil) geniş vuruşlar: sağ pençe → sol pençe → çift pençe → pençe aparkatı. Her pençeden 4 kalın iz (çiftte 8). |
+| Sol tık basılı | Vahşi Pençe | Wolverine'in durmadan vuruşu gibi: iki el sırayla, çapraz, nefes almadan; kombodan bağımsız, aparkat yok. |
+| (Vuruşlar) | Mor çizik işareti | Vurduğun herkesin üstünde 2 saniye mor pençe çiziği kalır, bitmeye yakın yanıp söner. |
+| Sağ tık | Pençe Atılışı | İşaretli bir hedef varsa ona yerden atılır, pençeleri göğsünde çapraz; varınca içten dışa açarak keser. 2 sn bekleme. İşaret yoksa çalışmaz. |
+| SHIFT (bas) | Panter Atılışı | Öne fırlar. Rakibe çarparsa üstünden burgulu takla atar (kamera aksiyonun etrafında döner), arkasından uçan yan tekme atar, rakip uçar, yere düşer ve zemine göre toz/toprak/taş/kum saçarak, yerde oluk bırakarak sürünür. Iskalarsa öne takla atıp yumuşakça iner. |
+| SHIFT (basılı) | Kamuflaj | Çömelir (yavaş yürür). 2 saniye çömelince 5 saniye yarı saydam, ışığı büken bir kamuflaja girer. Hasar alırsa bozulma efektiyle görünür olur. |
+| Boşluk (havada) | Çift Zıplama | Havada bir kez daha zıplar, öne takla atar; ayaklarının altında beyaz hava patlaması. |
 | Q | Dönen Üçlü Tekme | Havada hiç inmeden dönerek sağ ayak, sol ayak, sağ ayak; üçüncüsü fırlatır. |
 | E | Vibranyum Patlaması | Aldığın hasarın bir kısmı takımda enerji olarak birikir (zırhtaki mor çizgiler bölge bölge yanar). E: ayaklarını sabitler, kollarını açar, enerji ayaklardan ellere akar, küre şeklinde patlar. Herkes Panter'e göre bulunduğu yöne fırlar. Patlamadan sonra çizgiler söner. Az enerji = küçük patlama, dolu = dev patlama. |
-| R | Panter Refleksi | 6 saniye boyunca gelen yakın dövüş ve ok gibi saldırılardan kendiliğinden kaçar (sağdan gelen → sola, soldan → sağa, önden → geri, yukarıdan → eğilir). Kaçarken gövdesi saldırana dönük kalır. |
+| R | Panter Refleksi | 6 saniye boyunca koruma duruşunda durur (Daredevil'in savuşturması gibi: ön kollar yüzünün önünde, pençeler titrer). Gelen yakın dövüş ve ok gibi saldırılardan belirgin pozlarla kaçar: yana derin eğilme, geriye kavis, iki kolu başının üstünde çapraz eğilme, dönerek kaçış. |
 | X | (Yakında) | Sinematik ulti daha sonra tasarlanacak. |
 
-Panter düşerken kedi gibi iner (düşme hasarı çok az), koşarken normal oyuncudan hızlıdır.
+Normal duruşu dik ve rahattır (kolları gövdeden hafif açık). Düşerken kedi gibi iner (düşme hasarı çok az), koşarken normal oyuncudan hızlıdır.
 
 ## Ayarlar
 - `config/superheromod-panther.toml`: hasarlar, menziller, atılma hızı/mesafesi, tekme fırlatma gücü, sürünme süresi,

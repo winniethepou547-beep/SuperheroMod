@@ -178,14 +178,23 @@ landing spot and the target to the crater.
   (`superheromod-panther.toml`) and look (`superheromod-panther-client.toml`). `PantherController` (server) decides;
   `PantherStatePacket`/`PantherFxPacket` drive clients. `PantherPath` = pure path functions (pounce, flip, kick hover, landing,
   spin) used by BOTH the server (hits) and his own client (`PantherClient.move` steers velocity onto the path) — keep them in sync.
-- Keys: LMB 4-hit combo (right, left, double, uppercut; clicks buffered, holding = auto-click; held through the uppercut with a
-  target in `frenzyRange` → FRENZY alternating every `FRENZY_STRIKE` ticks), SHIFT pounce (load → pounce → on contact: FLIP over
-  the target with a half twist, the local view turns 180°, the flip camera orbits (`PantherClient.camera`) → flying side KICK →
-  target thrown (`throwBody`) then slides (`tickThrown`, `scrapeTicks`/`scrapeKeep`) with surface debris (`PantherFx.scrape`) →
-  LAND; no contact → POUNCE_MISS rolling flip), Q spin (one continuous turn `PantherPath.spinTurn`, kicks at `SPIN_KICKS` R-L-R),
-  E release (inventory key; energy from damage taken × `energyPerDamage`; CHARGE → RELEASE radial knockback per target
-  (target − him, normalised, + up) scaled by stored energy → suit lines off), R reflex (LivingAttackEvent cancelled → DODGE
-  with a direction from the attack's angle; during critical moves only the hit is evaded), X free for a future ultimate.
+- Keys: LMB 4-hit combo (right, left, double, uppercut) hitting an AREA in front of his facing (`area()`, `arc`), not the
+  crosshair; held `FRENZY_HOLD` ticks → berserk FRENZY (Wolverine-style alternating diagonal slashes, no uppercut, own
+  animation). Every hit puts a 2 s purple scratch MARK on the target (`mark()`, `PantherFx.scratch`, blinks at the end).
+  RMB: DASH to a marked target in reach (claws crossed) → CROSS (thrown open inside-out), spends the mark, 2 s cooldown.
+  SHIFT tap (< `TAP_TICKS`) = pounce (launch on release; load → pounce → on contact FLIP over the target with a half twist,
+  the local view turns 180°, the flip camera orbits (`PantherClient.camera`) → flying side KICK → target thrown (`throwBody`)
+  then slides (`tickThrown`) with surface debris, groove + berms (`PantherFx.scrape`) → LAND; no contact → POUNCE_MISS);
+  SHIFT hold = SNEAK (slow crouch), `CAMO_CHARGE` ticks → camouflage (`camoLeft`, invisibility effect, drawn as glass
+  `PantherBody.CAMO`, name tag hidden), broken by any hit (glitch: colour-split jittering copies). Double jump in the air
+  (`PantherInputPacket`, front flip `PantherMotion.flipJump`, white splash). Q spin (R-L-R kicks, one continuous turn),
+  E release (energy from damage taken; radial knockback scaled by energy; lines off after), R reflex (guard stance
+  `PantherMotion.guard` while active; LivingAttackEvent cancelled → DODGE with a shaped pose per direction + parry sparks),
+  X free for a future ultimate.
+- Smoothness: his own client predicts SHIFT (load/pounce/crouch start on the key, `predicted`), runs every action on a
+  local clock (`State.start`), and starts the pounce/flip/dash paths from where his body really is (`localFrom`); the
+  server sweeps the pounce a little ahead. `PantherClient.action(s)`/`clock(s)` are what everything should read.
+- Stance: upright, legs straight, weight on the right leg, arms a little away from the body (user's poster reference).
 - Body: `PantherBody` boxes (mask, ears, angular lenses, silver mask lines, fang necklace, sculpted suit, 4 fingers + curved
   claw each, boots); sheen strips drawn full-bright; violet energy lines per region (`Charge`: stored level, charge flow
   feet→hands, release flash, hit pulses). `PantherMotion`: Pose = float array, moves are key-pose tracks on a Hermite curve;
