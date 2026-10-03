@@ -1,6 +1,6 @@
 # SuperheroMod — notes for Claude
 
-Forge 1.20.1 mod (Java 17, package `com.FIRNI.superheromod`). Heroes: **Ghost Rider**, **Cyclops**, **Sandman**, **Thor**, **Hulk**, **Zed**.
+Forge 1.20.1 mod (Java 17, package `com.FIRNI.superheromod`). Heroes: **Ghost Rider**, **Cyclops**, **Sandman**, **Thor**, **Hulk**, **Zed**, **Black Panther**.
 Older background and per-feature notes live in `docs/` (Turkish); `docs/PROJE_DEVIR_DOKUMANI.md` is the original handover.
 
 ## Working with the user
@@ -173,6 +173,26 @@ landing spot and the target to the crater.
   (70% max health at `ULT_FLASH`, plays on if the target dies — `FilmSessions.Script.outlivesTarget`; Zed teleported
   to `ULT_REVEAL_X/Z` at the end). `docs/ZED.md` for the user.
 
+## Black Panther (PvP hero, `heroes/panther/`, `client/render/panther/`) — MCU look, Marvel Rivals movement
+- Id `black_panther`. `PantherAction` = action ids + every timing (animation-coupled); `PantherConfig` = gameplay numbers
+  (`superheromod-panther.toml`) and look (`superheromod-panther-client.toml`). `PantherController` (server) decides;
+  `PantherStatePacket`/`PantherFxPacket` drive clients. `PantherPath` = pure path functions (pounce, flip, kick hover, landing,
+  spin) used by BOTH the server (hits) and his own client (`PantherClient.move` steers velocity onto the path) — keep them in sync.
+- Keys: LMB 4-hit combo (right, left, double, uppercut; clicks buffered, holding = auto-click; held through the uppercut with a
+  target in `frenzyRange` → FRENZY alternating every `FRENZY_STRIKE` ticks), SHIFT pounce (load → pounce → on contact: FLIP over
+  the target with a half twist, the local view turns 180°, the flip camera orbits (`PantherClient.camera`) → flying side KICK →
+  target thrown (`throwBody`) then slides (`tickThrown`, `scrapeTicks`/`scrapeKeep`) with surface debris (`PantherFx.scrape`) →
+  LAND; no contact → POUNCE_MISS rolling flip), Q spin (one continuous turn `PantherPath.spinTurn`, kicks at `SPIN_KICKS` R-L-R),
+  E release (inventory key; energy from damage taken × `energyPerDamage`; CHARGE → RELEASE radial knockback per target
+  (target − him, normalised, + up) scaled by stored energy → suit lines off), R reflex (LivingAttackEvent cancelled → DODGE
+  with a direction from the attack's angle; during critical moves only the hit is evaded), X free for a future ultimate.
+- Body: `PantherBody` boxes (mask, ears, angular lenses, silver mask lines, fang necklace, sculpted suit, 4 fingers + curved
+  claw each, boots); sheen strips drawn full-bright; violet energy lines per region (`Charge`: stored level, charge flow
+  feet→hands, release flash, hit pulses). `PantherMotion`: Pose = float array, moves are key-pose tracks on a Hermite curve;
+  stance low/hunched with micro-motion; conventions at the top of the file. `PantherLayer`: crossfades, locomotion, air tuck,
+  landing absorb, hurt overlay, look spread pelvis→spine→chest→head, `align` turns the body along path moves; reports claw
+  tips/toes for trails and afterimage samples. Docs for the user: `docs/PANTHER.md`.
+
 ## Champion select (P)
 - `client/gui/ChampionSelectScreen` (key P; the dev Pose Studio moved to F8 under a new key id) + roster data
   `client/gui/Champions` (name, title, accent, skills per hero; `MIN_SLOTS` "?" cards for future heroes).
@@ -184,7 +204,7 @@ landing spot and the target to the crater.
   right across the floor then the RMB beam left; Thor CHARGE whirl → THROW (3D `Mjolnir` flying in the frame) → CATCH
   → two swings → faces the screen, eyes lit, bolt behind; Zed R (lock, two `ZedBody` shadow copies, X, strike, burst);
   Sandman: 4 `SandSoldierModel` soldiers either side + giant behind; Hulk thunderclap; Ghost Rider rides in, skull
-  turns. Everyone ends facing the screen. `ThorLayer.rotationOf` unmirrors and unscales menu matrices (the hammer
+  turns; Black Panther claw combo + E release with a 2D sphere. Everyone ends facing the screen. `ThorLayer.rotationOf` unmirrors and unscales menu matrices (the hammer
   blew up in menus: `getNormalizedRotation` ignores scale); in the world it is unchanged. Sandman skin: `tools/skins/sandman_skin.py`.
   LOCK IN sends `ChampionLockPacket` (server: same as `/superhero hero`, no op needed).
   New hero = add a `Champion` entry + a splash script.

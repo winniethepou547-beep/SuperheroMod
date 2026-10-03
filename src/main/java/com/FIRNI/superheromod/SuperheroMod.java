@@ -94,6 +94,8 @@ public class SuperheroMod
         context.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
         context.registerConfig(ModConfig.Type.COMMON, com.FIRNI.superheromod.heroes.hulk.HulkConfig.COMMON, "superheromod-hulk.toml");
         context.registerConfig(ModConfig.Type.CLIENT, com.FIRNI.superheromod.heroes.hulk.HulkConfig.CLIENT, "superheromod-hulk-client.toml");
+        context.registerConfig(ModConfig.Type.COMMON, com.FIRNI.superheromod.heroes.panther.PantherConfig.COMMON, "superheromod-panther.toml");
+        context.registerConfig(ModConfig.Type.CLIENT, com.FIRNI.superheromod.heroes.panther.PantherConfig.CLIENT, "superheromod-panther-client.toml");
     }
 
     private void commonSetup(final FMLCommonSetupEvent event)
@@ -109,6 +111,7 @@ public class SuperheroMod
         CharacterRegistry.register(new com.FIRNI.superheromod.heroes.thor.ThorCharacter());
         CharacterRegistry.register(new com.FIRNI.superheromod.heroes.hulk.HulkCharacter());
         CharacterRegistry.register(new com.FIRNI.superheromod.heroes.zed.ZedCharacter());
+        CharacterRegistry.register(new com.FIRNI.superheromod.heroes.panther.PantherCharacter());
         com.FIRNI.superheromod.heroes.cyclops.MaximumPowerCinematic.register();
         com.FIRNI.superheromod.heroes.sandman.SandArmyPreview.register();
 

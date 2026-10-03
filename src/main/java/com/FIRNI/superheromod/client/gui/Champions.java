@@ -65,7 +65,14 @@ public final class Champions {
                     new Skill("F", "Canlı Gölge", "Gölgeni ileri yollar; tekrar basınca onunla yer değiştirirsin."),
                     new Skill("E", "Gölge Darbesi", "Etrafını keser; gölgen de keser ve yavaşlatır."),
                     new Skill("R", "Ölüm İşareti", "İki gölge kopyan hedefe girer, üstünde X yanar; sen kaybolur, arkasında belirirsin ve X patlar."),
-                    new Skill("X", "Gölge İnfazı", "Sinematik: gölge ordusu kurbanı yutar, içinde kırmızı bir ışık patlar."))));
+                    new Skill("X", "Gölge İnfazı", "Sinematik: gölge ordusu kurbanı yutar, içinde kırmızı bir ışık patlar."))),
+            new Champion("black_panther", "BLACK PANTHER", "T'Challa — Wakanda'nın Kralı", 0xFF9A6BFF, List.of(
+                    new Skill("SOL", "Vibranyum Pençeleri", "Sağ pençe, sol pençe, çift pençe, havaya kaldıran pençe aparkatı. Basılı tut: yakındaki rakibe çılgın pençe saldırısı."),
+                    new Skill("SHIFT", "Panter Atılışı", "Avına atılır; isabet ederse üstünden takla atıp arkasından tekmeler, rakip uçup yerde sürünür."),
+                    new Skill("Q", "Dönen Üçlü Tekme", "Havada hiç inmeden dönerek sağ, sol, sağ tekme; sonuncusu fırlatır."),
+                    new Skill("E", "Vibranyum Patlaması", "Aldığın hasar takımda enerji olarak birikir; kollarını açıp küre halinde patlatırsın, herkes bulunduğu yere göre fırlar."),
+                    new Skill("R", "Panter Refleksi", "Kısa bir süre gelen saldırılardan kendiliğinden kaçarsın; her yöne başka bir kaçış."),
+                    new Skill("X", "Yakında", "Sinematik ulti daha sonra tasarlanacak."))));
 
     /** How many card slots the grid always shows (the rest are "?" for the heroes to come). */
     public static final int MIN_SLOTS = 18;

@@ -74,10 +74,11 @@ public final class HeroArmPose {
             return;
         }
 
-        // Thor, Hulk and Zed draw their whole bodies themselves (ThorLayer, HulkLayer, ZedLayer); the player model stays out of the way.
+        // Thor, Hulk, Zed and Black Panther draw their whole bodies themselves (ThorLayer, HulkLayer, ZedLayer, PantherLayer); the player model stays out of the way.
         if (com.FIRNI.superheromod.client.render.thor.ThorClient.isThor(player)
                 || com.FIRNI.superheromod.client.render.hulk.HulkClient.isHero(player)
-                || com.FIRNI.superheromod.client.render.zed.ZedClient.isHero(player)) {
+                || com.FIRNI.superheromod.client.render.zed.ZedClient.isHero(player)
+                || com.FIRNI.superheromod.client.render.panther.PantherClient.isHero(player)) {
             elbow.remove(id);
             model.head.visible = model.hat.visible = model.body.visible = model.jacket.visible = false;
             model.rightArm.visible = model.leftArm.visible = model.rightSleeve.visible = model.leftSleeve.visible = false;
