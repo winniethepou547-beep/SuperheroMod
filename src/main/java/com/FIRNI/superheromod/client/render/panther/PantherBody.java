@@ -179,7 +179,7 @@ public final class PantherBody {
 
         // ---- pelvis: dropped by the crouch; the legs fold so planted feet stay where they are.
         float drop = Mth.clamp(v[CROUCH], -1, 9.5f);
-        float fold = (float) Math.acos(Mth.clamp(1 - Math.max(0, drop) / 12f, -1, 1));
+        float fold = (float) Math.acos(Mth.clamp(1 - Math.max(0, drop) / 10.8f, -1, 1));   // hip to ankle: 6 + 4.8
         float plant = Mth.clamp(v[PLANT], 0, 1);
         p.pushPose();
         px(p, 0, 12 + drop, 0);
@@ -189,7 +189,7 @@ public final class PantherBody {
             int o = side == 0 ? RL : LL;
             float legX = v[o + LEG_X] - fold * plant - v[PELVIS_PITCH] * plant, knee = v[o + KNEE] + 2 * fold * plant;
             // Planted, the foot stays flat on the ground whatever the leg does; in the air it does what the pose says.
-            float ankle = v[o + ANKLE] - (legX + knee) * plant;
+            float ankle = v[o + ANKLE] - (legX + knee + v[PELVIS_PITCH]) * plant;
             p.pushPose();
             px(p, s * 2.05f, 0, 0);
             rot(p, legX, s < 0 ? v[o + LEG_Y] : -v[o + LEG_Y], s < 0 ? v[o + LEG_Z] : -v[o + LEG_Z]);
@@ -235,11 +235,11 @@ public final class PantherBody {
         part(p, b, light, s * -.2f, 2.9f, -2.05f, -.05f, 0, 0, 2.6f, 4.4f, .5f, SUIT_PANEL);
         part(p, b, light, s * 1.3f, 3.1f, -.2f, 0, 0, 0, .6f, 4.8f, 3.4f, SUIT_PANEL);
         shine(p, b, s * -.2f, .8f, -2.25f, 0, 0, 0, 2.4f, .22f, .2f, hi);
-        line(p, b, light, THIGH, -s, s * 1.15f, 3.2f, -2.2f, 0, 0, s * .05f, .26f, 4.8f, .2f);
-        line(p, b, light, THIGH, -s, s * -1.4f, 3.6f, -2.2f, 0, 0, s * -.12f, .22f, 3.6f, .2f);
+        line(p, b, light, THIGH, s, s * 1.15f, 3.2f, -2.2f, 0, 0, s * .05f, .26f, 4.8f, .2f);
+        line(p, b, light, THIGH, s, s * -1.4f, 3.6f, -2.2f, 0, 0, s * -.12f, .22f, 3.6f, .2f);
         // The knee plate, ringed in silver.
         part(p, b, light, 0, 6.0f, -1.95f, 0, 0, 0, 2.8f, 2.1f, .7f, SUIT_PANEL);
-        line(p, b, light, THIGH, -s, 0, 4.95f, -2.32f, 0, 0, 0, 2.6f, .2f, .2f);
+        line(p, b, light, THIGH, s, 0, 4.95f, -2.32f, 0, 0, 0, 2.6f, .2f, .2f);
         shine(p, b, 0, 5.25f, -2.33f, 0, 0, 0, 2.2f, .18f, .18f, hi);
         px(p, 0, 6, 0);
         p.mulPose(Axis.XP.rotation(knee));
@@ -247,8 +247,8 @@ public final class PantherBody {
         part(p, b, light, 0, 2.4f, 0, 0, 0, 0, 3.7f, 4.8f, 3.6f, SUIT);
         part(p, b, light, 0, 1.8f, 1.35f, 0, 0, 0, 3.2f, 2.8f, 1.2f, SUIT_PANEL);
         part(p, b, light, 0, 2.5f, -1.85f, 0, 0, 0, 2.2f, 4.2f, .5f, SUIT_PANEL);
-        line(p, b, light, SHIN, -s, 0, 2.6f, -2.12f, 0, 0, 0, .3f, 4.0f, .2f);
-        line(p, b, light, SHIN, -s, s * .9f, 1.2f, -2.1f, 0, 0, s * .5f, .2f, 1.6f, .2f);
+        line(p, b, light, SHIN, s, 0, 2.6f, -2.12f, 0, 0, 0, .3f, 4.0f, .2f);
+        line(p, b, light, SHIN, s, s * .9f, 1.2f, -2.1f, 0, 0, s * .5f, .2f, 1.6f, .2f);
         shine(p, b, 0, .6f, -2.12f, 0, 0, 0, 1.8f, .18f, .18f, hi);
         px(p, 0, 4.8f, 0);
         p.mulPose(Axis.XP.rotation(ankle));
@@ -357,10 +357,10 @@ public final class PantherBody {
         part(p, b, light, 0, 3.1f, 0, 0, 0, 0, 3.5f, 4.4f, 3.5f, SUIT);
         part(p, b, light, 0, 2.9f, -1.85f, 0, 0, 0, 2.2f, 2.8f, .5f, SUIT_PANEL);
         shine(p, b, 0, 1.55f, -2.07f, 0, 0, 0, 1.9f, .14f, .14f, hi);
-        line(p, b, light, SHOULDER, -s, s * 2.25f, -.6f, -.8f, 0, 0, s * -.5f, .22f, 2.4f, .2f);
-        line(p, b, light, SHOULDER, -s, s * 1.4f, -1.95f, -1.6f, 0, 0, s * 1.1f, .2f, 2.0f, .2f);
-        line(p, b, light, UPPER_ARM, -s, s * 1.8f, 3.0f, 0, 0, 0, 0, .2f, 3.8f, .26f);
-        energy(p, b, UPPER_ARM, -s, s * -1.0f, 3.2f, -1.8f, 0, 0, 0, .2f, 3.0f, .2f);
+        line(p, b, light, SHOULDER, s, s * 2.25f, -.6f, -.8f, 0, 0, s * -.5f, .22f, 2.4f, .2f);
+        line(p, b, light, SHOULDER, s, s * 1.4f, -1.95f, -1.6f, 0, 0, s * 1.1f, .2f, 2.0f, .2f);
+        line(p, b, light, UPPER_ARM, s, s * 1.8f, 3.0f, 0, 0, 0, 0, .2f, 3.8f, .26f);
+        energy(p, b, UPPER_ARM, s, s * -1.0f, 3.2f, -1.8f, 0, 0, 0, .2f, 3.0f, .2f);
         px(p, 0, 5.0f, 0);
         p.mulPose(Axis.XP.rotation(-elbow));
         // The forearm and its Wakandan bracer: chevrons along the outside, rings at the wrist.
@@ -368,11 +368,11 @@ public final class PantherBody {
         part(p, b, light, 0, 3.6f, 0, 0, 0, 0, 3.0f, 2.2f, 3.0f, SUIT);
         part(p, b, light, s * 1.55f, 2.3f, 0, 0, 0, 0, .5f, 3.8f, 2.4f, SUIT_PANEL);
         for (int i = 0; i < 3; i++) {
-            line(p, b, light, FOREARM, -s, s * 1.85f, 1.0f + i * 1.25f, -.5f, .6f, 0, 0, .2f, 1.3f, .22f);
-            line(p, b, light, FOREARM, -s, s * 1.85f, 1.0f + i * 1.25f, .5f, -.6f, 0, 0, .2f, 1.3f, .22f);
+            line(p, b, light, FOREARM, s, s * 1.85f, 1.0f + i * 1.25f, -.5f, .6f, 0, 0, .2f, 1.3f, .22f);
+            line(p, b, light, FOREARM, s, s * 1.85f, 1.0f + i * 1.25f, .5f, -.6f, 0, 0, .2f, 1.3f, .22f);
         }
         part(p, b, light, 0, 4.55f, 0, 0, 0, 0, 3.25f, .4f, 3.25f, SILVER_DARK);
-        line(p, b, light, FOREARM, -s, 0, 2.4f, -1.62f, 0, 0, 0, .22f, 3.6f, .2f);
+        line(p, b, light, FOREARM, s, 0, 2.4f, -1.62f, 0, 0, 0, .22f, 3.6f, .2f);
         shine(p, b, 0, .2f, -1.75f, 0, 0, 0, 2.6f, .14f, .14f, hi);
         px(p, 0, 4.8f, 0);
         p.mulPose(Axis.XP.rotation(wristX));
@@ -388,7 +388,7 @@ public final class PantherBody {
         float[] hi = sheen();
         part(p, b, light, 0, 1.0f, 0, 0, 0, 0, 1.5f, 2.1f, 2.9f, SUIT_DEEP);
         part(p, b, light, s * .55f, .9f, 0, 0, 0, 0, .4f, 1.6f, 2.4f, SUIT_PANEL);
-        line(p, b, light, HAND, -s, s * .8f, 1.0f, 0, 0, 0, 0, .18f, 1.4f, .2f);
+        line(p, b, light, HAND, s, s * .8f, 1.0f, 0, 0, 0, 0, .18f, 1.4f, .2f);
         float bend = s * curl;      // toward the palm (the body's side)
         for (int f = 0; f < 4; f++) {
             float z = -1.08f + f * .72f;
@@ -479,8 +479,8 @@ public final class PantherBody {
         part(p, b, light, 0, 3.6f, 0, 0, 0, 0, 3.0f, 2.2f, 3.0f, SUIT);
         part(p, b, light, s * 1.55f, 2.3f, 0, 0, 0, 0, .5f, 3.8f, 2.4f, SUIT_PANEL);
         for (int i = 0; i < 3; i++) {
-            line(p, b, light, FOREARM, -s, s * 1.85f, 1.0f + i * 1.25f, -.5f, .6f, 0, 0, .2f, 1.3f, .22f);
-            line(p, b, light, FOREARM, -s, s * 1.85f, 1.0f + i * 1.25f, .5f, -.6f, 0, 0, .2f, 1.3f, .22f);
+            line(p, b, light, FOREARM, s, s * 1.85f, 1.0f + i * 1.25f, -.5f, .6f, 0, 0, .2f, 1.3f, .22f);
+            line(p, b, light, FOREARM, s, s * 1.85f, 1.0f + i * 1.25f, .5f, -.6f, 0, 0, .2f, 1.3f, .22f);
         }
         part(p, b, light, 0, 4.55f, 0, 0, 0, 0, 3.25f, .4f, 3.25f, SILVER_DARK);
         shine(p, b, 0, .2f, -1.75f, 0, 0, 0, 2.6f, .14f, .14f, hi);

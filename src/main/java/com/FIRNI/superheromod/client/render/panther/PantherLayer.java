@@ -178,7 +178,7 @@ public final class PantherLayer extends RenderLayer<AbstractClientPlayer, Player
         for (int side = 0; side < 2; side++) {
             float sg = side == 0 ? 1 : -1;
             float swing = sg * cos;
-            float lift = Math.max(0, -sg * sin);      // the knee drives up on the forward swing
+            float lift = Math.max(0, sg * sin);       // the knee drives up on the forward swing
             p.legAdd(side, LEG_X, (swing * (.55f * prowl + 1.0f * sprint) + (side == 0 ? -.2f : .26f) * amount) * legs)
                     .legAdd(side, KNEE, (lift * (.55f * prowl + 1.45f * sprint)) * legs)
                     .legAdd(side, ANKLE, (Math.max(0, sg * cos) * .35f * sprint) * legs);

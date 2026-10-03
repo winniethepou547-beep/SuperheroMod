@@ -753,7 +753,9 @@ public final class PantherFx {
     }
 
     // ------------------------------------------------------------------ thrown bodies tumble
-    @SubscribeEvent public static void tumbleIn(RenderLivingEvent.Pre<?, ?> e) {
+    // Last of all, and never for a cancelled render (its Post never comes, the push would never be popped).
+    @SubscribeEvent(priority = net.minecraftforge.eventbus.api.EventPriority.LOWEST)
+    public static void tumbleIn(RenderLivingEvent.Pre<?, ?> e) {
         Tumble tu = TUMBLES.get(e.getEntity().getId());
         if (tu == null) return;
         float time = now();

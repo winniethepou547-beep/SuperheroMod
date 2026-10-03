@@ -50,11 +50,11 @@ public final class PantherPath {
         return to.add(dir.scale(-.35 * into)).add(0, -sink, 0);
     }
 
-    /** Coming down from the kick to the ground, carried a little further on, knees taking it. */
+    /** Coming down from the kick to the ground point (already a little further on than the kick), knees taking it. */
     public static Vec3 land(Vec3 to, Vec3 dir, Vec3 ground, double t, int ticks, int kickTicks, int kickHit) {
         Vec3 start = kick(to, dir, kickTicks, kickHit, kickTicks);
         double fall = Math.max(0, Math.min(1, t / (ticks * .45)));
-        Vec3 end = ground.add(dir.scale(.6));
+        Vec3 end = ground;
         double y = start.y + (end.y - start.y) * fall * fall;
         double h = ease(Math.min(1, t / (ticks * .45)));
         return new Vec3(start.x + (end.x - start.x) * h, y, start.z + (end.z - start.z) * h);

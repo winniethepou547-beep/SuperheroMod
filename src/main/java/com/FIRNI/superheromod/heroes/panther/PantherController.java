@@ -54,7 +54,7 @@ public final class PantherController {
         int action = IDLE, age, flags;
         final int[] cooldowns = new int[COOLDOWNS];
         /** The claw combo: which strike comes next, a click waiting, when the last strike ended, the button held. */
-        int combo; boolean queued, held; long lastStrike;
+        int combo; boolean queued, held; long lastStrike, heldSince;
         /** The stored kinetic energy, and how much went into the release on its way out. */
         float energy, released;
         int reflexLeft, dodges; long lastDodge = -100;
@@ -71,7 +71,7 @@ public final class PantherController {
     }
     /** Someone he threw: flying, then (once they come down) sliding along the ground. */
     private static final class Thrown {
-        final LivingEntity body; final ServerPlayer by; int age, slideLeft; boolean sliding; Vec3 flight = Vec3.ZERO, slide = Vec3.ZERO; final int scrape;
+        final LivingEntity body; final ServerPlayer by; int age, slideLeft; boolean sliding, airborne; Vec3 flight = Vec3.ZERO, slide = Vec3.ZERO; final int scrape;
         Thrown(LivingEntity body, ServerPlayer by, int scrape) { this.body = body; this.by = by; this.scrape = scrape; }
     }
     private static final Map<UUID, State> STATES = new HashMap<>();
@@ -109,7 +109,12 @@ public final class PantherController {
     public static void press(ServerPlayer p, AbilitySlot slot, boolean down) {
         if (!isHero(p)) return;
         State s = state(p);
-        if (slot == AbilitySlot.LMB) { s.held = down; if (down) claw(p, s); return; }
+        if (slot == AbilitySlot.LMB) {
+            if (down && !s.held) s.heldSince = p.level().getGameTime();
+            s.held = down;
+            if (down) claw(p, s);
+            return;
+        }
         if (!down) return;
         switch (slot) {
             case SHIFT -> pounce(p, s);
@@ -135,7 +140,8 @@ public final class PantherController {
         long now = p.level().getGameTime();
         if (!clawing(s.action) && now - s.lastStrike > COMBO_RESET) s.combo = 0;
         // Held through the whole combo with someone close: the frenzy.
-        if (s.combo == 0 && s.action == CLAW_UPPER && s.held && s.cooldowns[CD_FRENZY] <= 0 && frenzyTarget(p) != null) {
+        // (Held, not clicked: the button has been down since well before the uppercut came round.)
+        if (s.combo == 0 && s.action == CLAW_UPPER && s.held && now - s.heldSince >= UPPER_CHAIN && s.cooldowns[CD_FRENZY] <= 0 && frenzyTarget(p) != null) {
             set(s, FRENZY);
             s.flags = 0;
             sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, .6f, 1.9f);
@@ -237,6 +243,14 @@ public final class PantherController {
         Vec3 look = p.getLookAngle();
         Vec3 flat = new Vec3(look.x, 0, look.z);
         s.dir = flat.lengthSqr() < 1e-4 ? Vec3.directionFromRotation(0, p.getYRot()) : flat.normalize();
+        s.reach = 0;
+        s.target = null;
+        set(s, POUNCE_LOAD);
+        s.lastCombat = p.level().getGameTime();
+    }
+    /** The leap leaves from where he really is once the load is over (he may have still been running when he pressed). */
+    private static void pounceStart(ServerPlayer p, State s) {
+        s.from = p.position();
         // As far as he can go before a wall: checked at the knees and the head.
         double max = PantherConfig.POUNCE_DISTANCE.get();
         s.reach = max;
@@ -245,9 +259,7 @@ public final class PantherController {
             var hit = p.level().clip(new ClipContext(a, b, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, p));
             if (hit.getType() != HitResult.Type.MISS) s.reach = Math.min(s.reach, Math.max(0, hit.getLocation().distanceTo(a) - .55));
         }
-        s.target = null;
-        set(s, POUNCE_LOAD);
-        s.lastCombat = p.level().getGameTime();
+        set(s, POUNCE);
     }
     private static void pounceTick(ServerPlayer p, State s) {
         double speed = PantherConfig.POUNCE_SPEED.get();
@@ -286,7 +298,7 @@ public final class PantherController {
         s.mid = feet; s.to = to;
         s.apex = PantherPath.apex(contact, feet, t.getBbHeight(), PantherConfig.FLIP_HEIGHT.get(), to);
         s.from = contact;
-        s.land = ground(p.serverLevel(), to.add(s.dir.scale(.6)));
+        s.land = ground(p.serverLevel(), to.add(s.dir.scale(.6)));   // the landing ends right here (PantherPath.land)
         hurt(p, t, f(PantherConfig.CONTACT_DAMAGE));
         hold(t);
         Vec3 at = t.getBoundingBox().getCenter();
@@ -489,7 +501,9 @@ public final class PantherController {
             if (!t.isAlive() || t.isRemoved() || ++th.age > 80) { it.remove(); continue; }
             if (!th.sliding) {
                 Vec3 v = t.getDeltaMovement();
-                if (th.age > 2 && t.onGround()) {
+                // (A player's "on the ground" comes from their own client and may lag the throw: wait until they have left it.)
+                if (!t.onGround()) th.airborne = true;
+                if (th.age > 2 && t.onGround() && (th.airborne || th.age > 12)) {
                     // Down: the speed it still carries turns into a slide along the ground.
                     th.sliding = true;
                     th.slideLeft = th.scrape;
@@ -497,7 +511,7 @@ public final class PantherController {
                     double speed = Math.max(.45, Math.min(1.3, flat.length() * .75));
                     th.slide = flat.lengthSqr() < 1e-4 ? Vec3.ZERO : flat.normalize().scale(speed);
                     if (th.slideLeft <= 0 || th.slide.lengthSqr() < 1e-4) { it.remove(); continue; }
-                    fxAll(th.by, FX_SCRAPE, t.position(), th.slide, (float) speed, t.getId());
+                    ModNetworking.CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> t), new PantherFxPacket(FX_SCRAPE, t.position(), th.slide, (float) speed, t.getId()));
                     BlockPos under = t.blockPosition().below();
                     var block = t.level().getBlockState(under);
                     var type = block.getSoundType(t.level(), under, t);
@@ -544,7 +558,7 @@ public final class PantherController {
                 else if (s.age >= length(s.action)) { s.lastStrike = p.level().getGameTime(); if (s.action == CLAW_UPPER) s.combo = 0; set(s, IDLE); }
             }
             case FRENZY -> frenzyTick(p, s);
-            case POUNCE_LOAD -> { if (s.age >= LOAD_TICKS) { set(s, POUNCE); fx(p, FX_POUNCE, p.position(), s.dir, 1, p.getId());
+            case POUNCE_LOAD -> { if (s.age >= LOAD_TICKS) { pounceStart(p, s); fx(p, FX_POUNCE, p.position(), s.dir, 1, p.getId());
                     sound(p, SoundEvents.FIREWORK_ROCKET_LAUNCH, .5f, 1.8f); sound(p, SoundEvents.TRIDENT_RIPTIDE_1, .5f, 1.7f); } }
             case POUNCE -> pounceTick(p, s);
             case POUNCE_FLIP -> {

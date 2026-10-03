@@ -474,14 +474,20 @@ public final class PantherMotion {
         return p;
     }
     private static float bell(float t, float at, float width) { float x = (t - at) / width; return (float) Math.exp(-x * x * 2.2f); }
-    /** Down from the spin: a light landing on bent knees, the last of the turn settling out. */
+    /**
+     * Down from the spin: a light landing on bent knees, the momentum carrying the turn on round (pivoting
+     * on the landing, never unwinding) until he faces the front again, a whole number of turns later.
+     */
     static Track spinLand(Pose base) {
-        Pose meet = base.copy(), absorb = base.copy();
-        meet.set(PLANT, 1).add(CROUCH, 1.5f).set(ROOT_YAW, -.4f).add(SPINE_PITCH, .2f);
+        float end = -PantherPath.spinTurn(SPIN_TICKS, SPIN_TICKS, SPIN_TURN) * Mth.DEG_TO_RAD;
+        float home = -Mth.TWO_PI * (float) Math.ceil(-end / Mth.TWO_PI - .01f);
+        Pose meet = base.copy(), absorb = base.copy(), done = base.copy();
+        meet.set(PLANT, 1).add(CROUCH, 1.5f).set(ROOT_YAW, end).add(SPINE_PITCH, .2f);
         for (int side = 0; side < 2; side++) meet.arm(side, ARM_Z, 1.0f).arm(side, ARM_X, -.5f).arm(side, ELBOW, .6f);
-        absorb.add(CROUCH, 4.8f).add(SPINE_PITCH, .35f).set(ROOT_YAW, -.12f).add(HEAD_PITCH, -.4f);
+        absorb.add(CROUCH, 4.8f).add(SPINE_PITCH, .35f).set(ROOT_YAW, Mth.lerp(.8f, end, home)).add(HEAD_PITCH, -.4f);
         for (int side = 0; side < 2; side++) absorb.arm(side, ARM_Z, .7f).arm(side, ARM_X, -.7f);
-        return new Track().key(0, meet).key(2f, absorb).key(SPIN_LAND_TICKS + 2f, base);
+        done.set(ROOT_YAW, home);
+        return new Track().key(0, meet).key(3f, absorb).key(SPIN_LAND_TICKS + 2f, done);
     }
 
     // ------------------------------------------------------------------ E: the kinetic release

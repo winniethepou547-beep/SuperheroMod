@@ -103,6 +103,7 @@ public final class PantherClient {
         if (mc.level == null) return;
         for (var entry : STATES.entrySet()) {
             State s = entry.getValue();
+            if (!clawing(s.action)) continue;
             var body = mc.level.getEntity(entry.getKey());
             if (body == null || body.position().distanceTo(at) > 6) continue;
             s.stopAt = mc.level.getGameTime() + mc.getFrameTime();
