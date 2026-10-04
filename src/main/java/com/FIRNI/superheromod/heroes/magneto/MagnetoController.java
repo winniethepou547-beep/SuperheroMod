@@ -19,6 +19,7 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.AbstractArrow;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.level.ClipContext;
@@ -57,7 +58,7 @@ public final class MagnetoController {
         boolean flying, grantedFly; int flightAge, groundTicks;
         int charges = -1, recharge;
         Vec3 barrageAt = Vec3.ZERO; int barrageLeft, barrageNext, barrageSeed;
-        LivingEntity held; int holdAge, holdTicks, lastSlam = -100, thrownAge = -1; double holdDist; Vec3 commanded = Vec3.ZERO, lastPos = Vec3.ZERO;
+        LivingEntity held; int holdAge, holdTicks, lastSlam = -100, thrownAge = -1; double holdDist; Vec3 commanded = Vec3.ZERO, lastPos = Vec3.ZERO, prevMoved = Vec3.ZERO;
         LivingEntity thrown;
         boolean fist; Vec3 fistPos = Vec3.ZERO, fistVel = Vec3.ZERO, punchFrom = Vec3.ZERO, punchAt = Vec3.ZERO; int fistAge, punchAge = -1, punchesLeft;
         boolean shield; int shieldAge;
@@ -113,15 +114,28 @@ public final class MagnetoController {
     }
 
     // ------------------------------------------------------------------ flight
+    private static boolean special(ServerPlayer p) {
+        return p.gameMode.getGameModeForPlayer() == GameType.CREATIVE || p.gameMode.getGameModeForPlayer() == GameType.SPECTATOR;
+    }
+    /** A server that forbids flying would throw him out for floating: let it know he may (again after a respawn or a game mode change reset it). */
+    private static void grantFlight(ServerPlayer p, State s) {
+        if (!special(p) && !p.getAbilities().mayfly) { p.getAbilities().mayfly = true; s.grantedFly = true; p.onUpdateAbilities(); }
+    }
+    /** Takes back only what he was given; creative and spectator players keep their own flight. */
+    private static void takeFlight(ServerPlayer p, State s) {
+        if (!s.grantedFly) return;
+        s.grantedFly = false;
+        if (special(p)) return;
+        p.getAbilities().mayfly = false; p.getAbilities().flying = false; p.onUpdateAbilities();
+    }
     private static void flight(ServerPlayer p, State s, boolean on) {
         if (on == s.flying) return;
         s.flying = on;
         s.flightAge = 0;
         s.groundTicks = 0;
         // A server that forbids flying would throw him out for floating: let it know he may.
-        boolean special = p.gameMode.getGameModeForPlayer() == GameType.CREATIVE || p.gameMode.getGameModeForPlayer() == GameType.SPECTATOR;
-        if (on && !special && !p.getAbilities().mayfly) { p.getAbilities().mayfly = true; s.grantedFly = true; p.onUpdateAbilities(); }
-        if (!on && s.grantedFly) { s.grantedFly = false; p.getAbilities().mayfly = false; p.getAbilities().flying = false; p.onUpdateAbilities(); }
+        if (on) grantFlight(p, s);
+        else takeFlight(p, s);
         p.fallDistance = 0;
         fx(p, on ? FX_LIFT : FX_LAND, p.position(), Vec3.ZERO, 1, p.getId(), 0);
         sound(p, on ? SoundEvents.BEACON_POWER_SELECT : SoundEvents.ARMOR_EQUIP_IRON, .4f, on ? 1.4f : .8f);
@@ -151,7 +165,7 @@ public final class MagnetoController {
         if (casting(s) || s.held != null) return;
         if (s.charges <= 0) { tell(p, "Demir Yağmuru: dolum " + String.format(Locale.ROOT, "%.1f", (MagnetoConfig.BARRAGE_RECHARGE.get() - s.recharge) / 20f) + " sn"); return; }
         s.charges--;
-        s.barrageAt = aimPoint(p, MagnetoConfig.BARRAGE_RANGE.get());
+        s.barrageAt = ground(p.serverLevel(), aimPoint(p, MagnetoConfig.BARRAGE_RANGE.get()));
         s.barrageLeft = MagnetoConfig.BARRAGE_RODS.get();
         s.barrageNext = BARRAGE_AT;
         s.barrageSeed = p.getRandom().nextInt(100000);
@@ -190,6 +204,7 @@ public final class MagnetoController {
         s.holdDist = Mth.clamp(t.getBoundingBox().getCenter().distanceTo(p.getEyePosition()), MagnetoConfig.HOLD_MIN.get(), MagnetoConfig.HOLD_MAX.get());
         s.lastPos = t.position();
         s.commanded = Vec3.ZERO;
+        s.prevMoved = Vec3.ZERO;
         s.lastSlam = -100;
         set(s, GRAB);
         Vec3 dir = t.position().subtract(p.position());
@@ -207,10 +222,11 @@ public final class MagnetoController {
         s.holdAge++;
         Vec3 centre = t.position().add(0, t.getBbHeight() * .5, 0);
         Vec3 moved = t.position().subtract(s.lastPos);
-        double asked = s.commanded.length();
-        // Slammed: it was told to move fast, but something stopped it.
-        if (s.holdAge > SCRAP_FLY + 1 && asked > MagnetoConfig.SLAM_SPEED.get() && moved.length() < asked * .35 && s.holdAge - s.lastSlam > SLAM_GAP)
-            slam(p, s, t, s.commanded, asked);
+        double was = s.prevMoved.length();
+        // Slammed: it really was moving fast (players move themselves, so the order alone is not enough), and something stopped it.
+        if (s.holdAge > SCRAP_FLY + 2 && was > MagnetoConfig.SLAM_SPEED.get() && moved.length() < was * .35 && s.holdAge - s.lastSlam > SLAM_GAP)
+            slam(p, s, t, s.prevMoved, was);
+        s.prevMoved = moved;
         s.lastPos = t.position();
         Vec3 v;
         if (s.holdAge <= SCRAP_FLY) {
@@ -220,6 +236,8 @@ public final class MagnetoController {
             if (s.action == GRAB && s.age >= GRAB_TICKS) set(s, CONTROL);
             Vec3 want = p.getEyePosition().add(p.getLookAngle().scale(s.holdDist));
             // Never below the ground: the aim can sweep them along it, slamming them, but not bury them.
+            double floor = ground(p.serverLevel(), want).y + t.getBbHeight() * .5;
+            if (want.y < floor) want = new Vec3(want.x, floor, want.z);
             Vec3 to = want.subtract(centre);
             double max = MagnetoConfig.DRAG_SPEED.get();
             v = to.scale(.34);
@@ -413,7 +431,9 @@ public final class MagnetoController {
             if (flat > r + .8 || flat < r - 1.2 || pr.getDeltaMovement().dot(to) <= 0) continue;
             fx(p, FX_BLOCK, pr.position(), pr.getDeltaMovement().normalize(), 1, p.getId(), 0);
             p.level().playSound(null, pr.getX(), pr.getY(), pr.getZ(), SoundEvents.ANVIL_LAND, SoundSource.PLAYERS, .4f, 1.8f);
-            pr.discard();
+            // Arrows and tridents drop off the iron (a trident is someone's item); anything else is destroyed.
+            if (pr instanceof AbstractArrow) { pr.setDeltaMovement(pr.getDeltaMovement().scale(-.1)); pr.hurtMarked = true; }
+            else pr.discard();
         }
     }
     /** Again: the columns torn apart into pieces flung out in every direction. */
@@ -538,7 +558,9 @@ public final class MagnetoController {
         if (!isHero(p)) {
             State gone = STATES.remove(p.getUUID());
             if (gone != null) {
-                if (gone.grantedFly) { p.getAbilities().mayfly = false; p.getAbilities().flying = false; p.onUpdateAbilities(); }
+                if (gone.held != null) release(p, gone, false);
+                if (gone.fist) breakFist(p, gone);
+                takeFlight(p, gone);
                 send(p, new State());
             }
             return;
@@ -551,7 +573,12 @@ public final class MagnetoController {
         if (s.charges < max && ++s.recharge >= MagnetoConfig.BARRAGE_RECHARGE.get()) { s.charges++; s.recharge = 0; }
         if (s.charges >= max) s.recharge = 0;
         // Flight: the fall forgiven while he floats; set down when he has stood on the ground a moment.
+        if (!p.isAlive()) {
+            if (s.held != null) release(p, s, false);
+            if (s.fist) breakFist(p, s);
+        }
         if (s.flying) {
+            grantFlight(p, s);
             s.flightAge++;
             p.fallDistance = 0;
             s.groundTicks = p.onGround() ? s.groundTicks + 1 : 0;
@@ -607,11 +634,21 @@ public final class MagnetoController {
         e.setDistance(Math.max(0, e.getDistance() - 8));
         e.setDamageMultiplier(e.getDamageMultiplier() * .4f);
     }
+    /** Respawned or back from the End: a new body, standing, its abilities reset by the game. */
+    @SubscribeEvent public static void respawned(PlayerEvent.Clone e) {
+        State s = STATES.get(e.getEntity().getUUID());
+        if (s == null) return;
+        s.flying = false; s.grantedFly = false; s.held = null; s.thrown = null; s.fist = false;
+    }
     /** His left click is his own; the vanilla punch would hit twice. */
     @SubscribeEvent public static void plainAttack(AttackEntityEvent e) { if (isHero(e.getEntity())) e.setCanceled(true); }
     @SubscribeEvent public static void logout(PlayerEvent.PlayerLoggedOutEvent e) {
         State s = STATES.remove(e.getEntity().getUUID());
-        if (s != null && s.grantedFly && e.getEntity() instanceof ServerPlayer p) { p.getAbilities().mayfly = false; p.getAbilities().flying = false; }
+        if (s != null && e.getEntity() instanceof ServerPlayer p) {
+            if (s.held != null) release(p, s, false);
+            if (s.fist) breakFist(p, s);
+            takeFlight(p, s);
+        }
         METAL.removeIf(m -> m.owner == e.getEntity());
     }
 
@@ -678,7 +715,8 @@ public final class MagnetoController {
         float recharge = s.charges >= MagnetoConfig.BARRAGE_CHARGES.get() ? 0 : s.recharge / (float) MagnetoConfig.BARRAGE_RECHARGE.get();
         ModNetworking.CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> p),
                 new MagnetoStatePacket(p.getId(), s.action, s.age, flags, s.cooldowns.clone(), Math.max(0, s.charges), recharge, s.flightAge,
-                        s.held == null ? -1 : s.held.getId(), s.holdAge, s.holdTicks, s.fistPos, s.fistAge, s.punchAge, s.punchesLeft, s.shieldAge));
+                        s.held == null ? -1 : s.held.getId(), s.holdAge, s.holdTicks, s.fistPos, s.fistAge, s.punchAge, s.punchesLeft, s.shieldAge,
+                        MagnetoConfig.FLY_SPEED.get().floatValue(), MagnetoConfig.FLY_RISE.get().floatValue()));
     }
     static void fx(ServerPlayer p, int kind, Vec3 pos, Vec3 dir, float power, int entity, int id) {
         ModNetworking.CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> p), new MagnetoFxPacket(kind, pos, dir, power, entity, id));

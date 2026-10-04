@@ -22,6 +22,8 @@ public final class MetalMesh {
     public static final float[] IRON = {.40f, .41f, .44f}, IRON_DARK = {.23f, .235f, .26f}, IRON_LIGHT = {.64f, .65f, .69f},
             RUST = {.44f, .25f, .15f}, RUST_DARK = {.27f, .15f, .09f}, STEEL = {.55f, .57f, .62f};
 
+    /** A light colour every piece (and Magneto's body) is multiplied by; a film sets it for its stage's light and puts it back. */
+    public static final float[] SHADE = {1, 1, 1};
     public static VertexConsumer buffer(MultiBufferSource b) { return b.getBuffer(RenderType.entityCutoutNoCull(GhostMaterials.TEXTURE)); }
     /** A box from (x0, y0, z0) to (x1, y1, z1), in blocks. */
     public static void box(PoseStack p, VertexConsumer v, int light, float x0, float y0, float z0, float x1, float y1, float z1, float[] c) {
@@ -29,7 +31,7 @@ public final class MetalMesh {
         p.translate(x0, y0, z0);
         // (The unit part is a 16-pixel cube: one block.)
         p.scale((x1 - x0), (y1 - y0), (z1 - z0));
-        UNIT.render(p, v, light, OverlayTexture.NO_OVERLAY, c[0], c[1], c[2], 1);
+        UNIT.render(p, v, light, OverlayTexture.NO_OVERLAY, c[0] * SHADE[0], c[1] * SHADE[1], c[2] * SHADE[2], 1);
         p.popPose();
     }
     private static void cbox(PoseStack p, VertexConsumer v, int light, float cx, float cy, float cz, float w, float h, float d, float[] c) {

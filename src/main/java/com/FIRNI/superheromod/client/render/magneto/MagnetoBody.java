@@ -43,7 +43,8 @@ public final class MagnetoBody {
         if (rx != 0 || ry != 0 || rz != 0) rot(p, rx, ry, rz);
         p.translate(-w / 32, -h / 32, -d / 32);
         p.scale(w, h, d);
-        UNIT.render(p, b.getBuffer(RenderType.entityCutoutNoCull(GhostMaterials.TEXTURE)), light, OverlayTexture.NO_OVERLAY, c[0], c[1], c[2], 1);
+        float[] k = MetalMesh.SHADE;
+        UNIT.render(p, b.getBuffer(RenderType.entityCutoutNoCull(GhostMaterials.TEXTURE)), light, OverlayTexture.NO_OVERLAY, c[0] * k[0], c[1] * k[1], c[2] * k[2], 1);
         p.popPose();
     }
     private static void part(PoseStack p, MultiBufferSource b, int light, float x, float y, float z, float w, float h, float d, float[] c) {

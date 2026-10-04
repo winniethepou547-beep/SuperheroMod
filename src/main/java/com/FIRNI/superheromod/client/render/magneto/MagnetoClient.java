@@ -42,8 +42,9 @@ public final class MagnetoClient {
     public static final class State {
         public int action, age, flags, charges, flightAge, held = -1, holdAge, holdTicks, fistAge, punchAge = -1, punchesLeft, shieldAge;
         public int[] cooldowns = new int[COOLDOWNS];
-        public float recharge;
-        public Vec3 fist = Vec3.ZERO, fistPrev = Vec3.ZERO;
+        public float recharge, flySpeed = .5f, flyRise = .32f;
+        /** The fist: where it was last tick, where it is, and the server's latest (taken in at the end of each client tick). */
+        public Vec3 fist = Vec3.ZERO, fistPrev = Vec3.ZERO, fistNext = Vec3.ZERO;
         long received;
         /** The local clock: the level time the current action began at. */
         double start;
@@ -70,9 +71,11 @@ public final class MagnetoClient {
         State s = STATES.computeIfAbsent(p.entity(), id -> new State());
         long now = mc.level.getGameTime();
         if (p.action() != s.action || Math.abs(now - s.start - p.age()) > 3) s.start = now - p.age();
-        s.fistPrev = s.fist.lengthSqr() < 1e-6 || !s.fistUp() ? p.fist() : s.fist;
+        boolean fresh = s.fist.lengthSqr() < 1e-6 || !s.fistUp() || (p.flags() & MagnetoStatePacket.FIST) == 0;
         s.action = p.action(); s.age = p.age(); s.flags = p.flags(); s.cooldowns = p.cooldowns(); s.charges = p.charges(); s.recharge = p.recharge();
-        s.flightAge = p.flightAge(); s.held = p.held(); s.holdAge = p.holdAge(); s.holdTicks = p.holdTicks(); s.fist = p.fist(); s.fistAge = p.fistAge();
+        s.flightAge = p.flightAge(); s.held = p.held(); s.holdAge = p.holdAge(); s.holdTicks = p.holdTicks(); s.fistNext = p.fist(); s.fistAge = p.fistAge();
+        if (fresh) { s.fist = s.fistPrev = p.fist(); }
+        s.flySpeed = p.flySpeed(); s.flyRise = p.flyRise();
         s.punchAge = p.punchAge(); s.punchesLeft = p.punchesLeft(); s.shieldAge = p.shieldAge();
         s.received = now;
     }
@@ -122,7 +125,7 @@ public final class MagnetoClient {
         input.forwardImpulse = 0; input.leftImpulse = 0; input.jumping = false; input.shiftKeyDown = false;
         input.up = input.down = input.left = input.right = false;
         player.getAbilities().flying = false;
-        double speed = MagnetoConfig.FLY_SPEED.get(), rise = MagnetoConfig.FLY_RISE.get();
+        double speed = s.flySpeed, rise = s.flyRise;
         Vec3 look = player.getLookAngle();
         float yaw = player.getYRot() * Mth.DEG_TO_RAD;
         Vec3 side = new Vec3(Mth.cos(yaw), 0, Mth.sin(yaw));
@@ -164,6 +167,8 @@ public final class MagnetoClient {
         if (mc.level == null) { STATES.clear(); return; }
         long now = mc.level.getGameTime();
         STATES.entrySet().removeIf(v -> mc.level.getEntity(v.getKey()) == null || now - v.getValue().received > 200);
+        // The fist steps once per tick, whenever its packets arrive, so the frames between never jump back.
+        for (State s : STATES.values()) { s.fistPrev = s.fist; s.fist = s.fistNext; }
     }
     @SubscribeEvent public static void fov(ComputeFovModifierEvent e) {
         if (FilmDirector.playing() || !isHero(e.getPlayer())) return;

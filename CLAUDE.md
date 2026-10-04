@@ -39,7 +39,9 @@ work in the cloud). Keep everything compiling; tests live in `src/test/java/com/
 `client/render/film/`:
 - `FilmDirector` plays a `Film` for the local player: camera along Catmull-Rom `FilmShot`s, input locked, HUD hidden,
   no letterbox bars. Segments are either the real world or a **virtual stage** the film draws itself
-  (backdrop shader `shaders/core/film_backdrop.fsh`: scenes clouds, hell plain, abyss, ARENA (Cyclops), DESERT (Sandman)).
+  (backdrop shader `shaders/core/film_backdrop.fsh`: scenes clouds, hell plain, abyss, ARENA (Cyclops), DESERT (Sandman),
+  PLAIN (Hulk), CITY (Panther), WASTELAND (Magneto)). The shader can be previewed in the cloud with Python moderngl on EGL
+  (llvmpipe; `apt-get install libegl1`, `pip install moderngl`).
   Fades, impact frames, sound cues (vanilla sounds only, no copyrighted audio), grade, on-screen captions.
 - `FilmCast` draws performers: players and zombies as jointed puppets (11 joints, `ActorPose`, degrees in `j()`);
   other mobs through `FilmPosedModel`, which poses their own model limbs (villagers/witches get two free arms);
@@ -245,6 +247,16 @@ landing spot and the target to the crater.
 - Look: `MagnetoBody` (same joint chain/pose layout as Panther: `PantherMotion.Pose`, `PantherMotion.Track` made public),
   `MagnetoMotion` (calm, minimal gestures; flight = arms open like the painting), `MagnetoLayer` (cape on a damped spring),
   `MetalMesh` (rods/girders, scrap, columns, fist, fragments), `MagnetoFx`. Docs for the user: `docs/MAGNETO.md`.
+- **MAGNETIC EXECUTION (X), `client/render/film/MagneticExecutionFilm.java`, 20.6 s**, own stage (backdrop scene 10 WASTELAND:
+  crimson storm, lightning (`Planet` = strike point + flash, `Ring.x/y` = bolt seed/brightness), rain, wet reflective cracked
+  ground, ruins on the horizon). `MagneticPath` = the pure timeline (beats `MagnetoAction.ULT_*`): Magneto's gesture track
+  (X-stroke arm angles were solved for hand positions — a raised arm goes outward with a NEGATIVE ARM_Z), walk toward the
+  camera, 44 orbit pieces (speed integral `turned`), 22 launched to the target's wrists/ankles/chest (`anchor`), target X pose
+  (FilmCast puppet), the two pillars as 8 segments each (drive in along their own axis, bend round the target, compress into
+  the ball, `segment`), the ball's hurl to `FAR`, `STRIKES`, cameras (`view`, `follow` shots move with his walk) and kicks.
+  `MagneticStage` draws it: an invisible depth floor (`FilmFx.floor`/`DEPTH`) hides what is buried, `MetalMesh.SHADE` tints
+  metal and his body by the storm light, skull mound + rubble (`FilmFx.cube`), wreckage, glowing pillar edges, sparks,
+  splashes, dust, shock ring, 3D bolts (`ThorBolts`), rain round the camera, footsteps. Server `MagnetoUltSession`.
 
 ## Champion select (P)
 - `client/gui/ChampionSelectScreen` (key P; the dev Pose Studio moved to F8 under a new key id) + roster data

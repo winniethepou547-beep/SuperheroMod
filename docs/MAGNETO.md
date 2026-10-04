@@ -16,6 +16,21 @@ uzun mor pelerin (uçarken dalgalanır).
 | F | Manyetik Demir Kalkan | Etrafından toprağı yararak demir sütunlar yükselir ve etrafında durur: oklar ve mermiler sütunlara çarpıp durur, yakın saldırıların %70'ini sütunlar alır. Tekrar F: sütunlar parçalanıp onlarca parça halinde her yöne döne döne fırlar, çarptıklarına hasar verir, yere/duvara saplanır. |
 | X | Manyetik İnfaz | Sinematik ulti (aşağıda). Önündeki birine bakarak basılır. |
 
+## X — Manyetik İnfaz (20,6 sn)
+Kendi sahnesinde oynar: kıyamet sonrası ölü bir dünya, kızıl fırtınalı gökyüzü, sürekli şimşek, sağanak yağmur, ıslak
+ve gökyüzünü yansıtan kırık zemin, ufukta yıkık kuleler, yerde kafatasları ve hurda.
+1. Magneto ortada sakin duruyor, etrafında onlarca metal parça farklı hızlarda dönüyor; elinin küçük hareketlerine tepki veriyor.
+2. Elini yavaşça kaldırıyor, yörüngeler hızlanıyor; eliyle iterek metali hedefe gönderiyor.
+3. Parçalar hedefin bileklerine, ayak bileklerine ve göğsüne kilitleniyor; kolları ve bacakları X şeklinde açılıp havaya kalkıyor.
+4. Magneto elleriyle X çiziyor (sağ el sağ üstten sol alta, sol el sol üstten sağ alta); iki dev demir sütun fırtınadan
+   çapraz açıyla inip hedefin arkasında dev bir X oluşturuyor (sarı parlayan kenarlar, kıvılcım, su sıçraması, toz,
+   şok halkası ve aynı anda yıldırım).
+5. Hedef X'in ortasına çekilip çakılıyor (kafatası tepesinin üstünde, 2. görseldeki gibi).
+6. Magneto arkasını dönüp kameraya doğru yürüyor; elini kaldırıp yumruk yapıyor, sonra çöp atar gibi küçük bir el hareketi.
+7. Sütunlar birbirine çekilip bükülüyor, hedefin etrafına sarılıp küçük bir metal topa sıkışıyor; top fırtınanın içine
+   fırlatılıyor, çok uzakta patlıyor. Magneto hiç arkasına bakmadan yürümeye devam ediyor.
+Hasar: ezilmede hedefin canının %70'i (ayar), film bitince geri itme + yavaşlık.
+
 ## Ayarlar
 - `config/superheromod-magneto.toml`: uçuş hızı, her yeteneğin hasarı, menzili, bekleme süresi, süresi; çubuk sayısı ve
   yüksekliği, hurda parça sayısı, yumruk sayısı, sütun sayısı, patlama parça sayısı, kalkanın azaltma oranı, X'in hasarı.
@@ -23,8 +38,11 @@ uzun mor pelerin (uçarken dalgalanır).
 
 ## Kod
 - `heroes/magneto/`: `MagnetoAction` (kimlikler, zamanlamalar), `MagnetoConfig`, `MagnetoController` (sunucu: uçuş,
-  çubukların/parçaların fiziği ve isabetleri, tutma/sürükleme/çarpma, yumruk, kalkan), `MagnetoUltSession` (X).
+  çubukların/parçaların fiziği ve isabetleri, tutma/sürükleme/çarpma, yumruk, kalkan), `MagnetoUltSession` (X: sunucu tarafı).
 - `client/render/magneto/`: `MagnetoClient` (durum, uçuşu kendi istemcisinde yumuşak sürme, E tuşu, HUD), `MagnetoMotion`
   (pozlar, Panther'in eklem düzeniyle), `MagnetoBody` (kutulardan kostüm ve pelerin), `MagnetoLayer` (geçişler, uçuş/duruş,
   nişanı takip eden el, pelerin yayı), `MetalMesh` (çubuk, hurda, sütun, yumruk, parça şekilleri), `MagnetoFx` (dünyada
   metal, toz, kıvılcım, halkalar, alan çizgileri, birinci şahıs eldivenler).
+- X filmi: `MagneticPath` (zaman çizelgesi: Magneto'nun pozları ve yürüyüşü, dönen metal, hedefin yeri ve pozu, sütunlar,
+  ezilme, top, şimşekler, kameralar), `MagneticStage` (sahneyi çizer), `film/MagneticExecutionFilm` (ses, renk, başlık).
+  Arka plan: `film_backdrop.fsh` sahne 10.

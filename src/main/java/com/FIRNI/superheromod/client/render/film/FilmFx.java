@@ -26,6 +26,10 @@ public final class FilmFx extends RenderType {
     public static final RenderType SOFT = create("film_soft", DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS, 65536, false, true,
             CompositeState.builder().setShaderState(POSITION_COLOR_SHADER).setTransparencyState(TRANSLUCENT_TRANSPARENCY)
                     .setCullState(NO_CULL).setWriteMaskState(COLOR_WRITE).setDepthTestState(LEQUAL_DEPTH_TEST).createCompositeState(false));
+    /** Writes depth only, no colour: an invisible floor, so what is buried under a stage's backdrop ground stays hidden. */
+    public static final RenderType DEPTH = create("film_depth", DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS, 256, false, false,
+            CompositeState.builder().setShaderState(POSITION_COLOR_SHADER).setCullState(NO_CULL).setWriteMaskState(DEPTH_WRITE)
+                    .setDepthTestState(LEQUAL_DEPTH_TEST).createCompositeState(false));
     /** Opaque, flat-shaded geometry. */
     public static final RenderType SOLID = create("film_solid", DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS, 65536, false, false,
             CompositeState.builder().setShaderState(POSITION_COLOR_SHADER).setCullState(NO_CULL).createCompositeState(false));
@@ -171,6 +175,13 @@ public final class FilmFx extends RenderType {
         float r = (rgb >> 16 & 255) / 255f, g = (rgb >> 8 & 255) / 255f, b = (rgb & 255) / 255f;
         for (int f = 0; f < 6; f++) for (int k = 0; k < 4; k++)
             v.vertex(m, faces[f][k * 3], faces[f][k * 3 + 1], faces[f][k * 3 + 2]).color(r * shade[f], g * shade[f], b * shade[f], 1).endVertex();
+    }
+    /** An invisible floor at height y round a centre (radius in blocks): hides everything below it. */
+    public static void floor(FilmContext c, double x, double y, double z, double radius) {
+        VertexConsumer v = c.buffers().getBuffer(DEPTH);
+        Matrix4f m = c.pose().last().pose();
+        put(v, m, x - radius, y, z - radius, 0, 0, 0, 1); put(v, m, x - radius, y, z + radius, 0, 0, 0, 1);
+        put(v, m, x + radius, y, z + radius, 0, 0, 0, 1); put(v, m, x + radius, y, z - radius, 0, 0, 0, 1);
     }
     public static double hash(double n) { double x = Math.sin(n * 12.9898) * 43758.5453; return x - Math.floor(x); }
     public static float ease(float t) { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); }

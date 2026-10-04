@@ -19,7 +19,7 @@ import net.minecraftforge.fml.common.Mod;
  */
 @Mod.EventBusSubscriber(modid = SuperheroMod.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public final class FilmBackdrop {
-    public static final int CLOUDS = 0, STAR = 1, ORBIT = 2, PLUNGE = 3, HELL = 4, ABYSS = 5, ARENA = 6, DESERT = 7, PLAIN = 8, CITY = 9;
+    public static final int CLOUDS = 0, STAR = 1, ORBIT = 2, PLUNGE = 3, HELL = 4, ABYSS = 5, ARENA = 6, DESERT = 7, PLAIN = 8, CITY = 9, WASTELAND = 10;
     /** Everything the backdrop needs for one frame. Planet radius and ring are in stage blocks / radii. */
     public record Params(int scene, Vec3 planet, float radius, float ringInner, float ringOuter, float ringSpin, float ringAlpha,
                          float fallSpeed, float streaks, float clouds, float xray, int tint, float tintAmount) {
@@ -41,6 +41,14 @@ public final class FilmBackdrop {
         /** A city at night: towers and hills round the horizon, low cloud lit from below; dust 0..1 hangs in the air (z: how far down the road, unused by the sky itself). */
         public static Params city(float dust, float z) {
             return new Params(CITY, Vec3.ZERO, 1, 0, 0, 0, 0, z, 0, dust, 0, 0, 0);
+        }
+        /**
+         * A dead world under a crimson storm: wet black ground, ruins on the horizon, rain. strike = where the lightning
+         * comes down (stage space, far off), flash 0..1+ lights the clouds and the ground, bolt 0..1 draws its channel
+         * in the sky (seed shapes it); wind rolls the clouds; rain 0..1.
+         */
+        public static Params wasteland(Vec3 strike, float flash, float seed, float bolt, float wind, float rain) {
+            return new Params(WASTELAND, strike, flash, seed, bolt, 0, 0, wind, 0, rain, 0, 0, 0);
         }
         public static Params abyss(float streaks) {
             return new Params(ABYSS, Vec3.ZERO, 1, 0, 0, 0, 0, 0, streaks, 0, 0, 0, 0);

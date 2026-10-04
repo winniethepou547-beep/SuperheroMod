@@ -240,7 +240,7 @@ public final class MagnetoFx {
                 float stay = b.kind == ROD ? ROD_STAY + ROD_SINK : SHARD_STAY + SHARD_FADE;
                 if (t - b.stuckAt > stay) it.remove();
                 // A rod sinks back into the ground before it goes.
-                else if (b.kind == ROD && t - b.stuckAt > ROD_STAY) b.pos = b.pos.add(b.axis.scale(.09));
+                else if (b.kind == ROD && t - b.stuckAt > ROD_STAY) b.pos = b.pos.add(b.axis.scale(.14));
                 continue;
             }
             if (t - b.spawn > 90) { it.remove(); continue; }
