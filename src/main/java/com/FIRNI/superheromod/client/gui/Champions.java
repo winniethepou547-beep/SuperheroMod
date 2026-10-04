@@ -65,7 +65,24 @@ public final class Champions {
                     new Skill("F", "Canlı Gölge", "Gölgeni ileri yollar; tekrar basınca onunla yer değiştirirsin."),
                     new Skill("E", "Gölge Darbesi", "Etrafını keser; gölgen de keser ve yavaşlatır."),
                     new Skill("R", "Ölüm İşareti", "İki gölge kopyan hedefe girer, üstünde X yanar; sen kaybolur, arkasında belirirsin ve X patlar."),
-                    new Skill("X", "Gölge İnfazı", "Sinematik: gölge ordusu kurbanı yutar, içinde kırmızı bir ışık patlar."))));
+                    new Skill("X", "Gölge İnfazı", "Sinematik: gölge ordusu kurbanı yutar, içinde kırmızı bir ışık patlar."))),
+            new Champion("black_panther", "BLACK PANTHER", "T'Challa — Wakanda'nın Kralı", 0xFF9A6BFF, List.of(
+                    new Skill("SOL", "Vibranyum Pençeleri", "Önündeki alana sağ, sol, çift pençe ve aparkat. Basılı tut: Wolverine gibi kollarını tam açıp süpüren vahşi pençe fırtınası (bekleme süreli). Vurduğun herkese 5 saniyelik mor çizik işareti."),
+                    new Skill("SAĞ", "Pençe Atılışı", "15 blok içindeki işaretli hedefe atılır, çapraz tuttuğu pençelerini içten dışa açarak keser."),
+                    new Skill("SHIFT", "Panter Atılışı", "Avına atılır, üstünden takla atıp arkasından tekmeler, rakip uçup sürünür. CTRL basılı: çömelir, 2 saniye sonra 5 saniyelik kamuflaj (2 kat hız, 4 bloktan uzaktan görünmez); hasar alınca bozulur."),
+                    new Skill("BOŞLUK", "Çift Zıplama", "Havada bir kez daha zıplar, takla atar."),
+                    new Skill("Q", "Dönen Üçlü Tekme", "Havada hiç inmeden dönerek sağ, sol, sağ tekme; sonuncusu fırlatır."),
+                    new Skill("E", "Vibranyum Patlaması", "Aldığın hasar takımda enerji olarak birikir; kollarını açıp küre halinde patlatırsın, herkes bulunduğu yere göre fırlar."),
+                    new Skill("R", "Panter Refleksi", "Koruma duruşuna geçer; önünden gelen her saldırıyı ön kollarıyla savuşturur (hasar almaz), arkadan gelenlerden kendiliğinden kaçar."),
+                    new Skill("X", "Son Kovalamaca", "Sinematik ulti: hedefin sürdüğü arabayı arkadaki SUV'nin tavanından kovalar, kurşunları zırhına emdirir, atlayıp tavanı pençeleriyle söker, biriken enerjiyi tek seferde patlatır; araba takla atıp parçalanır."))),
+            new Champion("magneto", "MAGNETO", "Erik Lehnsherr — Manyetizmanın Efendisi", 0xFFE0384A, List.of(
+                    new Skill("SHIFT", "Uçuş", "Havalanır ve süzülür (Boşluğa iki kez basmak da olur). Uçarken Boşluk yükseltir, CTRL alçaltır."),
+                    new Skill("SOL", "Metal Kıymık", "Elinden keskin bir metal parçası fırlatır."),
+                    new Skill("Q", "Demir Yağmuru", "Nişan aldığı yerin 8 blok üstünden dev demir çubuklar eğik düşüp toprağa saplanır; patlama ve alan hasarı. 3 kullanım hakkı."),
+                    new Skill("E", "Hurda Telekinezisi", "Hedefin arkasından gelen hurda metal onu sarar ve havaya kaldırır; 3 saniye boyunca fareyle sürükler, duvara ya da yere çarpar. Sol tık: fırlat."),
+                    new Skill("R", "Dev Demir Yumruk", "Önünde metalden dev bir yumruk belirir, nişanını takip eder; her sol tıkta yere iner (5 yumruk)."),
+                    new Skill("F", "Manyetik Demir Kalkan", "Etrafından demir sütunlar yükselir, saldırıları durdurur. Tekrar basınca sütunlar parçalanıp her yöne fırlar."),
+                    new Skill("X", "Manyetik İnfaz", "Sinematik: kızıl fırtınalı ölü bir dünyada hedefi X şeklinde iki dev sütuna çiviler, sonra metalle birlikte ezip fırlatır."))));
 
     /** How many card slots the grid always shows (the rest are "?" for the heroes to come). */
     public static final int MIN_SLOTS = 18;

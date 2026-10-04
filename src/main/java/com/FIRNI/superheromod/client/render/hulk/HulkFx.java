@@ -565,7 +565,7 @@ public final class HulkFx {
         Vec3 cam = e.getCamera().getPosition();
         p.translate(-cam.x, -cam.y, -cam.z);
         var mv = RenderSystem.getModelViewStack(); mv.pushPose(); mv.last().pose().identity(); RenderSystem.applyModelViewMatrix();
-        var buffers = mc.renderBuffers().bufferSource();
+        var buffers = FilmFx.batched();     // (one buffer per kind: no draw forced between a glow and a puff)
         var rotation = e.getCamera().rotation();
         var r = new Vector3f(1, 0, 0).rotate(rotation); var u = new Vector3f(0, 1, 0).rotate(rotation);
         FilmContext c = new FilmContext(p, buffers, cam, new Vec3(r.x, r.y, r.z), new Vec3(u.x, u.y, u.z), time, 0, partial);
