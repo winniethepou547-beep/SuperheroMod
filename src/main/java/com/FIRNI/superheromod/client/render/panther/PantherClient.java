@@ -66,7 +66,7 @@ public final class PantherClient {
         Vec3 localFrom = Vec3.ZERO, localDir = new Vec3(0, 0, 1); float localReach; int localFor = -1;
     }
     private static final Map<Integer, State> STATES = new HashMap<>();
-    private static boolean eDown, shiftDown, jumpDown, jumped, crouchDown;
+    private static boolean eDown, shiftDown, jumpDown, jumped, crouchDown, shiftRun;
     private static int airTicks;
     static float fovKick;
     private static CameraType savedCamera;
@@ -298,8 +298,11 @@ public final class PantherClient {
         keys.shiftKeyDown = false;
         if (shift && (a == IDLE || a == POUNCE_LOAD || a == DODGE) && keys.forwardImpulse > 0 && !player.isUsingItem()) {
             player.setSprinting(true);
+            shiftRun = true;
             return;
         }
+        // Let go of SHIFT: the run he started with it ends too.
+        if (shiftRun && !shift) { shiftRun = false; player.setSprinting(false); }
         if (a == SNEAK) {
             var input = e.getInput();
             input.forwardImpulse *= .3f; input.leftImpulse *= .3f; input.jumping = false;
