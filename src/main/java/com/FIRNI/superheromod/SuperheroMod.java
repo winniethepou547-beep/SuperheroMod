@@ -94,8 +94,8 @@ public class SuperheroMod
         context.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
         context.registerConfig(ModConfig.Type.COMMON, com.FIRNI.superheromod.heroes.hulk.HulkConfig.COMMON, "superheromod-hulk.toml");
         context.registerConfig(ModConfig.Type.CLIENT, com.FIRNI.superheromod.heroes.hulk.HulkConfig.CLIENT, "superheromod-hulk-client.toml");
-        context.registerConfig(ModConfig.Type.COMMON, com.FIRNI.superheromod.heroes.panther.PantherConfig.COMMON, "superheromod-panther.toml");
-        context.registerConfig(ModConfig.Type.CLIENT, com.FIRNI.superheromod.heroes.panther.PantherConfig.CLIENT, "superheromod-panther-client.toml");
+        context.registerConfig(ModConfig.Type.COMMON, com.FIRNI.superheromod.heroes.panther.PantherConfig.COMMON, "superheromod-black-panther.toml");
+        context.registerConfig(ModConfig.Type.CLIENT, com.FIRNI.superheromod.heroes.panther.PantherConfig.CLIENT, "superheromod-black-panther-client.toml");
     }
 
     private void commonSetup(final FMLCommonSetupEvent event)

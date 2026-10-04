@@ -34,6 +34,9 @@ public final class PantherLayer extends RenderLayer<AbstractClientPlayer, Player
     }
     private static final Map<Integer, Blend> BLENDS = new HashMap<>();
 
+    /** How much of the glass the others see of him in his camouflage (his own view: all of it). */
+    private static final float OTHERS_SEE = .38f;
+
     public PantherLayer(RenderLayerParent<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> parent) { super(parent); }
 
     /** How quickly the body crosses into a move (ticks). */
@@ -54,6 +57,14 @@ public final class PantherLayer extends RenderLayer<AbstractClientPlayer, Player
         // Invisible for his camouflage: still drawn, as glass. Invisible for any other reason: not drawn.
         boolean camo = s != null && s.camoLeft > 0;
         if (e.isInvisible() && !camo) return;
+        // In the camouflage: he sees himself as the glass; the others only from close (CAMO_SEEN blocks, a faint shimmer), not at all further off.
+        float seen = 1;
+        var viewer = Minecraft.getInstance().player;
+        if (camo && viewer != null && viewer != e && !Showcase.is(e)) {
+            double d = viewer.getPosition(partial).distanceTo(e.getPosition(partial));
+            seen = OTHERS_SEE * (1 - ease((float) (d - (CAMO_SEEN - .6f)) / .6f));
+            if (seen <= .005f) return;
+        }
         int action = s == null ? IDLE : PantherClient.action(s);
         float t = s == null ? 0 : PantherClient.clock(s, partial);
         boolean shown = Showcase.is(e);
@@ -156,7 +167,7 @@ public final class PantherLayer extends RenderLayer<AbstractClientPlayer, Player
         PantherBody.eyeRight = PantherBody.toeRight = PantherBody.toeLeft = null;
         java.util.Arrays.fill(PantherBody.CLAWS, null);
         try {
-            body(p, b, light, e.getId(), pose, headYaw, headPitch, time, now, camo, blend.align, charge);
+            body(p, b, light, e.getId(), pose, headYaw, headPitch, time, now, camo, seen, blend.align, charge);
         } finally {
             PantherBody.capture = false;
         }
@@ -178,18 +189,18 @@ public final class PantherLayer extends RenderLayer<AbstractClientPlayer, Player
      * jittering either side.
      */
     private static void body(PoseStack p, MultiBufferSource b, int light, int id, Pose pose, float headYaw, float headPitch, float time, float now,
-                             boolean camo, float align, PantherBody.Charge charge) {
+                             boolean camo, float seen, float align, PantherBody.Charge charge) {
         float[] change = PantherFx.camoChange(id);     // {level time, kind: 1 on, 0 off, -1 torn}
         float since = change == null ? 99 : now - change[0];
         int kind = change == null ? 0 : (int) change[1];
         float savedLevel = charge.level;
         if (camo) {
             charge.level = 0;
-            PantherBody.draw(p, b, light, pose, headYaw, headPitch, time, PantherBody.CAMO, 1, align);
+            PantherBody.draw(p, b, light, pose, headYaw, headPitch, time, PantherBody.CAMO, seen, align);
             // Fading into it: a pale copy of the suit melting away.
             if (kind == 1 && since < 10) {
                 PantherBody.tint = new float[]{.55f, .62f, .75f};
-                PantherBody.draw(p, b, light, pose, headYaw, headPitch, time, PantherBody.GHOST, .9f * (1 - since / 10f), align);
+                PantherBody.draw(p, b, light, pose, headYaw, headPitch, time, PantherBody.GHOST, .9f * (1 - since / 10f) * Math.min(1, seen * 2), align);
                 PantherBody.tint = new float[]{.14f, .07f, .28f};
             }
             charge.level = savedLevel;

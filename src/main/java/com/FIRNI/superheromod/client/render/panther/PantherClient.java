@@ -66,7 +66,7 @@ public final class PantherClient {
         Vec3 localFrom = Vec3.ZERO, localDir = new Vec3(0, 0, 1); float localReach; int localFor = -1;
     }
     private static final Map<Integer, State> STATES = new HashMap<>();
-    private static boolean eDown, shiftDown, jumpDown, jumped;
+    private static boolean eDown, shiftDown, jumpDown, jumped, crouchDown;
     private static int airTicks;
     static float fovKick;
     private static CameraType savedCamera;
@@ -119,7 +119,7 @@ public final class PantherClient {
     /** Is the server still behind what his client predicted? */
     private static boolean behind(State s) {
         return switch (s.predicted) {
-            case POUNCE_LOAD -> free(s.action);
+            case POUNCE_LOAD -> free(s.action) || s.action == SNEAK;
             case POUNCE, SNEAK -> free(s.action) || s.action == POUNCE_LOAD;
             default -> false;
         };
@@ -168,7 +168,11 @@ public final class PantherClient {
     @SubscribeEvent public static void keys(TickEvent.ClientTickEvent e) {
         if (e.phase != TickEvent.Phase.START) return;
         var mc = Minecraft.getInstance();
-        if (mc.player == null || !isHero(mc.player)) { eDown = false; return; }
+        if (mc.player == null || !isHero(mc.player)) {
+            eDown = false;
+            if (crouchDown) { crouchDown = false; if (mc.player != null) ModNetworking.CHANNEL.sendToServer(new com.FIRNI.superheromod.network.packet.PantherInputPacket(INPUT_CROUCH_UP)); }
+            return;
+        }
         if (mc.screen != null) return;
         boolean clicked = false;
         while (mc.options.keyInventory.consumeClick()) clicked = true;
@@ -177,11 +181,40 @@ public final class PantherClient {
         else if (!down && eDown) ModNetworking.CHANNEL.sendToServer(new AbilityInputPacket(AbilitySlot.SKILL_V, false));
         eDown = down;
         predictShift(mc.player);
+        crouch(mc);
         doubleJump(mc.player);
     }
     /**
+     * The crouch (and the camouflage it gathers into) is the sprint key held, CTRL. While he is Black Panther that key
+     * does not sprint (a double tap of forward still does): it is read straight off the keyboard and taken away from
+     * the vanilla sprint every tick.
+     */
+    private static void crouch(Minecraft mc) {
+        KeyMapping key = mc.options.keySprint;
+        boolean down = held(mc, key);
+        key.setDown(false);
+        if (down == crouchDown) return;
+        crouchDown = down;
+        ModNetworking.CHANNEL.sendToServer(new com.FIRNI.superheromod.network.packet.PantherInputPacket(down ? INPUT_CROUCH_DOWN : INPUT_CROUCH_UP));
+        State s = get(mc.player);
+        if (s == null) return;
+        int a = action(s);
+        if (down && (a == IDLE || a == DODGE)) { s.predicted = SNEAK; s.predAt = mc.level.getGameTime(); }
+        else if (!down && s.predicted == SNEAK) s.predicted = -1;
+    }
+    /** Is a key really held down right now (whatever the vanilla mapping was told)? */
+    private static boolean held(Minecraft mc, KeyMapping key) {
+        var k = key.getKey();
+        long window = mc.getWindow().getWindow();
+        if (k.getType() == com.mojang.blaze3d.platform.InputConstants.Type.KEYSYM) return k.getValue() >= 0 && com.mojang.blaze3d.platform.InputConstants.isKeyDown(window, k.getValue());
+        if (k.getType() == com.mojang.blaze3d.platform.InputConstants.Type.MOUSE) return org.lwjgl.glfw.GLFW.glfwGetMouseButton(window, k.getValue()) == org.lwjgl.glfw.GLFW.GLFW_PRESS;
+        return false;
+    }
+    /** Is his crouch key held (for the HUD)? */
+    public static boolean crouching() { return crouchDown; }
+    /**
      * SHIFT, started at once on his own client (the server's word follows a moment later): down, the load;
-     * let go within a tap, the pounce, from exactly where he stands; held, the crouch.
+     * let go within a tap, the pounce, from exactly where he stands (out of the crouch too).
      */
     private static void predictShift(LocalPlayer player) {
         State s = get(player);
@@ -189,8 +222,8 @@ public final class PantherClient {
         long now = player.level().getGameTime();
         if (s != null) {
             int a = action(s);
-            if (down && !shiftDown && free(a)) {
-                s.predicted = s.cooldowns[CD_POUNCE] > 0 ? SNEAK : POUNCE_LOAD;
+            if (down && !shiftDown && (free(a) || a == SNEAK) && s.cooldowns[CD_POUNCE] <= 0) {
+                s.predicted = POUNCE_LOAD;
                 s.predAt = now;
                 Vec3 look = player.getLookAngle();
                 Vec3 flat = new Vec3(look.x, 0, look.z);
@@ -203,8 +236,8 @@ public final class PantherClient {
                 s.predAt = now;
                 local(s, POUNCE, player.position(), dir, reach(player, dir, PantherConfig.POUNCE_DISTANCE.get()));
                 fovKick = 1;
-            } else if (!down && shiftDown && s.predicted >= 0) s.predicted = -1;
-            else if (down && s.predicted == POUNCE_LOAD && now - s.predAt >= TAP_TICKS) { s.predicted = SNEAK; s.predAt = now; }
+            } else if (!down && shiftDown && s.predicted == POUNCE_LOAD) s.predicted = crouchDown ? SNEAK : -1;
+            else if (down && s.predicted == POUNCE_LOAD && now - s.predAt >= TAP_TICKS) { s.predicted = crouchDown ? SNEAK : -1; s.predAt = now; }
         }
         shiftDown = down;
     }
@@ -306,14 +339,16 @@ public final class PantherClient {
             case DASH -> steer(player, PantherPath.dash(s.localFor == DASH ? s.localFrom : s.from, s.to, Math.min(t, DASH_TICKS), DASH_TICKS));
             case CROSS -> { if (t < 3) player.setDeltaMovement(player.getDeltaMovement().multiply(.4, 1, .4)); }
             case FRENZY -> {
-                // The feet keep the range: in when the target drifts away, back a touch when it crowds him.
+                // The flurry drives forward (as Wolverine's does); with someone in front, the feet keep the range:
+                // in when they drift away, back a touch when they crowd him.
                 Entity target = mc.level.getEntity(s.target);
-                if (target != null) {
-                    Vec3 to = target.position().subtract(player.position());
-                    Vec3 flat = new Vec3(to.x, 0, to.z);
-                    double d = flat.length();
-                    if (d > 2.4 && d < 6) player.setDeltaMovement(player.getDeltaMovement().add(flat.normalize().scale(.12)));
-                    else if (d < 1.3 && d > .01) player.setDeltaMovement(player.getDeltaMovement().add(flat.normalize().scale(-.06)));
+                Vec3 to = target == null ? null : target.position().subtract(player.position());
+                double d = to == null ? 99 : Math.sqrt(to.x * to.x + to.z * to.z);
+                if (d < 1.3 && d > .01) player.setDeltaMovement(player.getDeltaMovement().add(new Vec3(to.x, 0, to.z).normalize().scale(-.06)));
+                else if (d > 2.4 && d < 6) player.setDeltaMovement(player.getDeltaMovement().add(new Vec3(to.x, 0, to.z).normalize().scale(.12)));
+                else if (d >= 6 && player.onGround()) {
+                    Vec3 ahead = Vec3.directionFromRotation(0, player.getYRot()).scale(.075);
+                    player.setDeltaMovement(player.getDeltaMovement().add(ahead));
                 }
             }
             default -> {}
@@ -428,8 +463,10 @@ public final class PantherClient {
         int violet = 0xFF9A6BFF;
         HudStyle.caption(g, font, "BLACK PANTHER", 10, h - 46, violet, -1);
         int row = h - 124;
-        hint(g, font, mc.options.keyUse, "Pençe Atılışı (işaretli hedefe)", s.cooldowns[CD_DASH], 10, row - 24);
-        hint(g, font, mc.options.keyShift, "Bas: Panter Atılışı / Basılı: Kamuflaj", s.cooldowns[CD_POUNCE], 10, row - 12);
+        hint(g, font, mc.options.keyAttack, "Basılı: Vahşi Pençe", s.cooldowns[CD_FRENZY], 10, row - 48);
+        hint(g, font, mc.options.keyUse, "Pençe Atılışı (işaretli hedefe)", s.cooldowns[CD_DASH], 10, row - 36);
+        hint(g, font, mc.options.keyShift, "Panter Atılışı", s.cooldowns[CD_POUNCE], 10, row - 24);
+        hint(g, font, mc.options.keySprint, "Basılı: Eğil / Kamuflaj", s.camoLeft > 0 ? 0 : s.cooldowns[CD_CAMO], 10, row - 12);
         hint(g, font, mc.options.keyJump, "Havada: Çift Zıplama", 0, 10, row);
         hint(g, font, AbilityKeyHandler.KEY_ULTIMATE, "Dönen Üçlü Tekme", s.cooldowns[CD_SPIN], 10, row + 12);
         hint(g, font, mc.options.keyInventory, "Vibranyum Patlaması", s.cooldowns[CD_RELEASE], 10, row + 24);
@@ -441,21 +478,64 @@ public final class PantherClient {
         HudStyle.caption(g, font, "Vibranyum", 10, y - 10, energy > .05f ? violet : HudStyle.MUTED, -1);
         float pulse = energy >= .999f ? .75f + .25f * Mth.sin((mc.level.getGameTime() + e.getPartialTick()) * .4f) : 1;
         HudStyle.bar(g, 64, y - 8, bw, energy, HudStyle.alpha(violet, Math.max(.45f, energy) * pulse));
+        float time = mc.level.getGameTime() + e.getPartialTick();
+        float cx = w / 2f, cy = h / 2f;
+        // Panther Reflex: a violet ring round the crosshair running down, a flash racing out with every parry.
         if (s.reflexLeft > 0) {
-            HudStyle.caption(g, font, "Refleks", w / 2 - 25, h / 2 + 26, violet, -1);
-            HudStyle.bar(g, w / 2 - 25, h / 2 + 36, 50, s.reflex, violet);
+            float left = s.reflex;
+            boolean low = left < .25f;
+            float blink = low ? .55f + .45f * Mth.sin(time * .9f) : 1;
+            ring(g, cx, cy, 13, 2.2f, left, HudStyle.alpha(violet, blink), time, false);
+            float since = time - parryAt;
+            if (since >= 0 && since < 8) {
+                float k = since / 8;
+                HudStyle.arc(g, cx, cy, 13 + 9 * k, 14.5f + 9 * k, 0, 360, HudStyle.alpha(0xFFE8DCFF, .7f * (1 - k)));
+            }
+            HudStyle.caption(g, font, String.format(Locale.ROOT, "Refleks %.1f", s.reflexLeft / 20f), (int) cx, (int) cy + 25, HudStyle.alpha(violet, blink), 0);
         }
-        // The crouch gathering the camouflage, then the camouflage's time.
+        // The camouflage: the crouch gathering it (a pale ring filling, sparks of light along it), then its time running
+        // out as a shimmering ring of bent light.
         int a = action(s);
+        int glass = 0xFFB8E4F8;
         if (a == SNEAK && s.camoLeft <= 0) {
-            float k = Math.min(1, clock(s, e.getPartialTick()) / CAMO_CHARGE);
-            HudStyle.caption(g, font, s.cooldowns[CD_CAMO] > 0 ? String.format(Locale.ROOT, "Kamuflaj %.1f", s.cooldowns[CD_CAMO] / 20f) : "Kamuflaj", w / 2 - 25, h / 2 + 48, HudStyle.MUTED, -1);
-            HudStyle.bar(g, w / 2 - 25, h / 2 + 58, 50, k, 0xFF9AB8D8);
+            boolean waiting = s.cooldowns[CD_CAMO] > 0;
+            float k = waiting ? 0 : Math.min(1, clock(s, e.getPartialTick()) / CAMO_CHARGE);
+            ring(g, cx, cy, 18, 1.6f, waiting ? 1 - s.cooldowns[CD_CAMO] / (float) Math.max(1, PantherConfig.CAMO_COOLDOWN.get()) : k,
+                    waiting ? 0x66B0B8C0 : glass, time, !waiting);
+            HudStyle.caption(g, font, waiting ? String.format(Locale.ROOT, "Kamuflaj %.1f sn", s.cooldowns[CD_CAMO] / 20f) : "Kamuflaj toplanıyor",
+                    (int) cx, (int) cy + (s.reflexLeft > 0 ? 35 : 25), waiting ? HudStyle.MUTED : glass, 0);
         }
         if (s.camoLeft > 0) {
-            HudStyle.caption(g, font, "Kamuflaj", w / 2 - 25, h / 2 + 48, 0xFFB8D8F0, -1);
-            HudStyle.bar(g, w / 2 - 25, h / 2 + 58, 50, s.camoLeft / (float) PantherConfig.CAMO_DURATION.get(), 0xFFB8D8F0);
+            float left = s.camoLeft / (float) PantherConfig.CAMO_DURATION.get();
+            float[] change = PantherFx.camoChange(mc.player.getId());
+            float since = change == null ? 99 : time - change[0];
+            float pop = since < 8 ? 1 + .35f * (1 - since / 8) : 1;
+            ring(g, cx, cy, 18 * pop, 1.8f, left, HudStyle.alpha(glass, left < .25f ? .55f + .45f * Mth.sin(time * .9f) : 1), time, true);
+            HudStyle.caption(g, font, String.format(Locale.ROOT, "Görünmez %.1f", s.camoLeft / 20f), (int) cx, (int) cy + (s.reflexLeft > 0 ? 35 : 25), glass, 0);
         }
+    }
+    /** When the local Panther last parried (level time), for the reflex ring's flash. */
+    static float parryAt = -100;
+    /**
+     * A ring round the crosshair: a faint full track, the filled part from the top going clockwise (with a soft glow
+     * under it and a bright head), and, shimmering, light running round it like light bent through glass.
+     */
+    private static void ring(net.minecraft.client.gui.GuiGraphics g, float cx, float cy, float r, float width, float progress, int color, float time, boolean shimmer) {
+        progress = Mth.clamp(progress, 0, 1);
+        HudStyle.arc(g, cx, cy, r, r + width, 0, 360, 0x22FFFFFF);
+        if (progress <= 0) return;
+        float end = -90 + 360 * progress;
+        HudStyle.arc(g, cx, cy, r - 1.5f, r + width + 1.5f, -90, end, HudStyle.alpha(color, .2f));
+        if (!shimmer) HudStyle.arc(g, cx, cy, r, r + width, -90, end, color);
+        else {
+            int pieces = Math.max(1, (int) (36 * progress));
+            for (int i = 0; i < pieces; i++) {
+                float a0 = -90 + 360 * progress * i / pieces, a1 = -90 + 360 * progress * (i + 1) / pieces;
+                float lit = .55f + .45f * Mth.sin(i * .7f - time * .45f);
+                HudStyle.arc(g, cx, cy, r, r + width, a0, a1 + .5f, HudStyle.alpha(color, lit));
+            }
+        }
+        HudStyle.arc(g, cx, cy, r - 1, r + width + 1, end - 7, end, 0xFFFFFFFF);
     }
     private static void hint(net.minecraft.client.gui.GuiGraphics g, net.minecraft.client.gui.Font font, KeyMapping key, String what, int cooldown, int x, int y) {
         String k = key.getTranslatedKeyMessage().getString().toUpperCase(Locale.ROOT);

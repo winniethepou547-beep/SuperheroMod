@@ -16,8 +16,9 @@ import static com.FIRNI.superheromod.heroes.panther.PantherAction.*;
  * film time: the held breath before the release and the slow motion after it), the car (driving, weaving, its
  * suspension answering the road and every blow; after the release the nose slammed into the asphalt, the vault
  * over it and the free flight, integrated as a rigid body: gravity, its own inertia, the end-over-end turn about
- * its middle axis drifting into a roll as such turns do), the car behind, the traffic, where Panther and the
- * gunman are, and what has happened to the roof and the glass.
+ * its middle axis drifting into a roll as such turns do), the SUV behind with Panther riding its roof, the traffic,
+ * where Panther, the driver (the player the film was aimed at) and the gunman are, and what has happened to the
+ * roof and the glass.
  *
  * Stage space: the road runs along +z; +x is to the left looking down it; y up, the asphalt at y 0. His car keeps
  * to the fast lane by the median. Car space: the same axes on the car, origin on the ground between its wheels.
@@ -113,7 +114,7 @@ public final class PursuitPath {
     /** Across the road: the middle lane, then over into the fast lane past a truck; a jerk away when the window bursts. */
     static double driveX(float tau) {
         double x = lane(1) + (lane(0) - lane(1)) * ease((tau - 70) / 30);
-        x += .32 * swerve(tau, 157, 16) + .12 * swerve(tau, 372, 14);
+        x += .22 * swerve(tau, ULT_FIRE - 2, 18) - .3 * swerve(tau, ULT_TOUCH + 1, 16) + .12 * swerve(tau, 372, 14);
         x += .045 * Math.sin(tau * .05) + .03 * Math.sin(tau * .13 + 1);
         return x;
     }
@@ -177,7 +178,8 @@ public final class PursuitPath {
         // Blows from above: his landing, the claws, the tearing, the throw; the stored energy shaking it before the release.
         bounce -= .07f * spring(tau - ULT_TOUCH, 3.2f, .9f);
         pitch -= .022f * spring(tau - ULT_TOUCH, 3.2f, .9f);
-        bounce -= .03f * spring(tau - ULT_HOP, 2.5f, 1.1f) - .02f * spring(tau - (ULT_HOP + 10), 2.5f, 1.1f);
+        // The driver's start when the thing lands on the roof: a twitch of the wheel.
+        roll += .02f * spring(tau - (ULT_TOUCH + 1), 2.2f, 1.3f);
         bounce -= .016f * spring(tau - ULT_CLAW_R, 2, 1.2f) + .016f * spring(tau - ULT_CLAW_L, 2, 1.2f);
         if (tau > ULT_TEAR && tau < ULT_ROOF_FREE + 10) {
             float k = window(tau, ULT_TEAR, ULT_ROOF_FREE + 6, 3);
@@ -329,26 +331,34 @@ public final class PursuitPath {
     }
 
     // ------------------------------------------------------------------ the car behind
-    /** How far behind his car the car behind keeps (car space z, so times S in the world), scene time. Tailgating him while he is on the roof. */
+    /**
+     * How far behind his car the SUV keeps (car space z, so times S in the world), scene time: far back at the start, a
+     * shape in the mirror closing in, near enough for the shots, tailgating for the leap, then dropping away.
+     */
     static float behind(float tau) {
-        if (tau < 180) return -60;
-        if (tau < 228) return Mth.lerp(ease((tau - 180) / 48), -40, -6.9f);
-        if (tau < 300) return -6.9f + .08f * (float) Math.sin(tau * .21);
-        if (tau < 330) return Mth.lerp(ease((tau - 300) / 30), -6.9f, -30);
-        return -30 - (tau - 330) * .6f;
+        if (tau < 96) return -34;
+        if (tau < ULT_BEHIND + 20) return Mth.lerp(ease((tau - 96) / (ULT_BEHIND + 20 - 96)), -34, -14.5f);
+        if (tau < ULT_COIL) return Mth.lerp(ease((tau - (ULT_BEHIND + 20)) / (ULT_COIL - ULT_BEHIND - 20)), -14.5f, -10.5f) + .25f * (float) Math.sin(tau * .09);
+        if (tau < ULT_LEAP) return Mth.lerp(ease((tau - ULT_COIL) / (ULT_LEAP - ULT_COIL - 4)), -10.5f, -6.9f);
+        if (tau < ULT_TOUCH + 8) return -6.9f;
+        if (tau < ULT_TOUCH + 50) return Mth.lerp(ease((tau - ULT_TOUCH - 8) / 42), -6.9f, -26);
+        return -26 - (tau - ULT_TOUCH - 50) * .6f;
     }
-    /** The car behind (a dark SUV, its roof higher than his car's). */
+    /** The SUV behind (dark, its roof higher than his car's): Panther rides it, his leap off it pushes it down. */
     public static Car suv(float tau) {
         Car hero = driving(Math.min(tau, BOOM - .01f));
         double z = hero.pos().z + behind(tau) * S;
-        double x = driveX(Math.max(0, tau - 6)) + .05 * Math.sin(tau * .07);
-        float bob = .008f * (float) Math.sin(tau * 3.1 + 2) - .05f * spring(tau - (ULT_HOP + 10), 2.6f, 1) + .03f * spring(tau - ULT_LEAP, 2.4f, 1.1f);
+        double x = driveX(Math.max(0, tau - 6)) + .05 * Math.sin(tau * .07) - .25 * swerve(tau, ULT_FIRE + 8, 22);
+        float bob = .008f * (float) Math.sin(tau * 3.1 + 2) + .004f * (float) Math.sin(tau * 5.3 + 1) - .06f * spring(tau - ULT_LEAP, 2.4f, 1.1f);
         float yaw = (float) Math.atan2(driveXd(Math.max(0, tau - 6)), V1);
-        return new Car(new Vec3(x, bob, z), new Quaternionf().rotationY(yaw), (float) (z / .38), 0, false);
+        float pitch = .02f * spring(tau - ULT_LEAP, 2.4f, 1.1f);
+        return new Car(new Vec3(x, bob, z), new Quaternionf().rotationY(yaw).rotateX(pitch), (float) (z / .38), 0, false);
     }
     public static final float SUV_ROOF = 1.86f, SUV_LENGTH = 4.9f;
-    /** True while the car behind is near enough to draw. */
-    public static boolean suvShown(float tau) { return tau > 175 && tau < 420; }
+    /** Where he crouches on the SUV's roof (its own car space). */
+    public static final Vec3 SUV_PERCH = new Vec3(0, SUV_ROOF, .32);
+    /** True while the SUV is near enough to draw. */
+    public static boolean suvShown(float tau) { return tau < 420; }
 
     // ------------------------------------------------------------------ the traffic
     /** One car of the traffic: its lane (negative = the far side), where it starts, its speed, kind and colour. */
@@ -409,28 +419,23 @@ public final class PursuitPath {
                     .scale(-BODY_SCALE, -BODY_SCALE, BODY_SCALE).translate(0, -1.501f, 0);
         }
     }
-    /** His feet origin in car space while seated (legs posed; the origin is below the floor). */
+    /** The driver's feet origin in car space (seated: legs posed; the origin is below the floor). */
     static final Vec3 SEAT_FEET = DRIVER.subtract(0, HIP_HEIGHT / S, 0);
-    static final Vec3 ON_ROOF_EDGE = new Vec3(.50, ROOF_Y, -.18), ROOF_LAND = new Vec3(0, ROOF_Y, -.45), ROOF_STAND = new Vec3(0, ROOF_Y, .10),
-            ROOF_EDGE_STAND = new Vec3(0, ROOF_Y, 0);
-    /** Where he lands on the car behind (car space of his own car while it tails him), and where he sets off from on his roof. */
-    static final Vec3 SUV_LAND = new Vec3(0, SUV_ROOF, -6.0), HOP_FROM = new Vec3(.22, ROOF_Y, -.30);
-    /** Out of the window and up onto the roof: the way his feet origin goes (car space), ULT_EXIT to ULT_REVEAL. */
-    private static final Vec3[] EXIT = {SEAT_FEET, new Vec3(.62, .05, -.04), new Vec3(1.05, .55, -.02), new Vec3(1.12, 1.05, -.06), new Vec3(.82, 1.38, -.12), ON_ROOF_EDGE};
+    static final Vec3 ROOF_LAND = new Vec3(0, ROOF_Y, -.45), ROOF_STAND = new Vec3(0, ROOF_Y, .10), ROOF_EDGE_STAND = new Vec3(0, ROOF_Y, 0);
 
-    /** Where Panther is at scene time tau (before the release: on or in his car; after it: flung, landed). */
+    /** Where Panther is at scene time tau (on the SUV's roof, in the air over the gap, on the driver's roof; after the release: flung, landed). */
     public static Place panther(float tau) {
         if (tau >= BOOM) return pantherAfter(tau - BOOM);
+        if (tau < ULT_LEAP) {
+            Car suv = suv(tau);
+            return new Place(suv.world(SUV_PERCH), 0, suv.rot());
+        }
         Car car = driving(tau);
         Vec3 local;
         float yaw = 0;
-        if (tau < ULT_EXIT) local = SEAT_FEET;
-        else if (tau < ULT_REVEAL) local = spline(EXIT, ease((tau - ULT_EXIT) / (ULT_REVEAL - ULT_EXIT)) * .55f + .45f * (tau - ULT_EXIT) / (ULT_REVEAL - ULT_EXIT));
-        else if (tau < ULT_HOP) local = ON_ROOF_EDGE.lerp(HOP_FROM, ease((tau - (ULT_HOP - 8)) / 8));
-        else if (tau < ULT_HOP + 10) local = ballistic(HOP_FROM, SUV_LAND.add(0, 0, behind(ULT_HOP + 10) + 6.9), 10, tau - ULT_HOP);
-        else if (tau < ULT_LEAP) local = SUV_LAND.add(0, 0, behind(tau) + 6.9).add(0, suv(tau).pos().y - car.pos().y, 0);
-        else if (tau < ULT_TOUCH) local = ballistic(SUV_LAND.add(0, 0, behind(ULT_LEAP) + 6.9), ROOF_LAND, ULT_TOUCH - ULT_LEAP, tau - ULT_LEAP);
-        else if (tau < ULT_TURN) local = ROOF_LAND.add(0, 0, .13 * ease((tau - ULT_TOUCH) / 6)).add(0, -dent(tau, ROOF_LAND.z), 0);
+        if (tau < ULT_TOUCH) local = ballistic(leapFrom(), ROOF_LAND, ULT_TOUCH - ULT_LEAP, tau - ULT_LEAP);
+        else if (tau < ULT_TURN) local = ROOF_LAND.add(0, 0, .13 * ease((tau - ULT_TOUCH) / 6)).add(0, -dent(tau, ROOF_LAND.z), 0)
+                .add(-.08 * dodge(tau), 0, 0);
         else if (tau < ULT_TURN + 12) {
             float k = ease((tau - ULT_TURN) / 12);
             local = ROOF_LAND.add(0, 0, .13).lerp(ROOF_STAND, k);
@@ -439,6 +444,19 @@ public final class PursuitPath {
         else { local = ROOF_STAND.lerp(ROOF_EDGE_STAND, ease((tau - (ULT_REACH - 6)) / 6)); yaw = Mth.PI; }
         Vec3 feet = car.world(local);
         return new Place(feet, yaw, car.rot());
+    }
+    /** Where the leap leaves from, in his car's space (the SUV's roof at that moment). */
+    static Vec3 leapFrom() { return driving(ULT_LEAP).local(suv(ULT_LEAP).world(SUV_PERCH)); }
+    /** A bullet up through the roof by his feet: he shifts his weight off it (0..1, smoothed). */
+    static float dodge(float tau) {
+        float k = 0;
+        for (Hole h : HOLES) k = Math.max(k, window(tau, h.time(), h.time() + 7, 2) * (h.x() > 0 ? 1 : -1) * .6f);
+        return k;
+    }
+    /** The driver: in his seat, riding with the car wherever it goes (over and over after the release, until the crash). */
+    public static Place driver(float tau) {
+        Car car = car(tau);
+        return new Place(car.world(SEAT_FEET), 0, car.rot());
     }
     /** Where the release went off: his chest on the roof at that moment (stage space). */
     public static Vec3 blastCentre() { return car(BOOM).world(ROOF_EDGE_STAND).add(0, 1.15, 0); }
@@ -495,15 +513,18 @@ public final class PursuitPath {
     }
 
     // ------------------------------------------------------------------ the gunman
-    static final Vec3 GUNMAN_FEET = GUNMAN.subtract(0, HIP_HEIGHT / S, 0), LEANING = new Vec3(.75, GUNMAN_FEET.y + .06, -.86);
+    /** Leaning out of the rear left window, facing back at the SUV: where his feet origin goes (car space). */
+    static final Vec3 GUNMAN_FEET = GUNMAN.subtract(0, HIP_HEIGHT / S, 0), LEANING = new Vec3(.64, GUNMAN_FEET.y + .24, -.88);
     /** The moment he is let go of in the air above the car, and how he flies (stage space, scene time). */
     public static final float THROWN = ULT_THROW + 4;
+    /** The last of the shots out of the window (he pulls himself back in after it). */
+    static final float LAST_BACK_SHOT = ULT_FIRE + (ULT_SHOTS - 1) * ULT_SHOT_GAP;
     /** Where the gunman is (until he is out of sight high behind the car). */
     public static Place gunman(float tau) {
         if (tau < THROWN) {
             Car car = driving(Math.min(tau, BOOM - .01f));
             Vec3 local = GUNMAN_FEET;
-            if (tau > ULT_LEAN - 2 && tau < ULT_EXIT + 2) local = GUNMAN_FEET.lerp(LEANING, window(tau, ULT_LEAN - 2, ULT_EXIT - 2, 6));
+            if (tau > ULT_SMASH && tau < LAST_BACK_SHOT + 12) local = GUNMAN_FEET.lerp(LEANING, window(tau, ULT_SMASH, LAST_BACK_SHOT + 10, 4));
             // Hauled up out of his seat by the collar.
             if (tau > ULT_THROW - 3) local = GUNMAN_FEET.add(0, .85 * ease((tau - (ULT_THROW - 3)) / 7), .45 * ease((tau - (ULT_THROW - 3)) / 7));
             return new Place(car.world(local), 0, car.rot());
@@ -517,26 +538,30 @@ public final class PursuitPath {
     }
 
     // ------------------------------------------------------------------ shots and the roof
-    /** Each shot of the gunman (scene time), and what it hits: 0 Panther (absorbed), 1 the car's metal, 2 glass, 3 the cabin. */
-    public record Shot(float time, int hits, int region, int side, Vec3 target) {}
+    /**
+     * Each shot of the gunman (scene time), and what it hits: 0 Panther (absorbed), 1 metal, 2 glass, 3 nothing / the
+     * cabin; region and side of his body for a hit; target: the point hit in the space of car (0 his car, 1 the SUV).
+     */
+    public record Shot(float time, int hits, int region, int side, Vec3 target, int car) {}
     public static final List<Shot> SHOTS = new ArrayList<>();
     /** Holes his shots punch up through the roof (car space, scene time). */
     public record Hole(float time, float x, float z) {}
     public static final List<Hole> HOLES = new ArrayList<>();
     static {
-        // Through the driver's window from outside behind it: the glass bursts, then hit and miss in turn.
-        int[][] plan = {{0, PantherBody.UPPER_ARM, 1}, {1, -1, 0}, {2, -1, 0}, {0, PantherBody.CHEST, 1}, {1, -1, 0}, {0, PantherBody.SHOULDER, 1}, {3, -1, 0}, {0, PantherBody.RIBS, 1}};
-        Vec3[] aims = {new Vec3(.66, 1.0, -.02), new Vec3(.93, 1.12, B_PILLAR), new Vec3(-.45, 1.12, 1.10), new Vec3(.42, .92, .14),
-                new Vec3(.42, .86, .58), new Vec3(.66, 1.12, -.08), new Vec3(-.38, 1.2, -.25), new Vec3(.62, .80, .02)};
+        // Out of the rear window, back at Panther on the SUV: the bonnet, him, the windscreen, him, past him, him, him, the bonnet.
+        int[][] plan = {{1, -1, 0}, {0, PantherBody.CHEST, 1}, {2, -1, 0}, {0, PantherBody.SHOULDER, 1}, {1, -1, 0}, {0, PantherBody.UPPER_ARM, 1},
+                {0, PantherBody.RIBS, -1}, {1, -1, 0}};
+        Vec3[] aims = {new Vec3(-.35, 1.05, 2.05), Vec3.ZERO, new Vec3(.3, 1.45, 1.35), Vec3.ZERO, new Vec3(.55, SUV_ROOF + .01, .9), Vec3.ZERO, Vec3.ZERO,
+                new Vec3(.25, .98, 2.25)};
         for (int i = 0; i < ULT_SHOTS; i++)
-            SHOTS.add(new Shot(ULT_FIRE + i * ULT_SHOT_GAP, plan[i][0], plan[i][1], plan[i][2], aims[i]));
-        // Up through the roof at the thumps over his head.
-        float[][] up = {{ULT_ROOF_FIRE, .30f, -.30f}, {ULT_ROOF_FIRE + 4, .05f, -.55f}, {ULT_ROOF_FIRE + 9, .42f, -.22f}, {ULT_ROOF_FIRE + 14, -.20f, -.40f},
-                {ULT_INSIDE + 2, -.10f, -.50f}, {ULT_INSIDE + 7, .25f, -.62f}, {ULT_INSIDE + 12, .08f, -.38f}, {ULT_INSIDE + 17, -.32f, -.66f}};
-        int[][] upHits = {{3, -1, 0}, {3, -1, 0}, {3, -1, 0}, {3, -1, 0}, {0, PantherBody.SHIN, 1}, {3, -1, 0}, {0, PantherBody.THIGH, -1}, {3, -1, 0}};
+            SHOTS.add(new Shot(ULT_FIRE + i * ULT_SHOT_GAP, plan[i][0], plan[i][1], plan[i][2], aims[i], 1));
+        // Up through the roof at the weight over his head (he is on the back half of the roof, over the back seat).
+        float[][] up = {{.22f, -.30f}, {-.10f, -.58f}, {.32f, -.52f}, {.05f, -.26f}, {-.30f, -.40f}, {.18f, -.66f}, {-.06f, -.44f}, {.36f, -.34f}};
+        int[][] upHits = {{3, -1, 0}, {3, -1, 0}, {0, PantherBody.SHIN, 1}, {3, -1, 0}, {3, -1, 0}, {0, PantherBody.THIGH, -1}, {3, -1, 0}, {0, PantherBody.SHIN, -1}};
         for (int i = 0; i < up.length; i++) {
-            HOLES.add(new Hole(up[i][0], up[i][1], up[i][2]));
-            SHOTS.add(new Shot(up[i][0], upHits[i][0], upHits[i][1], upHits[i][2], new Vec3(up[i][1], ROOF_Y + .02, up[i][2])));
+            float time = ULT_ROOF_FIRE + i * ULT_ROOF_GAP;
+            HOLES.add(new Hole(time, up[i][0], up[i][1]));
+            SHOTS.add(new Shot(time, upHits[i][0], upHits[i][1], upHits[i][2], new Vec3(up[i][0], ROOF_Y + .02, up[i][1]), 0));
         }
     }
     /** The shots that strike his suit (for the energy they leave in it). */

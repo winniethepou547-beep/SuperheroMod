@@ -37,7 +37,12 @@ final class PursuitFx {
             if (d < 0 || d > 2) continue;
             Vec3 m = PursuitThug.muzzle;
             float k = 1 - d / 2;
-            PursuitShade.EXTRA.add(new PursuitShade.Light((float) m.x, (float) m.y, (float) m.z, 1.6f * k, 1.2f * k, .6f * k, 6));
+            PursuitShade.EXTRA.add(new PursuitShade.Light((float) m.x, (float) m.y, (float) m.z, 2.2f * k, 1.6f * k, .8f * k, 8));
+            // The hit lights the suit violet where it lands.
+            if (s.hits() == 0 && d > 0) {
+                Vec3 at = target(s, tau);
+                PursuitShade.EXTRA.add(new PursuitShade.Light((float) at.x, (float) at.y, (float) at.z, .9f * k, .4f * k, 1.8f * k, 3));
+            }
         }
         float d = tau - BOOM;
         if (d >= 0 && d < 16) {
@@ -68,7 +73,7 @@ final class PursuitFx {
             for (Shot s : SHOTS) {
                 float d = tau - s.time();
                 if (d < 0 || d > 14) continue;
-                boolean outside = s.time() < ULT_EXIT;
+                boolean outside = s.car() == 1;
                 double x = from.x + (outside ? .06 : -.04) * d, y = from.y + .09 * d - .5 * G * d * d, z = from.z;
                 if (outside) z -= V1 * (d - (1 - Math.exp(-.15 * d)) / .15);
                 else y = Math.max(.3, y);
@@ -186,14 +191,13 @@ final class PursuitFx {
                 case 1 -> sparks(c, target, d, s.time(), 14, 1);
                 case 2 -> sparks(c, target, d, s.time(), 8, .6f);
                 default -> {
-                    if (s.time() >= ULT_ROOF_FIRE) sparks(c, target.add(0, .02, 0), d, s.time(), 10, .8f);
+                    if (s.car() == 0) sparks(c, target.add(0, .02, 0), d, s.time(), 10, .8f);
                     else FilmFx.glow(c, target, .25, 0xcfc8bc, .3f * (1 - d / 12));
                 }
             }
         }
-        // The driver's window bursting at the first shot, the rear one smashed by the gun butt: glass flying, glittering.
-        glassBurst(c, tau, ULT_FIRE, new Vec3(.9, 1.1, .45), new Vec3(-.25, .05, .15), 3);
-        glassBurst(c, tau, ULT_SMASH, new Vec3(.92, 1.08, -.65), new Vec3(.3, .05, 0), 5);
+        // The rear side window smashed out by the gun butt: glass flying, glittering, the wind taking it back.
+        glassBurst(c, tau, ULT_SMASH, new Vec3(.92, 1.08, -.65), new Vec3(.32, .06, -.05), 5);
         glassBurst(c, tau, ULT_ROOF_FREE, new Vec3(.9, 1.1, -.65), new Vec3(.3, .2, -.2), 7);
         glassBurst(c, tau, ULT_ROOF_FREE, new Vec3(-.9, 1.1, -.65), new Vec3(-.3, .2, -.2), 9);
     }
@@ -203,31 +207,73 @@ final class PursuitFx {
             Place p = panther(Math.min(tau, BOOM - .01f));
             return PursuitRig.region(p.matrix(), PursuitMoves.panther(Math.min(tau, BOOM - .01f), tau), s.region(), s.side());
         }
+        if (s.car() == 1) return suv(Math.min(tau, BOOM - .01f)).world(s.target());
         return car(Math.min(tau, BOOM - .01f)).world(s.target());
     }
-    /** The suit drinking a bullet: a violet flash, a hexagonal lattice spreading over the suit, light running off along its lines. */
+    /**
+     * The suit drinking a bullet, so it reads at a glance: the bullet's spark as it strikes, a hard white-violet flash,
+     * a ring of force racing out over the suit, the Wakandan lattice lighting up round the spot and turning, light
+     * running off from it in every direction along the suit, and the flattened bullet dropping away, spent.
+     */
     private static void absorb(FilmContext c, Vec3 at, float d, float seed) {
-        if (d > 10) return;
-        float k = (float) Math.exp(-d / 2.2f);
-        FilmFx.glow(c, at, .18 + .1 * k, WHITE, .9f * k);
-        FilmFx.glow(c, at, .55 + .5 * (1 - k), VIOLET, .55f * k);
+        if (d > 12) return;
+        float k = (float) Math.exp(-d / 2.4f);
         Vec3 n = at.subtract(c.camera()).normalize().scale(-1);
         Vec3 u = n.cross(new Vec3(0, 1, 0));
         if (u.lengthSqr() < 1e-4) u = new Vec3(1, 0, 0);
         u = u.normalize();
         Vec3 w = n.cross(u).normalize();
-        float r = .05f + .32f * (1 - (float) Math.exp(-d / 2.5f));
-        // Two rings of the lattice, the inner turned against the outer.
-        for (int ring = 0; ring < 2; ring++) {
-            float rr = r * (ring == 0 ? 1 : .55f), rot = ring * .52f + seed;
-            Vec3 prev = null, first = null;
+        // The strike: a star of the bullet's own sparks for an instant, then the flash.
+        if (d < 1.5f) {
+            float s = 1 - d / 1.5f;
+            for (int i = 0; i < 6; i++) {
+                double a = i * Math.PI / 3 + seed;
+                Vec3 tip = at.add(u.scale(Math.cos(a) * .3 * s)).add(w.scale(Math.sin(a) * .3 * s)).add(n.scale(.05));
+                FilmFx.streak(c, at, tip, .02, 0xfff0d0, .9f * s, 0, true);
+            }
+        }
+        FilmFx.glow(c, at, .28 + .12 * k, WHITE, Math.min(1, 1.2f * k));
+        FilmFx.glow(c, at, .8 + .6 * (1 - k), VIOLET, .7f * k);
+        // The ring of force racing out over the suit.
+        float ring = clamp(d / 5);
+        if (ring < 1) {
+            float rr = .08f + .55f * (1 - (1 - ring) * (1 - ring)), fade = 1 - ring;
+            Vec3 prev = null;
+            for (int i = 0; i <= 16; i++) {
+                double a = i * Math.PI / 8;
+                Vec3 p = at.add(u.scale(Math.cos(a) * rr)).add(w.scale(Math.sin(a) * rr)).add(n.scale(.03));
+                if (prev != null) FilmFx.streak(c, prev, p, .02 + .02 * fade, 0xd8c4ff, .85f * fade, .85f * fade, true);
+                prev = p;
+            }
+        }
+        // The lattice: two rings of hexagons round the spot, the inner turned against the outer, turning slowly.
+        float r = .07f + .4f * (1 - (float) Math.exp(-d / 2.5f));
+        for (int lr = 0; lr < 2; lr++) {
+            float rr = r * (lr == 0 ? 1 : .55f), rot = lr * .52f + seed + d * (lr == 0 ? .05f : -.08f);
+            Vec3 prev = null;
             for (int i = 0; i <= 6; i++) {
                 double a = i * Math.PI / 3 + rot;
                 Vec3 p = at.add(u.scale(Math.cos(a) * rr)).add(w.scale(Math.sin(a) * rr)).add(n.scale(.02));
-                if (prev != null) FilmFx.streak(c, prev, p, .012, ring == 0 ? 0xd2b8ff : VIOLET, .8f * k, .8f * k, true);
-                if (ring == 0 && i < 6 && i % 2 == 0) FilmFx.streak(c, at, p, .008, VIOLET, .5f * k, .1f * k, true);
+                if (prev != null) FilmFx.streak(c, prev, p, .016, lr == 0 ? 0xd2b8ff : VIOLET, .9f * k, .9f * k, true);
+                if (lr == 0 && i < 6 && i % 2 == 0) FilmFx.streak(c, at, p, .01, VIOLET, .6f * k, .15f * k, true);
                 prev = p;
             }
+        }
+        // Light running off along the suit in every direction.
+        if (d < 6) {
+            float run = d / 6;
+            for (int i = 0; i < 5; i++) {
+                double a = hash(seed * 3.7 + i) * Math.PI * 2;
+                Vec3 dir = u.scale(Math.cos(a)).add(w.scale(Math.sin(a)));
+                Vec3 head = at.add(dir.scale(.15 + .6 * run)).add(n.scale(.02)), tail = at.add(dir.scale(.05 + .4 * run)).add(n.scale(.02));
+                FilmFx.streak(c, tail, head, .018, VIOLET, 0, .8f * (1 - run), true);
+            }
+        }
+        // The spent bullet, flattened, dropping away (it falls behind as the car runs on).
+        if (d > .5f && d < 10) {
+            float s = d - .5f;
+            Vec3 drop = at.add(n.scale(.08 + .02 * s)).add(0, -.5 * G * s * s, 0);
+            FilmFx.glow(c, drop, .035, 0xd8c8a0, .7f * (1 - s / 9.5f));
         }
     }
     /** Sparks bursting off metal: bright, falling, gone in a few ticks. */

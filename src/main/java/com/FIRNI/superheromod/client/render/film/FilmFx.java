@@ -1,11 +1,16 @@
 package com.FIRNI.superheromod.client.render.film;
 
+import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Light and matter for film stages in any colour: soft additive glows, beams and streaks, dust,
@@ -25,10 +30,36 @@ public final class FilmFx extends RenderType {
     public static final RenderType SOLID = create("film_solid", DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS, 65536, false, false,
             CompositeState.builder().setShaderState(POSITION_COLOR_SHADER).setCullState(NO_CULL).createCompositeState(false));
 
+    /**
+     * A buffer source in which ADD, SOFT and SOLID each keep their own buffer, so mixing them (a glow, then dust, then a
+     * glow) never forces a draw in between: everything is drawn at endBatch(), the solids first, then the matter, then
+     * the light. For effects drawn in the world (not the film stages, whose order matters shot by shot).
+     */
+    public static MultiBufferSource.BufferSource batched() {
+        if (batched == null) {
+            Map<RenderType, BufferBuilder> fixed = new LinkedHashMap<>();
+            fixed.put(SOLID, new BufferBuilder(SOLID.bufferSize()));
+            fixed.put(SOFT, new BufferBuilder(SOFT.bufferSize()));
+            fixed.put(ADD, new BufferBuilder(ADD.bufferSize()));
+            batched = MultiBufferSource.immediateWithBuffers(fixed, new BufferBuilder(256));
+        }
+        return batched;
+    }
+    private static MultiBufferSource.BufferSource batched;
+    /** Unit circle, 14 and 40 steps round (the discs and the rings). */
+    private static final float[] COS14 = new float[15], SIN14 = new float[15], COS40 = new float[41], SIN40 = new float[41];
+    static {
+        for (int i = 0; i <= 14; i++) { COS14[i] = (float) Math.cos(Math.PI * 2 * i / 14); SIN14[i] = (float) Math.sin(Math.PI * 2 * i / 14); }
+        for (int i = 0; i <= 40; i++) { COS40[i] = (float) Math.cos(Math.PI * 2 * i / 40); SIN40[i] = (float) Math.sin(Math.PI * 2 * i / 40); }
+    }
+
     private FilmFx() { super("unused", DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS, 256, false, false, () -> {}, () -> {}); }
 
     private static void put(VertexConsumer v, Matrix4f m, Vec3 p, int rgb, float a) {
         v.vertex(m, (float) p.x, (float) p.y, (float) p.z).color((rgb >> 16 & 255) / 255f, (rgb >> 8 & 255) / 255f, (rgb & 255) / 255f, Math.max(0, Math.min(1, a))).endVertex();
+    }
+    private static void put(VertexConsumer v, Matrix4f m, double x, double y, double z, float r, float g, float b, float a) {
+        v.vertex(m, (float) x, (float) y, (float) z).color(r, g, b, Math.max(0, Math.min(1, a))).endVertex();
     }
 
     /** Round, camera-facing light with a soft falloff. */
@@ -43,16 +74,18 @@ public final class FilmFx extends RenderType {
         if (alpha <= .003f || size <= 0) return;
         VertexConsumer v = c.buffers().getBuffer(type);
         Matrix4f m = c.pose().last().pose();
-        int n = 14;
-        for (int i = 0; i < n; i++) {
-            double a0 = Math.PI * 2 * i / n, a1 = Math.PI * 2 * (i + 1) / n;
-            Vec3 d0 = c.viewRight().scale(Math.cos(a0)).add(c.viewUp().scale(Math.sin(a0)));
-            Vec3 d1 = c.viewRight().scale(Math.cos(a1)).add(c.viewUp().scale(Math.sin(a1)));
+        float r = (rgb >> 16 & 255) / 255f, g = (rgb >> 8 & 255) / 255f, b = (rgb & 255) / 255f, mid = alpha * .42f;
+        Vec3 right = c.viewRight(), up = c.viewUp();
+        double x = at.x, y = at.y, z = at.z, near = size * .35;
+        for (int i = 0; i < 14; i++) {
+            double c0 = COS14[i], s0 = SIN14[i], c1 = COS14[i + 1], s1 = SIN14[i + 1];
+            double dx0 = right.x * c0 + up.x * s0, dy0 = right.y * c0 + up.y * s0, dz0 = right.z * c0 + up.z * s0;
+            double dx1 = right.x * c1 + up.x * s1, dy1 = right.y * c1 + up.y * s1, dz1 = right.z * c1 + up.z * s1;
             // Inner core to a mid ring, then the mid ring out to nothing: a bell-shaped profile.
-            put(v, m, at, rgb, alpha); put(v, m, at, rgb, alpha);
-            put(v, m, at.add(d1.scale(size * .35)), rgb, alpha * .42f); put(v, m, at.add(d0.scale(size * .35)), rgb, alpha * .42f);
-            put(v, m, at.add(d0.scale(size * .35)), rgb, alpha * .42f); put(v, m, at.add(d1.scale(size * .35)), rgb, alpha * .42f);
-            put(v, m, at.add(d1.scale(size)), rgb, 0); put(v, m, at.add(d0.scale(size)), rgb, 0);
+            put(v, m, x, y, z, r, g, b, alpha); put(v, m, x, y, z, r, g, b, alpha);
+            put(v, m, x + dx1 * near, y + dy1 * near, z + dz1 * near, r, g, b, mid); put(v, m, x + dx0 * near, y + dy0 * near, z + dz0 * near, r, g, b, mid);
+            put(v, m, x + dx0 * near, y + dy0 * near, z + dz0 * near, r, g, b, mid); put(v, m, x + dx1 * near, y + dy1 * near, z + dz1 * near, r, g, b, mid);
+            put(v, m, x + dx1 * size, y + dy1 * size, z + dz1 * size, r, g, b, 0); put(v, m, x + dx0 * size, y + dy0 * size, z + dz0 * size, r, g, b, 0);
         }
     }
     /** Camera-facing ribbon from tail to head, bright along its centre line, fading to its edges. */
@@ -104,15 +137,14 @@ public final class FilmFx extends RenderType {
         if (alpha <= .003f || radius <= 0) return;
         VertexConsumer v = c.buffers().getBuffer(light ? ADD : SOFT);
         Matrix4f m = c.pose().last().pose();
-        int n = 40;
-        double in = Math.max(0, radius - width), out = radius + width;
-        for (int i = 0; i < n; i++) {
-            double a0 = Math.PI * 2 * i / n, a1 = Math.PI * 2 * (i + 1) / n;
-            Vec3 d0 = new Vec3(Math.cos(a0), 0, Math.sin(a0)), d1 = new Vec3(Math.cos(a1), 0, Math.sin(a1));
-            put(v, m, centre.add(d0.scale(in)), rgb, 0); put(v, m, centre.add(d1.scale(in)), rgb, 0);
-            put(v, m, centre.add(d1.scale(radius)), rgb, alpha); put(v, m, centre.add(d0.scale(radius)), rgb, alpha);
-            put(v, m, centre.add(d0.scale(radius)), rgb, alpha); put(v, m, centre.add(d1.scale(radius)), rgb, alpha);
-            put(v, m, centre.add(d1.scale(out)), rgb, 0); put(v, m, centre.add(d0.scale(out)), rgb, 0);
+        float r = (rgb >> 16 & 255) / 255f, g = (rgb >> 8 & 255) / 255f, b = (rgb & 255) / 255f;
+        double in = Math.max(0, radius - width), out = radius + width, x = centre.x, y = centre.y, z = centre.z;
+        for (int i = 0; i < 40; i++) {
+            double c0 = COS40[i], s0 = SIN40[i], c1 = COS40[i + 1], s1 = SIN40[i + 1];
+            put(v, m, x + c0 * in, y, z + s0 * in, r, g, b, 0); put(v, m, x + c1 * in, y, z + s1 * in, r, g, b, 0);
+            put(v, m, x + c1 * radius, y, z + s1 * radius, r, g, b, alpha); put(v, m, x + c0 * radius, y, z + s0 * radius, r, g, b, alpha);
+            put(v, m, x + c0 * radius, y, z + s0 * radius, r, g, b, alpha); put(v, m, x + c1 * radius, y, z + s1 * radius, r, g, b, alpha);
+            put(v, m, x + c1 * out, y, z + s1 * out, r, g, b, 0); put(v, m, x + c0 * out, y, z + s0 * out, r, g, b, 0);
         }
     }
     /** Soft dark patch on the ground under a performer. */

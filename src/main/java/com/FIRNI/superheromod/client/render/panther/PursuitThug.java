@@ -30,12 +30,12 @@ final class PursuitThug {
             return new Look(SKIN[(int) (PursuitPath.hash(seed * 2.1) * SKIN.length)], HAIR[(int) (PursuitPath.hash(seed * 3.3) * HAIR.length)], h < .18,
                     JACKET[(int) (PursuitPath.hash(seed * 4.7) * JACKET.length)], TROUSERS[(int) (PursuitPath.hash(seed * 5.9) * TROUSERS.length)],
                     PursuitPath.hash(seed * 6.1) < .3 ? 0xdedede : 0x111111, (int) (PursuitPath.hash(seed * 7.3) * 3),
-                    PursuitPath.hash(seed * 8.9) < .5 ? 0x1a1a1a : 0x6b1d1d, PursuitPath.hash(seed * 9.7) < .35, PursuitPath.hash(seed * 10.3) < .5 ? 0x1c1c1f : 0x6d6f74);
+                    PursuitPath.hash(seed * 8.9) < .5 ? 0x1a1a1a : 0x6b1d1d, PursuitPath.hash(seed * 9.7) < .35, PursuitPath.hash(seed * 10.3) < .5 ? 0x4a4d55 : 0xa4a8b0);
         }
     }
 
-    /** Draws him (body matrix as Place.matrix(): model pixels, y down) in the pose. */
-    static void draw(FilmContext c, Matrix4f body, PantherMotion.Pose pose, Look look) {
+    /** Draws him (body matrix as Place.matrix(): model pixels, y down) in the pose, with his gun or (a stranger at a wheel) without. */
+    static void draw(FilmContext c, Matrix4f body, PantherMotion.Pose pose, Look look, boolean armed) {
         Matrix4f view = c.pose().last().pose();
         Vector3f at = bone(body, pose, PELVIS).transformPosition(new Vector3f());
         PursuitShade.lightsNear(at.x, at.y, at.z, 14);
@@ -65,7 +65,7 @@ final class PursuitThug {
             box(v, view, fore, -1.8f, -.3f, -1.8f, 1.8f, 4.6f, 1.8f, look.jacket(), .25f);
             Matrix4f hand = bone(body, pose, side == 0 ? R_HAND : L_HAND);
             box(v, view, hand, -1.2f, -.2f, -1.4f, 1.2f, 2.8f, 1.4f, look.skin(), .1f);
-            if (side == 1) gun(v, view, hand, look);
+            if (side == 1 && armed) gun(v, view, hand, look);
         }
         // The head: face, hair or a bald crown, the cap or beanie, the mask over his mouth.
         Matrix4f head = bone(body, pose, HEAD);
@@ -89,13 +89,20 @@ final class PursuitThug {
         if (look.mask()) box(v, view, head, -3.75f, -4.0f, -3.8f, 3.75f, -1.1f, 3.0f, 0x141416, .1f);
         else box(v, view, head, -1.1f, -2.7f, -3.7f, 1.1f, -2.35f, -3.6f, 0x5a2e2a, .2f);
     }
-    /** His pistol: the slide along his forearm's line, the grip in his fist. Records the muzzle. */
+    /**
+     * His pistol, big enough to read on screen: the slide along his forearm's line (bright steel or gunmetal with a
+     * polished top edge that catches every light), the frame and trigger guard, the grip in his fist, the muzzle's dark
+     * mouth. Records the muzzle.
+     */
     private static void gun(VertexConsumer v, Matrix4f view, Matrix4f hand, Look look) {
-        box(v, view, hand, -.55f, -.4f, -2.3f, .55f, 6.4f, -1.2f, look.gun(), .8f);
-        box(v, view, hand, -.5f, .6f, -1.3f, .5f, 3.6f, -.4f, 0x18181a, .4f);
-        box(v, view, hand, -.45f, 1.0f, -1.2f, .45f, 2.1f, 2.6f, 0x141416, .3f);
-        Vector3f tip = hand.transformPosition(new Vector3f(0, 6.6f / 16, -1.75f / 16));
-        Vector3f back = hand.transformPosition(new Vector3f(0, 0, -1.75f / 16));
+        box(v, view, hand, -.8f, -.6f, -2.9f, .8f, 7.8f, -1.1f, look.gun(), .95f);
+        box(v, view, hand, -.45f, -.6f, -3.05f, .45f, 7.6f, -2.85f, 0xd8dce4, 1f);
+        box(v, view, hand, -.7f, .4f, -1.2f, .7f, 5.2f, -.3f, 0x1a1a1d, .5f);
+        box(v, view, hand, -.6f, 1.0f, -1.1f, .6f, 2.6f, 2.8f, 0x141416, .3f);
+        box(v, view, hand, -.3f, 2.8f, -.4f, .3f, 3.9f, .9f, 0x0c0c0e, .3f);
+        box(v, view, hand, -.35f, 7.75f, -2.35f, .35f, 7.85f, -1.65f, 0x050505, 0);
+        Vector3f tip = hand.transformPosition(new Vector3f(0, 8f / 16, -2.0f / 16));
+        Vector3f back = hand.transformPosition(new Vector3f(0, 0, -2.0f / 16));
         muzzle = new Vec3(tip.x, tip.y, tip.z);
         aim = new Vec3(tip.x - back.x, tip.y - back.y, tip.z - back.z).normalize();
     }

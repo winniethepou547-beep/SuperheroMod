@@ -224,6 +224,14 @@ public final class PantherFx {
                 // The parry: sparks off his forearm where the blow is turned aside.
                 sparks(at.add(0, 1.3, 0).add(dir.scale(.45)), dir, 6, WHITE);
             }
+            case FX_PARRY -> {
+                // A blow from in front turned aside on the forearms: sparks off the claws, the suit drinking the shock.
+                Vec3 guard = at.add(0, .7 + .9 * Mth.clamp(p.power(), 0, 1), 0).add(dir.multiply(1, 0, 1).normalize().scale(.5));
+                BURSTS.add(new Burst(p.kind(), guard, dir, p.power(), p.entity(), t));
+                sparks(guard, dir.multiply(1, 0, 1).normalize().add(0, .3, 0), 8, SILVER);
+                PantherClient.absorb(p.entity(), 0, PantherBody.order(PantherBody.FOREARM));
+                if (mc.player != null && p.entity() == mc.player.getId()) { PantherClient.shake(.05f); PantherClient.parryAt = t; }
+            }
             case FX_REFLEX, FX_LAND, FX_DASH, FX_CROSS -> {
                 BURSTS.add(new Burst(p.kind(), at, dir, p.power(), p.entity(), t));
                 if (p.kind() == FX_DASH) dust(at, 10, .6, .9f);
@@ -464,7 +472,9 @@ public final class PantherFx {
         var mv = RenderSystem.getModelViewStack(); mv.pushPose(); mv.last().pose().identity(); RenderSystem.applyModelViewMatrix();
         var rotation = e.getCamera().rotation();
         var rr = new Vector3f(1, 0, 0).rotate(rotation); var uu = new Vector3f(0, 1, 0).rotate(rotation);
-        FilmContext c = new FilmContext(p, buffers, cam, new Vec3(rr.x, rr.y, rr.z), new Vec3(uu.x, uu.y, uu.z), time, 0, partial);
+        // The light and the dust: one buffer per kind, so mixing them never forces a draw in between.
+        var light = FilmFx.batched();
+        FilmContext c = new FilmContext(p, light, cam, new Vec3(rr.x, rr.y, rr.z), new Vec3(uu.x, uu.y, uu.z), time, 0, partial);
         try {
             for (Mark m : MARKS) {
                 float a = .55f * (1 - (time - m.start) / 90f);
@@ -502,39 +512,55 @@ public final class PantherFx {
                 if (who == mc.player && mc.options.getCameraType().isFirstPerson()) continue;
                 scratch(c, who, tag.getValue() - time, time, partial);
             }
-            buffers.endBatch();
+            light.endBatch();
         } finally {
             mv.popPose(); RenderSystem.applyModelViewMatrix();
             p.popPose();
         }
     }
     /**
-     * Four thin parallel trails per hand, one from each claw tip, only where the tip is really sweeping
-     * (a hand at rest leaves nothing): a silver-white core, a faint violet tint round it, gone in a blink.
+     * Two things per sweeping hand, kept apart so neither drowns the other: the air the hand parts (one wide, pale,
+     * unlit smear behind the hand, so it never blooms) and the claws themselves (four thin, crisp silver lines, fanned
+     * a little wider than the real claws so each line reads on its own, with only a breath of violet). A hand at rest
+     * leaves nothing. All the smears first, then all the lines: one switch of draw type, not one per streak.
      */
     private static void clawTrails(FilmContext c, ArrayDeque<ClawSample> q, float time) {
         while (!q.isEmpty() && time - q.peekFirst().time > CLAW_WINDOW) q.pollFirst();
         if (q.size() < 2) return;
-        ClawSample prev = null;
-        for (ClawSample s : q) {
-            if (prev != null) {
-                float dt = Math.max(.05f, s.time - prev.time);
-                float k0 = 1 - (time - prev.time) / CLAW_WINDOW, k1 = 1 - (time - s.time) / CLAW_WINDOW;
-                for (int i = 0; i < 8; i++) {
-                    Vec3 a = prev.tips[i], b = s.tips[i];
-                    double speed = a.distanceTo(b) / dt;
-                    float show = Mth.clamp((float) (speed - .12) / .3f, 0, 1) * Math.min(1.2f, s.power);
-                    if (show < .02f) continue;
-                    float a0 = k0 * k0 * show, a1 = k1 * k1 * show;
-                    // Wide and bold: a violet blade of air round a bright silver core, one per claw.
-                    FilmFx.streak(c, a, b, .16 * s.power, VIOLET, .3f * a0, .3f * a1, true);
-                    FilmFx.streak(c, a, b, .07 * s.power, 0xc8b0ff, .5f * a0, .5f * a1, true);
-                    FilmFx.streak(c, a, b, .028 * s.power, SILVER, .95f * a0, .95f * a1, true);
+        for (int pass = 0; pass < 2; pass++) {
+            ClawSample prev = null;
+            for (ClawSample s : q) {
+                if (prev != null) {
+                    float dt = Math.max(.05f, s.time - prev.time);
+                    float k0 = 1 - (time - prev.time) / CLAW_WINDOW, k1 = 1 - (time - s.time) / CLAW_WINDOW;
+                    for (int hand = 0; hand < 2; hand++) {
+                        Vec3 ca = handCentre(prev.tips, hand), cb = handCentre(s.tips, hand);
+                        double speed = ca.distanceTo(cb) / dt;
+                        float show = Mth.clamp((float) (speed - .12) / .3f, 0, 1) * Math.min(1.2f, s.power);
+                        if (show < .02f) continue;
+                        if (pass == 0) {
+                            FilmFx.streak(c, ca, cb, .34 * s.power, AIR, .13f * k0 * show, .13f * k1 * show, false);
+                            continue;
+                        }
+                        float a0 = k0 * k0 * k0 * show, a1 = k1 * k1 * k1 * show;
+                        for (int i = 0; i < 4; i++) {
+                            Vec3 a = fan(ca, prev.tips[hand * 4 + i]), b = fan(cb, s.tips[hand * 4 + i]);
+                            FilmFx.streak(c, a, b, .05, VIOLET_DEEP, .1f * a0, .1f * a1, true);
+                            FilmFx.streak(c, a, b, .02, SILVER, .8f * a0, .8f * a1, true);
+                        }
+                    }
                 }
+                prev = s;
             }
-            prev = s;
         }
     }
+    private static Vec3 handCentre(Vec3[] tips, int hand) {
+        int o = hand * 4;
+        return new Vec3((tips[o].x + tips[o + 1].x + tips[o + 2].x + tips[o + 3].x) * .25, (tips[o].y + tips[o + 1].y + tips[o + 2].y + tips[o + 3].y) * .25,
+                (tips[o].z + tips[o + 1].z + tips[o + 2].z + tips[o + 3].z) * .25);
+    }
+    /** A claw line, fanned out from the hand's centre so the four lines stand apart. */
+    private static Vec3 fan(Vec3 centre, Vec3 tip) { return centre.add(tip.subtract(centre).scale(2.4)); }
     /** The kicking foot's air streak: a gray-white smear with a violet edge, widest at the foot. */
     private static void kickTrails(FilmContext c, ArrayDeque<KickSample> q, float time) {
         while (!q.isEmpty() && time - q.peekFirst().time > KICK_WINDOW) q.pollFirst();
@@ -566,8 +592,8 @@ public final class PantherFx {
                 if (age > 6) return;
                 float a = 1 - age / 6;
                 boolean dbl = Math.abs(b.power()) >= 2;
-                FilmFx.glow(c, at, (dbl ? .9 : .6) * (1 + age * .1), VIOLET, .45f * a);
-                FilmFx.glow(c, at, dbl ? .35 : .25, WHITE, .7f * a * a);
+                FilmFx.glow(c, at, (dbl ? .7 : .5) * (1 + age * .1), VIOLET_DEEP, .22f * a);
+                FilmFx.glow(c, at, dbl ? .25 : .18, WHITE, .35f * a * a);
                 // Four claw marks across them, for an instant (eight for the double).
                 Vec3 look = dir.normalize();
                 Vec3 across = look.cross(new Vec3(0, 1, 0));
@@ -584,8 +610,8 @@ public final class PantherFx {
                     for (int i = 0; i < 4; i++) {
                         Vec3 o = centre.add(step.scale(i - 1.5));
                         Vec3 s0 = o.subtract(slash.scale(.9)), s1 = s0.add(slash.scale(1.8 * draw));
-                        FilmFx.streak(c, s0, s1, .14, VIOLET, .2f * a, .6f * a, true);
-                        FilmFx.streak(c, s0, s1, .045, WHITE, .3f * a, .95f * a, true);
+                        FilmFx.streak(c, s0, s1, .06, VIOLET, .12f * a, .3f * a, true);
+                        FilmFx.streak(c, s0, s1, .022, WHITE, .3f * a, .9f * a, true);
                     }
                 }
             }
@@ -745,6 +771,22 @@ public final class PantherFx {
                     Vec3 o = from.add(0, (i - 1) * .45, 0);
                     FilmFx.streak(c, o.add(dir.scale(.9)), o.subtract(dir.scale(.3)), .05, VIOLET, 0, .45f * a, true);
                 }
+            }
+            case FX_PARRY -> {
+                if (age > 6) return;
+                float a = 1 - age / 6;
+                // A crisp flash where the blow met the claws, and a short silver arc turning it aside, square to it.
+                FilmFx.glow(c, at, .55 + age * .06, VIOLET_DEEP, .3f * a);
+                FilmFx.glow(c, at, .2, WHITE, .75f * a * a);
+                Vec3 flat = dir.multiply(1, 0, 1);
+                Vec3 side = flat.lengthSqr() < 1e-4 ? new Vec3(1, 0, 0) : new Vec3(-flat.z, 0, flat.x).normalize();
+                float spread = Mth.clamp(age / 2f, 0, 1);
+                for (int i = 0; i < 5; i++) {
+                    double a0 = (-1 + i * .4) * spread, a1 = a0 + .4 * spread;
+                    Vec3 p0 = at.add(side.scale(Math.sin(a0) * .55)).add(0, Math.cos(a0) * .2 - .1, 0), p1 = at.add(side.scale(Math.sin(a1) * .55)).add(0, Math.cos(a1) * .2 - .1, 0);
+                    FilmFx.streak(c, p0, p1, .025, SILVER, .85f * a, .85f * a, true);
+                }
+                ring(c, at, flat.lengthSqr() < 1e-4 ? new Vec3(0, 0, 1) : flat.normalize(), .25 + age * .12, .03, WHITE, .4f * a);
             }
             case FX_REFLEX -> {
                 if (age > 12) return;
@@ -1019,13 +1061,17 @@ public final class PantherFx {
                 curl = .4f - .4f * hit * w;
             }
             case FRENZY -> {
-                // Wild alternating slashes: each hand from high outside down across the view, the other recoiling up.
-                float cycle = FRENZY_STRIKE * 2;
-                float u = ((t / cycle) + (right ? 0 : .5f)) % 1;
-                float xx = u < .45f ? u / .45f * .5f : .5f + (u - .45f) / .55f * .5f;
-                float down = .5f - .5f * Mth.cos(Mth.TWO_PI * xx);
-                x += (.2f - .75f * down) * sx; y += .38f * (1 - down) - .25f * down; z += -.2f * down;
-                yaw += (20 - 70 * down) * sx; roll += (45 - 85 * down) * sx; pitch += -25 * (1 - down) + 20 * down; curl = .05f;
+                // Wide flat sweeps, Wolverine's flurry: each hand from far out at its side right across the view to the far
+                // side, arm straight, alternating high-to-low and low-to-high; the other hand swinging back out meanwhile.
+                float cycle = FRENZY_STRIKE * 2, lt = t + .4f + (right ? 0 : FRENZY_STRIKE);
+                int n = (int) Math.floor(lt / cycle);
+                float u = lt / cycle - n;
+                boolean dn = ((n + (right ? 0 : 1)) & 1) == 0;
+                float across, rise;
+                if (u < .4f) { float e = PantherMotion.ease(u / .4f); across = e; rise = dn ? .3f - .5f * e : -.2f + .5f * e; }
+                else { float e = PantherMotion.ease((u - .4f) / .6f); across = 1 - e; rise = (dn ? -.2f : .3f) + .35f * Mth.sin(Mth.PI * e); }
+                x += (.65f - 1.25f * across) * sx; y += rise; z += -.12f - .15f * Mth.sin(Mth.PI * across);
+                yaw += (35 - 95 * across) * sx; roll += (55 - 100 * across) * sx; pitch += -10 + 10 * across; curl = .02f;
             }
             case DASH -> { x += -.32f * sx; y += .18f; z += -.1f; yaw += -40 * sx; roll += -35 * sx; curl = 0; }
             case CROSS -> {
@@ -1118,8 +1164,8 @@ public final class PantherFx {
                 Vec3 d = x1.subtract(x0);
                 Vec3 across = d.cross(x0).normalize().scale(.006);
                 quad(v, m, x0.add(across), x1.add(across), x1.subtract(across), x0.subtract(across), SILVER, .8f * a0 * show, .8f * a1 * show);
-                Vec3 wide = across.scale(3);
-                quad(v, m, x0.add(wide), x1.add(wide), x1.subtract(wide), x0.subtract(wide), VIOLET, .25f * a0 * show, .25f * a1 * show);
+                Vec3 wide = across.scale(2.5);
+                quad(v, m, x0.add(wide), x1.add(wide), x1.subtract(wide), x0.subtract(wide), VIOLET_DEEP, .12f * a0 * show, .12f * a1 * show);
             }
         }
     }

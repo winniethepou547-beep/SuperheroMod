@@ -27,9 +27,10 @@ import java.util.List;
 import static com.FIRNI.superheromod.heroes.panther.PantherAction.*;
 
 /**
- * THE FINAL PURSUIT (Black Panther's X, 38 s): a car chase at night on its own stage (PursuitStage, the city,
- * the car, the gunman), filmed by PursuitCamera, timed by PursuitPath. This class is the film's frame: no world at
- * the start (it opens straight on the eye of his mask), the world for a moment at the end so the camera can hand
+ * THE FINAL PURSUIT (Black Panther's X, 38 s): a car chase at night on its own stage (PursuitStage, the city, the
+ * car driven by the player he aimed it at, the gunman in its back seat, the SUV behind with Panther on its roof),
+ * filmed by PursuitCamera, timed by PursuitPath. This class is the film's frame: no world at the start (it opens
+ * straight on the driver's eye), the world for a moment at the end so the camera can hand
  * back gently; the sound (the engine's drone through the cabin, the wind outside, the rain-wet city, the hum of the
  * charge; the shots, the glass, the metal; a breath of silence; the release, slowed with the picture; the crash;
  * the fire); the grade (out of black, the impact frame of the release, the flash of the crash, back to black), a
@@ -44,6 +45,12 @@ final class FinalPursuitFilm implements Film {
         this.attacker = attacker;
         var s = FilmSessionClient.get(attacker);
         seed = attacker * 31 + (s == null ? 0 : (int) (s.anchor.x * 7.13 + s.anchor.z * 13.7 + s.anchor.y * 3.1));
+        // The driver is the one the film was aimed at, in their own skin (a stranger if it is not a player).
+        var level = Minecraft.getInstance().level;
+        var target = s == null || level == null ? null : level.getEntity(s.target);
+        if (target instanceof net.minecraft.client.player.AbstractClientPlayer player)
+            PursuitStage.driver(player.getSkinTextureLocation(), "slim".equals(player.getModelName()), seed + 7);
+        else PursuitStage.driver(null, false, seed + 7);
         Scene city = new Scene() {
             public int skyTop() { return 0x05070f; }
             public int skyBottom() { return 0x24131f; }
@@ -76,44 +83,42 @@ final class FinalPursuitFilm implements Film {
         add(c, ULT_NPC + 8, SoundEvents.CROSSBOW_LOADING_END, .7f, 1.6f);
         add(c, ULT_NPC + 9, SoundEvents.LEVER_CLICK, .5f, 1.4f);
         add(c, ULT_NPC + 10, SoundEvents.ARMOR_EQUIP_IRON, .35f, 1.8f);
-        add(c, ULT_RAISE, SoundEvents.ARMOR_EQUIP_LEATHER, .4f, 1.2f);
-        // The rear window smashed; the roar of the air coming in.
+        // The mirror: the SUV's engine coming up behind, a low hum of energy where he crouches on it.
+        add(c, ULT_BEHIND, SoundEvents.WARDEN_SONIC_CHARGE, .12f, 1.7f);
+        add(c, ULT_BEHIND + 2, SoundEvents.MINECART_RIDING, .5f, .55f);
+        add(c, ULT_BEHIND + 12, SoundEvents.ELYTRA_FLYING, .5f, 1.1f);
+        add(c, ULT_BEHIND + 14, SoundEvents.AMETHYST_BLOCK_CHIME, .25f, .7f);
+        // The turn, the gun up, the rear side window smashed out; the roar of the air.
+        add(c, ULT_RAISE, SoundEvents.ARMOR_EQUIP_LEATHER, .5f, 1.2f);
         add(c, ULT_SMASH, SoundEvents.GLASS_BREAK, 1f, .9f);
         add(c, ULT_SMASH, SoundEvents.PLAYER_ATTACK_STRONG, .6f, 1.1f);
         add(c, ULT_SMASH + 2, SoundEvents.GLASS_BREAK, .3f, .8f);
-        add(c, ULT_LEAN, SoundEvents.ELYTRA_FLYING, .4f, 1.3f);
-        // The shots, loud and close inside the car with their echo; what each hits.
+        add(c, ULT_LEAN, SoundEvents.ELYTRA_FLYING, .5f, 1.3f);
+        // The shots: out of the window, loud, cracking off the buildings; up through the roof, deafening inside.
+        // What each hits: the suit drinking it (a chime, a hum), metal, glass.
         for (PursuitPath.Shot s : PursuitPath.SHOTS) {
-            boolean inside = s.time() >= ULT_ROOF_FIRE;
-            add(c, s.time(), SoundEvents.FIREWORK_ROCKET_BLAST, inside ? .8f : 1f, inside ? 1.3f : 1.5f);
-            add(c, s.time(), SoundEvents.CROSSBOW_SHOOT, .55f, 1.8f);
+            boolean back = s.car() == 1;
+            add(c, s.time(), SoundEvents.FIREWORK_ROCKET_BLAST, back ? 1f : .9f, back ? 1.55f : 1.3f);
+            add(c, s.time(), SoundEvents.CROSSBOW_SHOOT, .6f, 1.8f);
             add(c, s.time() + 2, SoundEvents.FIREWORK_ROCKET_BLAST, .3f, 1.05f);
             add(c, s.time() + 4, SoundEvents.CHAIN_STEP, .2f, 2f);
             switch (s.hits()) {
-                case 0 -> { add(c, s.time() + .5f, SoundEvents.AMETHYST_BLOCK_CHIME, 1f, 1.5f); add(c, s.time() + .5f, SoundEvents.BEACON_POWER_SELECT, .3f, 1.9f);
-                    add(c, s.time() + .5f, SoundEvents.ANVIL_LAND, .12f, 2f); }
+                case 0 -> { add(c, s.time() + .5f, SoundEvents.AMETHYST_BLOCK_CHIME, 1f, 1.5f); add(c, s.time() + .5f, SoundEvents.BEACON_POWER_SELECT, .45f, 1.9f);
+                    add(c, s.time() + .5f, SoundEvents.ANVIL_LAND, .15f, 2f); add(c, s.time() + 1.5f, SoundEvents.AMETHYST_CLUSTER_HIT, .6f, .8f); }
                 case 1 -> { add(c, s.time() + .5f, SoundEvents.ANVIL_LAND, .3f, 1.9f); add(c, s.time() + .5f, SoundEvents.CHAIN_HIT, .6f, 1.5f); }
                 case 2 -> add(c, s.time() + .5f, SoundEvents.GLASS_BREAK, .5f, 1.6f);
                 default -> {
-                    if (inside) { add(c, s.time() + .5f, SoundEvents.ANVIL_LAND, .22f, 2f); add(c, s.time() + .5f, SoundEvents.CHAIN_HIT, .45f, 1.7f); }
+                    if (!back) { add(c, s.time() + .5f, SoundEvents.ANVIL_LAND, .22f, 2f); add(c, s.time() + .5f, SoundEvents.CHAIN_HIT, .45f, 1.7f); }
                     else add(c, s.time() + .5f, SoundEvents.WOOL_HIT, .6f, 1f);
                 }
             }
         }
-        add(c, ULT_FIRE, SoundEvents.GLASS_BREAK, 1f, 1.2f);
-        // Out of the window and up; the face at the glass.
-        add(c, ULT_EXIT, SoundEvents.ARMOR_EQUIP_LEATHER, .6f, 1.4f);
-        add(c, ULT_EXIT + 2, SoundEvents.PHANTOM_FLAP, .5f, 1.5f);
-        add(c, ULT_EXIT + 3, SoundEvents.ELYTRA_FLYING, .45f, 1.2f);
-        add(c, ULT_EXIT + 11, SoundEvents.IRON_TRAPDOOR_CLOSE, .45f, .6f);
-        add(c, ULT_REVEAL + 1, SoundEvents.WARDEN_SONIC_CHARGE, .15f, 1.6f);
-        add(c, ULT_REVEAL + 10, SoundEvents.AMETHYST_BLOCK_CHIME, .3f, .7f);
-        // Back onto the car behind; the leap across.
-        add(c, ULT_HOP, SoundEvents.PHANTOM_FLAP, .5f, 1.4f);
-        add(c, ULT_HOP + 10, SoundEvents.ANVIL_LAND, .35f, .7f);
-        add(c, ULT_HOP + 10, SoundEvents.GENERIC_BIG_FALL, .45f, .9f);
+        // He crouches on the SUV; the leap across.
+        add(c, ULT_COIL, SoundEvents.ARMOR_EQUIP_LEATHER, .4f, .7f);
+        add(c, ULT_COIL + 6, SoundEvents.WARDEN_HEARTBEAT, .5f, 1.2f);
         add(c, ULT_LEAP, SoundEvents.PHANTOM_FLAP, .7f, 1.2f);
         add(c, ULT_LEAP, SoundEvents.PLAYER_ATTACK_SWEEP, .45f, .7f);
+        add(c, ULT_LEAP, SoundEvents.IRON_TRAPDOOR_CLOSE, .5f, .6f);
         add(c, ULT_LEAP + 1, SoundEvents.ELYTRA_FLYING, .6f, 1.6f);
         // Down on the roof: the blow through the metal, the claws scraping till they catch.
         add(c, ULT_TOUCH, SoundEvents.ANVIL_LAND, .8f, .65f);
@@ -269,7 +274,8 @@ final class FinalPursuitFilm implements Film {
         float vig = .28f + .12f * PursuitPath.clamp((t - PursuitCamera.DUST) / 30);
         vignette(g, w, h, vig);
         // Speed outside: thin streaks at the edges while the camera runs alongside or rides the roof.
-        float speed = Math.max(PursuitPath.window(t, ULT_COIL, ULT_TOUCH, 4), .7f * PursuitPath.window(t, ULT_TURN, ULT_CHARGE, 6)) * .5f;
+        float speed = Math.max(Math.max(PursuitPath.window(t, ULT_COIL, ULT_TOUCH, 4), .6f * PursuitPath.window(t, ULT_BEHIND + 12, ULT_RAISE, 3)),
+                .7f * PursuitPath.window(t, ULT_TURN, ULT_CHARGE, 6)) * .5f;
         if (speed > .02f) speedLines(g, w, h, speed, t);
         // The title over the last held image.
         float title = PursuitPath.window(t, 722, ULT_STAGE_END - 4, 6);

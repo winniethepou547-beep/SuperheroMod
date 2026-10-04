@@ -12,7 +12,7 @@ import static com.FIRNI.superheromod.heroes.panther.PantherAction.*;
 
 /**
  * THE FINAL PURSUIT's stage, drawn by the film every frame in the right order: the city's solid matter, the
- * traffic, the car behind, his car, the two performers, the debris; then the city's light; the glass; the
+ * traffic, the SUV behind, the driver's car, the three performers (Panther, the driver, the gunman), the debris; then the city's light; the glass; the
  * smoke and dust; the cars' lamps; the effects' light last. Panther is PantherBody itself, posed by
  * PursuitMoves, his suit lit by the city's neon and filling with the energy of every bullet it takes.
  */
@@ -26,6 +26,10 @@ public final class PursuitStage {
         return FilmBackdrop.Params.city(dust, (float) driveZ(Math.min(tau, BOOM)));
     }
 
+    /** Who drives (the player the film was aimed at); set by the film. */
+    public static void driver(net.minecraft.resources.ResourceLocation skin, boolean slim, int seed) { driverLook = new PursuitDriver.Look(skin, slim, seed); }
+    private static PursuitDriver.Look driverLook = new PursuitDriver.Look(null, false, 0);
+
     public static void render(FilmContext c, float t, int seed) {
         float tau = scene(t);
         float time = c.time();
@@ -38,6 +42,7 @@ public final class PursuitStage {
         PursuitCar.suv(c, tau);
         PursuitCar.hero(c, tau, time);
         panther(c, tau, t);
+        driver(c, tau, t);
         thug(c, tau, seed);
         PursuitFx.solid(c, tau, time);
         PursuitCity.light(c, tau, time);
@@ -103,6 +108,11 @@ public final class PursuitStage {
     private static void thug(FilmContext c, float tau, int seed) {
         if (tau > THROWN + 50) return;
         Place place = gunman(tau);
-        PursuitThug.draw(c, place.matrix(), PursuitMoves.gunman(tau), PursuitThug.Look.of(seed));
+        PursuitThug.draw(c, place.matrix(), PursuitMoves.gunman(tau), PursuitThug.Look.of(seed), true);
+    }
+    /** The driver at the wheel, thrown about in the car after the release; lost in the fire of the crash. */
+    private static void driver(FilmContext c, float tau, float t) {
+        if (tau > BOOM + CRASH + 1) return;
+        PursuitDriver.draw(c, PursuitPath.driver(tau).matrix(), PursuitMoves.driver(tau, t), driverLook);
     }
 }

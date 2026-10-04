@@ -17,7 +17,7 @@ import static com.FIRNI.superheromod.heroes.panther.PantherAction.*;
  * bonnet falling to the nose), the glass house with its pillars, a glass panel in the roof over the front seats
  * and metal over the back, the dashboard and its instruments, the wheel, the seats, the doors' inner trim, the
  * headlining; real wheels turning and steering; head- and tail-lights. It takes its damage as the film goes: the
- * windows burst, bullet stars in the windscreen, holes punched up through the roof, the dent of his landing, the
+ * rear side window smashed out, holes punched up through the roof, the dent of his landing, the
  * claws' punctures, the roof peeled back and torn away; after the release the nose crushed, glass crazed, panels
  * shed, and the burnt wreck. The car behind and the traffic share the body in simpler forms.
  */
@@ -66,7 +66,7 @@ final class PursuitCar {
                   float crush, float wreck, boolean bumper, boolean mirrorL, float bootOpen, boolean boot, boolean wheelRL, float scorch) {}
     static Damage damage(float tau) {
         float d = tau - BOOM;
-        return new Damage(tau < ULT_FIRE, tau < ULT_SMASH, tau < ULT_ROOF_FREE, tau >= ULT_FIRE + 2 * ULT_SHOT_GAP ? 1 : 0,
+        return new Damage(true, tau < ULT_SMASH, tau < ULT_ROOF_FREE, 0,
                 clamp(d / 3), clamp((d - 1.2f) / 3.5f), clamp((d - CRASH) / 2), d < 2.2f, d < 1, d > 14 ? .6f + .4f * (float) Math.sin(d * .5f) : 0,
                 d < 40, d < CRASH + .5f, clamp((d - CRASH) / 8));
     }
@@ -287,7 +287,8 @@ final class PursuitCar {
         PursuitShade.box(v, view, m, -.13f, .27f, -.6f, .13f, .62f, .9f, 0x1b1c20, .3f);
         // The steering column and wheel, gripped where his hands are.
         Vec3 hub = wheelHub;
-        float wheelTurn = PursuitMoves.steering(tau) * (tau < ULT_EXIT ? 1 : .4f) + (tau >= ULT_EXIT ? .25f * (float) Math.sin(tau * .07) : 0);
+        // The driver's hands on it: his steering, and the panic on the wheel once something is on his roof (as PursuitMoves.driver).
+        float wheelTurn = PursuitMoves.steering(tau) + (tau < BOOM ? .25f * PursuitPath.ease((tau - ULT_TOUCH) / 6) * (float) Math.sin(tau * .41) : 0);
         Matrix4f w = new Matrix4f(m).translate((float) hub.x, (float) hub.y, (float) hub.z).rotateX(-.42f).rotateZ(wheelTurn);
         PursuitShade.box(v, view, new Matrix4f(m).translate((float) hub.x, (float) hub.y, (float) hub.z).rotateX(-.42f), -.035f, -.035f, 0, .035f, .035f, .30f, 0x1d1e22, .4f);
         int seg = 14;

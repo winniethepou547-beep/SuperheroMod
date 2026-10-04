@@ -151,7 +151,7 @@ public final class PantherBody {
     }
     /** A line of the suit's energy, over its silver line: dark until the region is charged. */
     private static void energy(PoseStack p, MultiBufferSource b, int region, int side, float x, float y, float z, float rx, float ry, float rz, float w, float h, float d) {
-        float g = CHARGE.brightness(region, side) * (mode == GHOST ? .4f * alpha : mode == CAMO ? .15f : 1);
+        float g = CHARGE.brightness(region, side) * (mode == GHOST ? .4f * alpha : mode == CAMO ? .15f * Math.min(1, alpha) : 1);
         if (g < .015f) return;
         float core = Math.max(0, g - .8f) * .7f;
         float r = Math.min(1, .55f * g + core), gr = Math.min(1, .26f * g + core), bl = Math.min(1, 1f * g + core);
@@ -160,7 +160,7 @@ public final class PantherBody {
         if (rx != 0 || ry != 0 || rz != 0) rot(p, rx, ry, rz);
         p.scale(w + .12f, h + .12f, d + .12f);
         p.translate(-.5f / 16, -.5f / 16, -.5f / 16);
-        UNIT.render(p, b.getBuffer(RenderType.eyes(GhostMaterials.TEXTURE)), FULL, OverlayTexture.NO_OVERLAY, r, gr, bl, 1);
+        glow(p, r, gr, bl);
         p.popPose();
     }
     /** A silver line of the suit and its energy line together. */
@@ -174,8 +174,36 @@ public final class PantherBody {
         if (rz != 0) p.mulPose(Axis.ZP.rotation(rz));
         p.scale(w, h, d);
         p.translate(-.5f / 16, -.5f / 16, -.5f / 16);
-        UNIT.render(p, b.getBuffer(RenderType.eyes(GhostMaterials.TEXTURE)), FULL, OverlayTexture.NO_OVERLAY, r, g, bl, 1);
+        glow(p, r, g, bl);
         p.popPose();
+    }
+    /*
+     * The glowing boxes (energy lines, eyes) are kept and drawn together after the body: drawing them in between the
+     * suit's boxes would switch the draw type back and forth, and every switch is a separate draw on the GPU.
+     */
+    private static final int GLOW_MAX = 320;
+    private static final org.joml.Matrix4f[] GLOW_POSE = new org.joml.Matrix4f[GLOW_MAX];
+    private static final org.joml.Matrix3f[] GLOW_NORMAL = new org.joml.Matrix3f[GLOW_MAX];
+    private static final float[] GLOW_RGB = new float[GLOW_MAX * 3];
+    private static int glows;
+    private static final PoseStack GLOW_STACK = new PoseStack();
+    static { for (int i = 0; i < GLOW_MAX; i++) { GLOW_POSE[i] = new org.joml.Matrix4f(); GLOW_NORMAL[i] = new org.joml.Matrix3f(); } }
+    private static void glow(PoseStack p, float r, float g, float b) {
+        if (glows >= GLOW_MAX) return;
+        GLOW_POSE[glows].set(p.last().pose());
+        GLOW_NORMAL[glows].set(p.last().normal());
+        GLOW_RGB[glows * 3] = r; GLOW_RGB[glows * 3 + 1] = g; GLOW_RGB[glows * 3 + 2] = b;
+        glows++;
+    }
+    private static void flushGlows(MultiBufferSource b) {
+        if (glows == 0) return;
+        var v = b.getBuffer(RenderType.eyes(GhostMaterials.TEXTURE));
+        for (int i = 0; i < glows; i++) {
+            GLOW_STACK.last().pose().set(GLOW_POSE[i]);
+            GLOW_STACK.last().normal().set(GLOW_NORMAL[i]);
+            UNIT.render(GLOW_STACK, v, FULL, OverlayTexture.NO_OVERLAY, GLOW_RGB[i * 3], GLOW_RGB[i * 3 + 1], GLOW_RGB[i * 3 + 2], 1);
+        }
+        glows = 0;
     }
 
     // ------------------------------------------------------------------ the whole body
@@ -185,6 +213,7 @@ public final class PantherBody {
      * whole body about the vertical (radians) for moves whose facing differs from the player's.
      */
     public static void draw(PoseStack p, MultiBufferSource b, int light, Pose pose, float lookYaw, float lookPitch, float time, int drawMode, float opacity, float align) {
+        glows = 0;
         mode = drawMode; alpha = opacity; eyes = pose.get(EYES); boxIndex = 0; drawTime = time;
         CHARGE.time = time;
         float[] v = pose.v;
@@ -244,6 +273,7 @@ public final class PantherBody {
         p.popPose();
         p.popPose();
         p.popPose();
+        flushGlows(b);
     }
 
     // ------------------------------------------------------------------ legs
@@ -472,7 +502,7 @@ public final class PantherBody {
         for (int side = -1; side <= 1; side += 2) {
             part(p, b, light, side * 1.65f, -5.25f, -3.95f, 0, 0, side * -.28f, 2.3f, .8f, .25f, LENS);
             float e = Mth.clamp(eyes, 0, 1.5f);
-            float glow = (mode == GHOST ? .6f * alpha : mode == CAMO ? .35f : 1) * (.08f + .92f * e);
+            float glow = (mode == GHOST ? .6f * alpha : mode == CAMO ? .35f * Math.min(1, alpha) : 1) * (.08f + .92f * e);
             glowBox(p, b, side * 1.65f, -5.25f, -4.1f, side * -.28f, 2.2f, .7f, .15f, .85f * glow, .9f * glow, glow);
         }
         // The silver lines of the mask: down the forehead to the nose, round the eyes and down the cheeks,
@@ -515,6 +545,7 @@ public final class PantherBody {
         capture = false;
         hand(p, b, light, side, curl);
         capture = was;
+        flushGlows(b);
     }
     /** The claw tips of a first-person hand, in the current frame's view space (for their trails). */
     public static Vec3 clawTip(PoseStack p, int side, int finger, float curl) {

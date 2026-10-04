@@ -3,8 +3,8 @@ package com.FIRNI.superheromod.heroes.panther;
 import net.minecraftforge.common.ForgeConfigSpec;
 
 /**
- * Black Panther's tuning, in config/superheromod-panther.toml (gameplay, for everyone on the server)
- * and config/superheromod-panther-client.toml (what each player sees). Every value is read live.
+ * Black Panther's tuning, in config/superheromod-black-panther.toml (gameplay, for everyone on the server)
+ * and config/superheromod-black-panther-client.toml (what each player sees). Every value is read live.
  * Distances are in blocks, speeds in blocks per tick (20 ticks = 1 second), times in ticks.
  */
 public final class PantherConfig {
@@ -16,6 +16,7 @@ public final class PantherConfig {
     public static final ForgeConfigSpec.DoubleValue FRENZY_DAMAGE, FRENZY_RANGE, DASH_DAMAGE, DASH_RANGE, DOUBLE_JUMP;
     public static final ForgeConfigSpec.IntValue DASH_COOLDOWN, CAMO_DURATION, CAMO_COOLDOWN;
     public static final ForgeConfigSpec.IntValue FRENZY_COOLDOWN;
+    public static final ForgeConfigSpec.DoubleValue FRENZY_ARC, CAMO_SPEED, PARRY_ENERGY;
     public static final ForgeConfigSpec.DoubleValue POUNCE_SPEED, POUNCE_DISTANCE, CONTACT_DAMAGE, KICK_DAMAGE, KICK_SPEED, KICK_LIFT;
     public static final ForgeConfigSpec.DoubleValue SCRAPE_KEEP, FLIP_HEIGHT;
     public static final ForgeConfigSpec.IntValue SCRAPE_TICKS, POUNCE_COOLDOWN;
@@ -29,7 +30,7 @@ public final class PantherConfig {
     public static final ForgeConfigSpec.DoubleValue DODGE_DISTANCE;
     public static final ForgeConfigSpec.BooleanValue DODGE_PROJECTILES;
     public static final ForgeConfigSpec.IntValue ULT_COOLDOWN;
-    public static final ForgeConfigSpec.DoubleValue ULT_DAMAGE, ULT_RADIUS, ULT_KNOCK;
+    public static final ForgeConfigSpec.DoubleValue ULT_DAMAGE, ULT_RADIUS, ULT_KNOCK, ULT_RANGE, ULT_TARGET_DAMAGE;
 
     // ------------------------------------------------------------------ client
     public static final ForgeConfigSpec CLIENT;
@@ -52,15 +53,17 @@ public final class PantherConfig {
         UPPER_LIFT = b.comment("How high the uppercut lifts (upward speed)").defineInRange("uppercutLift", .62, 0, 3);
         FRENZY_DAMAGE = b.comment("Each frenzy strike (the button held)").defineInRange("frenzyDamage", 2.2, 0, 100);
         FRENZY_RANGE = b.comment("How far in front a frenzy strike reaches").defineInRange("frenzyRange", 3.4, 1, 8);
-        FRENZY_COOLDOWN = b.comment("Ticks after a frenzy before the next one").defineInRange("frenzyCooldown", 60, 0, 2000);
+        FRENZY_ARC = b.comment("How wide the frenzy's sweeps cut (degrees either side of where he faces)").defineInRange("frenzyArc", 100.0, 10, 180);
+        FRENZY_COOLDOWN = b.comment("Ticks after a frenzy before the next one").defineInRange("frenzyCooldown", 120, 0, 2000);
         b.pop();
         b.comment("Right click: dash to a target his strikes have marked, claws thrown open as he arrives").push("markedDash");
         DASH_DAMAGE = b.defineInRange("damage", 9.0, 0, 100);
-        DASH_RANGE = b.comment("Farthest marked target he dashes to").defineInRange("range", 12.0, 2, 40);
+        DASH_RANGE = b.comment("Farthest marked target he dashes to").defineInRange("range", 15.0, 2, 40);
         DASH_COOLDOWN = b.defineInRange("cooldown", 40, 0, 4000);
         b.pop();
-        b.comment("Holding SHIFT: crouch; two seconds of it and he fades into camouflage").push("camouflage");
+        b.comment("Holding the sprint key (CTRL): crouch; two seconds of it and he fades into camouflage").push("camouflage");
         CAMO_DURATION = b.defineInRange("duration", 100, 1, 2000);
+        CAMO_SPEED = b.comment("How much faster he moves while camouflaged (1.0 = twice as fast)").defineInRange("speedBonus", 1.0, 0, 4);
         CAMO_COOLDOWN = b.comment("Ticks after the camouflage ends before it can start again").defineInRange("cooldown", 200, 0, 6000);
         DOUBLE_JUMP = b.comment("Upward speed of his second jump in the air").defineInRange("doubleJump", .62, 0, 2);
         b.pop();
@@ -106,10 +109,14 @@ public final class PantherConfig {
         REFLEX_MAX_DODGES = b.comment("Most attacks dodged in one activation").defineInRange("maxDodges", 10, 1, 200);
         DODGE_DISTANCE = b.comment("How far a sidestep carries him").defineInRange("dodgeDistance", 1.6, 0, 6);
         DODGE_PROJECTILES = b.comment("Arrows and other projectiles are dodged too").define("dodgeProjectiles", true);
+        PARRY_ENERGY = b.comment("Blows from in front are always parried while the reflex is on; this share of their damage goes into the suit as energy")
+                .defineInRange("parryEnergy", .5, 0, 10);
         b.pop();
-        b.comment("X: The Final Pursuit (the car chase film). He cannot be hurt while it plays; when its release goes off, the real",
-                "kinetic blast goes off round him in the world too").push("finalPursuit");
+        b.comment("X: The Final Pursuit (the car chase film), aimed at the one he looks at: they drive the car he hunts in it. He cannot be",
+                "hurt while it plays; when its release goes off, the real kinetic blast goes off round him in the world too").push("finalPursuit");
         ULT_COOLDOWN = b.defineInRange("cooldown", 1800, 0, 72000);
+        ULT_RANGE = b.comment("How far away the one he aims it at may be").defineInRange("range", 14.0, 2, 40);
+        ULT_TARGET_DAMAGE = b.comment("Share of the driver's max health the crash takes (0.6 = 60%)").defineInRange("driverDamage", .6, 0, 1);
         ULT_DAMAGE = b.comment("Damage of the blast to those near him (0 = none)").defineInRange("damage", 14.0, 0, 200);
         ULT_RADIUS = b.comment("How far the blast reaches").defineInRange("radius", 7.0, 0, 32);
         ULT_KNOCK = b.comment("How hard it throws them outward").defineInRange("knockback", 2.2, 0, 8);

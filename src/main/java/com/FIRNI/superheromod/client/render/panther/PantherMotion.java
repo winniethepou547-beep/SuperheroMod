@@ -147,18 +147,15 @@ public final class PantherMotion {
             flex = flex * flex * flex * flex * flex * flex;
             p.armAdd(side, CURL, -.25f * flex).armAdd(side, WRIST_X, -.06f * flex).armAdd(side, ELBOW, .03f * noise(time * .04f + side * 3));
         }
-        if (reflex > .01f) {
-            float q = reflex;
-            p.add(HEAD_YAW, .04f * q * noise(time * .9f)).add(HEAD_PITCH, .03f * q * noise(time * .7f + 3));
-            for (int side = 0; side < 2; side++) p.armAdd(side, WRIST_X, .07f * q * noise(time * 1.1f + side * 2)).armAdd(side, CURL, .06f * q * noise(time * 1.3f + side));
-            p.add(EYES, .25f * q);
-        }
+        if (reflex > .01f) p.add(EYES, .25f * reflex);
         return p;
     }
     /**
      * The reflex guard (after Daredevil's deflecting stance): low and wide on the balls of the feet, forearms up
      * in front, the right one standing before the face, the left across the chest, claws out, the head down
-     * behind them; the claws never still, flicking back and forth like a parry waiting to happen.
+     * behind them. Waiting, the whole body is alive, not just the hands: a slow boxer's weave from foot to foot,
+     * the knees bobbing, the chest turning with it and the guard moving with the chest, the head scanning, the
+     * claws opening and closing now and then. Nothing quick or jittery until a blow actually comes.
      */
     public static Pose guard(Pose base, float time, float weight) {
         if (weight <= .001f) return base;
@@ -168,12 +165,22 @@ public final class PantherMotion {
         g.leg(0, LEG_X, .3f).leg(0, LEG_Z, .2f).leg(0, KNEE, .25f).leg(0, ANKLE, .2f).leg(1, LEG_X, -.32f).leg(1, LEG_Z, .16f).leg(1, KNEE, .3f).leg(1, ANKLE, .25f);
         g.arm(0, SH_FWD, 1.2f).arm(0, ARM_X, -1.5f).arm(0, ARM_Z, -.12f).arm(0, ARM_Y, -.2f).arm(0, ELBOW, 1.8f).arm(0, WRIST_X, .25f).arm(0, CURL, .1f);
         g.arm(1, SH_FWD, 1.0f).arm(1, ARM_X, -1.05f).arm(1, ARM_Z, .08f).arm(1, ARM_Y, -.35f).arm(1, ELBOW, 1.65f).arm(1, WRIST_X, .2f).arm(1, CURL, .1f);
-        // The claws flicking, the hands taking turns, quick and small.
+        // The weave: the weight rolling from foot to foot, the knees bobbing twice per weave, the chest and the guard going with it.
+        float weave = Mth.sin(time * .1f), bob = Mth.sin(time * .2f + .7f);
+        g.add(SHIFT_X, 1.1f * weave).add(PELVIS_ROLL, -.05f * weave).add(SPINE_ROLL, .06f * weave).add(CHEST_ROLL, .04f * weave)
+                .add(CHEST_YAW, .1f * Mth.sin(time * .1f + .9f)).add(SPINE_YAW, .05f * Mth.sin(time * .1f + .5f))
+                .add(CROUCH, .55f * bob).add(SPINE_PITCH, .03f * bob);
+        g.legAdd(0, KNEE, .08f * Math.max(0, -weave) + .05f * bob).legAdd(1, KNEE, .08f * Math.max(0, weave) + .05f * bob);
+        // The head scanning slowly, the eyes on whatever might come.
+        g.add(HEAD_YAW, .16f * noise(time * .035f + 2)).add(HEAD_PITCH, .04f * noise(time * .05f + 5));
         for (int side = 0; side < 2; side++) {
-            float f = Mth.sin(time * 1.25f + side * Mth.PI);
-            g.armAdd(side, WRIST_Z, .3f * f).armAdd(side, ARM_Y, .06f * f).armAdd(side, SH_UP, .2f * Math.abs(f));
+            // The guard drifting in small slow circles with the chest; the claws flexing open now and then.
+            float c = Mth.sin(time * .13f + side * 1.9f), d = Mth.cos(time * .13f + side * 1.9f);
+            g.armAdd(side, ARM_X, .07f * c).armAdd(side, ELBOW, .06f * d).armAdd(side, ARM_Y, .04f * d).armAdd(side, SH_UP, .25f * bob);
+            float flex = Math.max(0, Mth.sin(time * .06f + side * 2.6f));
+            flex = flex * flex * flex * flex;
+            g.armAdd(side, CURL, .35f * flex).armAdd(side, WRIST_X, -.08f * flex);
         }
-        g.add(SHIFT_X, .25f * Mth.sin(time * .3f)).add(CHEST_YAW, .04f * Mth.sin(time * .43f));
         Pose out = base.copy();
         out.toward(g, clamp(weight));
         return out;
@@ -325,46 +332,66 @@ public final class PantherMotion {
         return new Track().key(0, base).key(3.2f, load).key(UPPER_HIT, drive).key(8f, top).key(11f, down).key(UPPER_TICKS + 2f, base);
     }
     /**
-     * The berserk frenzy (after Wolverine's): hunched over, both claws taking turns without a breath, each one a
-     * wild diagonal from high outside down through the front and across, the other recoiling up behind it
-     * like a pair of scissors; the chest and hips rocking side to side with every slash, the feet stamping
-     * forward under him, the head down and dead on the target. Nothing like the measured combo.
+     * The berserk frenzy, after Marvel Rivals' Wolverine: a flurry of wide sweeping slashes driving forward. Each arm
+     * is flung out to its full length at the side and swept flat right across in front of him to the far side, the
+     * elbow almost straight so the claws cut the widest arc they can, the next one already swinging out behind it;
+     * the slashes alternate high-to-low and low-to-high so the claws draw X after X. The whole trunk wrings round
+     * with every sweep (pelvis, spine, chest; the head stays on the target), hunched forward, feet stamping in.
      */
     static Pose frenzy(Pose base, float t) {
         Pose p = base.copy();
-        float in = k(t, 0, 1.5f);
-        float cycle = FRENZY_STRIKE * 2;
-        p.add(CROUCH, 3.4f * in).add(SPINE_PITCH, .38f * in).add(CHEST_PITCH, .12f * in).add(HEAD_PITCH, -.4f * in).add(SHIFT_Z, -.7f * in);
-        float rock = 0;
+        float in = k(t, 0, 1.2f);
+        float cycle = FRENZY_STRIKE * 2, sweep = .4f;
+        p.add(CROUCH, 3.0f * in).add(SPINE_PITCH, .36f * in).add(CHEST_PITCH, .1f * in).add(HEAD_PITCH, -.38f * in).add(SHIFT_Z, -.9f * in)
+                .add(ROOT_PITCH, .1f * in);
         for (int side = 0; side < 2; side++) {
-            // Each hand's slash: down fast (the first 45% of its half), back up slower; the hands half a cycle apart.
-            float u = ((t / cycle) + (side == 0 ? 0 : .5f)) % 1;
-            float x = u < .45f ? u / .45f * .5f : .5f + (u - .45f) / .55f * .5f;
-            float down = .5f - .5f * Mth.cos(Mth.TWO_PI * x);     // 0 high outside .. 1 low across
-            p.arm(side, SH_FWD, Mth.lerp(in, p.arm(side, SH_FWD), -.6f + 2.6f * down))
-                    .arm(side, SH_UP, Mth.lerp(in, p.arm(side, SH_UP), .9f * (1 - down)))
-                    .arm(side, ARM_X, Mth.lerp(in, p.arm(side, ARM_X), -2.4f + 1.6f * down))
-                    .arm(side, ARM_Z, Mth.lerp(in, p.arm(side, ARM_Z), 1.15f - 1.75f * down))
-                    .arm(side, ARM_Y, Mth.lerp(in, p.arm(side, ARM_Y), .45f - .95f * down))
-                    .arm(side, ELBOW, Mth.lerp(in, p.arm(side, ELBOW), 1.4f - 1.1f * down))
-                    .arm(side, WRIST_Z, Mth.lerp(in, p.arm(side, WRIST_Z), -.4f + .9f * down))
-                    .arm(side, WRIST_X, Mth.lerp(in, p.arm(side, WRIST_X), -.4f + .5f * down))
+            // Each arm's own clock: the right sweeps through the first strike (its middle where the hit bites), the left the next.
+            float lt = t + .4f + (side == 0 ? 0 : FRENZY_STRIKE);
+            int n = (int) Math.floor(lt / cycle);
+            float u = lt / cycle - n;
+            float high = -2.15f, low = -.95f;
+            boolean down = ((n + side) & 1) == 0, nextDown = ((n + 1 + side) & 1) == 0;
+            float fromX = down ? high : low, toX = down ? low : high, nextX = nextDown ? high : low;
+            float ay, ax, sh, el, az, wz;
+            if (u < sweep) {
+                // The sweep: out at the side, flat across the front, through to the far side; straightest in the middle.
+                float e = ease(u / sweep), mid = Mth.sin(Mth.PI * e);
+                ay = Mth.lerp(e, 1.4f, -1.1f);
+                ax = Mth.lerp(e, fromX, toX);
+                sh = Mth.lerp(e, -.5f, 2.3f);
+                el = .45f - .32f * mid;
+                az = Mth.lerp(e, .4f, -.4f);
+                wz = Mth.lerp(e, -.55f, .6f);
+            } else {
+                // Back round: up, out and behind him, the elbow folding on the way and opening again, ready for the next.
+                float e = ease((u - sweep) / (1 - sweep)), mid = Mth.sin(Mth.PI * e);
+                ay = Mth.lerp(e, -1.1f, 1.4f) + .3f * mid;
+                ax = Mth.lerp(e, toX, nextX) - .25f * mid;
+                sh = Mth.lerp(e, 2.3f, -.5f) - .5f * mid;
+                el = .45f + .75f * mid;
+                az = Mth.lerp(e, -.4f, .4f) + .35f * mid;
+                wz = Mth.lerp(e, .6f, -.55f);
+            }
+            p.arm(side, ARM_Y, Mth.lerp(in, p.arm(side, ARM_Y), ay)).arm(side, ARM_X, Mth.lerp(in, p.arm(side, ARM_X), ax))
+                    .arm(side, SH_FWD, Mth.lerp(in, p.arm(side, SH_FWD), sh)).arm(side, SH_UP, Mth.lerp(in, p.arm(side, SH_UP), .5f))
+                    .arm(side, ELBOW, Mth.lerp(in, p.arm(side, ELBOW), el)).arm(side, ARM_Z, Mth.lerp(in, p.arm(side, ARM_Z), az))
+                    .arm(side, WRIST_Z, Mth.lerp(in, p.arm(side, WRIST_Z), wz)).arm(side, WRIST_X, Mth.lerp(in, p.arm(side, WRIST_X), -.2f))
                     .arm(side, CURL, Mth.lerp(in, p.arm(side, CURL), 0));
-            rock += (side == 0 ? 1 : -1) * down;     // a right-hand slash wrings the chest round to his left, as in the combo
         }
-        // The body rocks after the striking hand.
-        p.add(CHEST_YAW, -.5f * rock * in).add(SPINE_YAW, -.15f * rock * in).add(PELVIS_YAW, -.12f * rock * in).add(CHEST_ROLL, .12f * rock * in)
-                .add(HEAD_YAW, .45f * rock * in).add(SHIFT_X, .5f * rock * in);
-        // The feet: stamping forward, one then the other.
-        float step = Mth.sin(t * Mth.TWO_PI / cycle);
-        p.leg(0, LEG_X, Mth.lerp(in, p.leg(0, LEG_X), .35f + .12f * step)).leg(1, LEG_X, Mth.lerp(in, p.leg(1, LEG_X), -.4f + .12f * step))
-                .legAdd(0, KNEE, (.3f + .15f * Math.max(0, step)) * in).legAdd(1, KNEE, (.4f + .15f * Math.max(0, -step)) * in)
-                .leg(0, LEG_Z, Mth.lerp(in, p.leg(0, LEG_Z), .18f)).leg(1, LEG_Z, Mth.lerp(in, p.leg(1, LEG_Z), .15f))
+        // The trunk wrung round with each sweep: wound to the striking side, unwound through to the other.
+        float c = Mth.cos(Mth.PI * (t + .4f) / FRENZY_STRIKE);
+        p.add(CHEST_YAW, .7f * c * in).add(SPINE_YAW, .22f * c * in).add(PELVIS_YAW, .15f * c * in).add(CHEST_ROLL, -.1f * c * in)
+                .add(HEAD_YAW, -.45f * c * in).add(SHIFT_X, -.7f * c * in);
+        // The feet stamping in, the leading foot changing with each sweep.
+        float step = Mth.sin(Mth.PI * (t + .4f) / FRENZY_STRIKE);
+        p.leg(0, LEG_X, Mth.lerp(in, p.leg(0, LEG_X), .38f + .18f * c)).leg(1, LEG_X, Mth.lerp(in, p.leg(1, LEG_X), -.42f + .18f * c))
+                .legAdd(0, KNEE, (.32f + .2f * Math.max(0, step)) * in).legAdd(1, KNEE, (.42f + .2f * Math.max(0, -step)) * in)
+                .leg(0, LEG_Z, Mth.lerp(in, p.leg(0, LEG_Z), .2f)).leg(1, LEG_Z, Mth.lerp(in, p.leg(1, LEG_Z), .17f))
                 .legAdd(0, ANKLE, .25f * in).legAdd(1, ANKLE, .25f * in);
         return p;
     }
     /**
-     * The crouch (SHIFT held): down low like a cat about to spring, hips back, the back long, the head up,
+     * The crouch (the sprint key, CTRL, held): down low like a cat about to spring, hips back, the back long, the head up,
      * the claws near the ground; it sinks a little more as the camouflage gathers.
      */
     static Pose crouch(Pose base, float t, float time) {
@@ -690,6 +717,17 @@ public final class PantherMotion {
                     slip.arm(side, SH_FWD, .6f).arm(side, ARM_X, -2.65f).arm(side, ARM_Z, -.35f).arm(side, ELBOW, 1.2f).arm(side, WRIST_X, .3f).arm(side, CURL, .1f);
                 hold.add(CROUCH, 6f).add(SPINE_PITCH, .55f);
                 for (int side = 0; side < 2; side++) hold.arm(side, ARM_X, -2.0f).arm(side, ELBOW, 1.4f);
+            }
+            case DODGE_PARRY -> {
+                // The blow met on the forearms: the near guard snaps out and turns it aside, the body sits into it a touch
+                // and gives a little, the other forearm stays up before the face; straight back into the guard.
+                int near = threatYaw > 0 ? 0 : 1, far = 1 - near;
+                prep.add(CROUCH, .4f);
+                slip.add(CROUCH, 1.2f).add(SPINE_PITCH, -.06f).add(CHEST_YAW, (near == 0 ? 1 : -1) * .18f).add(SHIFT_Z, .8f);
+                slip.arm(near, SH_FWD, 1.5f).arm(near, ARM_X, -1.45f).arm(near, ARM_Z, .55f).arm(near, ARM_Y, .55f).arm(near, ELBOW, 1.25f)
+                        .arm(near, WRIST_X, -.3f).arm(near, WRIST_Z, -.4f).arm(near, CURL, 0)
+                        .arm(far, SH_FWD, 1.1f).arm(far, ARM_X, -1.55f).arm(far, ARM_Z, -.15f).arm(far, ELBOW, 1.85f).arm(far, CURL, .1f);
+                hold.add(CROUCH, .6f).add(SHIFT_Z, .3f).arm(near, ARM_Y, .25f).arm(near, ARM_Z, .25f);
             }
             default -> {
                 // A pivot: the body spins a quarter away from the blow and back, low, a forearm across.

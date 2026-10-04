@@ -30,24 +30,6 @@ public final class PursuitMoves {
         p.leg(0, LEG_X, -1.52f).leg(0, KNEE, 1.18f);
         return p;
     }
-    /** Crouched on the roof's edge, the hips low over the feet, a hand on the edge. */
-    static Pose perch() {
-        Pose p = new Pose();
-        p.set(PLANT, 1).set(CROUCH, 8.5f).set(SPINE_PITCH, .55f).set(CHEST_PITCH, .2f).set(HEAD_PITCH, .15f).set(NECK, .5f).set(EYES, .25f);
-        p.leg(0, LEG_Z, .35f).leg(1, LEG_Z, .35f).leg(0, LEG_Y, .2f).leg(1, LEG_Y, .2f);
-        p.arm(1, ARM_X, -.5f).arm(1, ARM_Z, .75f).arm(1, ELBOW, .6f).arm(1, CURL, .8f);
-        p.arm(0, ARM_X, -.7f).arm(0, ARM_Z, .3f).arm(0, ELBOW, .4f).arm(0, CURL, .4f);
-        return p;
-    }
-    /** Bent right over the edge, the upper body hanging down beside the window, looking in. */
-    static Pose peer() {
-        Pose p = perch();
-        p.set(PELVIS_ROLL, .4f).set(SPINE_ROLL, 1.15f).set(CHEST_ROLL, 1.15f).set(SPINE_PITCH, .3f).set(CHEST_PITCH, .1f)
-                .set(HEAD_ROLL, -1.0f).set(HEAD_YAW, -.25f).set(HEAD_PITCH, .2f).set(EYES, .45f);
-        p.arm(1, ARM_X, -.2f).arm(1, ARM_Z, .25f).arm(1, ELBOW, .35f).arm(1, CURL, .85f);
-        p.arm(0, ARM_X, -.4f).arm(0, ARM_Z, .95f).arm(0, ELBOW, .3f).arm(0, CURL, .5f);
-        return p;
-    }
     /** Low on a moving roof: wide feet, bent knees, weight low, arms out for balance, claws ready. */
     static Pose roofStance() {
         Pose p = new Pose();
@@ -99,50 +81,11 @@ public final class PursuitMoves {
         return p;
     }
 
-    private static Track exit, roof, hop, coilLeap, landing, turnClaw, tear, throwIt, charge, flight;
+    private static Track coilLeap, landing, turnClaw, tear, throwIt, charge, flight;
     private static void build() {
-        if (exit != null) return;
-        Pose s = seat();
-        Pose look = s.copy().set(HEAD_YAW, -.95f).set(CHEST_YAW, -.12f).set(EYES, .35f);
-        Pose grab = look.copy().set(CHEST_YAW, -.5f).set(SPINE_ROLL, .25f).set(SPINE_PITCH, .2f).set(HEAD_YAW, -.6f);
-        grab.arm(1, ARM_X, -2.5f).arm(1, ARM_Z, .9f).arm(1, ELBOW, .9f).arm(1, CURL, .8f).arm(1, SH_FWD, .2f);
-        grab.arm(0, ARM_X, -.9f).arm(0, ELBOW, .3f).arm(0, CURL, .4f);
-        for (int side = 0; side < 2; side++) grab.leg(side, LEG_X, -1.7f).leg(side, KNEE, 1.9f);
-        Pose out = grab.copy().set(ROOT_ROLL, 1.05f).set(ROOT_PITCH, .25f).set(SPINE_PITCH, .1f).set(SPINE_ROLL, .1f).set(CHEST_YAW, -.2f).set(HEAD_YAW, -.2f);
-        for (int side = 0; side < 2; side++) {
-            out.arm(side, ARM_X, -2.9f).arm(side, ARM_Z, .35f).arm(side, ELBOW, .5f).arm(side, CURL, .7f);
-            out.leg(side, LEG_X, -1.9f).leg(side, KNEE, 2.3f);
-        }
-        Pose pull = out.copy().set(ROOT_ROLL, .45f).set(ROOT_PITCH, .2f).set(PLANT, .3f).set(CROUCH, 4);
-        for (int side = 0; side < 2; side++) {
-            pull.arm(side, ARM_X, -1.2f).arm(side, ELBOW, 1.6f).arm(side, CURL, .9f);
-            pull.leg(side, LEG_X, -1.2f).leg(side, KNEE, 2.0f).leg(side, LEG_Z, .4f);
-        }
-        Pose perch = perch();
-        exit = new Track(true).key(ULT_EXIT, look).key(ULT_EXIT + 3, grab).key(ULT_EXIT + 7, out).key(ULT_EXIT + 11, pull).key(ULT_REVEAL, perch);
-
-        Pose peer = peer();
-        roof = new Track(true).key(ULT_REVEAL, perch).key(ULT_REVEAL + 5, perch.copy().set(SPINE_ROLL, .2f).set(PELVIS_ROLL, .1f))
-                .key(ULT_REVEAL + 10, peer).key(ULT_REVEAL + 18, peer.copy().add(HEAD_YAW, .1f).add(CHEST_ROLL, .05f))
-                .key(ULT_REVEAL + 24, perch).key(ULT_HOP - 2, perch.copy().add(CROUCH, .8f).add(SPINE_PITCH, .15f));
-
-        Pose gather = perch.copy().set(CROUCH, 9.3f).set(SPINE_PITCH, .7f).set(HEAD_PITCH, -.1f);
-        for (int side = 0; side < 2; side++) gather.arm(side, ARM_X, -.9f).arm(side, ARM_Z, .3f).arm(side, ELBOW, .5f);
-        Pose push = new Pose();
-        push.set(PLANT, .2f).set(ROOT_PITCH, -.5f).set(SPINE_PITCH, -.1f).set(HEAD_PITCH, .1f).set(EYES, .3f);
-        for (int side = 0; side < 2; side++) {
-            push.leg(side, LEG_X, .1f).leg(side, KNEE, .2f).leg(side, ANKLE, .6f).leg(side, LEG_Z, .2f);
-            push.arm(side, ARM_X, -2.2f).arm(side, ARM_Z, .6f).arm(side, ELBOW, .4f).arm(side, CURL, .2f);
-        }
-        Pose tuck = push.copy().set(ROOT_PITCH, -.75f).set(SPINE_PITCH, .4f).set(HEAD_PITCH, .25f);
-        for (int side = 0; side < 2; side++) {
-            tuck.leg(side, LEG_X, -1.3f).leg(side, KNEE, 1.8f);
-            tuck.arm(side, ARM_X, -1.0f).arm(side, ARM_Z, 1.0f).arm(side, ELBOW, .6f);
-        }
-        Pose meetSuv = coil().copy().set(CROUCH, 6).set(SPINE_PITCH, .5f).set(ROOT_PITCH, -.1f);
-        hop = new Track(true).key(ULT_HOP - 2, gather).key(ULT_HOP + 1, push).key(ULT_HOP + 6, tuck).key(ULT_HOP + 10, meetSuv).key(ULT_HOP + 14, coil());
-
+        if (coilLeap != null) return;
         Pose c = coil();
+        Pose riding = riding();
         Pose rockBack = c.copy().add(SHIFT_Z, 1.2f).add(SPINE_PITCH, -.1f);
         Pose load = c.copy().add(SHIFT_Z, 1.6f).set(CROUCH, 9.5f).set(SPINE_PITCH, .85f);
         for (int side = 0; side < 2; side++) load.arm(side, ARM_X, .7f).arm(side, ARM_Z, .35f).arm(side, ELBOW, .4f).arm(side, CURL, .15f);
@@ -163,7 +106,7 @@ public final class PursuitMoves {
             reach.leg(side, LEG_X, -1.1f).leg(side, KNEE, .9f).leg(side, ANKLE, .1f).leg(side, LEG_Z, .3f);
             reach.arm(side, ARM_X, -1.0f).arm(side, ARM_Z, .9f).arm(side, ELBOW, .5f);
         }
-        coilLeap = new Track(true).key(ULT_HOP + 14, c).key(ULT_COIL + 4, rockBack).key(ULT_COIL + 8, c.copy().add(SHIFT_Z, -.4f))
+        coilLeap = new Track(true).key(ULT_COIL - 6, riding).key(ULT_COIL, c).key(ULT_COIL + 5, rockBack).key(ULT_COIL + 10, c.copy().add(SHIFT_Z, -.4f))
                 .key(ULT_LEAP - 1, load).key(ULT_LEAP + 2, launch).key(ULT_LEAP + 8, soar).key(ULT_TOUCH - 3, reach);
 
         Pose touch = roofStance().copy().set(CROUCH, 2).set(SPINE_PITCH, .35f);
@@ -262,54 +205,118 @@ public final class PursuitMoves {
     public static Pose panther(float tau, float time) {
         build();
         Pose p;
-        if (tau < ULT_EXIT) p = driving(tau, time);
-        else if (tau < ULT_REVEAL) p = exit.sample(tau);
-        else if (tau < ULT_HOP - 2) p = roof.sample(tau);
-        else if (tau < ULT_HOP + 14) p = hop.sample(tau);
+        if (tau < ULT_COIL - 6) p = onSuv(tau, time);
         else if (tau < ULT_TOUCH - 3) p = coilLeap.sample(tau);
         else if (tau < ULT_INSIDE) p = landing.sample(tau);
-        else if (tau < ULT_TURN) p = balance(roofStance(), tau, time);
+        else if (tau < ULT_TURN) p = balance(roofStance(), tau, time).add(SHIFT_X, -2.2f * PursuitPath.dodge(tau));
         else if (tau < ULT_PRESS) p = turnClaw.sample(tau);
         else if (tau < ULT_ROOF_FREE + 7) p = tear.sample(tau);
         else if (tau < ULT_THROW + 12) p = throwIt.sample(tau);
         else if (tau < PursuitPath.BOOM) p = charging(tau, time);
         else if (tau < PursuitPath.BOOM + PursuitPath.LAND) p = flight.sample(tau);
         else p = landed(tau - PursuitPath.BOOM, time);
-        // The shots that hit him: each jolts the part it strikes, the suit taking the force.
+        // The shots that hit him: each one knocks the part it strikes back hard (the force goes into the suit, not
+        // through him: a jolt, then he rides it out and settles); the eyes flare with the energy.
         for (PursuitPath.Shot s : PursuitPath.SHOTS) {
             if (s.hits() != 0) continue;
             float d = tau - s.time();
-            if (d < 0 || d > 8) continue;
-            float j = (float) Math.exp(-d / 1.6f) * Math.min(1, d / .4f);
+            if (d < 0 || d > 10) continue;
+            float j = (float) Math.exp(-d / 2.0f) * Math.min(1, d / .35f);
+            int near = s.side() > 0 ? 1 : 0;
             switch (s.region()) {
-                case PantherBody.CHEST -> p.add(CHEST_PITCH, -.12f * j).add(HEAD_PITCH, -.06f * j);
-                case PantherBody.SHOULDER, PantherBody.UPPER_ARM -> p.add(CHEST_YAW, .14f * j).armAdd(1, ARM_Z, .15f * j).armAdd(1, SH_FWD, -.6f * j);
-                case PantherBody.RIBS -> p.add(SPINE_ROLL, -.1f * j).add(CHEST_YAW, .08f * j);
-                case PantherBody.SHIN, PantherBody.THIGH -> p.add(CROUCH, 1.2f * j).add(SPINE_PITCH, .06f * j);
+                case PantherBody.CHEST -> p.add(CHEST_PITCH, -.38f * j).add(SPINE_PITCH, -.16f * j).add(HEAD_PITCH, -.2f * j).add(SHIFT_Z, 1.6f * j)
+                        .armAdd(0, ARM_Z, .25f * j).armAdd(1, ARM_Z, .25f * j);
+                case PantherBody.SHOULDER, PantherBody.UPPER_ARM -> p.add(CHEST_YAW, (near == 1 ? .38f : -.38f) * j).add(SPINE_ROLL, (near == 1 ? -.12f : .12f) * j)
+                        .armAdd(near, ARM_Z, .3f * j).armAdd(near, SH_FWD, -1.2f * j).armAdd(near, ARM_X, .3f * j);
+                case PantherBody.RIBS -> p.add(SPINE_ROLL, (near == 1 ? -.32f : .32f) * j).add(CHEST_YAW, .14f * j).add(SHIFT_X, (near == 1 ? -1.2f : 1.2f) * j);
+                case PantherBody.SHIN, PantherBody.THIGH -> p.add(CROUCH, 2.2f * j).add(SPINE_PITCH, .12f * j).legAdd(near, LEG_X, .35f * j).legAdd(near, KNEE, .4f * j);
                 default -> {}
             }
-            p.add(EYES, .3f * j);
+            p.add(EYES, .45f * j);
         }
         return p;
     }
+    /**
+     * Riding the SUV's roof: crouched low, feet wide, knees taking every bump, swaying into its swerves; he lifts his head
+     * to the car ahead when the driver sees him in the mirror; when the shooting starts he raises his guard and lets it
+     * come, the hits jolting him, then lowers it and looks ahead, ready to jump.
+     */
+    private static Pose onSuv(float tau, float time) {
+        Pose p = riding();
+        float lateral = (float) (PursuitPath.driveX(tau - 5) - 2 * PursuitPath.driveX(tau - 6) + PursuitPath.driveX(tau - 7));
+        p.add(SPINE_ROLL, 2.2f * lateral).add(PELVIS_ROLL, -1.1f * lateral);
+        p.add(CROUCH, .4f * (float) Math.sin(tau * 2.1)).add(SHIFT_X, .35f * (float) Math.sin(tau * .31)).add(CHEST_PITCH, -.015f * Mth.sin(time * .14f));
+        for (int side = 0; side < 2; side++) p.armAdd(side, ARM_Z, .07f * (float) Math.sin(tau * .37 + side * 2));
+        // Seen: the head comes up, the eyes on the car ahead.
+        float seen = PursuitPath.ease((tau - ULT_BEHIND) / 8);
+        p.add(HEAD_PITCH, -.25f * seen).add(SPINE_PITCH, -.08f * seen).add(EYES, .3f * seen);
+        // The guard: the right forearm up across the face while the gunman fires, lowered after the last shot.
+        float guard = PursuitPath.window(tau, ULT_LEAN + 2, PursuitPath.LAST_BACK_SHOT + 6, 4);
+        p.arm(0, SH_FWD, Mth.lerp(guard, p.arm(0, SH_FWD), 1.1f)).arm(0, ARM_X, Mth.lerp(guard, p.arm(0, ARM_X), -1.55f))
+                .arm(0, ARM_Z, Mth.lerp(guard, p.arm(0, ARM_Z), -.25f)).arm(0, ELBOW, Mth.lerp(guard, p.arm(0, ELBOW), 1.9f))
+                .arm(0, WRIST_X, Mth.lerp(guard, p.arm(0, WRIST_X), .2f)).arm(0, CURL, Mth.lerp(guard, p.arm(0, CURL), .2f));
+        p.add(HEAD_PITCH, .12f * guard).add(CHEST_YAW, .1f * guard);
+        return p;
+    }
+    /** Low on the SUV's roof: the riding crouch. */
+    static Pose riding() {
+        Pose p = roofStance().copy().set(CROUCH, 6.5f).set(SPINE_PITCH, .5f).set(HEAD_PITCH, -.1f);
+        for (int side = 0; side < 2; side++) p.arm(side, ARM_X, -.55f).arm(side, ARM_Z, .85f).arm(side, ELBOW, .5f).arm(side, CURL, .3f);
+        return p;
+    }
 
-    /** Driving: the hands follow the wheel, the body rides the road's thumps a beat behind the car; the glance, the hits, the turn of the head. */
-    private static Pose driving(float tau, float time) {
+    /**
+     * The driver (the player the film is aimed at): hands on the wheel, the body riding the road a beat behind the car.
+     * The eyes go to the mirror; at every shot he flinches; the thing landing on the roof makes him duck and look up; he
+     * shies away from the bullets coming up beside him and from the claws through the roof; with the roof gone he cowers,
+     * one hand up, staring up at Panther, still steering; at the release he braces, and is thrown about with the car.
+     */
+    public static Pose driver(float tau, float time) {
         Pose p = seat();
         float wheel = steering(tau);
+        float fear = PursuitPath.ease((tau - ULT_TOUCH) / 6);
+        // Panic on the wheel once the thing is on his roof.
+        wheel += fear * .25f * (float) Math.sin(tau * .41) * (tau < PursuitPath.BOOM ? 1 : 0);
         p.armAdd(0, ARM_X, -.45f * wheel).armAdd(1, ARM_X, .45f * wheel).armAdd(0, ELBOW, .2f * wheel).armAdd(1, ELBOW, -.2f * wheel);
-        // The road through the seat: the head and chest ride a little behind the body.
         float bob = (float) Math.sin(tau * 3.7 - .9) * .5f + (float) Math.sin(tau * 2.4 - 1.4) * .5f;
         p.add(HEAD_PITCH, .015f * bob).add(SPINE_PITCH, .006f * bob);
         float lateral = (float) (PursuitPath.driveX(tau + 1) - 2 * PursuitPath.driveX(tau) + PursuitPath.driveX(tau - 1));
         p.add(SPINE_ROLL, -1.6f * lateral).add(HEAD_ROLL, 1.0f * lateral);
-        // Breathing.
-        p.add(CHEST_PITCH, -.015f * Mth.sin(time * .1f));
-        // The glance up at the mirror, then the turn toward the gunman once the glass bursts.
-        float glance = PursuitPath.window(tau, ULT_GLANCE, ULT_RAISE + 4, 3);
-        p.add(HEAD_YAW, .32f * glance).add(HEAD_PITCH, -.08f * glance).add(EYES, .2f * glance);
-        float turn = PursuitPath.ease((tau - (ULT_FIRE + 3)) / 5);
-        p.add(HEAD_YAW, -.95f * turn).add(CHEST_YAW, -.12f * turn).add(EYES, .25f * turn);
+        p.add(CHEST_PITCH, -.015f * Mth.sin(time * .1f) * (1 + 2 * fear));
+        // The mirror (up and to his right): first a glance, then he keeps looking back at it.
+        float mirror = Math.max(PursuitPath.window(tau, ULT_GLANCE, ULT_BEHIND + 26, 3), .6f * PursuitPath.window(tau, ULT_RAISE + 2, ULT_COIL + 6, 4));
+        p.add(HEAD_YAW, .5f * mirror).add(HEAD_PITCH, -.22f * mirror);
+        // The shots behind him: each a flinch of the shoulders and head.
+        for (PursuitPath.Shot s : PursuitPath.SHOTS) {
+            float d = tau - s.time();
+            if (d < 0 || d > 6) continue;
+            float j = (float) Math.exp(-d / 1.3f) * Math.min(1, d / .3f);
+            p.add(SPINE_PITCH, .1f * j).add(HEAD_PITCH, .08f * j);
+            for (int side = 0; side < 2; side++) p.armAdd(side, SH_UP, .8f * j);
+        }
+        // The thud on the roof: a duck, the head snapping up to look.
+        float thud = PursuitPath.spring(tau - ULT_TOUCH, 2.5f, .7f);
+        float up = PursuitPath.window(tau, ULT_TOUCH + 2, ULT_ROOF_FIRE + 2, 4) + PursuitPath.window(tau, ULT_TEAR, PursuitPath.BOOM, 5);
+        p.add(SPINE_PITCH, .25f * Math.max(0, thud)).add(HEAD_PITCH, -.65f * Math.min(1, up)).add(NECK, -.2f * Math.min(1, up));
+        // Cowering from the bullets coming up beside him and from the claws: hunched forward and away (to his left, the door).
+        float cower = Math.max(PursuitPath.window(tau, ULT_ROOF_FIRE, ULT_TURN, 3) * .6f, PursuitPath.window(tau, ULT_CLAW_R - 1, ULT_TEAR + 2, 2));
+        p.add(SPINE_PITCH, .3f * cower).add(SPINE_ROLL, .25f * cower).add(HEAD_ROLL, -.15f * cower);
+        // The roof gone: his right hand up over his head, still steering with the left, staring up.
+        float shield = PursuitPath.window(tau, ULT_TEAR + 4, PursuitPath.BOOM, 5);
+        p.arm(0, ARM_X, Mth.lerp(shield, p.arm(0, ARM_X), -2.5f)).arm(0, ARM_Z, Mth.lerp(shield, p.arm(0, ARM_Z), .2f))
+                .arm(0, ELBOW, Mth.lerp(shield, p.arm(0, ELBOW), 1.6f)).arm(0, CURL, Mth.lerp(shield, p.arm(0, CURL), .3f))
+                .arm(0, SH_FWD, Mth.lerp(shield, p.arm(0, SH_FWD), .4f));
+        // The release: braced, arms out against the cabin, then thrown about.
+        float d = tau - PursuitPath.BOOM;
+        if (d >= 0) {
+            float brace = PursuitPath.ease(d / 2);
+            for (int side = 0; side < 2; side++) {
+                p.arm(side, ARM_X, Mth.lerp(brace, p.arm(side, ARM_X), -2.2f + .5f * Mth.sin(d * .6f + side * 2)))
+                        .arm(side, ARM_Z, Mth.lerp(brace, p.arm(side, ARM_Z), .9f)).arm(side, ELBOW, Mth.lerp(brace, p.arm(side, ELBOW), .5f))
+                        .arm(side, CURL, Mth.lerp(brace, p.arm(side, CURL), .1f));
+            }
+            p.add(HEAD_PITCH, .3f * brace * Mth.sin(d * .5f)).add(SPINE_ROLL, .2f * brace * Mth.sin(d * .37f));
+        }
         return p;
     }
     /** How far the wheel is turned (radians of the wheel / the hands), from the car's steering. */
@@ -382,6 +389,17 @@ public final class PursuitMoves {
         return p;
     }
     private static Track gunTrack;
+    /** Leaning out of the rear left window, turned to face back, the gun hand out along the car at the SUV behind. */
+    static Pose gunLean() {
+        Pose lean = gunSeat().copy().set(PELVIS_ROLL, .1f).set(SPINE_ROLL, .28f).set(CHEST_ROLL, .12f).set(SPINE_YAW, -.45f).set(CHEST_YAW, -.75f)
+                .set(HEAD_YAW, -.55f).set(HEAD_ROLL, -.3f).set(HEAD_PITCH, .05f);
+        lean.arm(1, SH_FWD, LEAN_ARM[6]).arm(1, ARM_X, LEAN_ARM[0]).arm(1, ARM_Y, LEAN_ARM[1]).arm(1, ARM_Z, LEAN_ARM[2]).arm(1, ELBOW, LEAN_ARM[5])
+                .arm(1, WRIST_X, LEAN_ARM[3]).arm(1, WRIST_Z, LEAN_ARM[4]).arm(1, CURL, .9f);
+        lean.arm(0, ARM_X, -.9f).arm(0, ARM_Z, -.2f).arm(0, ELBOW, 1.4f).arm(0, CURL, .9f);
+        return lean;
+    }
+    /** The gun arm of the lean (arm X, Y, Z, wrist X, Z, elbow, shoulder forward): found so the barrel points back along the car at the SUV. */
+    static final float[] LEAN_ARM = {-1.756f, .026f, -.4f, -.9f, .755f, 1.2f, -.5f};
     private static void buildGun() {
         if (gunTrack != null) return;
         Pose seat = gunSeat();
@@ -391,14 +409,17 @@ public final class PursuitMoves {
         Pose racked = rack.copy();
         racked.arm(0, ELBOW, 1.95f).arm(0, ARM_X, -.8f);
         Pose ready = rack.copy().set(HEAD_PITCH, .02f);
-        Pose turn = ready.copy().set(CHEST_YAW, -.6f).set(HEAD_YAW, -.5f).set(SPINE_YAW, -.15f);
-        Pose wind = turn.copy();
-        wind.arm(1, ARM_X, .2f).arm(1, ARM_Z, .9f).arm(1, ELBOW, 1.4f);
-        Pose smash = turn.copy().set(CHEST_YAW, -.75f);
-        smash.arm(1, ARM_X, -.9f).arm(1, ARM_Z, 1.3f).arm(1, ELBOW, .3f);
-        Pose lean = seat.copy().set(PELVIS_ROLL, .2f).set(SPINE_ROLL, .6f).set(CHEST_ROLL, .45f).set(CHEST_YAW, .3f).set(HEAD_YAW, .35f).set(HEAD_ROLL, -.35f).set(HEAD_PITCH, .05f);
-        lean.arm(1, SH_FWD, 1.2f).arm(1, ARM_X, -1.2f).arm(1, ARM_Z, -.9f).arm(1, ARM_Y, -.9f).arm(1, ELBOW, .05f).arm(1, WRIST_X, .6f).arm(1, WRIST_Z, .9f).arm(1, CURL, .9f);
-        lean.arm(0, ARM_X, -.6f).arm(0, ARM_Z, .5f).arm(0, ELBOW, .9f).arm(0, CURL, .9f);
+        // Looking back over his left shoulder through the rear window at the SUV.
+        Pose look = ready.copy().set(CHEST_YAW, -.5f).set(SPINE_YAW, -.15f).set(HEAD_YAW, -1.25f).set(HEAD_PITCH, -.05f);
+        Pose raise = look.copy();
+        raise.arm(1, ARM_X, -1.9f).arm(1, ARM_Z, .1f).arm(1, ELBOW, 1.9f).arm(1, WRIST_X, -.4f);
+        // The butt of the gun driven out through the rear side window.
+        Pose wind = raise.copy().set(CHEST_YAW, .1f).set(HEAD_YAW, -.9f);
+        wind.arm(1, ARM_X, -.9f).arm(1, ARM_Z, -.3f).arm(1, ELBOW, 2.1f);
+        Pose smash = wind.copy().set(CHEST_YAW, -.55f).set(SPINE_ROLL, .3f);
+        smash.arm(1, ARM_X, -.7f).arm(1, ARM_Z, 1.45f).arm(1, ELBOW, .25f);
+        Pose lean = gunLean();
+        Pose ducked = seat.copy().set(SPINE_PITCH, .35f).set(HEAD_PITCH, .3f);
         Pose up = seat.copy().set(HEAD_PITCH, -.95f).set(SPINE_PITCH, -.05f).set(NECK, -.2f);
         up.arm(1, ARM_X, -1.6f).arm(1, ARM_Z, 0).arm(1, ELBOW, .4f).arm(1, WRIST_X, -1.2f);
         up.arm(0, ARM_X, -1.5f).arm(0, ARM_Z, -.3f).arm(0, ELBOW, .9f).arm(0, CURL, .8f);
@@ -411,11 +432,13 @@ public final class PursuitMoves {
             hauled.arm(side, ARM_X, -2.8f).arm(side, ARM_Z, .6f).arm(side, ELBOW, .5f).arm(side, CURL, .3f);
             hauled.leg(side, LEG_X, -.6f).leg(side, KNEE, .6f);
         }
+        float last = PursuitPath.LAST_BACK_SHOT;
         gunTrack = new Track(true).key(ULT_NPC + 2, seat).key(ULT_NPC + 6, rack).key(ULT_NPC + 9, racked).key(ULT_NPC + 12, rack).key(ULT_GLANCE, ready)
-                .key(ULT_RAISE + 2, turn).key(ULT_SMASH - 2, wind).key(ULT_SMASH, smash).key(ULT_LEAN + 2, smash.copy().set(CHEST_ROLL, .3f))
-                .key(ULT_FIRE - 2, lean).key(ULT_EXIT - 3, lean).key(ULT_EXIT + 5, seat.copy().set(HEAD_PITCH, -.5f))
-                .key(ULT_REVEAL + 4, up.copy().set(HEAD_PITCH, -.7f).set(HEAD_YAW, -.3f)).key(ULT_ROOF_FIRE - 2, up)
-                .key(ULT_HOP + 14, up.copy().set(HEAD_YAW, .3f)).key(ULT_INSIDE, up).key(ULT_INSIDE + 20, up)
+                .key(ULT_BEHIND + 3, look).key(ULT_RAISE - 2, look.copy().set(HEAD_YAW, -1.15f)).key(ULT_RAISE + 2, raise)
+                .key(ULT_SMASH - 2, wind).key(ULT_SMASH, smash).key(ULT_LEAN + 1, smash.copy().set(SPINE_ROLL, .45f))
+                .key(ULT_FIRE - 2, lean).key(last + 4, lean).key(last + 11, ducked).key(ULT_TOUCH, ducked)
+                .key(ULT_TOUCH + 4, up.copy().set(HEAD_PITCH, -.75f).set(HEAD_YAW, .2f)).key(ULT_ROOF_FIRE - 2, up)
+                .key(ULT_ROOF_FIRE + 18, up.copy().set(HEAD_YAW, .3f)).key(ULT_ROOF_FIRE + 36, up)
                 .key(ULT_TURN + 6, cower).key(ULT_TEAR, cower.copy().set(HEAD_PITCH, -.9f)).key(ULT_ROOF_FREE + 2, exposed)
                 .key(ULT_THROW - 3, exposed.copy().set(HEAD_PITCH, -1.15f)).key(ULT_THROW + 2, hauled);
     }
