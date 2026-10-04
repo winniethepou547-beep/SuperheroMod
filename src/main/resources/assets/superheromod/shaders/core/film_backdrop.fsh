@@ -4,6 +4,7 @@
 // Scene 1/2: space with a burning banded star, its halo and a spinning ring.
 // Scene 9: a city at night (Black Panther's The Final Pursuit).
 // Scene 10: a dead world under a crimson storm (Magneto's Magnetic Execution).
+// Scene 11: Gotham at night, the city below (Batman's Kara Sovalye).
 uniform float Time;      // seconds
 uniform float Scene;
 uniform vec3 CamPos;     // stage space
@@ -210,6 +211,99 @@ vec3 wasteSky(vec3 rd, float flash) {
     }
     col += vec3(0.38, 0.05, 0.025) * exp(-abs(up) * 22.0) * 0.6;
     return col;
+}
+
+// ---- Scene 11: Gotham at night (Batman's Kara Sovalye) ----
+// Planet.xyz: toward the moon (hidden behind the cloud), Planet.w: how much of it shows through.
+// Ring.x: a cold flash (0..1). Motion.x: cloud drift, Motion.z: rain.
+vec3 gothamSky(vec3 rd) {
+    float up = rd.y;
+    // A black sky over a city that never sleeps: dull sodium-violet at the horizon, near black overhead.
+    vec3 zenith = vec3(0.004, 0.005, 0.009);
+    vec3 horizon = vec3(0.07, 0.05, 0.058);
+    vec3 col = mix(horizon, zenith, smoothstep(-0.04, 0.42, up));
+    vec3 moon = normalize(Planet.xyz);
+    float m = max(0.0, dot(rd, moon));
+    if (up > -0.04) {
+        // Low heavy cloud drifting over everything, its bellies lit from below by the city, black overhead;
+        // a silver edge on the thin parts near the hidden moon.
+        float h = max(up, 0.0) + 0.06;
+        vec2 cp = rd.xz / h * 0.5 + vec2(Time * Motion.x * 0.03, Time * Motion.x * 0.011);
+        float warp = fbm3(vec3(cp * 0.35, Time * 0.02));
+        float c = fbm(vec3(cp * 0.6 + warp * 1.4, 1.0 + Time * 0.01));
+        float body = smoothstep(0.3, 0.62, c);
+        float shade = fbm3(vec3(cp * 0.6 + vec2(0.13, -0.09) + warp * 1.4, 4.0));
+        vec3 belly = mix(vec3(0.016, 0.015, 0.021), vec3(0.1, 0.068, 0.064), exp(-max(up, 0.0) * 3.5));
+        vec3 cloud = belly * (0.55 + 0.7 * smoothstep(0.35, 0.8, shade));
+        float halo = pow(m, 60.0) * 0.6 + pow(m, 9.0) * 0.08;
+        cloud += vec3(0.5, 0.56, 0.7) * halo * (1.0 - smoothstep(0.42, 0.86, c)) * Planet.w;
+        col = mix(col, cloud, body * smoothstep(-0.03, 0.06, up));
+        // Through the gaps: the moon's light and a few faint stars.
+        col += vec3(0.62, 0.68, 0.8) * smoothstep(0.9993, 0.9998, m) * (1.0 - body) * Planet.w;
+        col += vec3(0.2, 0.23, 0.3) * pow(m, 14.0) * (1.0 - body) * Planet.w * 0.35;
+        float star = step(0.9975, hash13(floor(rd * 420.0))) * (1.0 - body) * smoothstep(0.08, 0.4, up);
+        col += vec3(0.5, 0.52, 0.6) * star * 0.45;
+    }
+    // The skyline all round: blocks and Gothic towers with spires, lit windows here and there, red lamps on the tallest.
+    float az = atan(rd.x, rd.z);
+    float cellAz = floor(az * 58.0);
+    float fa = fract(az * 58.0);
+    float tall = pow(hash13(vec3(cellAz, 2.0, 5.0)), 2.2);
+    float hgt = 0.008 + 0.075 * tall * (0.45 + 0.8 * fbm3(vec3(az * 1.3, 1.0, 3.0)));
+    float spire = step(0.8, hash13(vec3(cellAz, 4.0, 1.0))) * max(0.0, 1.0 - abs(fa - 0.5) * 5.0) * 0.035 * tall;
+    float steps = step(0.5, hash13(vec3(cellAz, 6.0, 2.0))) * step(abs(fa - 0.5), 0.22) * 0.012;
+    float top = max(0.006 + 0.012 * fbm3(vec3(az * 9.0, 2.0, 2.0)), hgt + spire + steps);
+    if (up < top && up > -0.03) {
+        col = vec3(0.012, 0.012, 0.018);
+        vec2 g = vec2(az * 560.0, up * 460.0);
+        vec2 cell = floor(g);
+        float hw = hash13(vec3(cell, 1.0));
+        vec2 f = abs(fract(g) - 0.5);
+        float win = step(f.x, 0.28) * step(f.y, 0.24);
+        if (hw > 0.9) col += mix(vec3(1.0, 0.74, 0.42), vec3(0.72, 0.8, 1.0), step(0.97, hw)) * win * (0.16 + 0.22 * hash13(vec3(cell, 7.0)));
+        float beacon = smoothstep(0.004, 0.0, abs(up - top + 0.003)) * smoothstep(0.06, 0.0, abs(fa - 0.5)) * step(0.045, hgt);
+        col += vec3(1.0, 0.08, 0.06) * beacon * (0.5 + 0.5 * sin(Time * 2.5 + cellAz));
+    }
+    col += vec3(0.09, 0.06, 0.06) * exp(-abs(up) * 18.0) * 0.5;
+    return col;
+}
+// The city seen from above: the grid of streets lined with sodium lamps, black roofs, sparse lit windows and skylights.
+vec3 gothamGround(vec3 ro, vec3 rd) {
+    float t = -ro.y / rd.y;
+    vec3 p = ro + rd * t;
+    vec2 q = p.xz + vec2(11.0, 7.0);
+    float block = 24.0, street = 4.5;
+    vec2 cell = floor(q / block);
+    vec2 f = q - cell * block;
+    float sx = step(f.x, street), sz = step(f.y, street);
+    float inStreet = max(sx, sz);
+    float detail = exp(-t * 0.0035);
+    // From down in the streets only the far lamps show through the haze; the roofs' lights belong to the view from above.
+    float aloft = smoothstep(12.0, 40.0, ro.y);
+    // Roofs: each block cut into buildings of different heights (shades), a few lit windows and skylights.
+    vec2 sub = floor((f - street) / 5.5);
+    float hs = hash13(vec3(cell * 7.0 + sub, 5.0));
+    vec3 roof = vec3(0.02, 0.02, 0.026) * (0.5 + 0.9 * hs);
+    vec2 g = floor(q * 1.4);
+    float w = hash13(vec3(g, 9.0));
+    roof += vec3(1.0, 0.72, 0.42) * step(0.982, w) * 0.5 * detail * aloft;
+    roof += vec3(1.0, 0.1, 0.06) * step(0.9985, w) * 0.8 * detail * aloft;
+    // Streets: wet black asphalt, a lamp every 8 along both kerbs, their pools of orange light.
+    float along = sx > 0.5 ? q.y : q.x;
+    float across = sx > 0.5 ? f.x : f.y;
+    float dl = abs(fract(along / 8.0) - 0.5) * 8.0;
+    float dk = min(abs(across - 0.6), abs(across - street + 0.6));
+    float pool = exp(-(dl * dl + dk * dk) * 0.6);
+    vec3 lamp = vec3(1.0, 0.56, 0.22);
+    vec3 road = vec3(0.012, 0.011, 0.014) + lamp * mix(pool * 0.55, 0.07, 1.0 - detail);
+    // Cars now and then: a pair of white or red points crawling along.
+    float lane = floor(across * 0.5);
+    float car = step(0.93, hash13(vec3(floor(along / 3.0 + Time * (lane > 0.5 ? 1.2 : -1.2)), cell.x + cell.y * 13.0, lane)));
+    road += mix(vec3(1.0, 0.9, 0.75), vec3(1.0, 0.1, 0.05), lane) * car * 0.25 * detail * aloft * smoothstep(0.6, 0.2, abs(fract(across * 0.5) - 0.5));
+    vec3 col = mix(roof, road, inStreet);
+    // Haze over the distance, lit by the city.
+    float haze = 1.0 - exp(-t * mix(0.02, 0.006, aloft));
+    return mix(col, vec3(0.055, 0.042, 0.05), haze);
 }
 
 void main() {
@@ -567,6 +661,30 @@ void main() {
             col = mix(col, vec3(0.22, 0.04, 0.035) + flash * 0.2, Motion.z * 0.12);
         }
         col += vec3(0.55, 0.4, 0.5) * flash * 0.12;
+    }
+    if (scene == 11) {
+        // Gotham at night: the sky, and below the horizon the city under the camera (seen from the yard it is
+        // hidden by the stage's own buildings; from high up it spreads out underneath).
+        float up = rd.y;
+        col = gothamSky(rd);
+        if (up < -0.0005 && ro.y > 0.2) {
+            vec3 ground = gothamGround(ro, rd);
+            float fade = smoothstep(-0.0005, -0.02, up);
+            col = mix(col, ground, fade);
+        }
+        // Rain blown slant across everything, lit faintly by the city.
+        if (Motion.z > 0.0) {
+            for (int k = 0; k < 2; k++) {
+                float fk = float(k);
+                vec2 q = vec2(ndc.x * Lens.y + ndc.y * (0.12 + 0.05 * fk), ndc.y);
+                float lanes = q.x * (110.0 + 70.0 * fk);
+                float hh = hash13(vec3(floor(lanes), 5.0 + fk, 2.0));
+                float y = fract(q.y * (0.45 + 0.2 * fk) + Time * (1.7 + 0.9 * fk) * (0.8 + 0.4 * hh) + hh * 9.0);
+                float drop = smoothstep(0.0, 0.02, y) * smoothstep(0.22, 0.05, y) * smoothstep(0.35, 0.0, abs(fract(lanes) - 0.5)) * step(0.6, hh);
+                col += vec3(0.3, 0.32, 0.38) * drop * Motion.z * (0.12 - 0.04 * fk);
+            }
+        }
+        col += vec3(0.55, 0.65, 0.9) * Ring.x * 0.35;
     }
     if (Motion.y > 0.0) col = warpStreaks(col);
     if (scene != 6) col = mix(col, Tint.rgb, Tint.a);

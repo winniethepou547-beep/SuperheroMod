@@ -16,7 +16,7 @@ public final class BatmanConfig {
     public static final ForgeConfigSpec.DoubleValue SMOKE_RADIUS, SMOKE_SECONDS, SMOKE_DAMAGE;
     public static final ForgeConfigSpec.DoubleValue FLASH_RADIUS, FLASH_SECONDS;
     public static final ForgeConfigSpec.DoubleValue STICKY_DAMAGE, STICKY_LAUNCH, STICKY_RADIUS;
-    public static final ForgeConfigSpec.DoubleValue SHOCK_DAMAGE, SHOCK_ENERGY_PER_HIT, SHOCK_DRAIN_SECONDS, SHOCK_RECHARGE_SECONDS;
+    public static final ForgeConfigSpec.DoubleValue SHOCK_DAMAGE, SHOCK_ENERGY_PER_HIT, SHOCK_DRAIN_SECONDS, SHOCK_RECHARGE_SECONDS, SHOCK_RECHARGE_DELAY, SHOCK_POWER_BACK;
     public static final ForgeConfigSpec.DoubleValue REFLEX_SECONDS, REFLEX_GAUNTLET_RANGE;
     public static final ForgeConfigSpec.DoubleValue CANNON_DAMAGE, CANNON_RANGE, CANNON_KNOCK, CANNON_MAX_DAMAGE, CANNON_SPREAD;
     public static final ForgeConfigSpec.IntValue CANNON_SHOTS_PER_SECOND;
@@ -24,6 +24,9 @@ public final class BatmanConfig {
     public static final ForgeConfigSpec.IntValue CD_SMOKE, CD_FLASH, CD_SHOCK, CD_CANNON, CD_SONIC, CD_GRAPNEL, CD_DODGE, CD_REFLEX;
     public static final ForgeConfigSpec.DoubleValue GRAPNEL_RANGE, STRIKE_UPPER_DAMAGE, STRIKE_KICK_DAMAGE;
     public static final ForgeConfigSpec.IntValue BIND_CLICKS, BIND_MOB_TICKS, BIND_MAX_TICKS;
+    /** X: the film. */
+    public static final ForgeConfigSpec.DoubleValue ULT_DAMAGE, ULT_RANGE;
+    public static final ForgeConfigSpec.IntValue ULT_COOLDOWN;
 
     // ------------------------------------------------------------------ client
     public static final ForgeConfigSpec CLIENT;
@@ -59,6 +62,8 @@ public final class BatmanConfig {
         SHOCK_ENERGY_PER_HIT = b.comment("Energy a blow that lands uses (1 = all of it)").defineInRange("energyPerHit", .23, 0, 1);
         SHOCK_DRAIN_SECONDS = b.comment("Seconds a full charge lasts without hitting anything").defineInRange("idleDrainSeconds", 90.0, 5, 3600);
         SHOCK_RECHARGE_SECONDS = b.comment("Seconds to charge again from empty (worn, after a short pause)").defineInRange("rechargeSeconds", 14.0, 1, 600);
+        SHOCK_RECHARGE_DELAY = b.comment("Seconds of rest (no blows) before an empty pair starts recharging").defineInRange("rechargeDelaySeconds", 1.5, 0, 60);
+        SHOCK_POWER_BACK = b.comment("Charge (0..1) an empty pair must reach before the electricity comes back").defineInRange("powerBackAt", 1.0, .05, 1);
         CD_SHOCK = b.comment("Cooldown between putting them on and taking them off (ticks)").defineInRange("cooldown", 20, 0, 1200);
         b.pop();
         b.comment("Gadget: the dual wrist cannon (4 seconds of aimed rapid fire from both gauntlets)").push("wristCannon");
@@ -95,6 +100,11 @@ public final class BatmanConfig {
         REFLEX_SECONDS = b.comment("How long the window stays open").defineInRange("windowSeconds", 1.0, .1, 5);
         REFLEX_GAUNTLET_RANGE = b.comment("Attacks from within this distance are deflected with the gauntlets, further off with the cape").defineInRange("gauntletRange", 5.0, 0, 64);
         CD_REFLEX = b.comment("Cooldown (ticks)").defineInRange("cooldown", 120, 0, 6000);
+        b.pop();
+        b.comment("X: the film (Kara Şövalye), aimed at the one he looks at").push("film");
+        ULT_DAMAGE = b.comment("Share of the target's max health the Batarang takes when it pins them to the wall (0.7 = 70%)").defineInRange("damage", .7, 0, 1);
+        ULT_RANGE = b.comment("How far away the one he aims it at may be").defineInRange("range", 20.0, 2, 60);
+        ULT_COOLDOWN = b.comment("Cooldown (ticks, counted from the start of the film)").defineInRange("cooldown", 1800, 0, 72000);
         b.pop();
         b.comment("CTRL: the roll").push("dodge");
         CD_DODGE = b.comment("Cooldown between rolls (ticks, counted from the start of a roll)").defineInRange("rollCooldown", 60, 0, 400);

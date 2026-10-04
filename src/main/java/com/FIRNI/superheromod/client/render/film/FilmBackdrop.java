@@ -19,7 +19,7 @@ import net.minecraftforge.fml.common.Mod;
  */
 @Mod.EventBusSubscriber(modid = SuperheroMod.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public final class FilmBackdrop {
-    public static final int CLOUDS = 0, STAR = 1, ORBIT = 2, PLUNGE = 3, HELL = 4, ABYSS = 5, ARENA = 6, DESERT = 7, PLAIN = 8, CITY = 9, WASTELAND = 10;
+    public static final int CLOUDS = 0, STAR = 1, ORBIT = 2, PLUNGE = 3, HELL = 4, ABYSS = 5, ARENA = 6, DESERT = 7, PLAIN = 8, CITY = 9, WASTELAND = 10, GOTHAM = 11;
     /** Everything the backdrop needs for one frame. Planet radius and ring are in stage blocks / radii. */
     public record Params(int scene, Vec3 planet, float radius, float ringInner, float ringOuter, float ringSpin, float ringAlpha,
                          float fallSpeed, float streaks, float clouds, float xray, int tint, float tintAmount) {
@@ -49,6 +49,14 @@ public final class FilmBackdrop {
          */
         public static Params wasteland(Vec3 strike, float flash, float seed, float bolt, float wind, float rain) {
             return new Params(WASTELAND, strike, flash, seed, bolt, 0, 0, wind, 0, rain, 0, 0, 0);
+        }
+        /**
+         * Gotham at night (Batman's film): low heavy cloud lit from below by the city, the moon hidden behind it (moon =
+         * a direction toward it, show 0..1 how much of it shows through), the skyline all round and, seen from high up,
+         * the grid of lit streets below; drift moves the cloud, rain 0..1, flash 0..1 a cold white-blue flash.
+         */
+        public static Params gotham(Vec3 moon, float show, float drift, float rain, float flash) {
+            return new Params(GOTHAM, moon, show, flash, 0, 0, 0, drift, 0, rain, 0, 0, 0);
         }
         public static Params abyss(float streaks) {
             return new Params(ABYSS, Vec3.ZERO, 1, 0, 0, 0, 0, 0, streaks, 0, 0, 0, 0);

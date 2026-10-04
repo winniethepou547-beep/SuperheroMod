@@ -106,6 +106,16 @@ public final class ModSounds {
     public static final RegistryObject<SoundEvent> BATMAN_SONIC_RING = reg("batman.sonic_ring");
     public static final RegistryObject<SoundEvent> BATMAN_SONIC_BREAK = reg("batman.sonic_break");
     public static final RegistryObject<SoundEvent> BATMAN_SONIC_RETRACT = reg("batman.sonic_retract");
+    // batman: the electric gauntlets (BatmanShock / BatmanShockFx)
+    public static final RegistryObject<SoundEvent> BATMAN_SHOCK_EQUIP = reg("batman.shock_equip");
+    public static final RegistryObject<SoundEvent> BATMAN_SHOCK_CLAP = reg("batman.shock_clap");
+    public static final RegistryObject<SoundEvent> BATMAN_SHOCK_HUM = reg("batman.shock_hum");
+    public static final RegistryObject<SoundEvent> BATMAN_SHOCK_SWING = reg("batman.shock_swing");
+    public static final RegistryObject<SoundEvent> BATMAN_SHOCK_HIT = reg("batman.shock_hit");
+    public static final RegistryObject<SoundEvent> BATMAN_SHOCK_MISS = reg("batman.shock_miss");
+    public static final RegistryObject<SoundEvent> BATMAN_SHOCK_EMPTY = reg("batman.shock_empty");
+    public static final RegistryObject<SoundEvent> BATMAN_SHOCK_READY = reg("batman.shock_ready");
+    public static final RegistryObject<SoundEvent> BATMAN_SHOCK_UNEQUIP = reg("batman.shock_unequip");
 
     public static void register(IEventBus bus) { SOUNDS.register(bus); }
 }
