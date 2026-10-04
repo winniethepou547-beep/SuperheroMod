@@ -5,11 +5,13 @@ package com.FIRNI.superheromod.heroes.batman;
  * animate it from the synced clock), with every animation-coupled timing in one place. Gameplay numbers a server owner
  * may want to change (damage, ranges, counts, cooldowns, durations) are in BatmanConfig.
  * Keys: left click punches (the combo speeds up click after click into a rapid flurry); right click throws a Batarang
- * (held: up to five, more the longer it is held); R held opens the gadget wheel (smoke, flash, mine, wrist cannon,
- * sonic trap), R tapped uses the gadget picked; E takes out the grapnel gun (left click fires it at a block or a body,
- * E again puts it away; E while pulled along the line lets go with a hop up); CTRL rolls (a diving forward roll,
- * untouchable through it); SPACE held in the air spreads the cape and glides; SHIFT held runs. Thermal vision comes on
- * by itself in his own smoke.
+ * (held: up to five, more the longer it is held); R held opens the gadget wheel (smoke, flash, electric gauntlets,
+ * wrist cannon, sonic trap), R tapped uses the gadget picked (the gauntlets: on / off); E takes out the grapnel gun (left
+ * click fires it at a block or a body: on a body the strike, which sticks a bomb on the back of their head; right click
+ * the yank; E again puts it away; E while pulled lets go with a hop up); Q opens a one-second reflex block (gauntlet
+ * deflect up close, the cape pulled in front against what comes from further off; front half only); X the film; CTRL
+ * rolls (a diving forward roll, untouchable through it); SPACE held in the air glides; SHIFT held runs. Thermal vision
+ * comes on by itself in his own smoke.
  * No super powers: everything is equipment and fighting skill.
  */
 public final class BatmanAction {
@@ -23,15 +25,19 @@ public final class BatmanAction {
             /** The dual wrist cannon (BatmanCannon): deploy, CANNON_FIRE ticks of aimed rapid fire, cool down and retract. */
             CANNON = 14,
             /** The sonic trap's remote (BatmanSonic): the remote raised, the red button pressed at SONIC_PRESS, lowered. */
-            SONIC = 15;
+            SONIC = 15,
+            /** The electric gauntlets (BatmanShock): locking on and the clap that charges them; coming off; one heavy electric blow of the boxing combo (combo = the blow). */
+            SHOCK_EQUIP = 16, SHOCK_UNEQUIP = 17, SHOCK_PUNCH = 18,
+            /** Q: the reflex block's stance (the window itself is State.reflexUntil; deflects play over it, see BatmanReflex). */
+            REFLEX = 19;
 
     // ------------------------------------------------------------------ cooldown slots
-    public static final int CD_SMOKE = 0, CD_FLASH = 1, CD_MINE = 2, CD_CANNON = 3, CD_SONIC = 4, CD_GRAPNEL = 5, CD_DODGE = 6, COOLDOWNS = 7;
+    public static final int CD_SMOKE = 0, CD_FLASH = 1, CD_SHOCK = 2, CD_CANNON = 3, CD_SONIC = 4, CD_GRAPNEL = 5, CD_DODGE = 6, CD_REFLEX = 7, COOLDOWNS = 8;
 
     // ------------------------------------------------------------------ gadgets (the wheel, clockwise from the top)
     /** A gadget's cooldown slot is its own number (CD_SMOKE == G_SMOKE ...). */
-    public static final int G_SMOKE = 0, G_FLASH = 1, G_MINE = 2, G_CANNON = 3, G_SONIC = 4, GADGETS = 5;
-    public static final String[] GADGET_NAMES = {"Sis Bombası", "Flaş Bombası", "Mayın", "Bilek Topu", "Sonik Tuzak"};
+    public static final int G_SMOKE = 0, G_FLASH = 1, G_SHOCK = 2, G_CANNON = 3, G_SONIC = 4, GADGETS = 5;
+    public static final String[] GADGET_NAMES = {"Sis Bombası", "Flaş Bombası", "Elektrikli Muşta", "Bilek Topu", "Sonik Tuzak"};
 
     // ------------------------------------------------------------------ left click: the punches
     /**
@@ -60,13 +66,21 @@ public final class BatmanAction {
     /** R let go within TAP_TICKS uses the gadget; held longer opens the wheel. */
     public static final int TAP_TICKS = 5;
     public static final int GADGET_TICKS = 11, GADGET_AT = 4, MINE_TICKS = 14, MINE_AT = 7;
-    /** A mine arms after MINE_ARM ticks. */
-    public static final int MINE_ARM = 30;
+    /** The electric gauntlets: locking on (the fists clap together at SHOCK_CLAP, charged) and coming off. */
+    public static final int SHOCK_EQUIP_TICKS = 34, SHOCK_CLAP = 26, SHOCK_UNEQUIP_TICKS = 16;
+    /** The sticky bomb the grapnel strike leaves on the back of their head goes off STICKY_FUSE ticks later. */
+    public static final int STICKY_FUSE = 50;
 
     /** The wrist cannon: both gauntlets open (CANNON_DEPLOY), CANNON_FIRE ticks of fire, cooling and closing (CANNON_RETRACT). */
     public static final int CANNON_DEPLOY = 14, CANNON_FIRE = 80, CANNON_RETRACT = 18, CANNON_TICKS = CANNON_DEPLOY + CANNON_FIRE + CANNON_RETRACT;
     /** The sonic trap's remote: raised, the button pressed at SONIC_PRESS, lowered by SONIC_TICKS. */
     public static final int SONIC_PRESS = 9, SONIC_TICKS = 20;
+
+    // ------------------------------------------------------------------ Q: the reflex block
+    /** The window lasts REFLEX_TICKS; a deflect's own move lasts DEFLECT_TICKS, and a new one may start REFLEX_GAP after the last. */
+    public static final int REFLEX_TICKS = 20, DEFLECT_TICKS = 9, REFLEX_GAP = 5;
+    /** What a deflect was (BatmanFxPacket FX_BLOCK power): the right gauntlet, the left, both crossed (from straight ahead), the cape. */
+    public static final int BLOCK_RIGHT = 1, BLOCK_LEFT = 2, BLOCK_FRONT = 3, BLOCK_CAPE = 4;
 
     // ------------------------------------------------------------------ E: the grapnel
     /** The hook flies HOOK_SPEED blocks a tick; the slack line snaps taut over TAUT ticks; he is pulled at PULL_SPEED (accelerating from PULL_START). */
@@ -104,7 +118,9 @@ public final class BatmanAction {
 
     // ------------------------------------------------------------------ effects (BatmanFxPacket)
     public static final int FX_PUNCH = 0, FX_BATARANG = 1, FX_BATARANG_HIT = 2, FX_GADGET = 3, FX_SMOKE = 4, FX_FLASH = 5,
-            FX_THERMAL = 6, FX_MINE = 7, FX_MINE_ARMED = 8, FX_MINE_BOOM = 9, FX_HOOK = 10, FX_HOOK_HIT = 11, FX_HOOK_END = 12,
+            /** The sticky bomb: stuck on someone (entity = them, id = the bomb), gone off (power = blast radius; 0 = fizzled). */
+            FX_STICKY = 7, FX_STICKY_BOOM = 9,
+            FX_HOOK = 10, FX_HOOK_HIT = 11, FX_HOOK_END = 12,
             FX_STRIKE = 13, FX_DODGE = 14, FX_LAND = 15,
             /** Someone staggered (power = ticks), knocked down and dragged (dir = toward him, power = ticks), a critical hit. */
             FX_STAGGER = 16, FX_DOWNED = 17, FX_CRIT = 18,
@@ -112,6 +128,10 @@ public final class BatmanAction {
             FX_BOUND = 19;
     /** Effect kinds 20..29 belong to the wrist cannon (BatmanCannon / BatmanCannonFx), 30..39 to the sonic trap (BatmanSonic / BatmanSonicFx). */
     public static final int FX_CANNON_FIRST = 20, FX_CANNON_LAST = 29, FX_SONIC_FIRST = 30, FX_SONIC_LAST = 39;
+    /** 40..49 the electric gauntlets (BatmanShock / BatmanShockFx), 50..59 the film (BatmanUltSession / its film). */
+    public static final int FX_SHOCK_FIRST = 40, FX_SHOCK_LAST = 49, FX_ULT_FIRST = 50, FX_ULT_LAST = 59;
+    /** A deflect (entity = Batman, pos = the contact point, dir = the way the attack came in, power = BLOCK_*). */
+    public static final int FX_BLOCK = 60;
     /** What his own client tells the server (BatmanInputPacket). */
     public static final int IN_GLIDE_ON = 0, IN_GLIDE_OFF = 1, IN_DODGE = 2, IN_GADGET_SELECT = 3, IN_GADGET_USE = 4,
             IN_GRAPNEL_TOGGLE = 5, IN_GRAPNEL_FIRE = 6, IN_WHEEL_OPEN = 7, IN_WHEEL_CLOSE = 8,
@@ -132,6 +152,9 @@ public final class BatmanAction {
             case DODGE -> DODGE_TICKS;
             case CANNON -> CANNON_TICKS;
             case SONIC -> SONIC_TICKS;
+            case SHOCK_EQUIP -> SHOCK_EQUIP_TICKS;
+            case SHOCK_UNEQUIP -> SHOCK_UNEQUIP_TICKS;
+            case REFLEX -> REFLEX_TICKS;
             default -> 0;
         };
     }

@@ -41,7 +41,7 @@ import java.util.Map;
  */
 public final class CapeCloth {
     public static final int COLS = 7, ROWS = 11, N = COLS * ROWS;
-    public static final int MAX_CAPS = 12;
+    public static final int MAX_CAPS = 14;
     /** One sub-step, in ticks. */
     static final double STEP = .25;
     /** Constraint iterations per sub-step. */
@@ -82,7 +82,8 @@ public final class CapeCloth {
 
     // ------------------------------------------------------------------ what the body reports each frame
     /** Layout of a frame's numbers. */
-    static final int PIN = 0, WING = PIN + COLS * 3, FOOT = WING + COLS * 3, FWD = FOOT + 6, CAPS = FWD + 3, IN = CAPS + MAX_CAPS * 7;
+    static final int PIN = 0, WING = PIN + COLS * 3, FOOT = WING + COLS * 3, FWD = FOOT + 6, CAPS = FWD + 3, GRAB = CAPS + MAX_CAPS * 7, GRAB_K = GRAB + 3,
+            IN = GRAB_K + 1;
 
     /**
      * What the body tells its cape this frame, recorded while it is drawn: every point is taken from the pose stack as it
@@ -98,7 +99,7 @@ public final class CapeCloth {
         private final float[] marks = new float[12];
         private static final Vector4f T = new Vector4f();
 
-        public void reset() { caps = 0; spread = 0; pins = wings = feet = facing = false; }
+        public void reset() { caps = 0; spread = 0; pins = wings = feet = facing = false; v[GRAB_K] = 0; }
         private void put(PoseStack p, int at, float x, float y, float z) {
             T.set(x / 16, y / 16, z / 16, 1).mul(p.last().pose());
             v[at] = T.x; v[at + 1] = T.y; v[at + 2] = T.z;
@@ -109,6 +110,8 @@ public final class CapeCloth {
         public Frame wing(PoseStack p, int col, float x, float y, float z) { put(p, WING + col * 3, x, y, z); wings = true; return this; }
         /** Where the hem's corner goes in the wing (side 0 right, 1 left): by the ankle. */
         public Frame foot(PoseStack p, int side, float x, float y, float z) { put(p, FOOT + side * 3, x, y, z); feet = true; return this; }
+        /** A hand holding the cape's edge here (Batman's reflex block sweeps it in front): k 0..1 how firmly. */
+        public Frame grab(PoseStack p, float x, float y, float z, float k) { put(p, GRAB, x, y, z); v[GRAB_K] = k; return this; }
         /** The way his chest faces (its -z), from the chest's frame. */
         public Frame facing(PoseStack p) {
             T.set(0, 0, -1, 0).mul(p.last().pose());
@@ -201,6 +204,9 @@ public final class CapeCloth {
                     SIM_IN[at + j * 3] = V3.x + cam.x; SIM_IN[at + j * 3 + 1] = V3.y + cam.y; SIM_IN[at + j * 3 + 2] = V3.z + cam.z;
                 }
             }
+            V3.set(f.v[GRAB], f.v[GRAB + 1], f.v[GRAB + 2]);
+            INV_ROT.transform(V3);
+            SIM_IN[GRAB] = V3.x + cam.x; SIM_IN[GRAB + 1] = V3.y + cam.y; SIM_IN[GRAB + 2] = V3.z + cam.z;
             V4.set(1, 0, 0, 0).mul(m0);
             scale = Math.sqrt(V4.x * V4.x + V4.y * V4.y + V4.z * V4.z);
         } else {
@@ -217,8 +223,11 @@ public final class CapeCloth {
                     SIM_IN[at + j * 3] = V4.x; SIM_IN[at + j * 3 + 1] = V4.y; SIM_IN[at + j * 3 + 2] = V4.z;
                 }
             }
+            V4.set(f.v[GRAB], f.v[GRAB + 1], f.v[GRAB + 2], 1).mul(INV);
+            SIM_IN[GRAB] = V4.x; SIM_IN[GRAB + 1] = V4.y; SIM_IN[GRAB + 2] = V4.z;
             scale = 1;
         }
+        SIM_IN[GRAB_K] = f.v[GRAB_K];
         double fl = Math.sqrt(SIM_IN[FWD] * SIM_IN[FWD] + SIM_IN[FWD + 1] * SIM_IN[FWD + 1] + SIM_IN[FWD + 2] * SIM_IN[FWD + 2]);
         if (fl > 1e-6) { SIM_IN[FWD] /= fl; SIM_IN[FWD + 1] /= fl; SIM_IN[FWD + 2] /= fl; }
         for (int k = 0; k < f.caps; k++) SIM_IN[CAPS + k * 7 + 6] = f.v[CAPS + k * 7 + 6] * scale;
@@ -547,6 +556,7 @@ public final class CapeCloth {
                 constraints();
                 tethers();
                 if (spread > 1e-3) wingCorners();
+                if (in[GRAB_K] > 1e-3) grabbed();
                 behind();
                 collide();
             }
@@ -635,6 +645,12 @@ public final class CapeCloth {
             return mid + (in[FOOT + side * 3 + k] - mid) * feetApart;
         }
         private double reach = 1, feetApart = 1;
+        /** A hand holds the cape's right edge a little below the middle and sweeps it round in front: that point follows the hand. */
+        private void grabbed() {
+            double k = Math.min(1, in[GRAB_K]);
+            pull(6 * COLS, in[GRAB], in[GRAB + 1], in[GRAB + 2], .6 * k);
+            pull(7 * COLS, in[GRAB], in[GRAB + 1] - .15 * scale, in[GRAB + 2], .25 * k);
+        }
         private void pull(int p, double tx, double ty, double tz, double k) {
             int i = p * 3;
             x[i] += (tx - x[i]) * k; x[i + 1] += (ty - x[i + 1]) * k; x[i + 2] += (tz - x[i + 2]) * k;

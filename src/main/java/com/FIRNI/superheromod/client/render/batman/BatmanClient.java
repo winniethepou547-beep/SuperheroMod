@@ -68,6 +68,9 @@ public final class BatmanClient {
         public Vec3 hook, hookPrev;
         public int hookEntity = -1;
         public int[] cooldowns = new int[COOLDOWNS];
+        /** The electric gauntlets worn, their charge (0..1), and whether his reflex window is open. */
+        public boolean shock, reflex;
+        public float energy = 1;
         /** Game time the last packet arrived, and when the current action began. */
         public long received, start;
         public boolean gliding() { return (flags & GLIDING) != 0; }
@@ -120,6 +123,7 @@ public final class BatmanClient {
         s.action = p.action(); s.age = p.age(); s.flags = p.flags(); s.combo = p.combo(); s.charge = p.charge();
         s.batarangs = p.batarangs(); s.refill = p.refill(); s.gadget = p.gadget(); s.dodgeYaw = p.dodgeYaw();
         s.hookPrev = s.hook == null ? p.hook() : s.hook; s.hook = p.hook(); s.hookEntity = p.hookEntity(); s.cooldowns = p.cooldowns();
+        s.shock = p.shock(); s.energy = p.energy(); s.reflex = p.reflex();
         s.received = now;
     }
     /** From BatmanFx: the line caught (start the pull), the strike began (its target and direction), the pull arrived. */
@@ -177,7 +181,7 @@ public final class BatmanClient {
         long win = mc.getWindow().getWindow();
         boolean ctrl = InputConstants.isKeyDown(win, GLFW.GLFW_KEY_LEFT_CONTROL) || InputConstants.isKeyDown(win, GLFW.GLFW_KEY_RIGHT_CONTROL);
         if (ctrl && !ctrlDown && (s == null || s.cooldowns[CD_DODGE] <= 0) && now() - dodgeStart > DODGE_TICKS + 2
-                && (s == null || (s.action != GRAPNEL_PULL && s.action != GRAPNEL_STRIKE && s.action != GRAPNEL_FIRE))) {
+                && (s == null || (s.action != GRAPNEL_PULL && s.action != GRAPNEL_STRIKE && s.action != GRAPNEL_FIRE && s.action != CANNON))) {
             float f = p.input == null ? 0 : p.input.forwardImpulse, l = p.input == null ? 0 : p.input.leftImpulse;
             float rel = Math.abs(f) + Math.abs(l) < .01f ? 0 : (float) Math.atan2(-l, f);
             dodgeStart = now();
@@ -279,6 +283,8 @@ public final class BatmanClient {
             input.forwardImpulse = input.leftImpulse = 0; input.jumping = false;
             return;
         }
+        // The reflex stance: he can still turn and shuffle, at half speed.
+        if (s.action == REFLEX) { input.forwardImpulse *= .5f; input.leftImpulse *= .5f; input.jumping = false; }
         // Arrived at a ledge: a small hop up over it.
         if (pop) { pop = false; p.setDeltaMovement(p.getLookAngle().x * .25, .55, p.getLookAngle().z * .25); return; }
         // The glide: carried forward along the view like a wingsuit, sinking slowly; only a steep dive (looking well
@@ -354,14 +360,17 @@ public final class BatmanClient {
         float time = mc.level.getGameTime() + e.getPartialTick();
         HudStyle.caption(g, font, "BATMAN", 10, h - 46, GOLD, -1);
         int row = h - 124;
-        String punch = s.action == PUNCH && s.combo > 0 ? (s.combo >= RAPID ? "Seri Yumruk x" + (s.combo + 1) : "Kombo x" + (s.combo + 1)) : "Yumruk";
-        hint(g, font, mc.options.keyAttack, s.aiming() ? "Kanca: çekil / düşmana vuruş" : punch, 0, s.action == PUNCH && s.combo >= RAPID || s.aiming(), 10, row - 24);
+        String punch = s.shock ? "Elektrikli Boks" : s.action == PUNCH && s.combo > 0 ? (s.combo >= RAPID ? "Seri Yumruk x" + (s.combo + 1) : "Kombo x" + (s.combo + 1)) : "Yumruk";
+        hint(g, font, mc.options.keyAttack, s.aiming() ? "Kanca: çekil / vuruş + yapışkan bomba" : punch, 0, s.action == PUNCH && s.combo >= RAPID || s.aiming(), 10, row - 24);
         hint(g, font, mc.options.keyUse, s.aiming() ? "Kanca: düşmanı bacağından çek" : s.charge > 0 ? "Batarang x" + s.charge + " (bırak)" : "Batarang (basılı: çoklu)", 0, s.charge > 0 || s.aiming(), 10, row - 12);
-        hint(g, font, AbilityKeyHandler.KEY_RAPID_FIRE, GADGET_NAMES[s.gadget] + " (basılı: seç)", s.cooldowns[s.gadget], wheelOpen, 10, row);
+        String gadget = s.gadget == G_SHOCK ? (s.shock ? "Elektrikli Muşta: çıkar" : "Elektrikli Muşta: tak") : GADGET_NAMES[s.gadget];
+        hint(g, font, AbilityKeyHandler.KEY_RAPID_FIRE, gadget + " (basılı: seç)", s.cooldowns[s.gadget], wheelOpen || s.shock, 10, row);
         hint(g, font, mc.options.keyInventory, s.aiming() ? "Kanca: hazır (sol tık)" : "Kanca", s.cooldowns[CD_GRAPNEL], s.aiming(), 10, row + 12);
         hintRaw(g, font, "CTRL", "Takla", s.cooldowns[CD_DODGE], s.action == DODGE, 10, row + 24);
         hint(g, font, mc.options.keyJump, "Pelerinle Süzül (havada basılı)", 0, s.gliding(), 10, row + 36);
         hint(g, font, mc.options.keyShift, "Koş (basılı)", 0, mc.player.isSprinting(), 10, row + 48);
+        hint(g, font, AbilityKeyHandler.KEY_ULTIMATE, "Refleks Blok", s.cooldowns[CD_REFLEX], s.reflex, 10, row + 60);
+        hint(g, font, AbilityKeyHandler.KEY_XRAY, "Sinematik", 0, false, 10, row + 72);
         belt(g, s, 14, row - 46, time);
         if (s.aiming()) reticle(g, font, mc, w, h, time);
         wheelShown = Mth.clamp(wheelShown + (wheelOpen ? .25f : -.25f), 0, 1);

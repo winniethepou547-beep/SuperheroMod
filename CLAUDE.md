@@ -283,12 +283,18 @@ landing spot and the target to the crater.
   roll and the glide. `BatmanStatePacket` / `BatmanFxPacket` / `BatmanInputPacket` (glide, roll + direction, wheel, gadget pick/use, grapnel).
 - Keys: LMB punch chain (clicks buffered; RAPID flurry), RMB Batarang (tap 1 / hold +1 per `BATARANG_STEP`, max 5, narrow 2.4° fan,
   ribbon trail `BatmanFx.rangTrail`), R hold = gadget wheel (5 sectors, `BatmanWheel.SECTOR`; mouse moves a cursor:
-  `ViewportEvent.ComputeCameraAngles` locks the view; LMB or release picks), R tap = use gadget (smoke, flash, mine, wrist cannon
-  `BatmanCannon`/`BatmanCannonFx`, sonic trap `BatmanSonic`/`BatmanSonicFx`; the thermal sensor was removed), E = grapnel gun out
-  (LMB fires; block = pull, body = GRAPNEL_STRIKE combo; RMB on a body = GRAPNEL_YANK: line round the legs, left hand hauls, target
+  `ViewportEvent.ComputeCameraAngles` locks the view; LMB or release picks), R tap = use gadget (smoke, flash, electric gauntlets
+  toggle `BatmanShock`/`BatmanShockFx` (worn: LMB = heavy electric boxing, `State.shock/energy` synced, energy bar), wrist cannon
+  `BatmanCannon`/`BatmanCannonFx`, sonic trap `BatmanSonic`/`BatmanSonicFx`; the thermal sensor and the mine were removed), E = grapnel gun out
+  (LMB fires; block = pull, body = GRAPNEL_STRIKE combo, which at `STRIKE_KICK` sticks a bomb on the back of their head
+  (`BatmanSticky`, `STICKY_FUSE` 2.5 s, blast + airtime stagger; drawn by `BatmanFx` via `stickyAt`); RMB on a body = GRAPNEL_YANK: line round the legs, left hand hauls, target
   DOWNED on its back and dragged `DRAG_DIST` 4.4, then BOUND (`BatmanBind` server / `BatmanBound` client: coils drawn, a bound
   player's movement held and LMB = `IN_BREAK_FREE` tugs, `bindClicks`; mobs free after `bindMobTicks`); E while pulled = let go
-  with a hop (`letGo`)), SHIFT held = run (sprint, 1.3x; vanilla sneak cleared in `BatmanClient.run`), CTRL (raw) = Elden Ring
+  with a hop (`letGo`)), Q = reflex block (`BatmanReflex` server: `State.reflexUntil`, front 180° only, blocks only damage with a
+  direction (not explosions/fall/fire/magic/bypass), gauntlet within `gauntletRange` (side by angle: BLOCK_RIGHT/LEFT/FRONT) else
+  BLOCK_CAPE; projectiles re-aimed next tick; `FX_BLOCK` → `BatmanReflexFx` (sparks along the deflect, rings, the move via
+  `BatmanMotion.deflect`, cape sweep via `BatmanBody.capeGrab` → `CapeCloth.Frame.grab`)), X = film (`BatmanUltSession` + its film),
+  SHIFT held = run (sprint, 1.3x; vanilla sneak cleared in `BatmanClient.run`), CTRL (raw) = Elden Ring
   dive roll (`DODGE_TICKS` 16, `DODGE_DIVE`, 7 blocks, i-frames, 3 s cooldown `rollCooldown`), SPACE held in the air = cape glide
   (gravity/drag undone in `steer` so it really glides; only a steep dive speeds up; the cape opens into a big wing:
   `CapeCloth.Style.wingReach`). No time slow on the wheel (multiplayer). Gadget cooldown slot = gadget number.
@@ -301,13 +307,14 @@ landing spot and the target to the crater.
   = cold world + iron palette + bloom + world hot spots + switch glitch/vignette. Uniforms set via the passes list found by
   reflection by type. Corner marks + crosshair scan brackets in its HUD. `BatmanVision` = flash white-out (blinded) /
   glimpse (not), near-black smoke screen for others; the outline mixins are now inert.
-- Stagger `BatmanStagger` (server: -60 % move/attack speed, next Batman blow ×`STAGGER_CRIT`, from the yank and mine
-  airtime) + `BatmanStatus` (client: render transform for DOWNED (on the back, arms up via `downedArms` in `HeroArmPose`)
+- Stagger `BatmanStagger` (server: -60 % move/attack speed, next Batman blow ×`STAGGER_CRIT`, from the yank and the sticky
+  bomb's airtime) + `BatmanStatus` (client: render transform for DOWNED (on the back, arms up via `downedArms` in `HeroArmPose`)
   and stagger wobble, red spike daze mark (stays `DAZE_LINGER` ticks after the stagger, free movement), local camera shake).
 - HUD: `HudStyle.skill` rows, Batarang count over the rows (5 thin plain bat symbols `BatmanWheel.bat`, filling back), grapnel reticle,
   `BatmanWheel` (Arkham/Spider-Man 2 style wheel). Effects: `BatmanFx` (Batarangs, pellets, smoke puffs, flash, thermal ping,
   mines, the slack-then-taut line). Look/animation: `BatmanBody`, `BatmanMotion`, `BatmanLayer`, `BatmanGear`, `BatmanFirstPerson`,
-  cape on `client/render/cloth/CapeCloth` (shared verlet cloth, also Magneto's cape; glide pins it to the hands as wings).
+  cape on `client/render/cloth/CapeCloth` (shared verlet cloth, also Magneto's cape; glide pins it to the hands as wings; a belt
+  capsule keeps it off the back pouches; a move made mid-glide tips the body upright, `Blend.glideBody`).
   Sounds group `batman`. Docs for the user: `docs/BATMAN.md`.
 
 ## Champion select (P)

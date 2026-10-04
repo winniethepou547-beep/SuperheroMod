@@ -87,6 +87,25 @@ public final class ModSounds {
     public static final RegistryObject<SoundEvent> BATMAN_FLASH = reg("batman.flash");
     public static final RegistryObject<SoundEvent> BATMAN_MINE = reg("batman.mine");
     public static final RegistryObject<SoundEvent> BATMAN_CAPE = reg("batman.cape");
+    // batman: the wrist cannon
+    public static final RegistryObject<SoundEvent> BATMAN_CANNON_DEPLOY = reg("batman.cannon_deploy");
+    public static final RegistryObject<SoundEvent> BATMAN_CANNON_CHARGE = reg("batman.cannon_charge");
+    public static final RegistryObject<SoundEvent> BATMAN_CANNON_SHOT = reg("batman.cannon_shot");
+    public static final RegistryObject<SoundEvent> BATMAN_CANNON_HUM = reg("batman.cannon_hum");
+    public static final RegistryObject<SoundEvent> BATMAN_CANNON_FINAL = reg("batman.cannon_final");
+    public static final RegistryObject<SoundEvent> BATMAN_CANNON_STOP = reg("batman.cannon_stop");
+    public static final RegistryObject<SoundEvent> BATMAN_CANNON_RETRACT = reg("batman.cannon_retract");
+    // batman: the sonic trap (BatmanSonic / BatmanSonicFx)
+    public static final RegistryObject<SoundEvent> BATMAN_SONIC_BEEP = reg("batman.sonic_beep");
+    public static final RegistryObject<SoundEvent> BATMAN_SONIC_RUMBLE = reg("batman.sonic_rumble");
+    public static final RegistryObject<SoundEvent> BATMAN_SONIC_RISE = reg("batman.sonic_rise");
+    public static final RegistryObject<SoundEvent> BATMAN_SONIC_LOCK = reg("batman.sonic_lock");
+    public static final RegistryObject<SoundEvent> BATMAN_SONIC_HUM = reg("batman.sonic_hum");
+    public static final RegistryObject<SoundEvent> BATMAN_SONIC_PULSE = reg("batman.sonic_pulse");
+    public static final RegistryObject<SoundEvent> BATMAN_SONIC_HIT = reg("batman.sonic_hit");
+    public static final RegistryObject<SoundEvent> BATMAN_SONIC_RING = reg("batman.sonic_ring");
+    public static final RegistryObject<SoundEvent> BATMAN_SONIC_BREAK = reg("batman.sonic_break");
+    public static final RegistryObject<SoundEvent> BATMAN_SONIC_RETRACT = reg("batman.sonic_retract");
 
     public static void register(IEventBus bus) { SOUNDS.register(bus); }
 }

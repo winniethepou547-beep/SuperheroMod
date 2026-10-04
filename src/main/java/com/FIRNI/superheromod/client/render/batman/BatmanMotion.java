@@ -74,6 +74,8 @@ public final class BatmanMotion {
             case DODGE -> roll(base, t, c.backRoll());
             case CANNON -> BatmanCannonFx.pose(base, t, c.time());
             case SONIC -> BatmanSonicFx.pose(base, t, c.time());
+            case SHOCK_EQUIP, SHOCK_UNEQUIP, SHOCK_PUNCH -> BatmanShockFx.pose(action, base, t, c.combo(), c.time());
+            case REFLEX -> reflex(base, t, c.time());
             default -> base;
         };
     }
@@ -377,6 +379,65 @@ public final class BatmanMotion {
         float up = k(t, DODGE_TICKS - 2.6f, DODGE_TICKS - 1.2f) * (1 - k(t, DODGE_TICKS - 1, DODGE_TICKS + 3));
         p.add(CROUCH, 2.6f * up).add(SPINE_PITCH, .2f * up);
         return p;
+    }
+
+    // ------------------------------------------------------------------ Q: the reflex block
+    /** The window's stance: alert, a little lower, both forearms up before the chest with the gauntlets' spikes out. */
+    static Pose reflex(Pose base, float t, float time) {
+        Pose g = guard(base);
+        g.add(CROUCH, .6f).add(SPINE_PITCH, .05f).add(HEAD_PITCH, -.04f);
+        g.arm(0, ARM_X, -1.32f).arm(0, ARM_Z, .3f).arm(0, WRIST_X, .25f).arm(1, ARM_X, -1.42f).arm(1, ARM_Z, .25f).arm(1, WRIST_X, .25f);
+        // Reading the room: the head and shoulders shift a little, never still.
+        g.add(HEAD_YAW, .08f * Mth.sin(time * .35f)).add(CHEST_YAW, .04f * Mth.sin(time * .35f + 1));
+        return g;
+    }
+    /** How long a deflect's own move lasts (the cape sweep is longer than a gauntlet's). */
+    public static final int CAPE_TICKS = 14;
+    public static float deflectLength(int kind) { return kind == BLOCK_CAPE ? CAPE_TICKS : DEFLECT_TICKS; }
+    /** How firmly the right hand holds the cape's edge t ticks into a cape deflect (0..1). */
+    public static float capeGrab(float t) { return k(t, 1.4f, 2.4f) * (1 - k(t, CAPE_TICKS - 4, CAPE_TICKS - 1)); }
+    /**
+     * A deflect, over whatever the body is doing, t ticks after the block (fast in, a controlled contact, fast away):
+     * the right gauntlet (the right shoulder draws back, the forearm crosses into the attack, the wrist turns the spikes
+     * into it, then the arm throws it out to the side); the left (starting closer to the body with the elbow bent more,
+     * coming in, then out); both crossed for an instant before the face, then the right arm shoves it aside; or the cape
+     * (the right hand reaches back for its edge and sweeps it round in front, holds, lets it go).
+     */
+    static void deflect(Pose p, int kind, float t) {
+        float len = deflectLength(kind);
+        if (t < 0 || t > len) return;
+        float w = k(t, 0, 1.5f) * (1 - k(t, len - 3.5f, len));
+        float sweep = k(t, 1.2f, 4f);
+        Pose g = p.copy();
+        switch (kind) {
+            case BLOCK_RIGHT -> {
+                g.add(CHEST_YAW, .22f - .45f * sweep).add(CROUCH, 1.2f).add(SPINE_PITCH, .08f).add(HEAD_YAW, -.25f);
+                g.arm(0, SH_FWD, .6f + .4f * sweep).arm(0, ARM_X, Mth.lerp(sweep, -1.45f, -1.15f)).arm(0, ARM_Y, Mth.lerp(sweep, -.55f, .25f))
+                        .arm(0, ARM_Z, Mth.lerp(sweep, .35f, 1.35f)).arm(0, ELBOW, Mth.lerp(sweep, 1.75f, 1.05f)).arm(0, WRIST_X, Mth.lerp(sweep, .35f, -.2f)).arm(0, CURL, 1);
+                g.leg(0, LEG_X, .2f).leg(1, LEG_X, -.2f);
+            }
+            case BLOCK_LEFT -> {
+                g.add(CHEST_YAW, -.18f + .4f * sweep).add(CROUCH, 1.4f).add(SPINE_PITCH, .1f).add(HEAD_YAW, .25f);
+                g.arm(1, SH_FWD, .5f + .3f * sweep).arm(1, ARM_X, Mth.lerp(sweep, -1.3f, -1.05f)).arm(1, ARM_Y, Mth.lerp(sweep, -.95f, .1f))
+                        .arm(1, ARM_Z, Mth.lerp(sweep, .15f, 1.25f)).arm(1, ELBOW, Mth.lerp(sweep, 2.15f, 1.2f)).arm(1, WRIST_X, Mth.lerp(sweep, .4f, -.15f)).arm(1, CURL, 1);
+                g.leg(1, LEG_X, -.3f).leg(0, LEG_X, .15f);
+            }
+            case BLOCK_FRONT -> {
+                float lock = 1 - sweep * .6f;
+                g.add(CROUCH, 1.8f).add(SPINE_PITCH, .14f).add(HEAD_PITCH, .12f).add(CHEST_YAW, -.35f * sweep);
+                for (int side = 0; side < 2; side++)
+                    g.arm(side, SH_FWD, .9f).arm(side, ARM_X, -1.5f).arm(side, ARM_Y, -1.05f * lock).arm(side, ARM_Z, .1f).arm(side, ELBOW, 1.95f).arm(side, CURL, 1).arm(side, WRIST_X, .2f);
+                g.arm(0, ARM_Z, Mth.lerp(sweep, .1f, 1.2f)).arm(0, ARM_Y, Mth.lerp(sweep, -1.05f, .2f)).arm(0, ELBOW, Mth.lerp(sweep, 1.95f, 1.15f));
+            }
+            default -> {
+                float across = k(t, 2f, 5f);
+                g.add(CHEST_YAW, .3f * (1 - across) - .55f * across).add(CROUCH, 1.3f).add(SPINE_PITCH, .1f + .1f * across).add(HEAD_YAW, -.2f * across);
+                g.arm(0, SH_FWD, Mth.lerp(across, -.5f, 1.1f)).arm(0, ARM_X, Mth.lerp(across, .35f, -1.35f)).arm(0, ARM_Y, Mth.lerp(across, .2f, -1.15f))
+                        .arm(0, ARM_Z, Mth.lerp(across, .55f, .35f)).arm(0, ELBOW, Mth.lerp(across, .35f, .6f)).arm(0, CURL, .9f);
+                g.arm(1, ARM_X, -1.2f).arm(1, ARM_Y, -.8f).arm(1, ELBOW, 1.9f).arm(1, CURL, 1);
+            }
+        }
+        p.toward(g, w);
     }
 
     // ------------------------------------------------------------------ the air, the glide

@@ -1,0 +1,20 @@
+{
+    "targets": [
+        "out"
+    ],
+    "passes": [
+        {
+            "name": "superheromod:batman_sonic",
+            "intarget": "minecraft:main",
+            "outtarget": "out"
+        },
+        {
+            "name": "blit",
+            "intarget": "out",
+            "outtarget": "minecraft:main",
+            "uniforms": [
+                { "name": "ColorModulate", "values": [ 1.0, 1.0, 1.0, 1.0 ] }
+            ]
+        }
+    ]
+}

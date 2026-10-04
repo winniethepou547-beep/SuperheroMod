@@ -60,7 +60,15 @@ public final class BatmanFx {
             return dx * dx + dz * dz + Math.max(0, dy) * Math.max(0, dy) < radius * radius && dy > -1.5;
         }
     }
-    private static final class Mine { final int id; final Vec3 at; final float start; boolean armed; Mine(int id, Vec3 at, float start) { this.id = id; this.at = at; this.start = start; } }
+    /** A sticky bomb on the back of someone's head (it follows the head). */
+    private record Sticky(int id, int target, float start) {}
+    /** Where a sticky bomb sits on a body now: behind the head, a little above the eyes. */
+    private static Vec3 stickyAt(Entity body, float partial) {
+        float yaw = Mth.lerp(partial, body instanceof net.minecraft.world.entity.LivingEntity l ? l.yHeadRotO : body.yRotO,
+                body instanceof net.minecraft.world.entity.LivingEntity l2 ? l2.yHeadRot : body.getYRot()) * Mth.DEG_TO_RAD;
+        double back = Math.max(.2, body.getBbWidth() * .5) + .04;
+        return body.getEyePosition(partial).add(Mth.sin(yaw) * back, .12, -Mth.cos(yaw) * back);
+    }
     /** The grapnel line of one Batman. */
     private static final class Line { final int batman; final float start; float taut = -1; final Vec3 from, to; Line(int batman, float start, Vec3 from, Vec3 to) { this.batman = batman; this.start = start; this.from = from; this.to = to; } }
     private static final class Mote {
@@ -75,7 +83,7 @@ public final class BatmanFx {
     private static final Map<Integer, Rang> RANGS = new HashMap<>();
     private static final Map<Integer, Pellet> PELLETS = new HashMap<>();
     static final List<Cloud> CLOUDS = new ArrayList<>();
-    private static final Map<Integer, Mine> MINES = new HashMap<>();
+    private static final Map<Integer, Sticky> STICKIES = new HashMap<>();
     private static final Map<Integer, Line> LINES = new HashMap<>();
     private static final List<Mote> MOTES = new ArrayList<>();
     private static final List<Ring> RINGS = new ArrayList<>();
@@ -100,6 +108,9 @@ public final class BatmanFx {
         Vec3 at = p.pos(), dir = p.dir();
         if (p.kind() >= FX_CANNON_FIRST && p.kind() <= FX_CANNON_LAST) { BatmanCannonFx.receive(p); return; }
         if (p.kind() >= FX_SONIC_FIRST && p.kind() <= FX_SONIC_LAST) { BatmanSonicFx.receive(p); return; }
+        if (p.kind() >= FX_SHOCK_FIRST && p.kind() <= FX_SHOCK_LAST) { BatmanShockFx.receive(p); return; }
+        if (p.kind() >= FX_ULT_FIRST && p.kind() <= FX_ULT_LAST) { BatmanUltFx.receive(p); return; }
+        if (p.kind() == FX_BLOCK) { BatmanReflexFx.receive(p); return; }
         switch (p.kind()) {
             case FX_PUNCH -> {
                 boolean rapid = p.power() >= RAPID;
@@ -149,10 +160,14 @@ public final class BatmanFx {
                 if (seen) BatmanVision.glimpse((float) (1 - d / (p.power() * 2)));
                 if (near(at, p.power() * 1.6)) BatmanClient.shake(.12f);
             }
-            case FX_MINE -> { MINES.put(p.id(), new Mine(p.id(), at, t)); earth(at, (int) (3 * amount()), .2); }
-            case FX_MINE_ARMED -> { Mine m = MINES.get(p.id()); if (m != null) m.armed = true; }
-            case FX_MINE_BOOM -> {
-                MINES.remove(p.id());
+            case FX_STICKY -> {
+                STICKIES.put(p.id(), new Sticky(p.id(), p.entity(), t));
+                sparks(at, new Vec3(0, 1, 0), (int) (4 * amount()), .08f);
+            }
+            case FX_STICKY_BOOM -> {
+                Sticky st = STICKIES.remove(p.id());
+                Entity worn = st == null ? null : mc.level.getEntity(st.target());
+                if (worn != null) at = stickyAt(worn, 0);
                 if (p.power() <= 0) { for (int i = 0; i < 4; i++) MOTES.add(new Mote(at.add(0, .2, 0), new Vec3(rnd(.03), .03, rnd(.03)), .3f, .03f, SMOKE_DARK, 20, t, M_DUST, .4f)); break; }
                 mc.level.addParticle(ParticleTypes.EXPLOSION, at.x, at.y + .4, at.z, 0, 0, 0);
                 MOTES.add(new Mote(at.add(0, .5, 0), Vec3.ZERO, 2.4f, 0, 0xffc070, 5, t, M_GLOW, .9f));
@@ -267,7 +282,7 @@ public final class BatmanFx {
         }
         RINGS.removeIf(r -> t - r.start() > r.life());
         CLOUDS.removeIf(c -> t - c.start() > c.life() + 30);
-        MINES.values().removeIf(m -> t - m.start > 20 * 620);
+        STICKIES.values().removeIf(m -> t - m.start() > STICKY_FUSE + 40 || mc.level.getEntity(m.target()) == null);
         // Smoke: gas keeps creeping out along the ground from the edge; inside someone else's, the view shakes a little.
         var camPos = mc.gameRenderer.getMainCamera().getPosition();
         for (Cloud c : CLOUDS) {
@@ -293,7 +308,7 @@ public final class BatmanFx {
         if (e.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) return;
         var mc = Minecraft.getInstance();
         if (mc.level == null) return;
-        if (RANGS.isEmpty() && PELLETS.isEmpty() && CLOUDS.isEmpty() && MINES.isEmpty() && LINES.isEmpty() && MOTES.isEmpty() && RINGS.isEmpty()) return;
+        if (RANGS.isEmpty() && PELLETS.isEmpty() && CLOUDS.isEmpty() && STICKIES.isEmpty() && LINES.isEmpty() && MOTES.isEmpty() && RINGS.isEmpty()) return;
         float partial = e.getPartialTick(), time = mc.level.getGameTime() + partial;
         PoseStack p = e.getPoseStack();
         Vec3 cam = e.getCamera().getPosition();
@@ -321,12 +336,20 @@ public final class BatmanFx {
             BatmanGear.pellet(p, v, light(at), pl.gadget);
             p.popPose();
         }
-        for (Mine m : MINES.values()) {
+        // The sticky bombs: a small dark puck pressed flat onto the back of the head, its face turned out behind.
+        for (Sticky st : STICKIES.values()) {
+            Entity body = mc.level.getEntity(st.target());
+            if (body == null) continue;
+            Vec3 at = stickyAt(body, partial);
+            float age = time - st.start(), gap = Math.max(1.5f, 10 - age / 6);
+            float yaw = Mth.lerp(partial, body instanceof net.minecraft.world.entity.LivingEntity l ? l.yHeadRotO : body.yRotO,
+                    body instanceof net.minecraft.world.entity.LivingEntity l2 ? l2.yHeadRot : body.getYRot());
             p.pushPose();
-            p.translate(m.at.x - cam.x, m.at.y - cam.y, m.at.z - cam.z);
-            float age = time - m.start;
-            float blink = m.armed ? ((int) (age / 10) % 2 == 0 ? 1 : .15f) : ((int) (age / 3) % 2 == 0 ? .6f : .2f);
-            BatmanGear.mine(p, v, light(m.at), blink);
+            p.translate(at.x - cam.x, at.y - cam.y, at.z - cam.z);
+            p.mulPose(Axis.YP.rotationDegrees(-yaw));
+            p.mulPose(Axis.XP.rotationDegrees(-90));
+            p.scale(.42f, .42f, .42f);
+            BatmanGear.mine(p, v, light(at), (int) (age / gap) % 2 == 0 || age > STICKY_FUSE - 6 ? 1 : .15f);
             p.popPose();
         }
         buffers.endBatch();
@@ -358,7 +381,13 @@ public final class BatmanFx {
                 }
             }
             for (Rang r : RANGS.values()) rangTrail(c, r, time, partial);
-            for (Mine m : MINES.values()) if (m.armed && (int) ((time - m.start) / 10) % 2 == 0) FilmFx.glow(c, m.at.add(0, .14, 0), .35, 0xff3b30, .8f);
+            // The sticky bombs' light: blinking faster and faster as the fuse burns down, steady red at the end.
+            for (Sticky st : STICKIES.values()) {
+                Entity body = Minecraft.getInstance().level.getEntity(st.target());
+                if (body == null) continue;
+                float age = time - st.start(), gap = Math.max(1.5f, 10 - age / 6);
+                if ((int) (age / gap) % 2 == 0 || age > STICKY_FUSE - 6) FilmFx.glow(c, stickyAt(body, partial), .28, 0xff3b30, .9f);
+            }
             for (Line l : LINES.values()) line(c, l, time, partial);
             fx.endBatch();
         } finally {
@@ -489,6 +518,6 @@ public final class BatmanFx {
         var level = Minecraft.getInstance().level;
         return level == null ? 15728880 : LevelRenderer.getLightColor(level, BlockPos.containing(at));
     }
-    private static void clear() { RANGS.clear(); PELLETS.clear(); CLOUDS.clear(); MINES.clear(); LINES.clear(); MOTES.clear(); RINGS.clear(); }
+    private static void clear() { RANGS.clear(); PELLETS.clear(); CLOUDS.clear(); STICKIES.clear(); LINES.clear(); MOTES.clear(); RINGS.clear(); }
     @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) { clear(); BatmanVision.clear(); }
 }

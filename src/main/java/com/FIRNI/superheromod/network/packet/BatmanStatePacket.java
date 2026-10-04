@@ -12,10 +12,12 @@ import static com.FIRNI.superheromod.heroes.batman.BatmanAction.COOLDOWNS;
 /**
  * One Batman's whole state, every tick: what he is doing and since when, his flags (gliding, grapnel out, wheel open,
  * line attached), the punch chain, the Batarangs counted up in a held throw and left in his belt (and how far the next
- * one is), the gadget picked, the roll's direction, the hook and his cooldowns.
+ * one is), the gadget picked, the roll's direction, the hook, his cooldowns, the electric gauntlets (worn, charge) and
+ * whether the reflex window is open.
  */
 public record BatmanStatePacket(int entity, int action, int age, int flags, int combo, int charge, int batarangs, float refill,
-                                int gadget, float dodgeYaw, Vec3 hook, int hookEntity, int[] cooldowns) {
+                                int gadget, float dodgeYaw, Vec3 hook, int hookEntity, int[] cooldowns,
+                                boolean shock, float energy, boolean reflex) {
     public static void encode(BatmanStatePacket p, FriendlyByteBuf b) {
         b.writeVarInt(p.entity); b.writeByte(p.action); b.writeVarInt(p.age); b.writeByte(p.flags);
         b.writeVarInt(p.combo); b.writeByte(p.charge); b.writeByte(p.batarangs); b.writeFloat(p.refill);
@@ -24,6 +26,7 @@ public record BatmanStatePacket(int entity, int action, int age, int flags, int 
         if (p.hook != null) { b.writeDouble(p.hook.x); b.writeDouble(p.hook.y); b.writeDouble(p.hook.z); }
         b.writeVarInt(p.hookEntity + 1);
         for (int i = 0; i < COOLDOWNS; i++) b.writeVarInt(p.cooldowns[i]);
+        b.writeBoolean(p.shock); b.writeFloat(p.energy); b.writeBoolean(p.reflex);
     }
     public static BatmanStatePacket decode(FriendlyByteBuf b) {
         int entity = b.readVarInt(), action = b.readByte(), age = b.readVarInt(), flags = b.readByte();
@@ -35,7 +38,8 @@ public record BatmanStatePacket(int entity, int action, int age, int flags, int 
         int hookEntity = b.readVarInt() - 1;
         int[] cd = new int[COOLDOWNS];
         for (int i = 0; i < COOLDOWNS; i++) cd[i] = b.readVarInt();
-        return new BatmanStatePacket(entity, action, age, flags, combo, charge, batarangs, refill, gadget, dodgeYaw, hook, hookEntity, cd);
+        boolean shock = b.readBoolean(); float energy = b.readFloat(); boolean reflex = b.readBoolean();
+        return new BatmanStatePacket(entity, action, age, flags, combo, charge, batarangs, refill, gadget, dodgeYaw, hook, hookEntity, cd, shock, energy, reflex);
     }
     public static void handle(BatmanStatePacket p, Supplier<NetworkEvent.Context> c) {
         c.get().enqueueWork(() -> DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () ->

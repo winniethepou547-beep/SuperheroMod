@@ -46,7 +46,7 @@ import static com.FIRNI.superheromod.heroes.batman.BatmanAction.*;
 import static com.FIRNI.superheromod.heroes.batman.BatmanConfig.f;
 
 /**
- * Batman on the server: decides every move and simulates his things (Batarangs, gadget pellets, smoke clouds, mines,
+ * Batman on the server: decides every move and simulates his things (Batarangs, gadget pellets, smoke clouds,
  * the grapnel hook). His body's own motion (the pull along the line, the strike's jump and backflip, the roll, the
  * glide) is steered by his own client from the synced action and clock (BatmanClient), as with Black Panther; the
  * server places the hits and moves the ones he hits.
@@ -69,6 +69,10 @@ public final class BatmanController {
         LivingEntity strikeTarget; Vec3 strikeDir = new Vec3(0, 0, 1);
         /** Right click fired the line (a yank on a body), the one being yanked. */
         boolean yankShot; LivingEntity yankTarget;
+        /** The electric gauntlets worn (BatmanShock keeps the rest) and their charge 0..1. */
+        boolean shock; float energy = 1;
+        /** Q: the reflex window is open until this game time (BatmanReflex). */
+        long reflexUntil = -1, lastDeflect = -100;
     }
     /** Someone pulled off their feet and dragged toward him. */
     private static final class Drag {
@@ -96,17 +100,11 @@ public final class BatmanController {
             return dx * dx + dz * dz + Math.max(0, dy) * Math.max(0, dy) < radius * radius && dy > -1.5;
         }
     }
-    /** A proximity mine. */
-    private static final class Mine {
-        final int id; final ServerPlayer owner; final Vec3 at; int age; boolean armed;
-        Mine(int id, ServerPlayer owner, Vec3 at) { this.id = id; this.owner = owner; this.at = at; }
-    }
 
     private static final Map<UUID, State> STATES = new HashMap<>();
     private static final List<Rang> RANGS = new ArrayList<>();
     private static final List<Pellet> PELLETS = new ArrayList<>();
     private static final List<Cloud> CLOUDS = new ArrayList<>();
-    private static final List<Mine> MINES = new ArrayList<>();
     /** Mobs dazed by a flash (until this game time they target nobody). */
     private static final Map<Integer, Long> DAZED = new HashMap<>();
     private static int nextId = 1;
@@ -114,12 +112,14 @@ public final class BatmanController {
     private BatmanController() {}
 
     public static boolean isHero(Entity e) { return e instanceof ServerPlayer && ID.equals(AbilityManager.getCharacterId(e.getUUID())); }
+    /** His state if he has one yet (null otherwise), for the event handlers of the other Batman classes. */
+    static State peek(ServerPlayer p) { return STATES.get(p.getUUID()); }
     static State state(ServerPlayer p) { return STATES.computeIfAbsent(p.getUUID(), id -> new State()); }
     static void set(State s, int action) { s.action = action; s.age = 0; }
     static void tell(ServerPlayer p, String text) { p.displayClientMessage(Component.literal("§7" + text), true); }
     /** In the middle of something nothing else may start over it. */
     static boolean busy(State s) {
-        return s.action == GRAPNEL_FIRE || s.action == GRAPNEL_PULL || s.action == GRAPNEL_STRIKE || s.action == GRAPNEL_YANK || s.action == DODGE || s.action == MINE_PLACE
+        return s.action == GRAPNEL_FIRE || s.action == GRAPNEL_PULL || s.action == GRAPNEL_STRIKE || s.action == GRAPNEL_YANK || s.action == DODGE || s.action == SHOCK_EQUIP || s.action == SHOCK_UNEQUIP
                 || s.action == CANNON || s.action == SONIC;
     }
 
@@ -128,6 +128,8 @@ public final class BatmanController {
         if (!isHero(p)) return;
         State s = state(p);
         if (FilmSessions.busy(p.getUUID())) return;
+        if (slot == AbilitySlot.ULTIMATE && down) { BatmanReflex.start(p, s); return; }
+        if (slot == AbilitySlot.SKILL_X && down) { BatmanUltSession.start(p, s); return; }
         if (slot == AbilitySlot.LMB && down) { if (s.aiming) fireGrapnel(p, s, false); else click(p, s); }
         if (slot == AbilitySlot.RMB) {
             if (down) { if (s.aiming) fireGrapnel(p, s, true); else startCharge(p, s); }
@@ -161,6 +163,8 @@ public final class BatmanController {
 
     // ------------------------------------------------------------------ left click: the punches
     private static void click(ServerPlayer p, State s) {
+        // The electric gauntlets on: the heavy electric boxing combo instead of the rapid punches.
+        if (s.shock || s.action == SHOCK_EQUIP || s.action == SHOCK_PUNCH) { BatmanShock.click(p, s); return; }
         if (s.action == PUNCH) { s.queued = true; return; }
         if (busy(s) || s.charging) return;
         startBlow(p, s);
@@ -261,14 +265,11 @@ public final class BatmanController {
         // The two big ones run themselves (BatmanCannon, BatmanSonic); they say whether they started.
         if (g == G_CANNON) { s.aiming = false; s.charging = false; if (BatmanCannon.use(p, s)) s.cooldowns[g] = BatmanConfig.CD_CANNON.get(); return; }
         if (g == G_SONIC) { s.aiming = false; s.charging = false; if (BatmanSonic.use(p, s)) s.cooldowns[g] = BatmanConfig.CD_SONIC.get(); return; }
-        s.cooldowns[g] = switch (g) {
-            case G_SMOKE -> BatmanConfig.CD_SMOKE.get();
-            case G_FLASH -> BatmanConfig.CD_FLASH.get();
-            default -> BatmanConfig.CD_MINE.get();
-        };
+        if (g == G_SHOCK) { s.aiming = false; s.charging = false; if (BatmanShock.toggle(p, s)) s.cooldowns[g] = BatmanConfig.CD_SHOCK.get(); return; }
+        s.cooldowns[g] = g == G_SMOKE ? BatmanConfig.CD_SMOKE.get() : BatmanConfig.CD_FLASH.get();
         s.throwing = g;
         s.aiming = false;
-        set(s, g == G_MINE ? MINE_PLACE : GADGET_THROW);
+        set(s, GADGET_THROW);
         sound(p, SoundEvents.ARMOR_EQUIP_LEATHER, .5f, 1.3f);
     }
     private static void throwPellet(ServerPlayer p, State s) {
@@ -278,18 +279,6 @@ public final class BatmanController {
         PELLETS.add(pl);
         fx(p, FX_GADGET, from, vel, s.throwing, p.getId(), pl.id);
         sound(p, ModSounds.FX_WHOOSH_LIGHT.get(), .5f, .9f);
-    }
-    private static void placeMine(ServerPlayer p, State s) {
-        Vec3 at = ground(p.serverLevel(), p.position().add(flat(p.getLookAngle()).scale(.9)));
-        Mine m = new Mine(nextId++, p, at);
-        // Only so many at once: the oldest one goes.
-        List<Mine> own = new ArrayList<>();
-        for (Mine o : MINES) if (o.owner == p) own.add(o);
-        while (own.size() >= BatmanConfig.MINE_MAX.get()) { Mine old = own.remove(0); MINES.remove(old); fxAt(old.at, FX_MINE_BOOM, old.at, Vec3.ZERO, 0, -1, old.id, p); }
-        MINES.add(m);
-        fx(p, FX_MINE, at, Vec3.ZERO, 0, p.getId(), m.id);
-        at(p, at, SoundEvents.IRON_TRAPDOOR_CLOSE, .6f, 1.5f);
-        at(p, at, ModSounds.BATMAN_MINE.get(), .5f, .8f);
     }
     private static void detonate(Pellet pl, Vec3 at) {
         ServerPlayer p = pl.owner;
@@ -486,6 +475,8 @@ public final class BatmanController {
             at(p, t.position(), ModSounds.FX_IMPACT_HEAVY.get(), 1f, 1f);
         }
         if (s.age == STRIKE_KICK && live) {
+            // In the air, bouncing off each other: the sticky bomb goes on the back of their head.
+            BatmanSticky.stick(p, t);
             hurt(p, t, f(BatmanConfig.STRIKE_KICK_DAMAGE));
             t.setDeltaMovement(s.strikeDir.x * 1.5, .32, s.strikeDir.z * 1.5);
             t.hurtMarked = true;
@@ -535,13 +526,13 @@ public final class BatmanController {
             case BATARANG_MULTI -> { if (s.age == MULTI_AT) throwRangs(p, s); }
             case BATARANG_CHARGE -> { if (!s.charging) set(s, IDLE); }
             case GADGET_THROW -> { if (s.age == GADGET_AT) throwPellet(p, s); }
-            case MINE_PLACE -> { if (s.age == MINE_AT) placeMine(p, s); }
             case GRAPNEL_AIM -> { if (!s.aiming) set(s, IDLE); }
             case GRAPNEL_STRIKE -> strikeTick(p, s);
             case GRAPNEL_YANK -> yankTick(p, s);
             case WHEEL -> { if (!s.wheel) set(s, IDLE); }
             case CANNON -> BatmanCannon.tick(p, s);
             case SONIC -> BatmanSonic.tick(p, s);
+            case SHOCK_EQUIP, SHOCK_UNEQUIP, SHOCK_PUNCH -> BatmanShock.tick(p, s);
             default -> {}
         }
         hookTick(p, s);
@@ -569,7 +560,6 @@ public final class BatmanController {
         tickRangs();
         tickPellets();
         tickClouds();
-        tickMines();
         tickDrags();
         if (!DAZED.isEmpty() && e.getServer().getTickCount() % 20 == 0) {
             long now = e.getServer().overworld().getGameTime();
@@ -637,52 +627,14 @@ public final class BatmanController {
             }
         }
     }
-    private static void tickMines() {
-        for (Iterator<Mine> it = MINES.iterator(); it.hasNext(); ) {
-            Mine m = it.next();
-            ServerPlayer p = m.owner;
-            if (p.isRemoved()) { it.remove(); continue; }
-            m.age++;
-            if (m.age > BatmanConfig.MINE_SECONDS.get() * 20) { fxAt(m.at, FX_MINE_BOOM, m.at, Vec3.ZERO, 0, -1, m.id, p); it.remove(); continue; }
-            if (!m.armed) {
-                if (m.age >= MINE_ARM) { m.armed = true; fxAt(m.at, FX_MINE_ARMED, m.at, Vec3.ZERO, 0, -1, m.id, p); at(p, m.at, SoundEvents.TRIPWIRE_CLICK_ON, .6f, 1.6f); }
-                continue;
-            }
-            double trig = BatmanConfig.MINE_TRIGGER.get();
-            LivingEntity near = null;
-            for (LivingEntity t : p.level().getEntitiesOfClass(LivingEntity.class, new AABB(m.at, m.at).inflate(trig, 2.5, trig), t -> targetable(p, t)))
-                if (t.position().distanceTo(m.at) < trig) { near = t; break; }
-            if (near == null) continue;
-            // Set off: a sharp blast that throws them up into the air.
-            double radius = Math.max(trig, BatmanConfig.MINE_RADIUS.get());
-            for (LivingEntity t : p.level().getEntitiesOfClass(LivingEntity.class, new AABB(m.at, m.at).inflate(radius), t -> targetable(p, t))) {
-                double d = t.position().distanceTo(m.at);
-                if (d > radius) continue;
-                float k = (float) (1 - d / radius * .5);
-                hurt(p, t, f(BatmanConfig.MINE_DAMAGE) * k);
-                Vec3 out = flat(t.position().subtract(m.at));
-                double up = BatmanConfig.MINE_LAUNCH.get() * k;
-                t.setDeltaMovement(out.x * .35 * k, up, out.z * .35 * k);
-                t.hurtMarked = true;
-                // Dazed for as long as they are in the air (the game's own gravity and drag decide how long), and a little after.
-                double y = 0, vy = up; int air = 0;
-                do { y += vy; vy = (vy - .08) * .98; air++; } while (y > 0 && air < 200);
-                BatmanStagger.apply(t, air + 8);
-            }
-            fxAt(m.at, FX_MINE_BOOM, m.at, Vec3.ZERO, (float) radius, -1, m.id, p);
-            p.level().playSound(null, m.at.x, m.at.y, m.at.z, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 1.2f, 1.3f);
-            p.level().playSound(null, m.at.x, m.at.y, m.at.z, ModSounds.FX_ENERGY_BOOM.get(), SoundSource.PLAYERS, .8f, 1.4f);
-            it.remove();
-        }
-    }
-
     // ------------------------------------------------------------------ being hit, falling, targeting
     /** The roll: untouchable through the middle of it. */
     @SubscribeEvent public static void attacked(LivingAttackEvent e) {
         if (!(e.getEntity() instanceof ServerPlayer p) || !isHero(p)) return;
         State s = STATES.get(p.getUUID());
         if (s == null || e.getSource().is(DamageTypeTags.BYPASSES_INVULNERABILITY)) return;
-        if (s.action == DODGE && s.age >= DODGE_SAFE_FROM && s.age <= DODGE_SAFE_TO) e.setCanceled(true);
+        if (s.action == DODGE && s.age >= DODGE_SAFE_FROM && s.age <= DODGE_SAFE_TO) { e.setCanceled(true); return; }
+        if (BatmanReflex.block(p, s, e.getSource())) e.setCanceled(true);
     }
     @SubscribeEvent public static void fall(LivingFallEvent e) {
         if (!(e.getEntity() instanceof ServerPlayer p) || !isHero(p)) return;
@@ -711,7 +663,7 @@ public final class BatmanController {
     private static void clearOwned(ServerPlayer p) {
         RANGS.removeIf(r -> r.owner == p);
         PELLETS.removeIf(r -> r.owner == p);
-        for (Iterator<Mine> it = MINES.iterator(); it.hasNext(); ) { Mine m = it.next(); if (m.owner == p) { fxAt(m.at, FX_MINE_BOOM, m.at, Vec3.ZERO, 0, -1, m.id, p); it.remove(); } }
+        BatmanSticky.clear(p);
     }
 
     // ------------------------------------------------------------------ helpers
@@ -783,7 +735,8 @@ public final class BatmanController {
         float refill = s.batarangs >= BATARANG_MAX ? 0 : s.refill / (float) (BatmanConfig.BATARANG_REFILL_SECONDS.get() * 20);
         ModNetworking.CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> p),
                 new BatmanStatePacket(p.getId(), s.action, s.age, flags, Math.max(0, s.combo), s.charging ? s.charge : 0, s.batarangs, refill,
-                        s.gadget, s.dodgeYaw, s.hook != 0 ? s.hookPos : null, s.hookEntity == null ? -1 : s.hookEntity.getId(), s.cooldowns.clone()));
+                        s.gadget, s.dodgeYaw, s.hook != 0 ? s.hookPos : null, s.hookEntity == null ? -1 : s.hookEntity.getId(), s.cooldowns.clone(),
+                        s.shock, s.energy, s.reflexUntil > p.level().getGameTime()));
     }
     static void fx(ServerPlayer p, int kind, Vec3 pos, Vec3 dir, float power, int entity, int id) {
         ModNetworking.CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> p), new BatmanFxPacket(kind, pos, dir, power, entity, id));

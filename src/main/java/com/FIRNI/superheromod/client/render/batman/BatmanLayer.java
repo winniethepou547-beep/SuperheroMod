@@ -37,7 +37,7 @@ import static com.FIRNI.superheromod.heroes.batman.BatmanAction.*;
 public final class BatmanLayer extends RenderLayer<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> {
     private static final class Blend {
         int key = -1, previous = IDLE; float changed, fade = 2; Pose from, last;
-        float at = -1, glide, dive, run, align, lean, airSince = -1, landAt = -100, landPower; boolean ground = true;
+        float at = -1, glide, dive, run, align, lean, airSince = -1, landAt = -100, landPower, glideBody = 1; boolean ground = true;
     }
     private static final Map<Integer, Blend> BLENDS = new HashMap<>();
     /** The hands and the muzzle as last drawn (world), and the level time they were drawn at. */
@@ -118,7 +118,13 @@ public final class BatmanLayer extends RenderLayer<AbstractClientPlayer, PlayerM
 
         // ---- under the move: the stance (or the glide), the walk and run, the air, the landings
         Pose base = BatmanMotion.stance(time);
-        if (glide > 0) base.toward(BatmanMotion.glide(time, dive), glide);
+        // A move made mid-glide (a punch, a throw, the grapnel) is made upright: the flat glide body would send the
+        // blow down under him instead of out of his hand. The cape stays open; the body tips back into the glide after.
+        boolean moving = !(action == IDLE || action == WHEEL || action == GRAPNEL_AIM);
+        blend.glideBody += ((moving ? .15f : 1) - blend.glideBody) * (1 - (float) Math.exp(-dt * .6f));
+        if (glide > 0) base.toward(BatmanMotion.glide(time, dive), glide * blend.glideBody);
+        // The electric gauntlets on: the boxer's stance under everything.
+        if (s != null && !shown && (s.shock || action == SHOCK_EQUIP || action == SHOCK_PUNCH)) base = BatmanShockFx.stance(base, time);
         boolean ground = e.onGround() || shown;
         if (blend.ground && !ground) blend.airSince = now;
         if (!blend.ground && ground && blend.airSince >= 0 && now - blend.airSince > 5) {
@@ -127,7 +133,7 @@ public final class BatmanLayer extends RenderLayer<AbstractClientPlayer, PlayerM
         }
         blend.ground = ground;
         boolean free = action == IDLE || action == WHEEL || action == GRAPNEL_AIM || action == GRAPNEL_FIRE;
-        float legs = free ? 1 : action == PUNCH || action == BATARANG || action == BATARANG_CHARGE || action == BATARANG_MULTI || action == GADGET_THROW ? .6f : 0;
+        float legs = free ? 1 : action == PUNCH || action == BATARANG || action == BATARANG_CHARGE || action == BATARANG_MULTI || action == GADGET_THROW || action == CANNON ? .6f : 0;
         float arms = action == IDLE ? 1 : 0;
         float wantRun = e.isSprinting() && amount > .3f ? 1 : 0;
         blend.run += (wantRun - blend.run) * (1 - (float) Math.exp(-dt * .3f));
@@ -209,6 +215,9 @@ public final class BatmanLayer extends RenderLayer<AbstractClientPlayer, PlayerM
             float c = Mth.cos(elevation), sn = Mth.sin(elevation);
             BatmanMotion.aim(pose, 0, hook == null ? new float[]{0, -.7f, -.7f} : new float[]{0, -sn, -c}, aimIn);
         } else if (action == CANNON && !shown) BatmanCannonFx.arms(pose, s, t, model.head.yRot, model.head.xRot);
+        // A reflex deflect plays over whatever the body is doing.
+        float[] deflect = shown ? null : BatmanReflexFx.deflect(e.getId(), now);
+        if (deflect != null) BatmanMotion.deflect(pose, (int) deflect[0], deflect[1]);
         // The pose the next move fades from (without this frame's look, which is added again every frame).
         blend.last = pose.copy();
         blend.last.add(PELVIS_YAW, -addPelvis).add(SPINE_YAW, -addSpine).add(CHEST_YAW, -addChest).add(CHEST_PITCH, -addPitch);
@@ -228,6 +237,9 @@ public final class BatmanLayer extends RenderLayer<AbstractClientPlayer, PlayerM
         float remote = shown || s == null ? -1 : BatmanSonicFx.remote(s, action, t);
         if (remote >= 0 && BatmanBody.HOLD[1] == BatmanBody.HOLD_NONE) hold(1, BatmanBody.HOLD_REMOTE, remote);
         BatmanBody.CANNON[0] = BatmanBody.CANNON[1] = shown || s == null ? 0 : BatmanCannonFx.deployed(s, action, t);
+        BatmanBody.SHOCK[0] = BatmanBody.SHOCK[1] = shown || s == null ? 0 : BatmanShockFx.worn(s, action, t);
+        BatmanBody.shockEnergy = s == null ? 1 : s.energy;
+        BatmanBody.capeGrab = shown ? 0 : BatmanReflexFx.capeGrab(e.getId(), now);
 
         // ---- draw: the body (reporting the cape's frame and the hands), then the cape
         BatmanBody.capture = true;
@@ -238,6 +250,8 @@ public final class BatmanLayer extends RenderLayer<AbstractClientPlayer, PlayerM
             hold(0, BatmanBody.HOLD_NONE, 0);
             hold(1, BatmanBody.HOLD_NONE, 0);
             BatmanBody.CANNON[0] = BatmanBody.CANNON[1] = 0;
+            BatmanBody.SHOCK[0] = BatmanBody.SHOCK[1] = 0;
+            BatmanBody.capeGrab = 0;
         }
         FRAME.spread = glide * (action == IDLE ? 1 : .35f) * (1 - .6f * dive);
         CapeCloth.draw(p, b, light, e, partial, e.getId(), FRAME, CAPE);

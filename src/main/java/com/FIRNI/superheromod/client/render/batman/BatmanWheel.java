@@ -21,7 +21,7 @@ import static com.FIRNI.superheromod.heroes.batman.BatmanAction.*;
 public final class BatmanWheel {
     private BatmanWheel() {}
     static final int CYAN = 0xFF5FD6FF, GLASS = 0xC0101820, RIM = 0xFF2B4A5A;
-    private static final String[] INFO = {"Geniş kara sis: içindekiler göremez, sen termalle görürsün", "Yakındakileri kör eder", "Yaklaşanı havaya uçurur",
+    private static final String[] INFO = {"Geniş kara sis: içindekiler göremez, sen termalle görürsün", "Yakındakileri kör eder", "Tak / çıkar: ağır elektrikli boks",
             "4 sn iki bilekten seri atış, nişangâhı izler", "İki sonik verici yerden çıkar, hedefi sersemletir"};
     /** Degrees each sector spans. */
     static final float SECTOR = 360f / GADGETS;
@@ -74,7 +74,7 @@ public final class BatmanWheel {
         g.pose().popPose();
     }
 
-    /** A gadget's icon: smoke (puffs), flash (a star burst), mine (a disc with its light), wrist cannon (two gauntlets firing), sonic trap (an emitter and its waves). */
+    /** A gadget's icon: smoke (puffs), flash (a star burst), electric gauntlets (a fist and a bolt), wrist cannon (two gauntlets firing), sonic trap (an emitter and its waves). */
     static void icon(GuiGraphics g, int gadget, float x, float y, float s, int col, float time) {
         switch (gadget) {
             case G_SMOKE -> {
@@ -114,9 +114,11 @@ public final class BatmanWheel {
                 }
             }
             default -> {
-                disc(g, x, y, s * .9f, HudStyle.alpha(col, .45f));
-                HudStyle.arc(g, x, y, s * .75f, s * .9f, 0, 360, col);
-                disc(g, x, y, s * .28f, (int) (time / 8) % 2 == 0 ? 0xFFFF4B3E : HudStyle.alpha(0xFFFF4B3E, .4f));
+                // A fist (the knuckles a row of squares) and a cyan bolt across it.
+                g.fill((int) (x - s * .55f), (int) (y - s * .2f), (int) (x + s * .45f), (int) (y + s * .7f), col);
+                for (int k = 0; k < 4; k++) g.fill((int) (x - s * .55f + k * s * .25f), (int) (y - s * .5f), (int) (x - s * .35f + k * s * .25f), (int) (y - s * .2f), col);
+                int bolt = (int) (time / 3) % 3 == 0 ? 0xFFFFFFFF : 0xFF4FE3E8;
+                fan(g, x + s * .15f, y, new float[]{.5f, -1f, -.05f, -.05f, .25f, -.05f, -.5f, 1f, .05f, .1f, -.2f, .1f}, s * .7f, bolt);
             }
         }
     }

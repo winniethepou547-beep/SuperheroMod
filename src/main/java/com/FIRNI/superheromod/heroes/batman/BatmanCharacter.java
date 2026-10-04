@@ -6,15 +6,15 @@ import net.minecraft.server.level.ServerPlayer;
 
 /**
  * Batman (Arkham). Left click: punches; right click: Batarangs; R: gadget wheel / use gadget; E: grapnel gun;
- * CTRL: roll; SPACE in the air: cape glide. The keys his own client reads (R wheel, E, CTRL, SPACE) arrive as
- * BatmanInputPacket; left and right click come through here. Everything lives per player in BatmanController.
+ * Q: reflex block; X: the film; CTRL: roll; SPACE in the air: cape glide. The keys his own client reads (R wheel, E,
+ * CTRL, SPACE) arrive as BatmanInputPacket; left and right click, Q and X come through here. Everything lives per player in BatmanController.
  */
 public final class BatmanCharacter extends SuperCharacter {
     public static final String ID = BatmanAction.ID;
 
     public BatmanCharacter() {
         super(ID, "Batman — Kara Şövalye");
-        for (AbilitySlot slot : new AbilitySlot[]{AbilitySlot.LMB, AbilitySlot.RMB})
+        for (AbilitySlot slot : new AbilitySlot[]{AbilitySlot.LMB, AbilitySlot.RMB, AbilitySlot.ULTIMATE, AbilitySlot.SKILL_X})
             registerAbility(new Press(slot));
     }
 

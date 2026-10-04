@@ -92,6 +92,8 @@ public final class BatmanFirstPerson {
         BatmanGear.thermal = thermal;
         BatmanBody.capture = true;
         BatmanBody.handRight = BatmanBody.handLeft = BatmanBody.muzzle = null;
+        // The wrist cannon (BatmanCannonFx): how far both gauntlets are open for this draw.
+        BatmanBody.CANNON[0] = BatmanBody.CANNON[1] = s != null && action == CANNON ? BatmanCannonFx.deployed(s, action, t) : 0;
         try {
             for (int side = 0; side < 2; side++) {
                 Arm a = NOW[side];
@@ -116,6 +118,7 @@ public final class BatmanFirstPerson {
             }
         } finally {
             BatmanBody.capture = false;
+            BatmanBody.CANNON[0] = BatmanBody.CANNON[1] = 0;
             BatmanBody.thermal = 0;
             BatmanGear.thermal = 0;
         }
@@ -200,6 +203,10 @@ public final class BatmanFirstPerson {
             case DODGE -> { r.shown = 0; l.shown = 0; }
             default -> {}
         }
+        // ---- the wrist cannon (its own block below)
+        if (action == CANNON) cannon(t, s);
+        // ---- the sonic trap's remote in the left hand (its own block at the end)
+        sonic(action, t, s, gliding, now);
         // Gliding: both hands low and wide, holding the cape's edge.
         if (gliding && action == IDLE) {
             float flap = 1.5f * Mth.sin(time * .21f);
@@ -246,5 +253,67 @@ public final class BatmanFirstPerson {
             }
             default -> r.lerp(rest(A[0], 0, true), B[0].set(.1f, -.44f, -.86f, -88, 4, 0, 1), go);
         }
+    }
+
+    // ------------------------------------------------------------------ the wrist cannon (BatmanCannonFx draws the gauntlets)
+    private static final Arm[] CANNON_A = {new Arm(), new Arm()}, CANNON_B = {new Arm(), new Arm()}, CANNON_C = {new Arm(), new Arm()};
+    /**
+     * Both forearms come up low in view, turned in a little, while the gauntlets open (the emitter assemblies sliding out
+     * on top; the left follows the right); they rise to the crosshair, slightly converging, as the fire starts and kick
+     * a little with each shot of their own hand; after the fire they come down to cool and sink out of sight as the
+     * parts close.
+     */
+    private static void cannon(float t, BatmanClient.State s) {
+        float fireEnd = CANNON_DEPLOY + CANNON_FIRE;
+        for (int side = 0; side < 2; side++) {
+            Arm a = NOW[side];
+            float sx = side == 0 ? 1 : -1;
+            Arm look = CANNON_A[side].set(.3f * sx, -.6f, -.5f, -72, 14 * sx, -18 * sx, 1);
+            Arm aim = CANNON_B[side].set(.25f * sx, -.38f, -.5f, -90, 8 * sx, 0, 1);
+            float rec = Math.min(2.5f, BatmanCannonFx.recoil(s, side));
+            aim.z += .03f * rec; aim.y += .01f * rec; aim.pitch += 5 * rec;
+            float in = ease((t - (side == 0 ? 0 : 1.5f)) / 3f);
+            if (t < CANNON_DEPLOY - 3) a.lerp(rest(CANNON_C[side], side, false), look, in);
+            else if (t < fireEnd + 2) a.lerp(look, aim, k(t, CANNON_DEPLOY - 3, CANNON_DEPLOY + .5f));
+            else {
+                Arm cool = CANNON_C[side].set(.32f * sx, -.62f, -.55f, -68, 12 * sx, -10 * sx, .8f);
+                a.lerp(aim, cool, k(t, fireEnd + 2, fireEnd + 6));
+                a.shown = 1 - k(t, CANNON_TICKS - 8, CANNON_TICKS);
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ the sonic trap's remote (BatmanSonicFx draws it)
+    private static final Arm[] SONIC_ARM = {new Arm(), new Arm()};
+    private static float sonicIn, sonicAt = -1;
+    /**
+     * While the sonic trap is the gadget picked, the remote is in his left hand, held low in the bottom-left corner of
+     * the view (its top and the red button just in sight); in the SONIC move the hand comes up toward the middle, the
+     * thumb presses the button (the hand dips with it), then it goes down again. The forearm is turned round (yaw about
+     * 180, pitch positive) so the thumb and the remote's top face up and toward him.
+     */
+    private static void sonic(int action, float t, BatmanClient.State s, boolean gliding, float now) {
+        float press = BatmanSonicFx.remote(s, action, t);
+        Arm l = NOW[1];
+        boolean want = press >= 0 && !gliding && l.hold == BatmanBody.HOLD_NONE;
+        float dt = sonicAt < 0 ? 0 : Mth.clamp(now - sonicAt, 0, 3);
+        sonicAt = now;
+        sonicIn = Mth.clamp(sonicIn + (want ? dt : -dt) / 4f, 0, 1);
+        if (!want) {
+            // Leaving the remote for another move: that move starts from out of sight, not from a half-turn sweep.
+            if (LAST[1].hold == BatmanBody.HOLD_REMOTE) { LAST[1].shown = 0; LAST[1].yaw = l.yaw; LAST[1].pitch = l.pitch; LAST[1].roll = l.roll; LAST[1].hold = BatmanBody.HOLD_NONE; }
+            return;
+        }
+        float up = action == SONIC ? BatmanSonicFx.raise(t) : 0;
+        Arm low = SONIC_ARM[0].set(-.44f, -.88f, -.42f, 62, 166, 0, .72f), high = SONIC_ARM[1].set(-.26f, -.6f, -.5f, 56, 158, 0, .72f);
+        l.lerp(low, high, up);
+        l.curl = .72f + .28f * press;
+        l.y -= .012f * press;
+        l.wrist = .1f * press;
+        l.shown = ease(sonicIn);
+        l.hold = BatmanBody.HOLD_REMOTE;
+        l.holdArg = press;
+        // Coming into the remote from another move: rise from out of sight with the right turn already.
+        if (LAST[1].hold != BatmanBody.HOLD_REMOTE && Math.abs(LAST[1].yaw - l.yaw) > 90) { LAST[1].copy(l); LAST[1].shown = 0; }
     }
 }

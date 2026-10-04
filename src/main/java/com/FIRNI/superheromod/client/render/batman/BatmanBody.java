@@ -47,6 +47,11 @@ public final class BatmanBody {
     public static final int HOLD_NONE = 0, HOLD_GUN = 1, HOLD_BATARANG = 2, HOLD_FAN = 3, HOLD_PELLET = 4, HOLD_MINE = 5, HOLD_REMOTE = 6;
     /** How far each wrist cannon is open (side 0 right, 1 left; 0 = plain gauntlet), set by the layer per draw. */
     public static final float[] CANNON = {0, 0};
+    /** How much of each electric gauntlet shows (side 0 right, 1 left), and their charge, set by the layer per draw. */
+    public static final float[] SHOCK = {0, 0};
+    public static float shockEnergy = 1;
+    /** The right hand holds the cape's edge (0..1: the reflex block's cape sweep), set by the layer per draw. */
+    public static float capeGrab;
     public static final int[] HOLD = {HOLD_NONE, HOLD_NONE};
     /** The held thing's number: the fan's count, the pellet's gadget, the gun's hook out (0..1), the mine's blink. */
     public static final float[] HOLD_ARG = {0, 0};
@@ -140,7 +145,12 @@ public final class BatmanBody {
             p.popPose();
         }
         hips(p, b, light);
-        if (cape != null) { cape.mark(0, p, -2.2f, -1.2f, .5f); cape.mark(1, p, 2.2f, -1.2f, .5f); }
+        if (cape != null) {
+            cape.mark(0, p, -2.2f, -1.2f, .5f); cape.mark(1, p, 2.2f, -1.2f, .5f);
+            // The belt and its back pouches stand out past the torso capsules: one more across the waist keeps the cape off them.
+            cape.mark(2, p, -3.9f, -1.3f, .9f);
+            cape.capsule(2, p, 3.9f, -1.3f, .9f, 3.0f, true);
+        }
         p.mulPose(Axis.YP.rotation(v[SPINE_YAW])); p.mulPose(Axis.XP.rotation(v[SPINE_PITCH])); p.mulPose(Axis.ZP.rotation(v[SPINE_ROLL]));
         abdomen(p, b, light);
         px(p, 0, -5.6f, 0);
@@ -375,6 +385,8 @@ public final class BatmanBody {
         part(p, b, light, 0, .7f, 0, .85f, 1.6f, .85f, ARMOR);
         p.popPose();
         if (capture) { Vec3 w = world(p, 0, 1.5f, 0); if (side == 0) handRight = w; else handLeft = w; }
+        if (SHOCK[side] > 0) BatmanShockFx.knuckles(p, b, light, side, SHOCK[side], shockEnergy);
+        if (side == 0 && capeGrab > 0 && cape != null) cape.grab(p, 0, 1.5f, -.5f, capeGrab);
         held(p, b, light, side);
     }
     /** What the hand holds, in the hand's frame (fist centre near (0, 1.5, 0), the arm continuing along +y, the thumb toward -z). */
