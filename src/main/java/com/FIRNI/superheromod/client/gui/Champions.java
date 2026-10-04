@@ -86,10 +86,10 @@ public final class Champions {
             new Champion("batman", "BATMAN", "Bruce Wayne — Kara Şövalye", 0xFFE8C547, List.of(
                     new Skill("SOL", "Yumruk Kombosu", "Arkham tarzı yakın dövüş: tıkladıkça hızlanan yumruk, kroşe, aparkat ve dirsek; sonunda seri yumruk yağmuru."),
                     new Skill("SAĞ", "Batarang", "Dokun: tek Batarang. Basılı tut: her 0,2 saniyede bir daha, en fazla 5 Batarang'ı iki eliyle birden fırlatır. Kemerinde 5 tane taşır, zamanla dolar."),
-                    new Skill("R", "Alet Çarkı", "Basılı tut: çark açılır, fareyle alet seç (Sis Bombası, Flaş Bombası, Termal Sensör, Mayın). Dokun: seçili aleti kullan."),
-                    new Skill("E", "Kancalı Tabanca", "Kancayı eline al, nereye atacağını seç. Sol tık: bloğa çekilirsin; düşmana uçup aparkat, havada tekme, geriye takla. Sağ tık: düşmanın bacaklarına dolar, sırt üstü düşürüp sürüklersin (sersemler)."),
-                    new Skill("Q", "Termal Görüş", "Dünya soğuk tonlara döner, canlılar duvar arkasından bile ısı imzası olarak parlar; zeminden tarama dalgaları yayılır. Kendi sisinde kendiliğinden açılır."),
-                    new Skill("CTRL", "Takla", "Hareket yönüne hızlı bir yuvarlanma; ortasında hasar almaz."),
+                    new Skill("R", "Alet Çarkı", "Basılı tut: çark açılır, fareyle alet seç (Sis Bombası, Flaş Bombası, Mayın, Bilek Topu, Sonik Tuzak). Dokun: seçili aleti kullan. Kendi sisinde termal görüş kendiliğinden açılır."),
+                    new Skill("E", "Kancalı Tabanca", "Kancayı eline al, nereye atacağını seç. Sol tık: bloğa çekilirsin; düşmana uçup aparkat, havada tekme, geriye takla. Sağ tık: düşmanın bacaklarına dolar, sırt üstü düşürüp sürüklersin, sonra ip onu sarar: sol tık spamlayıp kurtulana kadar kımıldayamaz. Çekilirken E: bırakıp havaya sıçrarsın."),
+                    new Skill("SHIFT", "Koşu", "Basılı tut: normal yürüyüşün 1,3 katı hızla koşar."),
+                    new Skill("CTRL", "Takla", "İleri dalıp omzunun üstünden uzun bir takla; ortasında hasar almaz. 3 saniyede bir."),
                     new Skill("BOŞLUK", "Pelerinle Süzülme", "Havadayken basılı tut: pelerin kanat gibi açılır, baktığın yöne süzülürsün; aşağı bakınca hızlanır."))));
 
     /** How many card slots the grid always shows (the rest are "?" for the heroes to come). */

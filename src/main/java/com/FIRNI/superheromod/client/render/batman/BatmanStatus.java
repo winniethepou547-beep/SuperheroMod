@@ -36,12 +36,15 @@ import static com.FIRNI.superheromod.heroes.batman.BatmanAction.*;
  * - DOWNED (the grapnel yank): they fall over backwards onto their back, arms up, feet toward him, are dragged along the
  *   ground with dirt flying, lie a moment and get up again. Done for every kind of body by turning the whole render.
  * - STAGGERED: a red daze mark (a fan of spikes) over the head, the body wobbling; a staggered player's own view shakes.
+ *   The mark stays DAZE_LINGER ticks more after the stagger ends (they move freely by then).
  * - A critical hit lands: a quick flash (the sparks are BatmanFx).
  */
 @Mod.EventBusSubscriber(modid = SuperheroMod.MODID, value = Dist.CLIENT)
 public final class BatmanStatus {
     private record Down(float start, float ticks, Vec3 dir) {}
     private static final Map<Integer, Float> DAZED = new HashMap<>();
+    /** Until when the daze mark shows (the stagger plus the linger). */
+    private static final Map<Integer, Float> MARK = new HashMap<>();
     private static final Map<Integer, Down> DOWNED = new HashMap<>();
     private static final Set<Integer> PUSHED = new HashSet<>();
 
@@ -49,7 +52,11 @@ public final class BatmanStatus {
 
     private static float now() { var mc = Minecraft.getInstance(); return mc.level == null ? 0 : mc.level.getGameTime() + mc.getFrameTime(); }
 
-    static void stagger(int entity, float ticks) { if (ticks <= 0) DAZED.remove(entity); else DAZED.put(entity, now() + ticks); }
+    static void stagger(int entity, float ticks) {
+        float t = now();
+        if (ticks <= 0) { if (DAZED.remove(entity) != null) MARK.put(entity, t + DAZE_LINGER); }
+        else { DAZED.put(entity, t + ticks); MARK.put(entity, t + ticks + DAZE_LINGER); }
+    }
     static void downed(int entity, Vec3 dir, float ticks, int batman) { DOWNED.put(entity, new Down(now(), ticks, dir.lengthSqr() < 1e-6 ? new Vec3(0, 0, 1) : dir.normalize())); }
     static void crit(int entity) {}
     public static boolean staggered(Entity e) { Float u = DAZED.get(e.getId()); return u != null && u > now(); }
@@ -114,9 +121,10 @@ public final class BatmanStatus {
     @SubscribeEvent public static void tick(TickEvent.ClientTickEvent e) {
         if (e.phase != TickEvent.Phase.END) return;
         var mc = Minecraft.getInstance();
-        if (mc.level == null) { DAZED.clear(); DOWNED.clear(); return; }
+        if (mc.level == null) { DAZED.clear(); MARK.clear(); DOWNED.clear(); return; }
         float t = mc.level.getGameTime();
         DAZED.values().removeIf(u -> u < t - 2);
+        MARK.values().removeIf(u -> u < t - 2);
         DOWNED.values().removeIf(d -> t - d.start() > d.ticks() + 2);
         // Dragged on their back: dirt thrown up from under them.
         for (var en : DOWNED.entrySet()) {
@@ -140,7 +148,7 @@ public final class BatmanStatus {
 
     /** The daze mark: a fan of red spikes rising over the head, pulsing and turning slowly, with a soft glow. */
     @SubscribeEvent public static void render(RenderLevelStageEvent e) {
-        if (e.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES || DAZED.isEmpty()) return;
+        if (e.getStage() != RenderLevelStageEvent.Stage.AFTER_PARTICLES || MARK.isEmpty()) return;
         var mc = Minecraft.getInstance();
         if (mc.level == null) return;
         float t = now(), partial = e.getPartialTick();
@@ -155,7 +163,7 @@ public final class BatmanStatus {
         Vec3 right = new Vec3(rr.x, rr.y, rr.z), up = new Vec3(uu.x, uu.y, uu.z);
         FilmContext c = new FilmContext(p, fx, cam, right, up, t, 0, partial);
         try {
-            for (var en : DAZED.entrySet()) {
+            for (var en : MARK.entrySet()) {
                 if (en.getValue() < t) continue;
                 Entity body = mc.level.getEntity(en.getKey());
                 if (body == null || body == mc.player && mc.options.getCameraType().isFirstPerson()) continue;
@@ -181,5 +189,5 @@ public final class BatmanStatus {
             p.popPose();
         }
     }
-    @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) { DAZED.clear(); DOWNED.clear(); PUSHED.clear(); }
+    @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) { DAZED.clear(); MARK.clear(); DOWNED.clear(); PUSHED.clear(); }
 }

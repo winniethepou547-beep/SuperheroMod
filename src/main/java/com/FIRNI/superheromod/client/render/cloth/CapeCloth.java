@@ -60,6 +60,9 @@ public final class CapeCloth {
         public float thickness = .03f;
         /** Heavier cloth flutters and lifts less (1 = a heavy cape). */
         public float weight = 1;
+        /** In the wing: how far the cloth reaches past the arm line (1 = to the hands; more = a bigger wing) and how far
+         *  apart its hem corners go compared with the ankles (1 = at the ankles). */
+        public float wingReach = 1, wingFeet = 1;
         /** Depth of the bat-wing scallops along the hem (blocks; 0 = a straight hem). */
         public float scallop = 0;
         /** Depth of the vertical folds hanging (blocks; they pull out as the cloth goes taut). */
@@ -69,6 +72,7 @@ public final class CapeCloth {
         public Style length(float l) { length = l; return this; }
         public Style bottom(float w) { bottomWidth = w; return this; }
         public Style wingBottom(float w) { wingBottom = w; return this; }
+        public Style wingReach(float reach, float feet) { wingReach = reach; wingFeet = feet; return this; }
         public Style thickness(float t) { thickness = t; return this; }
         public Style weight(float w) { weight = w; return this; }
         public Style scallop(float s) { scallop = s; return this; }
@@ -469,8 +473,9 @@ public final class CapeCloth {
         }
         /** The pins for the current inputs, and the rest lengths across each row and down each column. */
         private void rest(Style s) {
+            reach = s.wingReach; feetApart = s.wingFeet;
             for (int c = 0; c < COLS; c++)
-                for (int k = 0; k < 3; k++) pins[c * 3 + k] = lerp(in[PIN + c * 3 + k], in[WING + c * 3 + k], spread);
+                for (int k = 0; k < 3; k++) pins[c * 3 + k] = lerp(in[PIN + c * 3 + k], wing(c, k), spread);
             double span = 0;
             for (int c = 0; c < COLS - 1; c++) span += Math.sqrt(sq(pins[c * 3 + 3] - pins[c * 3], pins[c * 3 + 4] - pins[c * 3 + 1], pins[c * 3 + 5] - pins[c * 3 + 2]));
             double hem = lerp(s.bottomWidth, s.wingBottom, spread) * scale;
@@ -483,9 +488,9 @@ public final class CapeCloth {
             if (spread > 1e-3) {
                 // In the wing: long enough to reach from each point of the arm line to the ankles (a little slack).
                 double ax = (in[FOOT] + in[FOOT + 3]) / 2, ay = (in[FOOT + 1] + in[FOOT + 4]) / 2, az = (in[FOOT + 2] + in[FOOT + 5]) / 2;
-                double centre = Math.sqrt(sq(in[WING + 9] - ax, in[WING + 10] - ay, in[WING + 11] - az)) * 1.03;
-                double right = Math.sqrt(sq(in[WING] - in[FOOT], in[WING + 1] - in[FOOT + 1], in[WING + 2] - in[FOOT + 2]));
-                double left = Math.sqrt(sq(in[WING + 18] - in[FOOT + 3], in[WING + 19] - in[FOOT + 4], in[WING + 20] - in[FOOT + 5]));
+                double centre = Math.sqrt(sq(wing(3, 0) - ax, wing(3, 1) - ay, wing(3, 2) - az)) * 1.03;
+                double right = Math.sqrt(sq(wing(0, 0) - foot(0, 0), wing(0, 1) - foot(0, 1), wing(0, 2) - foot(0, 2)));
+                double left = Math.sqrt(sq(wing(6, 0) - foot(1, 0), wing(6, 1) - foot(1, 1), wing(6, 2) - foot(1, 2)));
                 double side = (right + left) / 2 * 1.04;
                 for (int c = 0; c < COLS; c++) {
                     double e = Math.abs(c - (COLS - 1) / 2.0) / ((COLS - 1) / 2.0);
@@ -615,10 +620,21 @@ public final class CapeCloth {
         }
         /** In the wing the hem's corners are drawn to the ankles (and its middle a little), so the membrane is taut. */
         private void wingCorners() {
-            pull((ROWS - 1) * COLS, in[FOOT], in[FOOT + 1], in[FOOT + 2], .45 * spread);
-            pull((ROWS - 1) * COLS + COLS - 1, in[FOOT + 3], in[FOOT + 4], in[FOOT + 5], .45 * spread);
+            pull((ROWS - 1) * COLS, foot(0, 0), foot(0, 1), foot(0, 2), .45 * spread);
+            pull((ROWS - 1) * COLS + COLS - 1, foot(1, 0), foot(1, 1), foot(1, 2), .45 * spread);
             pull((ROWS - 1) * COLS + COLS / 2, (in[FOOT] + in[FOOT + 3]) / 2, (in[FOOT + 1] + in[FOOT + 4]) / 2, (in[FOOT + 2] + in[FOOT + 5]) / 2, .12 * spread);
         }
+        /** The wing's top of a column (coordinate k): the arm line, stretched out from its middle by the style's reach. */
+        private double wing(int col, int k) {
+            double mid = in[WING + 9 + k];
+            return mid + (in[WING + col * 3 + k] - mid) * reach;
+        }
+        /** Where a hem corner goes in the wing (side 0 right, 1 left; coordinate k): the ankle, spread out by the style. */
+        private double foot(int side, int k) {
+            double mid = (in[FOOT + k] + in[FOOT + 3 + k]) / 2;
+            return mid + (in[FOOT + side * 3 + k] - mid) * feetApart;
+        }
+        private double reach = 1, feetApart = 1;
         private void pull(int p, double tx, double ty, double tz, double k) {
             int i = p * 3;
             x[i] += (tx - x[i]) * k; x[i + 1] += (ty - x[i + 1]) * k; x[i + 2] += (tz - x[i + 2]) * k;

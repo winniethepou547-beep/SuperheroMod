@@ -114,12 +114,13 @@ public final class BatmanController {
     private BatmanController() {}
 
     public static boolean isHero(Entity e) { return e instanceof ServerPlayer && ID.equals(AbilityManager.getCharacterId(e.getUUID())); }
-    private static State state(ServerPlayer p) { return STATES.computeIfAbsent(p.getUUID(), id -> new State()); }
-    private static void set(State s, int action) { s.action = action; s.age = 0; }
-    private static void tell(ServerPlayer p, String text) { p.displayClientMessage(Component.literal("§7" + text), true); }
+    static State state(ServerPlayer p) { return STATES.computeIfAbsent(p.getUUID(), id -> new State()); }
+    static void set(State s, int action) { s.action = action; s.age = 0; }
+    static void tell(ServerPlayer p, String text) { p.displayClientMessage(Component.literal("§7" + text), true); }
     /** In the middle of something nothing else may start over it. */
-    private static boolean busy(State s) {
-        return s.action == GRAPNEL_FIRE || s.action == GRAPNEL_PULL || s.action == GRAPNEL_STRIKE || s.action == GRAPNEL_YANK || s.action == DODGE || s.action == MINE_PLACE;
+    static boolean busy(State s) {
+        return s.action == GRAPNEL_FIRE || s.action == GRAPNEL_PULL || s.action == GRAPNEL_STRIKE || s.action == GRAPNEL_YANK || s.action == DODGE || s.action == MINE_PLACE
+                || s.action == CANNON || s.action == SONIC;
     }
 
     // ------------------------------------------------------------------ keys
@@ -135,6 +136,8 @@ public final class BatmanController {
     }
     /** What his own client reports: glide, roll, the wheel, the grapnel. */
     public static void input(ServerPlayer p, int kind, int value, float amount) {
+        // A click of someone bound by his line (they need not be Batman).
+        if (kind == IN_BREAK_FREE) { BatmanBind.click(p); return; }
         if (!isHero(p)) return;
         State s = state(p);
         if (FilmSessions.busy(p.getUUID())) return;
@@ -144,7 +147,12 @@ public final class BatmanController {
             case IN_DODGE -> dodge(p, s, amount);
             case IN_GADGET_SELECT -> { s.gadget = Mth.clamp(value, 0, GADGETS - 1); sound(p, SoundEvents.UI_BUTTON_CLICK.get(), .3f, 1.6f); }
             case IN_GADGET_USE -> useGadget(p, s);
-            case IN_GRAPNEL_TOGGLE -> { if (s.aiming) stopAiming(s); else aim(p, s); }
+            case IN_GRAPNEL_TOGGLE -> {
+                // Pulled along the line: let go early, carried on by the pull with a hop up (his client throws him).
+                if (s.action == GRAPNEL_PULL) letGo(p, s);
+                else if (s.aiming) stopAiming(s);
+                else aim(p, s);
+            }
             case IN_WHEEL_OPEN -> { s.wheel = true; if (s.action == IDLE) set(s, WHEEL); }
             case IN_WHEEL_CLOSE -> { s.wheel = false; if (s.action == WHEEL) set(s, IDLE); }
             default -> {}
@@ -235,8 +243,8 @@ public final class BatmanController {
             Vec3 from = hand(p, side);
             Vec3 dir = aim.subtract(from).normalize();
             // Fanned out a little round the aim, never quite on top of each other.
-            float spread = count == 1 ? 0 : (i - (count - 1) / 2f) * 7f;
-            dir = dir.yRot(spread * Mth.DEG_TO_RAD).add(0, (p.getRandom().nextFloat() - .5f) * .03f, 0).normalize();
+            float spread = count == 1 ? 0 : (i - (count - 1) / 2f) * 2.4f;
+            dir = dir.yRot(spread * Mth.DEG_TO_RAD).add(0, (p.getRandom().nextFloat() - .5f) * .008f, 0).normalize();
             Rang r = new Rang(nextId++, p, from, dir.scale(BatmanConfig.BATARANG_SPEED.get()));
             RANGS.add(r);
             fx(p, FX_BATARANG, from, r.vel, count, p.getId(), r.id);
@@ -250,10 +258,12 @@ public final class BatmanController {
         if (busy(s)) return;
         int g = s.gadget;
         if (s.cooldowns[g] > 0) { tell(p, GADGET_NAMES[g] + ": " + String.format(Locale.ROOT, "%.1f", s.cooldowns[g] / 20f) + " sn"); return; }
+        // The two big ones run themselves (BatmanCannon, BatmanSonic); they say whether they started.
+        if (g == G_CANNON) { s.aiming = false; s.charging = false; if (BatmanCannon.use(p, s)) s.cooldowns[g] = BatmanConfig.CD_CANNON.get(); return; }
+        if (g == G_SONIC) { s.aiming = false; s.charging = false; if (BatmanSonic.use(p, s)) s.cooldowns[g] = BatmanConfig.CD_SONIC.get(); return; }
         s.cooldowns[g] = switch (g) {
             case G_SMOKE -> BatmanConfig.CD_SMOKE.get();
             case G_FLASH -> BatmanConfig.CD_FLASH.get();
-            case G_THERMAL -> BatmanConfig.CD_THERMAL.get();
             default -> BatmanConfig.CD_MINE.get();
         };
         s.throwing = g;
@@ -313,13 +323,7 @@ public final class BatmanController {
                     if (t instanceof Mob mob) { mob.setTarget(null); mob.getNavigation().stop(); DAZED.put(mob.getId(), level.getGameTime() + ticks); }
                 }
             }
-            default -> {
-                // Thermal: one pulse; he sees everyone round it through walls for a while (his own client draws it).
-                int life = (int) (BatmanConfig.THERMAL_SECONDS.get() * 20);
-                fxAt(at, FX_THERMAL, at, new Vec3(BatmanConfig.THERMAL_RANGE.get(), 0, 0), life, p.getId(), pl.id, p);
-                level.playSound(null, at.x, at.y, at.z, ModSounds.BATMAN_MINE.get(), SoundSource.PLAYERS, 1f, 1.5f);
-                level.playSound(null, at.x, at.y, at.z, SoundEvents.BEACON_ACTIVATE, SoundSource.PLAYERS, .8f, 1.8f);
-            }
+            default -> {}
         }
     }
 
@@ -410,6 +414,15 @@ public final class BatmanController {
             s.cooldowns[CD_GRAPNEL] = BatmanConfig.CD_GRAPNEL.get();
         }
     }
+    /** E while pulled: the line is let go mid-flight; his client keeps the momentum and adds a hop up. */
+    private static void letGo(ServerPlayer p, State s) {
+        endHook(p, s, false);
+        set(s, IDLE);
+        s.noFall = true;
+        s.cooldowns[CD_GRAPNEL] = BatmanConfig.CD_GRAPNEL.get();
+        sound(p, ModSounds.BATMAN_CAPE.get(), .7f, 1.1f);
+        sound(p, SoundEvents.CROSSBOW_LOADING_END, .5f, 1.6f);
+    }
     private static void endHook(ServerPlayer p, State s, boolean arrived) {
         s.hook = 0; s.hookEntity = null;
         fx(p, FX_HOOK_END, s.hookPos == null ? p.position() : s.hookPos, Vec3.ZERO, arrived ? 1 : 0, -1, p.getId());
@@ -435,7 +448,12 @@ public final class BatmanController {
             at(p, t.position(), SoundEvents.PLAYER_ATTACK_KNOCKBACK, .9f, .7f);
             at(p, t.position(), SoundEvents.GRAVEL_BREAK, 1f, .6f);
         }
-        if (s.age == YANK_DOWN + DRAG_TICKS && s.hook == 4) { endHook(p, s, false); s.yankTarget = null; }
+        if (s.age == YANK_DOWN + DRAG_TICKS && s.hook == 4) {
+            // He lets go of the line; it stays wound round them (they cannot move until they break free).
+            if (live) BatmanBind.bind(t, p);
+            endHook(p, s, false);
+            s.yankTarget = null;
+        }
         if (s.age >= YANK_TICKS) {
             if (s.hook == 4) endHook(p, s, false);
             s.yankTarget = null;
@@ -484,9 +502,9 @@ public final class BatmanController {
 
     // ------------------------------------------------------------------ CTRL: the roll
     private static void dodge(ServerPlayer p, State s, float yaw) {
-        if (s.action == GRAPNEL_PULL || s.action == GRAPNEL_STRIKE || s.action == GRAPNEL_FIRE || s.action == DODGE) return;
+        if (s.action == GRAPNEL_PULL || s.action == GRAPNEL_STRIKE || s.action == GRAPNEL_FIRE || s.action == DODGE || s.action == CANNON) return;
         if (s.cooldowns[CD_DODGE] > 0) return;
-        s.cooldowns[CD_DODGE] = BatmanConfig.CD_DODGE.get() + DODGE_TICKS;
+        s.cooldowns[CD_DODGE] = Math.max(BatmanConfig.CD_DODGE.get(), DODGE_TICKS + 2);
         s.dodgeYaw = yaw; s.aiming = false; s.charging = false; s.gliding = false;
         set(s, DODGE);
         fx(p, FX_DODGE, p.position(), Vec3.ZERO, yaw, p.getId(), 0);
@@ -522,6 +540,8 @@ public final class BatmanController {
             case GRAPNEL_STRIKE -> strikeTick(p, s);
             case GRAPNEL_YANK -> yankTick(p, s);
             case WHEEL -> { if (!s.wheel) set(s, IDLE); }
+            case CANNON -> BatmanCannon.tick(p, s);
+            case SONIC -> BatmanSonic.tick(p, s);
             default -> {}
         }
         hookTick(p, s);
@@ -608,7 +628,7 @@ public final class BatmanController {
             if (c.owner.isRemoved() || ++c.age > c.life) { it.remove(); continue; }
             if (c.age % 5 != 0) continue;
             double r = c.radius;
-            for (LivingEntity t : c.owner.level().getEntitiesOfClass(LivingEntity.class, new AABB(c.at, c.at).inflate(r, r, r), t -> t != c.owner && t.isAlive())) {
+            for (LivingEntity t : c.owner.level().getEntitiesOfClass(LivingEntity.class, new AABB(c.at, c.at).inflate(r, Math.min(r, 8), r), t -> t != c.owner && t.isAlive())) {
                 if (!c.inside(t)) continue;
                 // Inside the smoke: blind, coughing, lost; he is not.
                 if (t instanceof Player) t.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, 30, 0, false, false, true));
@@ -630,11 +650,11 @@ public final class BatmanController {
             }
             double trig = BatmanConfig.MINE_TRIGGER.get();
             LivingEntity near = null;
-            for (LivingEntity t : p.level().getEntitiesOfClass(LivingEntity.class, new AABB(m.at, m.at).inflate(trig, 2, trig), t -> targetable(p, t)))
+            for (LivingEntity t : p.level().getEntitiesOfClass(LivingEntity.class, new AABB(m.at, m.at).inflate(trig, 2.5, trig), t -> targetable(p, t)))
                 if (t.position().distanceTo(m.at) < trig) { near = t; break; }
             if (near == null) continue;
             // Set off: a sharp blast that throws them up into the air.
-            double radius = trig + 1;
+            double radius = Math.max(trig, BatmanConfig.MINE_RADIUS.get());
             for (LivingEntity t : p.level().getEntitiesOfClass(LivingEntity.class, new AABB(m.at, m.at).inflate(radius), t -> targetable(p, t))) {
                 double d = t.position().distanceTo(m.at);
                 if (d > radius) continue;
@@ -649,7 +669,7 @@ public final class BatmanController {
                 do { y += vy; vy = (vy - .08) * .98; air++; } while (y > 0 && air < 200);
                 BatmanStagger.apply(t, air + 8);
             }
-            fxAt(m.at, FX_MINE_BOOM, m.at, Vec3.ZERO, 1, -1, m.id, p);
+            fxAt(m.at, FX_MINE_BOOM, m.at, Vec3.ZERO, (float) radius, -1, m.id, p);
             p.level().playSound(null, m.at.x, m.at.y, m.at.z, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 1.2f, 1.3f);
             p.level().playSound(null, m.at.x, m.at.y, m.at.z, ModSounds.FX_ENERGY_BOOM.get(), SoundSource.PLAYERS, .8f, 1.4f);
             it.remove();
@@ -695,10 +715,10 @@ public final class BatmanController {
     }
 
     // ------------------------------------------------------------------ helpers
-    private static boolean targetable(ServerPlayer p, LivingEntity t) {
+    static boolean targetable(ServerPlayer p, LivingEntity t) {
         return t != p && t.isAlive() && !t.isSpectator() && (BatmanConfig.FRIENDLY_FIRE.get() || !(t instanceof Player other && p.isAlliedTo(other)));
     }
-    private static void hurt(ServerPlayer p, LivingEntity t, float damage) {
+    static void hurt(ServerPlayer p, LivingEntity t, float damage) {
         if (damage <= 0) return;
         // A staggered one takes a critical, and the stagger ends.
         if (BatmanStagger.consume(t)) {
@@ -710,12 +730,12 @@ public final class BatmanController {
         t.invulnerableTime = 0;
         t.hurt(p.damageSources().playerAttack(p), damage);
     }
-    private static Vec3 flat(Vec3 v) {
+    static Vec3 flat(Vec3 v) {
         Vec3 f = new Vec3(v.x, 0, v.z);
         return f.lengthSqr() < 1e-6 ? new Vec3(0, 0, 1) : f.normalize();
     }
     /** The one in front of him to hit: in reach, inside the cone (cos), the nearest to his line of sight first. */
-    private static LivingEntity inFront(ServerPlayer p, double reach, double cos) {
+    static LivingEntity inFront(ServerPlayer p, double reach, double cos) {
         Vec3 eye = p.getEyePosition(), look = flat(p.getLookAngle());
         LivingEntity best = null;
         double bestScore = -1e9;
@@ -731,7 +751,7 @@ public final class BatmanController {
         }
         return best;
     }
-    private static Vec3 aimPoint(ServerPlayer p, double range) {
+    static Vec3 aimPoint(ServerPlayer p, double range) {
         Vec3 eye = p.getEyePosition(), end = eye.add(p.getLookAngle().scale(range));
         BlockHitResult bh = p.level().clip(new ClipContext(eye, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, p));
         Vec3 stop = bh.getType() == HitResult.Type.MISS ? end : bh.getLocation();
@@ -739,7 +759,7 @@ public final class BatmanController {
         if (eh != null) return eh.getEntity().getBoundingBox().getCenter();
         return stop;
     }
-    private static Vec3 ground(ServerLevel level, Vec3 at) {
+    static Vec3 ground(ServerLevel level, Vec3 at) {
         BlockPos base = BlockPos.containing(at);
         for (int dy = 1; dy >= -6; dy--) {
             BlockPos pos = base.above(dy);
@@ -750,12 +770,12 @@ public final class BatmanController {
         return at;
     }
     /** About where his hand is (side 0 right), for things leaving it. */
-    private static Vec3 hand(ServerPlayer p, int side) {
+    static Vec3 hand(ServerPlayer p, int side) {
         float yaw = p.getYRot() * Mth.DEG_TO_RAD;
         Vec3 right = new Vec3(-Mth.cos(yaw), 0, -Mth.sin(yaw)).scale(side == 0 ? .4 : -.4);
         return p.getEyePosition().add(0, -.35, 0).add(right).add(p.getLookAngle().scale(.55));
     }
-    private static Vec3 muzzle(ServerPlayer p) { return hand(p, 0).add(p.getLookAngle().scale(.35)).add(0, .1, 0); }
+    static Vec3 muzzle(ServerPlayer p) { return hand(p, 0).add(p.getLookAngle().scale(.35)).add(0, .1, 0); }
 
     // ------------------------------------------------------------------ sync
     private static void send(ServerPlayer p, State s) {
@@ -769,15 +789,15 @@ public final class BatmanController {
         ModNetworking.CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> p), new BatmanFxPacket(kind, pos, dir, power, entity, id));
     }
     /** An effect at a place (a cloud, a mine): everyone near that place sees it (and he does). */
-    private static void fxAt(Vec3 at, int kind, Vec3 pos, Vec3 dir, float power, int entity, int id, ServerPlayer owner) {
+    static void fxAt(Vec3 at, int kind, Vec3 pos, Vec3 dir, float power, int entity, int id, ServerPlayer owner) {
         var packet = new BatmanFxPacket(kind, pos, dir, power, entity, id);
         ModNetworking.CHANNEL.send(PacketDistributor.NEAR.with(() -> new PacketDistributor.TargetPoint(at.x, at.y, at.z, 96, owner.level().dimension())), packet);
         if (owner.position().distanceTo(at) > 96) ModNetworking.CHANNEL.send(PacketDistributor.PLAYER.with(() -> owner), packet);
     }
-    private static void sound(ServerPlayer p, SoundEvent sound, float volume, float pitch) {
+    static void sound(ServerPlayer p, SoundEvent sound, float volume, float pitch) {
         p.level().playSound(null, p.getX(), p.getY(), p.getZ(), sound, SoundSource.PLAYERS, volume, pitch);
     }
-    private static void at(ServerPlayer p, Vec3 at, SoundEvent sound, float volume, float pitch) {
+    static void at(ServerPlayer p, Vec3 at, SoundEvent sound, float volume, float pitch) {
         p.level().playSound(null, at.x, at.y, at.z, sound, SoundSource.PLAYERS, volume, pitch);
     }
 }

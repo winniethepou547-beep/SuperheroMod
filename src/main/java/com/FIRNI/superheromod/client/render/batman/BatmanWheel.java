@@ -14,14 +14,17 @@ import java.util.Locale;
 import static com.FIRNI.superheromod.heroes.batman.BatmanAction.*;
 
 /**
- * Batman's HUD drawings: the gadget wheel (Arkham / Spider-Man 2 style: a dark glass disc, four sectors with their
+ * Batman's HUD drawings: the gadget wheel (Arkham / Spider-Man 2 style: a dark glass disc, five sectors with their
  * icons, the one under the cursor lit cyan, the picked one marked, its name and cooldown in the middle), the bat
  * emblem and the Batarang icon of the belt. Flat vector shapes drawn as triangle fans.
  */
 public final class BatmanWheel {
     private BatmanWheel() {}
     static final int CYAN = 0xFF5FD6FF, GLASS = 0xC0101820, RIM = 0xFF2B4A5A;
-    private static final String[] INFO = {"Geniş sis: içindekiler seni göremez", "Yakındakileri kör eder", "Duvar arkasını gösterir", "Yaklaşanı havaya uçurur"};
+    private static final String[] INFO = {"Geniş kara sis: içindekiler göremez, sen termalle görürsün", "Yakındakileri kör eder", "Yaklaşanı havaya uçurur",
+            "4 sn iki bilekten seri atış, nişangâhı izler", "İki sonik verici yerden çıkar, hedefi sersemletir"};
+    /** Degrees each sector spans. */
+    static final float SECTOR = 360f / GADGETS;
 
     /** The classic bat outline (unit size, centred, y down): wings with three scallops, the head with ears. */
     private static final float[] BAT = {
@@ -42,7 +45,7 @@ public final class BatmanWheel {
         HudStyle.arc(g, cx, cy, r, r + 2, 0, 360, HudStyle.alpha(RIM, k));
         HudStyle.arc(g, cx, cy, r * .42f, r * .42f + 1, 0, 360, HudStyle.alpha(RIM, k));
         for (int i = 0; i < GADGETS; i++) {
-            float mid = -90 + i * 90, a0 = mid - 43, a1 = mid + 43;
+            float mid = -90 + i * SECTOR, a0 = mid - SECTOR / 2 + 2, a1 = mid + SECTOR / 2 - 2;
             boolean hot = i == hovered, picked = i == s.gadget;
             int sector = hot ? HudStyle.alpha(CYAN, .32f * k) : HudStyle.alpha(0x30FFFFFF, .5f * k);
             HudStyle.arc(g, cx, cy, r * .45f, r - 2, a0, a1, sector);
@@ -71,7 +74,7 @@ public final class BatmanWheel {
         g.pose().popPose();
     }
 
-    /** A gadget's icon: smoke (three puffs), flash (a star burst), thermal (a target in rings), mine (a disc with its light). */
+    /** A gadget's icon: smoke (puffs), flash (a star burst), mine (a disc with its light), wrist cannon (two gauntlets firing), sonic trap (an emitter and its waves). */
     static void icon(GuiGraphics g, int gadget, float x, float y, float s, int col, float time) {
         switch (gadget) {
             case G_SMOKE -> {
@@ -89,12 +92,26 @@ public final class BatmanWheel {
                 }
                 fan(g, x, y, star, 1, col);
             }
-            case G_THERMAL -> {
-                HudStyle.arc(g, x, y, s * .82f, s, 0, 360, col);
-                HudStyle.arc(g, x, y, s * .45f, s * .6f, 0, 360, col);
-                disc(g, x, y, s * .22f, col);
-                float sweep = (time * 12) % 360;
-                HudStyle.arc(g, x, y, s * .6f, s * .82f, sweep, sweep + 50, HudStyle.alpha(col, .6f));
+            case G_CANNON -> {
+                // Two gauntlets side by side, pointing up-right, a gold muzzle flash at each.
+                for (int k = 0; k < 2; k++) {
+                    float ox = x - s * .45f + k * s * .5f, oy = y + s * .3f - k * s * .25f;
+                    fan(g, ox, oy, new float[]{-.22f, .55f, .22f, .55f, .3f, -.2f, .12f, -.45f, -.12f, -.45f, -.3f, -.2f}, s, col);
+                    float f = (int) (time / 2 + k) % 2 == 0 ? 1 : .55f;
+                    disc(g, ox + s * .05f, oy - s * .62f, s * .2f * f, HudStyle.alpha(0xFFFFD34A, .9f));
+                }
+            }
+            case G_SONIC -> {
+                // The emitter's round chamber on its post, waves going out from it.
+                g.fill((int) (x - s * .12f), (int) (y + s * .1f), (int) (x + s * .12f), (int) (y + s * .85f), col);
+                g.fill((int) (x - s * .45f), (int) (y + s * .75f), (int) (x + s * .45f), (int) (y + s * .9f), col);
+                HudStyle.arc(g, x, y - s * .15f, s * .32f, s * .48f, 0, 360, col);
+                disc(g, x, y - s * .15f, s * .14f, HudStyle.alpha(0xFFDFF4FF, .9f));
+                float w = (time * .08f) % 1;
+                for (int k = 0; k < 2; k++) {
+                    float r = s * (.62f + .38f * ((w + k * .5f) % 1));
+                    HudStyle.arc(g, x, y - s * .15f, r, r + 1.1f, -50, 50, HudStyle.alpha(col, 1 - (w + k * .5f) % 1));
+                }
             }
             default -> {
                 disc(g, x, y, s * .9f, HudStyle.alpha(col, .45f));
@@ -113,27 +130,33 @@ public final class BatmanWheel {
         fan(g, x, y, BAT, s, bat);
     }
     /** A Batarang icon, filled from the bottom up to fill (0..1). */
-    public static void batarang(GuiGraphics g, float x, float y, float s, int col, float fill) {
-        if (fill >= .999f) { fan(g, x, y, RANG, s, col); return; }
-        // Cut the shape at the fill line (y down: keep what lies below it).
-        float line = .4f - fill * (.4f + .55f);
-        float[] cut = new float[RANG.length * 2 + 4];
+    public static void batarang(GuiGraphics g, float x, float y, float s, int col, float fill) { filled(g, x, y, s, RANG, col, fill); }
+    /** The plain bat symbol (the belt's count), filled from the bottom up to fill (0..1). */
+    public static void bat(GuiGraphics g, float x, float y, float s, int col, float fill) { filled(g, x, y, s, BAT, col, fill); }
+    /** A shape filled from the bottom up to fill (0..1): the outline cut at the fill line, the part below it drawn. */
+    private static void filled(GuiGraphics g, float x, float y, float s, float[] shape, int col, float fill) {
+        if (fill >= .999f) { fan(g, x, y, shape, s, col); return; }
+        if (fill <= .001f) return;
+        float top = 1e9f, bottom = -1e9f;
+        for (int i = 1; i < shape.length; i += 2) { top = Math.min(top, shape[i]); bottom = Math.max(bottom, shape[i]); }
+        // y down: keep what lies below the line.
+        float line = bottom - fill * (bottom - top);
+        float[] cut = new float[shape.length * 2 + 4];
         int n = 0;
-        for (int i = 0; i < RANG.length / 2; i++) {
-            float ax = RANG[i * 2], ay = RANG[i * 2 + 1], bx = RANG[(i * 2 + 2) % RANG.length], by = RANG[(i * 2 + 3) % RANG.length];
+        for (int i = 0; i < shape.length / 2; i++) {
+            float ax = shape[i * 2], ay = shape[i * 2 + 1], bx = shape[(i * 2 + 2) % shape.length], by = shape[(i * 2 + 3) % shape.length];
             boolean ain = ay >= line, bin = by >= line;
             if (ain) { cut[n++] = ax; cut[n++] = ay; }
             if (ain != bin) { float t = (line - ay) / (by - ay); cut[n++] = ax + (bx - ax) * t; cut[n++] = line; }
         }
-        if (n >= 6) {
-            float[] pts = new float[n];
-            System.arraycopy(cut, 0, pts, 0, n);
-            float mx = 0, my = 0;
-            for (int i = 0; i < n / 2; i++) { mx += pts[i * 2]; my += pts[i * 2 + 1]; }
-            mx /= n / 2f; my /= n / 2f;
-            for (int i = 0; i < n / 2; i++) { pts[i * 2] -= mx; pts[i * 2 + 1] -= my; }
-            fan(g, x + mx * s, y + my * s, pts, s, col);
-        }
+        if (n < 6) return;
+        float[] pts = new float[n];
+        System.arraycopy(cut, 0, pts, 0, n);
+        float mx = 0, my = 0;
+        for (int i = 0; i < n / 2; i++) { mx += pts[i * 2]; my += pts[i * 2 + 1]; }
+        mx /= n / 2f; my /= n / 2f;
+        for (int i = 0; i < n / 2; i++) { pts[i * 2] -= mx; pts[i * 2 + 1] -= my; }
+        fan(g, x + mx * s, y + my * s, pts, s, col);
     }
     static void disc(GuiGraphics g, float x, float y, float r, int col) { HudStyle.arc(g, x, y, 0, r, 0, 360, col); }
 

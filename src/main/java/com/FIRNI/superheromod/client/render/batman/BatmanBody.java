@@ -44,7 +44,9 @@ public final class BatmanBody {
             SKIN = {.80f, .62f, .52f}, SKIN_SHADE = {.63f, .47f, .39f}, MOUTH = {.40f, .24f, .21f}, EYE_SOCKET = {.02f, .02f, .025f},
             GOLD = {.82f, .63f, .17f}, GOLD_DARK = {.52f, .38f, .09f}, GOLD_LIGHT = {.96f, .82f, .38f}, LENS = {.84f, .93f, 1f};
     /** What a hand holds while it is drawn (set by whoever draws him, per side: 0 right, 1 left). */
-    public static final int HOLD_NONE = 0, HOLD_GUN = 1, HOLD_BATARANG = 2, HOLD_FAN = 3, HOLD_PELLET = 4, HOLD_MINE = 5;
+    public static final int HOLD_NONE = 0, HOLD_GUN = 1, HOLD_BATARANG = 2, HOLD_FAN = 3, HOLD_PELLET = 4, HOLD_MINE = 5, HOLD_REMOTE = 6;
+    /** How far each wrist cannon is open (side 0 right, 1 left; 0 = plain gauntlet), set by the layer per draw. */
+    public static final float[] CANNON = {0, 0};
     public static final int[] HOLD = {HOLD_NONE, HOLD_NONE};
     /** The held thing's number: the fan's count, the pellet's gadget, the gun's hook out (0..1), the mine's blink. */
     public static final float[] HOLD_ARG = {0, 0};
@@ -337,6 +339,7 @@ public final class BatmanBody {
         part(p, b, light, 0, 2.4f, -2.1f, 2.4f, 3.6f, .35f, ARMOR_HI);
         part(p, b, light, 0, 4.45f, 0, 4.5f, .5f, 4.5f, ARMOR_HI);
         fins(p, b, light, s);
+        if (CANNON[side] > 0) BatmanCannonFx.gauntlet(p, b, light, side, CANNON[side]);
     }
     /** Four short scalloped blades along the outer forearm, raked back toward the elbow, shorter toward the wrist. */
     private static void fins(PoseStack p, MultiBufferSource b, int light, int s) {
@@ -412,6 +415,7 @@ public final class BatmanBody {
                 px(p, s * -.3f, 2.4f, -.6f);
                 BatmanGear.pellet(p, v, light, Math.round(arg));
             }
+            case HOLD_REMOTE -> BatmanSonicFx.drawRemote(p, v, light, s, arg);
             case HOLD_MINE -> {
                 px(p, s * -.9f, 2.4f, 0);
                 p.mulPose(Axis.ZP.rotation(s * Mth.HALF_PI));

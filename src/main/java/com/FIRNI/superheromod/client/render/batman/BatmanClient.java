@@ -81,14 +81,15 @@ public final class BatmanClient {
     private static final Map<Integer, State> STATES = new HashMap<>();
 
     // his own input
-    private static boolean rDown, eDown, ctrlDown, glideSent, qDown;
+    private static boolean rDown, eDown, ctrlDown, glideSent;
     private static int rHeld;
     private static boolean wheelOpen;
     private static float wheelX, wheelY, lockYaw, lockPitch, wheelShown;
     private static int hovered = -1;
     // his own moves, steered here
     private static long dodgeStart = -100, pullStart = -100, strikeStart = -100;
-    private static boolean pop;
+    private static boolean pop, letGo, shiftRun;
+    private static long letGoAt = -100;
     private static float dodgeWorldYaw;
     private static Vec3 strikeDir = new Vec3(0, 0, 1);
     private static int strikeTarget = -1;
@@ -162,15 +163,15 @@ public final class BatmanClient {
             while (mc.options.keyAttack.consumeClick()) pick = true;
             if (pick && hovered >= 0) { send(IN_GADGET_SELECT, hovered, 0); closeWheel(false); rHeld = TAP_TICKS + 99; }
         }
-        // Q: the thermal vision on / off (it also comes on by itself in his own smoke and with the sensor).
-        boolean q = AbilityKeyHandler.KEY_ULTIMATE.isDown();
-        if (q && !qDown) BatmanThermal.toggle();
-        qDown = q;
         // E: the grapnel gun out / away.
         boolean clicked = false;
         while (mc.options.keyInventory.consumeClick()) clicked = true;
         boolean ed = mc.options.keyInventory.isDown() || clicked;
-        if (ed && !eDown) send(IN_GRAPNEL_TOGGLE, 0, 0);
+        if (ed && !eDown) {
+            // Pulled along the line: E lets go (the hop is thrown here at once, the server follows).
+            if (s != null && s.action == GRAPNEL_PULL && now() - letGoAt > 10) { letGo = true; letGoAt = now(); }
+            send(IN_GRAPNEL_TOGGLE, 0, 0);
+        }
         eDown = ed;
         // CTRL: the roll, toward where he is moving (forward when standing).
         long win = mc.getWindow().getWindow();
@@ -185,7 +186,7 @@ public final class BatmanClient {
         }
         ctrlDown = ctrl;
         // SPACE held in the air (falling): the cape spreads.
-        boolean busyMove = s != null && (s.action == GRAPNEL_PULL || s.action == GRAPNEL_STRIKE || s.action == DODGE);
+        boolean busyMove = s != null && (s.action == GRAPNEL_PULL && now() - letGoAt > 6 || s.action == GRAPNEL_STRIKE || s.action == DODGE);
         boolean want = mc.options.keyJump.isDown() && !p.onGround() && !p.isInWater() && !p.getAbilities().flying && !busyMove
                 && (glideSent || p.getDeltaMovement().y < -.08);
         if (want != glideSent) { send(want ? IN_GLIDE_ON : IN_GLIDE_OFF, 0, 0); glideSent = want; }
@@ -211,9 +212,9 @@ public final class BatmanClient {
         float len = Mth.sqrt(wheelX * wheelX + wheelY * wheelY);
         if (len > 30) { wheelX *= 30 / len; wheelY *= 30 / len; }
         if (len > 6) {
-            // Clockwise from the top: smoke, flash, thermal, mine.
+            // Clockwise from the top: smoke, flash, mine, wrist cannon, sonic trap.
             double a = Math.atan2(wheelX, -wheelY);
-            hovered = Math.floorMod((int) Math.round(a / (Math.PI / 2)), GADGETS);
+            hovered = Math.floorMod((int) Math.round(a / (Math.PI * 2 / GADGETS)), GADGETS);
         }
         p.setYRot(lockYaw); p.yRotO = lockYaw; p.setXRot(lockPitch); p.xRotO = lockPitch; p.yHeadRot = lockYaw;
         e.setYaw(lockYaw); e.setPitch(lockPitch);
@@ -230,17 +231,27 @@ public final class BatmanClient {
         long now = now();
         var input = e.getInput();
         Vec3 v = p.getDeltaMovement();
-        // The roll: a burst along the chosen way, easing out.
+        // The roll (Elden Ring style): a dive off the front foot (a low hop forward), over the shoulder along the
+        // ground and up, carried a long way and easing out at the end.
         float dt = now - dodgeStart;
         if (dt >= 0 && dt < DODGE_TICKS) {
-            double k = 1 - dt / DODGE_TICKS, speed = DODGE_DIST / DODGE_TICKS * 1.7 * k;
+            double k = 1 - .75 * dt / DODGE_TICKS, speed = DODGE_DIST / DODGE_TICKS * 1.55 * k;
             Vec3 dir = new Vec3(-Mth.sin(dodgeWorldYaw), 0, Mth.cos(dodgeWorldYaw));
-            p.setDeltaMovement(dir.x * speed, Math.min(v.y, p.onGround() ? 0 : v.y), dir.z * speed);
+            double vy = dt < 1 && p.onGround() ? .24 : Math.min(v.y, p.onGround() ? 0 : v.y);
+            p.setDeltaMovement(dir.x * speed, vy, dir.z * speed);
             input.forwardImpulse = input.leftImpulse = 0; input.jumping = false;
             return;
         }
+        // E while pulled: let go, carried on by the pull and hopping up out of it.
+        if (letGo) {
+            letGo = false; pullStart = -100;
+            p.setDeltaMovement(v.x * 1.1, Math.max(v.y, 0) + .78, v.z * 1.1);
+            p.fallDistance = 0;
+            fovKick = Math.min(1, fovKick + .3f);
+            return;
+        }
         // Pulled along the line: faster and faster toward the hook.
-        if (s.action == GRAPNEL_PULL && s.hook != null) {
+        if (s.action == GRAPNEL_PULL && s.hook != null && now - letGoAt > 6) {
             if (pullStart < 0 || now - pullStart > 120) pullStart = now;
             float age = now - pullStart;
             Vec3 to = s.hook.subtract(p.position().add(0, 1, 0));
@@ -270,19 +281,36 @@ public final class BatmanClient {
         }
         // Arrived at a ledge: a small hop up over it.
         if (pop) { pop = false; p.setDeltaMovement(p.getLookAngle().x * .25, .55, p.getLookAngle().z * .25); return; }
-        // The glide: forward along the view, sinking slowly; diving (looking down) trades height for speed.
+        // The glide: carried forward along the view like a wingsuit, sinking slowly; only a steep dive (looking well
+        // down) trades height for speed. The game's own gravity and air drag are taken back out of the velocity first
+        // (they were added after last tick's move), so the glide is what this sets, not a fall fighting it.
         if (glideSent && !p.onGround()) {
             float pitch = p.getXRot() * Mth.DEG_TO_RAD;
-            double dive = Math.max(0, Math.sin(pitch) - .25), climb = Math.max(0, -Math.sin(pitch));
-            double speed = GLIDE_SPEED * (1 + dive * GLIDE_DIVE * 1.6) * (1 - climb * .35);
-            double sink = GLIDE_SINK + dive * .55 - climb * .03;
+            double dive = Math.max(0, Math.sin(pitch) - .5) / .5, climb = Math.max(0, -Math.sin(pitch));
+            double speed = GLIDE_SPEED * (1 + dive * GLIDE_DIVE) * (1 - climb * .3);
+            double sink = GLIDE_SINK + dive * .4 + climb * .02;
             float yaw = p.getYRot() * Mth.DEG_TO_RAD;
-            Vec3 want = new Vec3(-Mth.sin(yaw) * speed, -Math.max(.03, sink), Mth.cos(yaw) * speed);
-            p.setDeltaMovement(v.lerp(want, .12));
+            Vec3 was = new Vec3(v.x / .91, v.y / .98 + .08, v.z / .91);
+            Vec3 want = new Vec3(-Mth.sin(yaw) * speed, -sink, Mth.cos(yaw) * speed);
+            // The cape catches the air at once (the fall is arrested quickly), the forward speed builds up smoothly.
+            Vec3 next = new Vec3(Mth.lerp(.1, was.x, want.x), Mth.lerp(.28, was.y, want.y), Mth.lerp(.1, was.z, want.z));
+            p.setDeltaMovement(next);
             p.fallDistance = 0;
             input.forwardImpulse = input.leftImpulse = 0;
             fovKick = Math.min(.6f, fovKick + .05f);
         }
+    }
+    /** SHIFT held is his run (the vanilla sneak is not used for him): sprinting, 1.3 times the walk. */
+    @SubscribeEvent public static void run(MovementInputUpdateEvent e) {
+        var mc = Minecraft.getInstance();
+        if (e.getEntity() != mc.player || !isHero(mc.player)) { shiftRun = false; return; }
+        var p = mc.player;
+        var keys = e.getInput();
+        boolean shift = keys.shiftKeyDown;
+        keys.shiftKeyDown = false;
+        boolean moving = keys.forwardImpulse > .1f;
+        if (shift && moving && !p.isInWater() && !BatmanBound.bound()) { p.setSprinting(true); shiftRun = true; }
+        else if (shiftRun && (!shift || !moving)) { shiftRun = false; p.setSprinting(false); }
     }
     /** His clicks are his own: no vanilla swing, mining or item use alongside. */
     @SubscribeEvent public static void clicks(net.minecraftforge.client.event.InputEvent.InteractionKeyMappingTriggered e) {
@@ -304,7 +332,7 @@ public final class BatmanClient {
         e.setNewFovModifier(Mth.lerp(.6f, e.getFovModifier(), 1f) * (1 + .12f * fovKick));
     }
     @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) {
-        STATES.clear(); wheelOpen = false; rDown = eDown = ctrlDown = glideSent = qDown = false; rHeld = 0;
+        STATES.clear(); wheelOpen = false; rDown = eDown = ctrlDown = glideSent = shiftRun = letGo = false; rHeld = 0;
     }
 
     // ------------------------------------------------------------------ HUD
@@ -333,32 +361,27 @@ public final class BatmanClient {
         hint(g, font, mc.options.keyInventory, s.aiming() ? "Kanca: hazır (sol tık)" : "Kanca", s.cooldowns[CD_GRAPNEL], s.aiming(), 10, row + 12);
         hintRaw(g, font, "CTRL", "Takla", s.cooldowns[CD_DODGE], s.action == DODGE, 10, row + 24);
         hint(g, font, mc.options.keyJump, "Pelerinle Süzül (havada basılı)", 0, s.gliding(), 10, row + 36);
-        hint(g, font, AbilityKeyHandler.KEY_ULTIMATE, "Termal Görüş", 0, BatmanThermal.amount() > .5f, 10, row + 48);
-        belt(g, font, s, w, h, time);
+        hint(g, font, mc.options.keyShift, "Koş (basılı)", 0, mc.player.isSprinting(), 10, row + 48);
+        belt(g, s, 14, row - 46, time);
         if (s.aiming()) reticle(g, font, mc, w, h, time);
         wheelShown = Mth.clamp(wheelShown + (wheelOpen ? .25f : -.25f), 0, 1);
         if (wheelShown > 0) BatmanWheel.draw(g, font, s, w / 2f, h / 2f, wheelShown, hovered, wheelX, wheelY, time);
     }
     /**
-     * The Batarang belt beside the crosshair (Rivals' tracer pips): a bat emblem and five Batarang icons, lit for each
-     * one he has, the next one filling back in; while a throw is held, the ones counted up glow.
+     * The Batarang count over the skill list: five thin plain bat symbols, white for each one he has, the next one
+     * filling back in from below; while a throw is held, the ones counted up glow gold.
      */
-    private static void belt(GuiGraphics g, Font font, State s, int w, int h, float time) {
-        float cx = w / 2f + 20, cy = h / 2f + 20;
-        g.pose().pushPose();
-        g.pose().translate(cx, cy, 0);
-        BatmanWheel.emblem(g, 0, 0, 7, HudStyle.alpha(0xFF101114, .85f), HudStyle.alpha(GOLD, .95f));
+    private static void belt(GuiGraphics g, State s, int x, int y, float time) {
+        float size = 7.5f, step = 19;
         for (int i = 0; i < BATARANG_MAX; i++) {
-            float x = 13 + i * 10, y = 0;
-            boolean has = i < s.batarangs;
-            boolean counted = s.charge > 0 && i < s.charge;
-            int col = counted ? HudStyle.alpha(0xFFFFFFFF, .75f + .25f * Mth.sin(time * 1.4f + i)) : has ? 0xFFE9E3D2 : 0x55FFFFFF;
+            float cx = x + size + i * step, cy = y;
+            boolean has = i < s.batarangs, counted = s.charge > 0 && i < s.charge;
+            int col = counted ? HudStyle.alpha(GOLD, .8f + .2f * Mth.sin(time * 1.4f + i)) : 0xFFF2F0EA;
             float fill = has ? 1 : i == s.batarangs ? s.refill : 0;
-            BatmanWheel.batarang(g, x, y, 4.2f, 0x60000000, 1);
-            if (fill > 0) BatmanWheel.batarang(g, x, y, 4.2f, col, fill);
-            else BatmanWheel.batarang(g, x, y, 4.2f, 0x40FFFFFF, 1);
+            BatmanWheel.bat(g, cx + .6f, cy + .8f, size, 0x90000000, 1);
+            BatmanWheel.bat(g, cx, cy, size, 0x38FFFFFF, 1);
+            if (fill > 0) BatmanWheel.bat(g, cx, cy, size, has ? col : HudStyle.alpha(col, .7f), fill);
         }
-        g.pose().popPose();
     }
     /** The grapnel reticle: cyan on a block in reach, red on a body (the strike), grey and crossed when out of reach. */
     private static void reticle(GuiGraphics g, Font font, Minecraft mc, int w, int h, float time) {

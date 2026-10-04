@@ -46,7 +46,8 @@ public final class BatmanLayer extends RenderLayer<AbstractClientPlayer, PlayerM
 
     private static final CapeCloth.Frame FRAME = new CapeCloth.Frame();
     /** The cape: long and wide, heavy, black, flaring toward a scalloped hem near the ground. */
-    public static final CapeCloth.Style CAPE = new CapeCloth.Style().length(1.42f).bottom(1.4f).wingBottom(.5f).thickness(.035f).weight(1.25f)
+    /** In the glide it opens into a big bat wing: past his hands, its hem corners well out beyond his feet (photo reference). */
+    public static final CapeCloth.Style CAPE = new CapeCloth.Style().length(1.42f).bottom(1.4f).wingBottom(1.15f).wingReach(1.38f, 2.1f).thickness(.035f).weight(1.25f)
             .scallop(.09f).folds(.045f).colours(new float[]{.05f, .05f, .056f}, new float[]{.028f, .028f, .032f}, new float[]{.075f, .075f, .082f});
 
     public BatmanLayer(RenderLayerParent<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> parent) { super(parent); }
@@ -207,7 +208,7 @@ public final class BatmanLayer extends RenderLayer<AbstractClientPlayer, PlayerM
         } else if (action == GRAPNEL_PULL) {
             float c = Mth.cos(elevation), sn = Mth.sin(elevation);
             BatmanMotion.aim(pose, 0, hook == null ? new float[]{0, -.7f, -.7f} : new float[]{0, -sn, -c}, aimIn);
-        }
+        } else if (action == CANNON && !shown) BatmanCannonFx.arms(pose, s, t, model.head.yRot, model.head.xRot);
         // The pose the next move fades from (without this frame's look, which is added again every frame).
         blend.last = pose.copy();
         blend.last.add(PELVIS_YAW, -addPelvis).add(SPINE_YAW, -addSpine).add(CHEST_YAW, -addChest).add(CHEST_PITCH, -addPitch);
@@ -224,6 +225,9 @@ public final class BatmanLayer extends RenderLayer<AbstractClientPlayer, PlayerM
         else if (action == BATARANG_MULTI && t < MULTI_AT) { hold(0, BatmanBody.HOLD_FAN, (charge + 1) / 2f); if (charge > 1) hold(1, BatmanBody.HOLD_FAN, charge / 2f); }
         else if (action == GADGET_THROW && t < GADGET_AT) hold(0, BatmanBody.HOLD_PELLET, s == null ? 0 : s.gadget);
         else if (action == MINE_PLACE && t < MINE_AT) hold(0, BatmanBody.HOLD_MINE, .4f);
+        float remote = shown || s == null ? -1 : BatmanSonicFx.remote(s, action, t);
+        if (remote >= 0 && BatmanBody.HOLD[1] == BatmanBody.HOLD_NONE) hold(1, BatmanBody.HOLD_REMOTE, remote);
+        BatmanBody.CANNON[0] = BatmanBody.CANNON[1] = shown || s == null ? 0 : BatmanCannonFx.deployed(s, action, t);
 
         // ---- draw: the body (reporting the cape's frame and the hands), then the cape
         BatmanBody.capture = true;
@@ -233,6 +237,7 @@ public final class BatmanLayer extends RenderLayer<AbstractClientPlayer, PlayerM
             BatmanBody.capture = false;
             hold(0, BatmanBody.HOLD_NONE, 0);
             hold(1, BatmanBody.HOLD_NONE, 0);
+            BatmanBody.CANNON[0] = BatmanBody.CANNON[1] = 0;
         }
         FRAME.spread = glide * (action == IDLE ? 1 : .35f) * (1 - .6f * dive);
         CapeCloth.draw(p, b, light, e, partial, e.getId(), FRAME, CAPE);

@@ -72,6 +72,8 @@ public final class BatmanMotion {
             case GRAPNEL_YANK -> yank(base).sample(t);
             case GRAPNEL_STRIKE -> strike(base, t);
             case DODGE -> roll(base, t, c.backRoll());
+            case CANNON -> BatmanCannonFx.pose(base, t, c.time());
+            case SONIC -> BatmanSonicFx.pose(base, t, c.time());
             default -> base;
         };
     }
@@ -330,13 +332,15 @@ public final class BatmanMotion {
 
     // ------------------------------------------------------------------ CTRL: the roll
     /**
-     * The combat roll (the layer turns the body to face along it): a dive forward into a tuck, one whole turn about the
-     * roll axis (forward, or backward for a roll straight back) close to the ground, up into the stance.
+     * The combat roll, Elden Ring style (the layer turns the body to face along it): launched off the front foot into a
+     * dive with the body stretched out forward and the arms reaching ahead (forward rolls), then one whole turn about the
+     * roll axis over the shoulder close to the ground (backward for a roll straight back), up into the stance.
      */
     static Pose roll(Pose base, float t, boolean back) {
-        float k = PantherMotion.clamp((t - .7f) / (DODGE_TICKS - 2.6f));
+        float start = back ? .7f : DODGE_DIVE * .7f;
+        float k = PantherMotion.clamp((t - start) / (DODGE_TICKS - start - 2.6f));
         float turn = .45f * k + .55f * ease(k);
-        float tuck = Mth.sin(Mth.PI * PantherMotion.clamp((t - .2f) / (DODGE_TICKS - 1.6f)));
+        float tuck = Mth.sin(Mth.PI * PantherMotion.clamp((t - start + .5f) / (DODGE_TICKS - start - 1.1f)));
         float dive = k(t, 0, .9f) * (1 - k(t, DODGE_TICKS - 2.2f, DODGE_TICKS));
         Pose p = base.copy();
         p.add(CROUCH, 3.2f * dive * (1 - tuck)).add(SPINE_PITCH, .45f * dive);
@@ -355,6 +359,19 @@ public final class BatmanMotion {
                     .arm(side, ARM_X, Mth.lerp(tuck, p.arm(side, ARM_X), -1.25f)).arm(side, ELBOW, Mth.lerp(tuck, p.arm(side, ELBOW), 1.7f))
                     .arm(side, ARM_Y, Mth.lerp(tuck, p.arm(side, ARM_Y), -.4f)).arm(side, ARM_Z, Mth.lerp(tuck, p.arm(side, ARM_Z), .15f))
                     .arm(side, CURL, Mth.lerp(tuck, p.arm(side, CURL), 1));
+        }
+        // The dive before the turn: stretched out forward off the front foot, the arms reaching ahead to take the ground.
+        float reach = back ? 0 : k(t, 0, 1.4f) * (1 - k(t, start - .3f, start + 1.6f));
+        if (reach > 0) {
+            p.add(ROOT_PITCH, .8f * reach).add(SPINE_PITCH, -.15f * reach).add(HEAD_PITCH, -.45f * reach).add(LIFT, .5f * reach)
+                    .set(PLANT, Mth.lerp(reach, p.get(PLANT), .2f));
+            for (int side = 0; side < 2; side++) {
+                p.arm(side, ARM_X, Mth.lerp(reach, p.arm(side, ARM_X), -2.55f)).arm(side, ELBOW, Mth.lerp(reach, p.arm(side, ELBOW), .35f))
+                        .arm(side, ARM_Z, Mth.lerp(reach, p.arm(side, ARM_Z), .25f)).arm(side, CURL, Mth.lerp(reach, p.arm(side, CURL), .4f));
+            }
+            p.leg(1, LEG_X, Mth.lerp(reach, p.leg(1, LEG_X), -.35f)).leg(1, KNEE, Mth.lerp(reach, p.leg(1, KNEE), .5f))
+                    .leg(0, LEG_X, Mth.lerp(reach, p.leg(0, LEG_X), .7f)).leg(0, KNEE, Mth.lerp(reach, p.leg(0, KNEE), .35f))
+                    .leg(0, ANKLE, Mth.lerp(reach, p.leg(0, ANKLE), .6f));
         }
         // Coming up: a low crouch that settles into the stance.
         float up = k(t, DODGE_TICKS - 2.6f, DODGE_TICKS - 1.2f) * (1 - k(t, DODGE_TICKS - 1, DODGE_TICKS + 3));
@@ -415,10 +432,13 @@ public final class BatmanMotion {
             p.legAdd(side, LEG_X, swing * (.5f * stroll + .95f * sprint) * legs)
                     .legAdd(side, KNEE, lift * (.5f * stroll + 1.35f * sprint) * legs)
                     .legAdd(side, ANKLE, Math.max(0, sg * cos) * .3f * sprint * legs);
-            p.armAdd(side, ARM_X, -swing * (.28f * stroll + .85f * sprint) * arms)
-                    .armAdd(side, ELBOW, (.12f * stroll + 1.1f * sprint) * arms).armAdd(side, ARM_Z, -.08f * sprint * arms).armAdd(side, CURL, .2f * sprint * arms);
+            // The run (Arkham): fists closed, elbows bent hard, the arms driving forward and back close to the body.
+            p.armAdd(side, ARM_X, (-swing * (.28f * stroll + 1.05f * sprint) - .25f * sprint) * arms)
+                    .armAdd(side, ELBOW, (.12f * stroll + 1.35f * sprint + .25f * sprint * Math.max(0, -swing)) * arms)
+                    .armAdd(side, ARM_Z, -.12f * sprint * arms).armAdd(side, CURL, .3f * sprint * arms);
         }
-        p.add(PLANT, -.5f * sprint * legs).add(SPINE_PITCH, (.05f * stroll + .16f * sprint) * legs).add(ROOT_PITCH, .14f * sprint * legs)
+        p.add(PLANT, -.5f * sprint * legs).add(SPINE_PITCH, (.05f * stroll + .2f * sprint) * legs).add(ROOT_PITCH, .24f * sprint * legs)
+                .add(HEAD_PITCH, -.2f * sprint * legs)
                 .add(LIFT, (.25f * stroll + .8f * sprint) * Math.abs(sin) * legs)
                 .add(CHEST_YAW, -(.05f * stroll + .12f * sprint) * cos * arms).add(PELVIS_YAW, (.04f * stroll + .09f * sprint) * cos * legs)
                 .add(CHEST_ROLL, .02f * cos * stroll * arms).add(CROUCH, (.3f * stroll + .5f * sprint) * legs);

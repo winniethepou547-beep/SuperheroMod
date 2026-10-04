@@ -5,9 +5,11 @@ package com.FIRNI.superheromod.heroes.batman;
  * animate it from the synced clock), with every animation-coupled timing in one place. Gameplay numbers a server owner
  * may want to change (damage, ranges, counts, cooldowns, durations) are in BatmanConfig.
  * Keys: left click punches (the combo speeds up click after click into a rapid flurry); right click throws a Batarang
- * (held: up to five, more the longer it is held); R held opens the gadget wheel (smoke, flash, thermal, mine), R tapped
- * uses the gadget picked; E takes out the grapnel gun (left click fires it at a block or a body, E again puts it away);
- * CTRL rolls (a short dodge, untouchable through it); SPACE held in the air spreads the cape and glides.
+ * (held: up to five, more the longer it is held); R held opens the gadget wheel (smoke, flash, mine, wrist cannon,
+ * sonic trap), R tapped uses the gadget picked; E takes out the grapnel gun (left click fires it at a block or a body,
+ * E again puts it away; E while pulled along the line lets go with a hop up); CTRL rolls (a diving forward roll,
+ * untouchable through it); SPACE held in the air spreads the cape and glides; SHIFT held runs. Thermal vision comes on
+ * by itself in his own smoke.
  * No super powers: everything is equipment and fighting skill.
  */
 public final class BatmanAction {
@@ -17,14 +19,19 @@ public final class BatmanAction {
     public static final int IDLE = 0, PUNCH = 1, BATARANG = 2, BATARANG_CHARGE = 3, BATARANG_MULTI = 4, GADGET_THROW = 5,
             MINE_PLACE = 6, GRAPNEL_AIM = 7, GRAPNEL_FIRE = 8, GRAPNEL_PULL = 9, GRAPNEL_STRIKE = 10, DODGE = 11, WHEEL = 12,
             /** Right click with the grapnel on a body: the line wraps their legs, his left hand hauls it in, they go down on their back. */
-            GRAPNEL_YANK = 13;
+            GRAPNEL_YANK = 13,
+            /** The dual wrist cannon (BatmanCannon): deploy, CANNON_FIRE ticks of aimed rapid fire, cool down and retract. */
+            CANNON = 14,
+            /** The sonic trap's remote (BatmanSonic): the remote raised, the red button pressed at SONIC_PRESS, lowered. */
+            SONIC = 15;
 
     // ------------------------------------------------------------------ cooldown slots
-    public static final int CD_SMOKE = 0, CD_FLASH = 1, CD_THERMAL = 2, CD_MINE = 3, CD_GRAPNEL = 4, CD_DODGE = 5, COOLDOWNS = 6;
+    public static final int CD_SMOKE = 0, CD_FLASH = 1, CD_MINE = 2, CD_CANNON = 3, CD_SONIC = 4, CD_GRAPNEL = 5, CD_DODGE = 6, COOLDOWNS = 7;
 
     // ------------------------------------------------------------------ gadgets (the wheel, clockwise from the top)
-    public static final int G_SMOKE = 0, G_FLASH = 1, G_THERMAL = 2, G_MINE = 3, GADGETS = 4;
-    public static final String[] GADGET_NAMES = {"Sis Bombası", "Flaş Bombası", "Termal Sensör", "Mayın"};
+    /** A gadget's cooldown slot is its own number (CD_SMOKE == G_SMOKE ...). */
+    public static final int G_SMOKE = 0, G_FLASH = 1, G_MINE = 2, G_CANNON = 3, G_SONIC = 4, GADGETS = 5;
+    public static final String[] GADGET_NAMES = {"Sis Bombası", "Flaş Bombası", "Mayın", "Bilek Topu", "Sonik Tuzak"};
 
     // ------------------------------------------------------------------ left click: the punches
     /**
@@ -56,6 +63,11 @@ public final class BatmanAction {
     /** A mine arms after MINE_ARM ticks. */
     public static final int MINE_ARM = 30;
 
+    /** The wrist cannon: both gauntlets open (CANNON_DEPLOY), CANNON_FIRE ticks of fire, cooling and closing (CANNON_RETRACT). */
+    public static final int CANNON_DEPLOY = 14, CANNON_FIRE = 80, CANNON_RETRACT = 18, CANNON_TICKS = CANNON_DEPLOY + CANNON_FIRE + CANNON_RETRACT;
+    /** The sonic trap's remote: raised, the button pressed at SONIC_PRESS, lowered by SONIC_TICKS. */
+    public static final int SONIC_PRESS = 9, SONIC_TICKS = 20;
+
     // ------------------------------------------------------------------ E: the grapnel
     /** The hook flies HOOK_SPEED blocks a tick; the slack line snaps taut over TAUT ticks; he is pulled at PULL_SPEED (accelerating from PULL_START). */
     public static final double HOOK_SPEED = 3.2, PULL_SPEED = 1.5, PULL_START = .4;
@@ -67,20 +79,26 @@ public final class BatmanAction {
      * hauls from YANK_PULL (the waist turning into it) and they are pulled off their feet at YANK_DOWN, then dragged
      * toward him (DRAG_TICKS, about DRAG_DIST blocks); they lie DOWN_TICKS in all before getting up; he recovers by YANK_TICKS.
      */
-    public static final int YANK_PULL = 3, YANK_DOWN = 5, YANK_TICKS = 22, DRAG_TICKS = 12, DOWN_TICKS = 26;
-    public static final double DRAG_DIST = 2.2;
+    public static final int YANK_PULL = 3, YANK_DOWN = 5, YANK_TICKS = 26, DRAG_TICKS = 18, DOWN_TICKS = 30;
+    public static final double DRAG_DIST = 4.4;
+    /** After the drag the line stays wound round them (BatmanBind): they cannot move until they break free. */
     /** Staggered (a stun): wobbling, slowed to 40 %, the next Batman blow lands as a critical (×STAGGER_CRIT). */
     public static final int STAGGER_TICKS = 30;
+    /** After a stagger ends the daze mark stays over their head this long more (they move freely then). */
+    public static final int DAZE_LINGER = 30;
     public static final float STAGGER_SLOW = .6f, STAGGER_CRIT = 1.5f;
 
     // ------------------------------------------------------------------ CTRL: the roll
-    /** The roll lasts DODGE_TICKS; untouchable from DODGE_SAFE_FROM to DODGE_SAFE_TO; it covers DODGE_DIST blocks. */
-    public static final int DODGE_TICKS = 9, DODGE_SAFE_FROM = 1, DODGE_SAFE_TO = 7;
-    public static final double DODGE_DIST = 4.2;
+    /**
+     * The roll (Elden Ring style): a dive forward off one foot (DODGE_DIVE ticks in the air), over the shoulder along
+     * the ground and up again by DODGE_TICKS; untouchable from DODGE_SAFE_FROM to DODGE_SAFE_TO; it covers DODGE_DIST blocks.
+     */
+    public static final int DODGE_TICKS = 16, DODGE_DIVE = 5, DODGE_SAFE_FROM = 1, DODGE_SAFE_TO = 12;
+    public static final double DODGE_DIST = 7.0;
 
     // ------------------------------------------------------------------ SPACE: the glide
     /** Gliding: forward speed, sink speed, and how much a dive (looking down) speeds him up. */
-    public static final double GLIDE_SPEED = .62, GLIDE_SINK = .075, GLIDE_DIVE = .9;
+    public static final double GLIDE_SPEED = .78, GLIDE_SINK = .045, GLIDE_DIVE = .9;
     /** Ticks for the cape to spread / fold. */
     public static final int CAPE_OPEN = 6;
 
@@ -89,10 +107,16 @@ public final class BatmanAction {
             FX_THERMAL = 6, FX_MINE = 7, FX_MINE_ARMED = 8, FX_MINE_BOOM = 9, FX_HOOK = 10, FX_HOOK_HIT = 11, FX_HOOK_END = 12,
             FX_STRIKE = 13, FX_DODGE = 14, FX_LAND = 15,
             /** Someone staggered (power = ticks), knocked down and dragged (dir = toward him, power = ticks), a critical hit. */
-            FX_STAGGER = 16, FX_DOWNED = 17, FX_CRIT = 18;
+            FX_STAGGER = 16, FX_DOWNED = 17, FX_CRIT = 18,
+            /** Bound by the grapnel line (entity = the bound one, power = ticks left, 0 = free; id = Batman). */
+            FX_BOUND = 19;
+    /** Effect kinds 20..29 belong to the wrist cannon (BatmanCannon / BatmanCannonFx), 30..39 to the sonic trap (BatmanSonic / BatmanSonicFx). */
+    public static final int FX_CANNON_FIRST = 20, FX_CANNON_LAST = 29, FX_SONIC_FIRST = 30, FX_SONIC_LAST = 39;
     /** What his own client tells the server (BatmanInputPacket). */
     public static final int IN_GLIDE_ON = 0, IN_GLIDE_OFF = 1, IN_DODGE = 2, IN_GADGET_SELECT = 3, IN_GADGET_USE = 4,
-            IN_GRAPNEL_TOGGLE = 5, IN_GRAPNEL_FIRE = 6, IN_WHEEL_OPEN = 7, IN_WHEEL_CLOSE = 8;
+            IN_GRAPNEL_TOGGLE = 5, IN_GRAPNEL_FIRE = 6, IN_WHEEL_OPEN = 7, IN_WHEEL_CLOSE = 8,
+            /** A click of someone bound by his line, to break free (sent by anyone bound, Batman or not). */
+            IN_BREAK_FREE = 9;
 
     private BatmanAction() {}
 
@@ -106,6 +130,8 @@ public final class BatmanAction {
             case GRAPNEL_STRIKE -> STRIKE_TICKS;
             case GRAPNEL_YANK -> YANK_TICKS;
             case DODGE -> DODGE_TICKS;
+            case CANNON -> CANNON_TICKS;
+            case SONIC -> SONIC_TICKS;
             default -> 0;
         };
     }

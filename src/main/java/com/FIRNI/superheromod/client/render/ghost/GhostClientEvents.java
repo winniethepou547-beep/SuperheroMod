@@ -19,6 +19,7 @@ public final class GhostClientEvents {
         if(mc.player==null){chainHeld=false;return;}
         boolean down=mc.screen==null && mc.isWindowActive() && mc.options.keyAttack.isDown()
                 && !com.FIRNI.superheromod.client.render.magneto.SpikeClient.stuck()
+                && !com.FIRNI.superheromod.client.render.batman.BatmanBound.bound()
                 && "ghost_rider".equals(com.FIRNI.superheromod.client.ClientHeroRegistry.get(mc.player.getUUID()));
         if((down && mc.player.tickCount%8==0) || (!down && chainHeld))
             ModNetworking.CHANNEL.sendToServer(new com.FIRNI.superheromod.network.packet.AbilityInputPacket(
