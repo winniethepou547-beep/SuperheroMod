@@ -296,7 +296,9 @@ landing spot and the target to the crater.
   with a hop (`letGo`)), Q = reflex block (`BatmanReflex` server: `State.reflexUntil`, front 180° only, blocks only damage with a
   direction (not explosions/fall/fire/magic/bypass), gauntlet within `gauntletRange` (side by angle: BLOCK_RIGHT/LEFT/FRONT) else
   BLOCK_CAPE; projectiles re-aimed next tick; `FX_BLOCK` → `BatmanReflexFx` (sparks along the deflect, rings, the move via
-  `BatmanMotion.deflect`, cape sweep via `BatmanBody.capeGrab` → `CapeCloth.Frame.grab`)), X = film (`BatmanUltSession` + its film),
+  `BatmanMotion.deflect`, cape sweep via `BatmanBody.capeGrab` → `CapeCloth.Frame.grab`)), X = film: server side only so far (`BatmanUltBeats`, `BatmanUltSession`,
+  `film` config, backdrop scene 11 GOTHAM); the client film (timeline/stage/Batwing/`FilmSessionClient.FILMS` entry) is NOT
+  written, so `BatmanController.FILM_READY` is false and X just says so,
   SHIFT held = run (sprint, 1.3x; vanilla sneak cleared in `BatmanClient.run`), CTRL (raw) = Elden Ring
   dive roll (`DODGE_TICKS` 16, `DODGE_DIVE`, 7 blocks, i-frames, 3 s cooldown `rollCooldown`), SPACE held in the air = cape glide
   (gravity/drag undone in `steer` so it really glides; only a steep dive speeds up; the cape opens into a big wing:

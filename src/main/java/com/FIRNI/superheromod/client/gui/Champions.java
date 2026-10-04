@@ -89,7 +89,6 @@ public final class Champions {
                     new Skill("R", "Alet Çarkı", "Basılı tut: çark açılır, fareyle alet seç (Sis Bombası, Flaş Bombası, Elektrikli Muşta, Bilek Topu, Sonik Tuzak). Dokun: seçili aleti kullan (muşta: tak / çıkar). Kendi sisinde termal görüş kendiliğinden açılır."),
                     new Skill("E", "Kancalı Tabanca", "Kancayı eline al, nereye atacağını seç. Sol tık: bloğa çekilirsin; düşmana uçup aparkat, havada tekme (kafasının arkasına yapışkan bomba, 2,5 sn sonra patlar), geriye takla. Sağ tık: düşmanın bacaklarına dolar, sırt üstü düşürüp sürüklersin, sonra ip onu sarar: sol tık spamlayıp kurtulana kadar kımıldayamaz. Çekilirken E: bırakıp havaya sıçrarsın."),
                     new Skill("Q", "Refleks Blok", "1 saniyelik pencere: önünden gelen saldırıları savuşturur. Yakından gelene eldiven dikenleri, uzaktan gelene pelerinini önüne çeker. Arkadan gelene işlemez."),
-                    new Skill("X", "Sinematik", "Karanlıktan avlanma: kanca, yapışkan bomba, Batwing ve duvara çivileyen Batarang."),
                     new Skill("SHIFT", "Koşu", "Basılı tut: normal yürüyüşün 1,3 katı hızla koşar."),
                     new Skill("CTRL", "Takla", "İleri dalıp omzunun üstünden uzun bir takla; ortasında hasar almaz. 3 saniyede bir."),
                     new Skill("BOŞLUK", "Pelerinle Süzülme", "Havadayken basılı tut: pelerin kanat gibi açılır, baktığın yöne süzülürsün; aşağı bakınca hızlanır."))));

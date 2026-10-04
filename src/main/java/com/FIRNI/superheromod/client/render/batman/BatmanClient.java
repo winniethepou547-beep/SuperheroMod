@@ -370,7 +370,6 @@ public final class BatmanClient {
         hint(g, font, mc.options.keyJump, "Pelerinle Süzül (havada basılı)", 0, s.gliding(), 10, row + 36);
         hint(g, font, mc.options.keyShift, "Koş (basılı)", 0, mc.player.isSprinting(), 10, row + 48);
         hint(g, font, AbilityKeyHandler.KEY_ULTIMATE, "Refleks Blok", s.cooldowns[CD_REFLEX], s.reflex, 10, row + 60);
-        hint(g, font, AbilityKeyHandler.KEY_XRAY, "Sinematik", 0, false, 10, row + 72);
         belt(g, s, 14, row - 46, time);
         if (s.aiming()) reticle(g, font, mc, w, h, time);
         wheelShown = Mth.clamp(wheelShown + (wheelOpen ? .25f : -.25f), 0, 1);
