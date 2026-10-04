@@ -127,7 +127,8 @@ landing spot and the target to the crater.
   layers thrown up-left/up-right, the rest cleared quietly by `HulkBlocks.clear`). Jabs hit what is in front of the
   punching hand's side (capsule from that shoulder) and knock a fist-sized hole. The charged wave tunnels through
   everything under the hardness cap and bursts at the first body (thrown ~20 blocks), a too-hard wall or its reach.
-  The rock is a boulder (`HulkFx.boulder`, ~2.3 blocks) in hand, in flight and stuck where it lands (`STUCK_LIFE`);
+  The rock is a boulder (`HulkFx.boulder`, ~2.3 blocks) in hand, in flight (gravity the whole way, no range cut-off: it flies
+  until it hits ground/wall/body; a body hit with no ground under it bursts apart) and stuck where it lands (`STUCK_LIFE`);
   its impact slows everyone near. GAMMA RAGE starts the gather some way back (`HulkFx.ragePath`) so the leap is long.
 - Look follows Marvel Rivals' Hulk: V torso, huge traps/delts/forearms, fingered hands, navy torn shorts, purple
   waistband shreds, silver gamma belt with green lights and buckle, black swept hair, glowing green eyes, toes. Face (rebuilt): square head, flat-top black hair, dark V brows, deep-set eyes, short broad nose, clenched-teeth grimace, hinged jaw for the roar (not a troll). The rules file is `superheromod-hulk.toml` (renamed so the bigger defaults apply).
@@ -191,7 +192,7 @@ landing spot and the target to the crater.
   then slides (`tickThrown`) with surface debris, groove + berms (`PantherFx.scrape`) → LAND; no contact → POUNCE_MISS);
   SHIFT held = his run (vanilla sneak is never used for him: `held()` clears it and sets sprinting); the sprint key (CTRL) held = SNEAK (slow crouch; read raw off the keyboard and taken from the vanilla sprint, `INPUT_CROUCH_*`),
   `CAMO_CHARGE` ticks → camouflage (`camoLeft`, invisibility effect, 2x speed modifier, name tag hidden), broken by any hit
-  (glitch: colour-split copies). Others see the glass only within `CAMO_SEEN` (4) blocks, very faint (`PantherLayer.OTHERS_SEE`),
+  (glitch: colour-split copies). Others see the glass only within `CAMO_SEEN` (8) blocks, very faint (`PantherLayer.OTHERS_SEE`),
   nothing further; he sees himself as glass and `PantherSight` draws an eye over each player and nearby mob (violet struck through = not
   seen, red open = seen; textures from `tools/icons/panther_sight.py`). Double jump in the air
   (`PantherInputPacket`, front flip `PantherMotion.flipJump`, white splash). Q spin (R-L-R kicks, one continuous turn),
@@ -292,7 +293,8 @@ landing spot and the target to the crater.
 ## Other state
 - Ghost Rider gameplay: chain combos with real chain physics, R hellfire breath (damage every second), Hell Cycle
   bike, F hell-pit slam. Keep the physics checks passing.
-- Sandman: Colossus ultimate is parked ("later"). Cyclops: sounds still unfinished.
+- Sandman: Colossus ultimate is parked ("later"). `ColossusPose.couple` keeps torso and dune one body: the dune leans about its
+  foot and squashes/widens to follow the waist (min 55%, then it lifts the torso); the slam and the forming crouch bend at the waist. Cyclops: sounds still unfinished.
 - Large local-only folders are gitignored: `tmp/`, `references/` (reference videos), `logs/`.
 
 ## Sounds and the skill HUD

@@ -98,7 +98,7 @@ public final class HulkConfig {
         ROCK_DAMAGE = b.comment("Damage to the body it hits").defineInRange("damage", 16.0, 0, 200);
         ROCK_SPLASH = b.comment("Damage to those near the impact").defineInRange("splash", 8.0, 0, 200);
         ROCK_SPEED = b.defineInRange("speed", 1.7, .5, 5);
-        ROCK_RANGE = b.defineInRange("range", 45.0, 5, 120);
+        ROCK_RANGE = b.comment("(No longer used: the rock flies on under gravity until it hits something)").defineInRange("range", 45.0, 5, 120);
         ROCK_RADIUS = b.defineInRange("impactRadius", 4.5, .5, 10);
         ROCK_TAKES_BLOCK = b.comment("Pulling the rock up removes the block it came from").define("takesBlock", true);
         ROCK_COOLDOWN = b.defineInRange("cooldown", 100, 0, 4000);

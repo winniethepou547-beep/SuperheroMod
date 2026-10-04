@@ -715,13 +715,21 @@ public final class MagnetoController {
         } else if (s.gliding) {
             grantFlight(p, s);
             p.fallDistance = 0;
-            if (p.onGround() || p.isInWater() || p.onClimbable()) {
+            s.flightAge++;
+            // Down: the game's own ground flag, or solid ground right under his feet (the flag alone can miss it), or
+            // hanging still for a moment (resting on something), or a long glide gone on too long.
+            boolean under = !p.level().noCollision(p, p.getBoundingBox().move(0, -.2, 0));
+            s.groundTicks = Math.abs(p.getY() - p.yo) < .005 ? s.groundTicks + 1 : 0;
+            if (p.onGround() || under || s.groundTicks > 10 || s.flightAge > 1200 || p.isInWater() || p.onClimbable()) {
+                s.groundTicks = 0;
                 s.gliding = false;
                 takeFlight(p, s);
                 fx(p, FX_LAND, p.position(), Vec3.ZERO, 1, p.getId(), 0);
                 sound(p, SoundEvents.ARMOR_EQUIP_IRON, .4f, .8f);
             }
-        } else if (p.onGround()) s.fuel = Math.min(maxFuel, s.fuel + maxFuel / (float) (MagnetoConfig.FLIGHT_REFILL.get() * 20));
+        } else if (p.onGround() || !p.level().noCollision(p, p.getBoundingBox().move(0, -.2, 0)) || p.isInWater())
+            // Standing again: the flight fills back up, slowly.
+            s.fuel = Math.min(maxFuel, s.fuel + maxFuel / (float) (MagnetoConfig.FLIGHT_REFILL.get() * 20));
         // The barrage's rods, one after another.
         if (s.barrageLeft > 0 && --s.barrageNext <= 0) {
             spawnRod(p, s, MagnetoConfig.BARRAGE_RODS.get() - s.barrageLeft);

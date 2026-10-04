@@ -63,7 +63,7 @@ public final class PantherAction {
      * In his camouflage the others see him only from close: within CAMO_SEEN blocks of them a faint shimmer of glass,
      * further away nothing at all (his own view shows him the glass, and an eye over each player telling him who sees him).
      */
-    public static final float CAMO_SEEN = 4;
+    public static final float CAMO_SEEN = 8;
     public static final int LOAD_TICKS = 2, POUNCE_MAX = 8, FLIP_TICKS = 8, KICK_TICKS = 7, KICK_HIT = 3, LAND_TICKS = 10, MISS_TICKS = 12;
     /** How long the hit-flash of the contact holds the moment (ticks, visual only). */
     public static final float CONTACT_HOLD = 1.6f;

@@ -18,9 +18,11 @@ public final class ColossusPose {
  public final Part leftForearm=new Part();
  public final Part mace=new Part();
  public final Part sword=new Part();
+ /** The dune's own breathing spread (couple() widens it from this, so calling couple() again changes nothing). */
+ public float spread=1;
  public static ColossusPose evaluate(float age,float yaw,float massYaw,float growth,Action action,float partial,boolean right){
   ColossusPose p=new ColossusPose();p.sword.visible=false;
-  animate(p,age,yaw,massYaw,growth);if(action!=null)applyAction(p,action,partial,right);return p;
+  animate(p,age,yaw,massYaw,growth);if(action!=null)applyAction(p,action,partial,right);couple(p);return p;
  }
     private static void animate(ColossusPose m, float age, float yaw,
                                 float massYawSmoothed, float growth) {
@@ -41,6 +43,7 @@ public final class ColossusPose {
         m.lowerMass.yRot = (float) Math.toRadians(Mth.wrapDegrees(massYawSmoothed - yaw));
         // Kutle nefesle birlikte hafifce yayilir
         float spread = 1.0f + breathe * 0.02f;
+        m.spread = spread;
         m.lowerMass.xScale = spread;
         m.lowerMass.zScale = spread;
 
@@ -121,14 +124,17 @@ public final class ColossusPose {
             torsoLean = lerp(p, 0.34f, 0f);
         }
 
-        arm.xRot = armX;
+        arm.xRot = armX - .30f * (t < .5f ? 0 : t < .66f ? ease((t-.5f)/.16f) : 1-ease((t-.66f)/.34f));
         arm.zRot += maceRight ? -0.18f : 0.18f;
         (maceRight ? m.rightForearm : m.leftForearm).xRot = -.38f * Mth.sin(t * Mth.PI);
-        m.torso.xRot = torsoLean * .15f;
-        // The body follows the strike downward; the new shorter fist must actually reach the floor.
+        // The body follows the strike down: it bends at the waist over the blow and sinks into its sand (couple()
+        // squashes and leans the dune under it, one body), the sand arm stretching the rest of the way to the floor.
         float contact = t < .5f ? 0 : t < .66f ? ease((t-.5f)/.16f) : 1-ease((t-.66f)/.34f);
-        m.torso.y += 56f * contact;
-        m.torso.z -= 64f * contact;
+        float bend = .30f * contact;
+        m.torso.xRot = torsoLean * .15f + bend;
+        m.torso.y += WAIST * (1 - Mth.cos(bend)) + 29f * contact;
+        m.torso.z += -WAIST * Mth.sin(bend) - 20f * contact;
+        arm.yScale = 1 + .3f * contact;
         m.head.xRot = 0.12f + torsoLean * 0.5f;
 
         // Diger kol dengeleme icin ters yone gider
@@ -177,24 +183,64 @@ public final class ColossusPose {
         return a + (b - a) * t;
     }
 
-    /** Gather, collapse onto both palms, then push the torso upright. Lower dune stays planted. */
+    /**
+     * Gather, collapse onto both palms, then push the torso upright. The torso bends at the waist and sinks into the
+     * dune, which squashes and spreads under it (couple()): one body of sand, not a torso sliding into a mound.
+     */
     public static void form(ColossusPose m,float progress) {
-        if(progress>=1)return;
+        if(progress>=1){couple(m);return;}
         float fall=ease((progress-.40f)/.20f);
         float stand=ease((progress-.72f)/.28f);
         float brace=fall*(1-stand);
         float bend=.82f*brace;
         m.mace.visible=false;
         m.torso.xRot=bend;
-        m.torso.y=90f*(1-Mth.cos(bend))+64f*brace;
-        m.torso.z=-90f*Mth.sin(bend);
-        m.rightArm.xRot=-1.72f*brace;
-        m.leftArm.xRot=-1.72f*brace;
+        m.torso.y=WAIST*(1-Mth.cos(bend))+31f*brace;
+        m.torso.z=-WAIST*Mth.sin(bend);
+        // Arms reach down nearly straight (their angle in the world = arm + bend) and the sand stretches them to the floor.
+        m.rightArm.xRot=-1.12f*brace;
+        m.leftArm.xRot=-1.12f*brace;
+        m.rightArm.yScale=1+.15f*brace;
+        m.leftArm.yScale=1+.15f*brace;
         m.rightArm.zRot=.06f*brace;
         m.leftArm.zRot=-.06f*brace;
         m.rightForearm.xRot=0;
         m.leftForearm.xRot=0;
         m.head.xRot=-.22f*brace;
+        couple(m);
+    }
+
+    /** Model pixels (y down from his origin): the waist (where the torso meets the dune), the dune's foot on the ground. */
+    private static final float WAIST = 90f, GROUND = 160f, DUNE = GROUND - WAIST, DUNE_MIN = .55f;
+
+    /**
+     * Keeps the torso and the dune one body: the dune's top follows the waist wherever the torso takes it, leaning
+     * the mound about its foot and squashing it along its length (spreading wider as it squashes, the sand has to go
+     * somewhere); squashed past DUNE_MIN it holds and lifts the torso instead of letting it sink through.
+     */
+    private static void couple(ColossusPose m) {
+        Part t = m.torso, d = m.lowerMass;
+        // Where the torso's waist is now (its point WAIST below its origin, turned with it).
+        float wy = t.y + WAIST * Mth.cos(t.xRot), wz = t.z + WAIST * Mth.sin(t.xRot);
+        float up = GROUND - wy, len = Mth.sqrt(up * up + wz * wz);
+        float min = DUNE * DUNE_MIN;
+        if (len < min) {
+            float k = min / Math.max(1e-3f, len);
+            float ny = GROUND - up * k, nz = wz * k;
+            if (len < 1e-3f) { ny = GROUND - min; nz = 0; }
+            t.y += ny - wy; t.z += nz - wz;
+            up = GROUND - ny; wz = nz; len = min;
+        }
+        float s = len / DUNE, a = (float) Math.atan2(-wz, up);
+        d.xRot = a;
+        d.yScale = s;
+        float widen = Math.min(1.35f, 1f / Mth.sqrt(Math.max(.3f, s)));
+        d.xScale = m.spread * widen; d.zScale = m.spread * widen;
+        // Its foot stays where it stands: the turn and squash happen about the ground point, not the model's origin.
+        float sa = Mth.sin(a) * GROUND * s, ca = Mth.cos(a) * GROUND * s;
+        d.y = GROUND - ca;
+        d.x = -sa * Mth.sin(d.yRot);
+        d.z = -sa * Mth.cos(d.yRot);
     }
 
     /** Yumusak giris/cikis. */

@@ -123,6 +123,8 @@ public final class MagnetoClient {
         State s = get(player);
         if (s == null || !s.flying() && !s.gliding()) { flyVel = null; return; }
         var input = e.getInput();
+        // On the ground the glide is over at once (the server says so a moment later): walking and jumping are his again.
+        if (s.gliding() && (player.onGround() || player.isInWater())) { flyVel = null; return; }
         if (s.gliding()) {
             // Flight spent: he sinks slowly, arms open, still drifting the way he steers, and lands on his feet.
             float fwd = input.forwardImpulse, lft = input.leftImpulse;
@@ -284,8 +286,10 @@ public final class MagnetoClient {
             g.fill(x, ty, x + bw, ty + 1, HudStyle.alpha(0x60000000, a));
         }
         HudStyle.caption(g, font, "UÇUŞ", x + bw / 2 + 1, y - 13, HudStyle.alpha(violet, a), 0);
-        String under = s.gliding() ? "SÜZÜLÜYOR" : String.format(Locale.ROOT, "%.1f", s.fuel * s.fuelTicks / 20f);
-        HudStyle.caption(g, font, under, s.gliding() ? x + bw + 1 : x + bw / 2 + 1, y + bh + 6, HudStyle.alpha(s.gliding() ? crimson : 0xFFEDE6DD, a), s.gliding() ? 1 : 0);
+        var me = Minecraft.getInstance().player;
+        boolean sinking = s.gliding() && me != null && !me.onGround();
+        String under = sinking ? "SÜZÜLÜYOR" : String.format(Locale.ROOT, "%.1f", s.fuel * s.fuelTicks / 20f);
+        HudStyle.caption(g, font, under, sinking ? x + bw + 1 : x + bw / 2 + 1, y + bh + 6, HudStyle.alpha(sinking ? crimson : 0xFFEDE6DD, a), sinking ? 1 : 0);
     }
     private static void ring(GuiGraphics g, float cx, float cy, float r, float width, float progress, int color) {
         progress = Mth.clamp(progress, 0, 1);

@@ -726,10 +726,12 @@ public final class HulkController {
     private static void tickRock(ServerPlayer p, State s) {
         ServerLevel level = p.serverLevel();
         Vec3 from = s.rockPos, to = from.add(s.rockVel);
-        s.rockVel = s.rockVel.add(0, -.035, 0).scale(.995);
+        // A real throw: gravity pulls it down the whole way, thrown up it slows, turns over and falls; it flies on
+        // until it meets the ground, a wall or a body (no range where it would stop in mid-air).
+        s.rockVel = s.rockVel.add(0, -.04, 0).scale(.995);
         s.rockTravel += s.rockVel.length();
-        // Never into unloaded ground or out of the world.
-        if (!level.isLoaded(BlockPos.containing(to)) || to.y < level.getMinBuildHeight() || s.rockTravel > HulkConfig.get(HulkConfig.ROCK_RANGE)) {
+        // Never into unloaded ground or out of the world (and not forever).
+        if (!level.isLoaded(BlockPos.containing(to)) || to.y < level.getMinBuildHeight() || s.rockTravel > 600) {
             rockImpact(p, s, from, null); return;
         }
         var block = level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, p));

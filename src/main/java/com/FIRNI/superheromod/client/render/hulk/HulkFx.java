@@ -378,12 +378,13 @@ public final class HulkFx {
             }
             case FX_ROCK_HIT -> {
                 // The boulder buries itself where it hit and stays there a while.
-                Vec3 rest = at;
+                // (Met someone high in the air, with no ground under it: it bursts apart there instead.)
+                Vec3 rest = null;
                 BlockPos column = BlockPos.containing(at);
-                for (int i = 0; i < 4; i++) if (!mc.level.getBlockState(column.below(i + 1)).isAir()) { rest = new Vec3(at.x, column.getY() - i, at.z); break; }
+                for (int i = -1; i < 4; i++) if (!mc.level.getBlockState(column.below(i + 1)).isAir()) { rest = new Vec3(at.x, column.getY() - i, at.z); break; }
                 Random sr = random();
-                STUCK.add(new Stuck(rest, ground, now(), sr.nextFloat() * 360, .2f + sr.nextFloat() * .5f));
-                cap(STUCK, 12);
+                if (rest != null) { STUCK.add(new Stuck(rest, ground, now(), sr.nextFloat() * 360, .2f + sr.nextFloat() * .5f)); cap(STUCK, 12); }
+                else particles(at, 90, 2.4, .7, ground);
                 ring(at.add(0, .05, 0), null, 7, .9, 12, AIR, .7f, true, 0);
                 ring(at, dir, 3, .6, 7, AIR, .6f, true, 0);
                 glow(at, 3.2, 6, AIR, .8f);
