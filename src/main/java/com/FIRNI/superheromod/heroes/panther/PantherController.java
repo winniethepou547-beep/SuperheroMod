@@ -492,7 +492,7 @@ public final class PantherController {
 
     // ------------------------------------------------------------------ Q: the spinning triple kick
     private static void spin(ServerPlayer p, State s) {
-        if (busy(s) || !ready(p, s, CD_SPIN, "Dönen Tekme")) return;
+        if (busy(s) && s.action != SNEAK || !ready(p, s, CD_SPIN, "Dönen Tekme")) return;
         s.cooldowns[CD_SPIN] = PantherConfig.SPIN_COOLDOWN.get();
         Vec3 look = p.getLookAngle();
         Vec3 flat = new Vec3(look.x, 0, look.z);
@@ -544,7 +544,7 @@ public final class PantherController {
      * stand (he cannot be hurt) while it plays for them.
      */
     private static void ultimate(ServerPlayer p, State s) {
-        if (busy(s) || !ready(p, s, CD_ULT, "Son Kovalamaca")) return;
+        if (busy(s) && s.action != SNEAK || !ready(p, s, CD_ULT, "Son Kovalamaca")) return;
         LivingEntity target = aimed(p, PantherConfig.ULT_RANGE.get());
         if (target == null) { tell(p, "Son Kovalamaca: önünde hedef yok (birine bakarak bas)"); return; }
         if (!PantherUltSession.start(p, target)) return;
@@ -586,7 +586,7 @@ public final class PantherController {
 
     // ------------------------------------------------------------------ E: the kinetic release
     private static void release(ServerPlayer p, State s) {
-        if (busy(s)) return;
+        if (busy(s) && s.action != SNEAK) return;
         if (s.energy < PantherConfig.RELEASE_MIN.get()) { tell(p, "Vibranyum Patlaması: takımda depolanmış enerji yok — hasar aldıkça dolar"); return; }
         if (!ready(p, s, CD_RELEASE, "Vibranyum Patlaması")) return;
         s.cooldowns[CD_RELEASE] = PantherConfig.RELEASE_COOLDOWN.get();

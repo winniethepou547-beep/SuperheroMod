@@ -173,7 +173,11 @@ public final class PantherClient {
             if (crouchDown) { crouchDown = false; if (mc.player != null) ModNetworking.CHANNEL.sendToServer(new com.FIRNI.superheromod.network.packet.PantherInputPacket(INPUT_CROUCH_UP)); }
             return;
         }
-        if (mc.screen != null) return;
+        if (mc.screen != null) {
+            // A screen opened while crouching: let the server know the key is up (it cannot see it from here).
+            if (crouchDown) { crouchDown = false; ModNetworking.CHANNEL.sendToServer(new com.FIRNI.superheromod.network.packet.PantherInputPacket(INPUT_CROUCH_UP)); }
+            return;
+        }
         boolean clicked = false;
         while (mc.options.keyInventory.consumeClick()) clicked = true;
         boolean down = mc.options.keyInventory.isDown() || clicked;
@@ -192,7 +196,9 @@ public final class PantherClient {
     private static void crouch(Minecraft mc) {
         KeyMapping key = mc.options.keySprint;
         boolean down = held(mc, key);
-        key.setDown(false);
+        // (With the toggle-sprint option the mapping flips on a press instead: set it back off.)
+        if (mc.options.toggleSprint().get()) { if (key.isDown()) key.setDown(true); }
+        else key.setDown(false);
         if (down == crouchDown) return;
         crouchDown = down;
         ModNetworking.CHANNEL.sendToServer(new com.FIRNI.superheromod.network.packet.PantherInputPacket(down ? INPUT_CROUCH_DOWN : INPUT_CROUCH_UP));
@@ -447,7 +453,7 @@ public final class PantherClient {
         e.setNewFovModifier(base * (1 + .1f * fovKick));
     }
     @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) {
-        STATES.clear(); eDown = false;
+        STATES.clear(); eDown = false; crouchDown = false;
         if (savedCamera != null) { Minecraft.getInstance().options.setCameraType(savedCamera); savedCamera = null; }
     }
 

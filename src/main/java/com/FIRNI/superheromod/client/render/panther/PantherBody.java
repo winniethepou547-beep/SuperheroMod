@@ -526,6 +526,7 @@ public final class PantherBody {
     // ------------------------------------------------------------------ first person: the arms in front of the camera
     /** One arm for the first-person view, from the elbow down (the pose stack is at the elbow, forearm along +y). */
     public static void firstPersonArm(PoseStack p, MultiBufferSource b, int light, int side, float wristX, float wristZ, float curl, boolean camo, float time) {
+        glows = 0;
         mode = camo ? CAMO : NORMAL; alpha = camo ? 1.6f : 1; boxIndex = side * 40; drawTime = time;
         int s = side == 0 ? -1 : 1;
         float[] hi = sheen();
