@@ -244,7 +244,8 @@ landing spot and the target to the crater.
   right `MagnetoClient.flightBar`); empty in the air = GLIDING (slow drift down, no fall damage), refills on the ground
   (`flightRefillSeconds`), needs 15% to take off again. LMB iron spike (`MagnetoSpike`: bits fly in and build it over his hand for `SPIKE_FORM` ticks, thrown at the aim;
   sticks in the body hit (pushed ~3 blocks, slowed, drawn on them), the victim mashes LMB to pull it out (`SpikeClient`: mouse
-  icon + clockwise ring, clicks never attack meanwhile), then 30 s immune; mobs shed it after 3 s) / fist punch / throw the held. Q Iron Barrage
+  icon + clockwise ring, clicks never attack meanwhile), then 30 s immune; mobs shed it after 3 s; `SpikePull` solves both arms onto the stuck spike and yanks on every
+  click, blended into the plain model (`HeroArmPose`) and every hero layer) / fist punch / throw the held. Q Iron Barrage
   (3 charges, rods ×`ROD_SCALE` (2) size, 8 blocks over the aim point, slanted, spinning, impale, AoE, no terrain damage). E telekinesis (scrap flies
   in from behind the target and wraps them; 3 s drag with the aim, slam = commanded speed but stopped). R giant iron fist
   (spring-follows the aim's ground point, 5 punches). F shield columns round him (projectiles stopped, melee reduced);

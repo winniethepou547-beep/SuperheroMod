@@ -81,6 +81,7 @@ public final class HulkLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
         if (!HulkClient.isHero(e) || e.isInvisible()) return;
         var model = getParentModel();
         HulkMotion.Pose pose = HulkClient.pose(e, partial, time);
+        com.FIRNI.superheromod.client.render.magneto.SpikePull.hulk(pose, e, partial);
         HulkClient.State state = HulkClient.get(e);
         float k = Mth.clamp(pose.size, 0, 1);
         float skinK = Mth.clamp((k - .05f) / .6f, 0, 1);

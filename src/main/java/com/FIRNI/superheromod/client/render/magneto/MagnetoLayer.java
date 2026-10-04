@@ -70,6 +70,7 @@ public final class MagnetoLayer extends RenderLayer<AbstractClientPlayer, Player
         float k = (now - blend.changed) / blend.fade;
         if (blend.from != null && k >= 0 && k < 1) { Pose mixed = blend.from.copy(); mixed.toward(pose, PantherMotion.ease(k)); pose = mixed; }
         blend.last = pose.copy();
+        SpikePull.panther(pose, e, partial);
 
         // The hand that holds or drives the metal follows his aim; the fist's punch goes through his own arm.
         var model = getParentModel();

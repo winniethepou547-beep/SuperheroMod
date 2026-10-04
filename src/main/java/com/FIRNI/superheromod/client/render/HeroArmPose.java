@@ -87,6 +87,12 @@ public final class HeroArmPose {
             return;
         }
 
+        // A Magneto spike in them: both hands on it, yanking (SpikePull).
+        if (com.FIRNI.superheromod.client.render.magneto.SpikePull.vanilla(model, player, ageInTicks - player.tickCount)) {
+            elbow.remove(id);
+            return;
+        }
+
         if (!isHero(player)) {
             elbow.remove(id);
             return;

@@ -124,6 +124,7 @@ public final class PantherLayer extends RenderLayer<AbstractClientPlayer, Player
         // The second jump's flip.
         if (!shown) PantherMotion.flipJump(pose, PantherFx.jumpAge(e.getId(), now));
         if (s != null && !shown) PantherMotion.hurt(pose, (int) Math.min(100, s.hurtAge + Math.max(0, level.getGameTime() - s.received)), s.hurtPower, s.hurtYaw);
+        com.FIRNI.superheromod.client.render.magneto.SpikePull.panther(pose, e, partial);
 
         // ---- his look, spread down the body: pelvis a little, then the spine and chest, the head the rest.
         var model = getParentModel();

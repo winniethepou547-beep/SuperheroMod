@@ -86,7 +86,7 @@ public final class MagnetoFx {
     private record Form(int magneto, int id, float start) {}
     /** A spike stuck in a body: the line it came in on (against their body's turn), how far it has been pulled out, the last tug. */
     private static final class Impaled {
-        final int entity, id; final float yawRel, pitch, height, start; float progress, shown, prevShown, tug = -100;
+        final int entity, id; final float yawRel, pitch, height, start; float progress, shown, prevShown, tug = -100, outAt = -1;
         Impaled(int entity, int id, float yawRel, float pitch, float height, float start) {
             this.entity = entity; this.id = id; this.yawRel = yawRel; this.pitch = pitch; this.height = height; this.start = start;
         }
@@ -133,6 +133,7 @@ public final class MagnetoFx {
             case FX_IMPALE -> {
                 BITS.remove(p.id());
                 Impaled s = IMPALED.get(p.entity());
+                if (s != null && s.outAt >= 0) { IMPALED.remove(p.entity()); s = null; }
                 if (s == null) {
                     Entity target = mc.level.getEntity(p.entity());
                     if (target == null) break;
@@ -155,7 +156,9 @@ public final class MagnetoFx {
                 sparks(at, dir.scale(-1), (int) (3 * amount()), .1f);
             }
             case FX_IMPALE_OUT -> {
-                Impaled s = IMPALED.remove(p.entity());
+                Impaled s = IMPALED.get(p.entity());
+                // Kept a few ticks more (not drawn) so the arms finish the yank and let go smoothly.
+                if (s != null) { if (p.power() > 0 && s.outAt < 0) s.outAt = t; else IMPALED.remove(p.entity()); }
                 if (s != null && p.power() > 0) {
                     // Torn out: it flies back the way it came, turning over, and lies on the ground a while.
                     Vec3 centre = at.subtract(dir.scale(.35 + .55 * s.shown));
@@ -294,6 +297,19 @@ public final class MagnetoFx {
             MOTES.add(new Mote(at, v, .02f, 0, SPARK, 5 + RANDOM.nextInt(6), t, M_SPARK, 1));
         }
     }
+    /** Ticks the arms take to finish the yank and let go once the spike is out. */
+    public static final float PULL_OUT = 7;
+    /**
+     * The spike in a body, for the arms that pull at it (SpikePull): {yaw against the body's turn (degrees), pitch,
+     * height of the entry, how far out (0..1), ticks since the last tug, ticks since it went in, ticks since it came out
+     * (-1 while in)}; null when there is none.
+     */
+    public static float[] impaled(int entity, float partial) {
+        Impaled s = IMPALED.get(entity);
+        if (s == null) return null;
+        float t = now();
+        return new float[]{s.yawRel, s.pitch, s.height, Mth.lerp(partial, s.prevShown, s.shown), t - s.tug, t - s.start, s.outAt < 0 ? -1 : t - s.outAt};
+    }
     /** Where a Magneto's spike builds (as the server puts it: over his right hand, in front of him). */
     private static Vec3 spikePoint(Entity owner, float partial) {
         Vec3 look = owner.getViewVector(partial);
@@ -353,7 +369,7 @@ public final class MagnetoFx {
             if (b.kind == ROD && ((int) t + b.id) % 2 == 0) MOTES.add(new Mote(b.pos.subtract(b.axis.scale(ROD_HALF * .95)), b.vel.scale(-.05), .25f * ROD_SCALE, .04f, 0xb0aca6, 8, t, M_DUST, .25f));
         }
         for (Impaled s : IMPALED.values()) { s.prevShown = s.shown; s.shown += (s.progress - s.shown) * .5f; }
-        IMPALED.values().removeIf(s -> mc.level.getEntity(s.entity) == null);
+        IMPALED.values().removeIf(s -> mc.level.getEntity(s.entity) == null || s.outAt >= 0 && t - s.outAt > PULL_OUT);
         // A spike building: a spark now and then where the bits arrive, the light growing.
         for (Iterator<Form> it = FORMS.values().iterator(); it.hasNext(); ) {
             Form f = it.next();
@@ -506,7 +522,8 @@ public final class MagnetoFx {
         for (Impaled s : IMPALED.values()) {
             Entity target = mc.level.getEntity(s.entity);
             if (target == null) continue;
-            if (target == mc.player && mc.options.getCameraType().isFirstPerson()) continue;
+            // In first person it is drawn too, where it really is: looking down you see it in your chest, jerking out with each pull.
+            if (s.outAt >= 0) continue;
             float body = target instanceof net.minecraft.world.entity.LivingEntity l ? Mth.rotLerp(partial, l.yBodyRotO, l.yBodyRot) : target.getViewYRot(partial);
             Vec3 dir = Vec3.directionFromRotation(s.pitch, s.yawRel + body);
             Vec3 entry = target.getPosition(partial).add(0, s.height, 0);

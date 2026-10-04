@@ -53,6 +53,8 @@ public final class SpikeClient {
         while (mc.options.keyAttack.consumeClick()) presses++;
         if (presses <= 0) return;
         ModNetworking.CHANNEL.sendToServer(new SpikePullPacket(Math.min(3, presses)));
+        // Every yank jolts the view a little.
+        MagnetoClient.shake(.06f);
         float t = mc.level.getGameTime() + mc.getFrameTime();
         for (int i = 0; i < Math.min(3, presses); i++) { CLICKS[nextClick] = t + i * .3f; nextClick = (nextClick + 1) % CLICKS.length; }
         // Each tug moves it a little at once (the server's count follows).

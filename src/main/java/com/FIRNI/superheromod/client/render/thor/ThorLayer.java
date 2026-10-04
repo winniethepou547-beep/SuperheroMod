@@ -110,6 +110,7 @@ public final class ThorLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
         if (!ThorClient.isThor(e) || e.isInvisible()) return;
         var model = getParentModel();
         ThorMotion.Pose pose = ThorClient.pose(e, partial, time);
+        com.FIRNI.superheromod.client.render.magneto.SpikePull.thor(pose, e, partial);
         ThorClient.State state = ThorClient.get(e);
         boolean hammerOut = state != null && state.hammerOut() && ThorClient.ultimateTime(e, partial) < 0;
         boolean flying = state != null && state.flying();
