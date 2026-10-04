@@ -1,0 +1,45 @@
+{
+    "targets": [
+        "heat",
+        "bloomA",
+        "bloomB",
+        "out"
+    ],
+    "passes": [
+        {
+            "name": "blur",
+            "intarget": "heat",
+            "outtarget": "bloomA",
+            "uniforms": [
+                { "name": "BlurDir", "values": [ 1.0, 0.0 ] },
+                { "name": "Radius", "values": [ 7.0 ] }
+            ]
+        },
+        {
+            "name": "blur",
+            "intarget": "bloomA",
+            "outtarget": "bloomB",
+            "uniforms": [
+                { "name": "BlurDir", "values": [ 0.0, 1.0 ] },
+                { "name": "Radius", "values": [ 7.0 ] }
+            ]
+        },
+        {
+            "name": "superheromod:batman_thermal",
+            "intarget": "minecraft:main",
+            "outtarget": "out",
+            "auxtargets": [
+                { "name": "HeatSampler", "id": "heat" },
+                { "name": "BloomSampler", "id": "bloomB" }
+            ]
+        },
+        {
+            "name": "blit",
+            "intarget": "out",
+            "outtarget": "minecraft:main",
+            "uniforms": [
+                { "name": "ColorModulate", "values": [ 1.0, 1.0, 1.0, 1.0 ] }
+            ]
+        }
+    ]
+}

@@ -283,10 +283,19 @@ landing spot and the target to the crater.
   roll and the glide. `BatmanStatePacket` / `BatmanFxPacket` / `BatmanInputPacket` (glide, roll + direction, wheel, gadget pick/use, grapnel).
 - Keys: LMB punch chain (clicks buffered; RAPID flurry), RMB Batarang (tap 1 / hold +1 per `BATARANG_STEP`, max 5, belt refills),
   R hold = gadget wheel (mouse moves a cursor: `ViewportEvent.ComputeCameraAngles` locks the view; LMB or release picks), R tap =
-  use gadget (smoke, flash, thermal, mine), E = grapnel gun out (LMB fires; block = pull, body = GRAPNEL_STRIKE combo),
+  use gadget (smoke, flash, thermal, mine), E = grapnel gun out (LMB fires; block = pull, body = GRAPNEL_STRIKE combo; RMB on a
+  body = GRAPNEL_YANK: line round the legs, left hand hauls, target DOWNED on its back and dragged `DRAG_DIST`), Q = thermal vision,
   CTRL (raw) = roll with i-frames, SPACE held in the air = cape glide (dive speeds up). No time slow on the wheel (multiplayer).
-- Vision: `BatmanVision` (thermal tint + edge arrows + outlines, smoke grey-out for others, flash white-out); outlines are the
-  vanilla glow outline switched on by `MinecraftGlowMixin` (`shouldEntityAppearGlowing`) and coloured by `EntityTeamColorMixin`.
+- Thermal vision `BatmanThermal` (own client; Q toggle, auto in his own smoke and with the sensor): own `PostChain`
+  `shaders/post/batman_thermal.json` processed at `AFTER_LEVEL` (before the hands); living bodies in range are re-rendered
+  through `HeatBuffers` (every model vertex becomes heat by body height/axis distance) into the chain's `heat` target
+  (through-walls pass dim, depth-tested pass bright), plus the ground scan wave and hot weapons; `batman_thermal.fsh`
+  = cold world + iron palette + bloom + world hot spots + switch glitch/vignette. Uniforms set via the passes list found by
+  reflection by type. Corner marks + crosshair scan brackets in its HUD. `BatmanVision` = sensor edge arrows, flash
+  white-out (blinded) / glimpse (not), smoke grey-out for others; the outline mixins are now inert.
+- Stagger `BatmanStagger` (server: -60 % move/attack speed, next Batman blow ×`STAGGER_CRIT`, from the yank and mine
+  airtime) + `BatmanStatus` (client: render transform for DOWNED (on the back, arms up via `downedArms` in `HeroArmPose`)
+  and stagger wobble, red spike daze mark, local camera shake).
 - HUD: `HudStyle.skill` rows, Batarang belt next to the crosshair (bat emblem + 5 icons filling back), grapnel reticle,
   `BatmanWheel` (Arkham/Spider-Man 2 style wheel). Effects: `BatmanFx` (Batarangs, pellets, smoke puffs, flash, thermal ping,
   mines, the slack-then-taut line). Look/animation: `BatmanBody`, `BatmanMotion`, `BatmanLayer`, `BatmanGear`, `BatmanFirstPerson`,

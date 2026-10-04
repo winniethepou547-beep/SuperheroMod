@@ -67,7 +67,15 @@ public final class BatmanController {
         // grapnel: 0 none, 1 flying out, 2 attached, 3 reeling back (missed)
         boolean aiming; int hook; Vec3 hookPos, hookAt; LivingEntity hookEntity; int hookAge, pullAge, stall; double best;
         LivingEntity strikeTarget; Vec3 strikeDir = new Vec3(0, 0, 1);
+        /** Right click fired the line (a yank on a body), the one being yanked. */
+        boolean yankShot; LivingEntity yankTarget;
     }
+    /** Someone pulled off their feet and dragged toward him. */
+    private static final class Drag {
+        final LivingEntity target; final Vec3 dir; int age;
+        Drag(LivingEntity target, Vec3 dir) { this.target = target; this.dir = dir; }
+    }
+    private static final List<Drag> DRAGS = new ArrayList<>();
     /** A Batarang in flight. */
     private static final class Rang {
         final int id; final ServerPlayer owner; Vec3 pos; final Vec3 vel; int age;
@@ -111,7 +119,7 @@ public final class BatmanController {
     private static void tell(ServerPlayer p, String text) { p.displayClientMessage(Component.literal("§7" + text), true); }
     /** In the middle of something nothing else may start over it. */
     private static boolean busy(State s) {
-        return s.action == GRAPNEL_FIRE || s.action == GRAPNEL_PULL || s.action == GRAPNEL_STRIKE || s.action == DODGE || s.action == MINE_PLACE;
+        return s.action == GRAPNEL_FIRE || s.action == GRAPNEL_PULL || s.action == GRAPNEL_STRIKE || s.action == GRAPNEL_YANK || s.action == DODGE || s.action == MINE_PLACE;
     }
 
     // ------------------------------------------------------------------ keys
@@ -119,9 +127,9 @@ public final class BatmanController {
         if (!isHero(p)) return;
         State s = state(p);
         if (FilmSessions.busy(p.getUUID())) return;
-        if (slot == AbilitySlot.LMB && down) { if (s.aiming) fireGrapnel(p, s); else click(p, s); }
+        if (slot == AbilitySlot.LMB && down) { if (s.aiming) fireGrapnel(p, s, false); else click(p, s); }
         if (slot == AbilitySlot.RMB) {
-            if (down) { if (s.aiming) stopAiming(s); else startCharge(p, s); }
+            if (down) { if (s.aiming) fireGrapnel(p, s, true); else startCharge(p, s); }
             else releaseCharge(p, s);
         }
     }
@@ -327,9 +335,11 @@ public final class BatmanController {
         s.aiming = false;
         if (s.action == GRAPNEL_AIM) set(s, IDLE);
     }
-    private static void fireGrapnel(ServerPlayer p, State s) {
+    /** Left click: the line pulls him (to a block) or carries him into the strike (a body); right click on a body: the yank. */
+    private static void fireGrapnel(ServerPlayer p, State s, boolean yank) {
         if (!s.aiming) return;
         s.aiming = false;
+        s.yankShot = yank;
         Vec3 eye = p.getEyePosition(), end = eye.add(p.getLookAngle().scale(BatmanConfig.GRAPNEL_RANGE.get()));
         BlockHitResult bh = p.level().clip(new ClipContext(eye, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, p));
         Vec3 stop = bh.getType() == HitResult.Type.MISS ? end : bh.getLocation();
@@ -347,7 +357,7 @@ public final class BatmanController {
         sound(p, SoundEvents.CROSSBOW_SHOOT, .6f, 1.3f);
     }
     private static void hookTick(ServerPlayer p, State s) {
-        if (s.hook == 0) return;
+        if (s.hook == 0 || s.hook == 4) return;
         s.hookAge++;
         boolean miss = s.hook < 0, back = s.hook == 3;
         Vec3 target = back ? muzzle(p) : s.hookEntity != null && s.hookEntity.isAlive() ? s.hookEntity.getBoundingBox().getCenter() : s.hookAt;
@@ -358,6 +368,15 @@ public final class BatmanController {
                 s.hookPos = target;
                 if (back) { endHook(p, s, false); set(s, IDLE); return; }
                 if (miss) { s.hook = 3; return; }
+                // A right-click shot on a body: the line wraps their legs and he hauls them down.
+                if (s.yankShot && s.hookEntity != null) {
+                    s.hook = 4; s.yankTarget = s.hookEntity;
+                    set(s, GRAPNEL_YANK);
+                    fx(p, FX_HOOK_HIT, s.hookPos, Vec3.ZERO, 2, s.hookEntity.getId(), p.getId());
+                    at(p, s.hookPos, SoundEvents.CHAIN_HIT, 1f, .8f);
+                    at(p, s.hookPos, SoundEvents.ARMOR_EQUIP_LEATHER, 1f, .6f);
+                    return;
+                }
                 // Caught: the slack line snaps taut and pulls him in.
                 s.hook = 2; s.pullAge = 0; s.stall = 0; s.best = 1e9; s.noFall = true; s.gliding = false;
                 set(s, GRAPNEL_PULL);
@@ -395,6 +414,46 @@ public final class BatmanController {
         s.hook = 0; s.hookEntity = null;
         fx(p, FX_HOOK_END, s.hookPos == null ? p.position() : s.hookPos, Vec3.ZERO, arrived ? 1 : 0, -1, p.getId());
         if (arrived) sound(p, SoundEvents.ARMOR_EQUIP_LEATHER, .7f, .8f);
+    }
+    /** The yank: the line round their legs, his left hand hauling it; they go down on their back and are dragged toward him. */
+    private static void yankTick(ServerPlayer p, State s) {
+        LivingEntity t = s.yankTarget;
+        boolean live = t != null && t.isAlive() && targetable(p, t);
+        if (live && s.hook == 4) s.hookPos = t.position().add(0, .25, 0);
+        if (s.age == YANK_PULL) sound(p, SoundEvents.CROSSBOW_QUICK_CHARGE_1, .8f, .7f);
+        if (s.age == YANK_DOWN && live) {
+            Vec3 dir = flat(p.position().subtract(t.position()));
+            hurt(p, t, 2);
+            DRAGS.removeIf(d -> d.target == t);
+            DRAGS.add(new Drag(t, dir));
+            t.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, DOWN_TICKS, 6, false, false, false));
+            t.addEffect(new MobEffectInstance(MobEffects.JUMP, DOWN_TICKS, 128, false, false, false));
+            if (t instanceof Mob mob) mob.getNavigation().stop();
+            BatmanStagger.apply(t, DOWN_TICKS + STAGGER_TICKS);
+            ModNetworking.CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> t), new BatmanFxPacket(FX_DOWNED, t.position(), dir, DOWN_TICKS, t.getId(), p.getId()));
+            at(p, t.position(), ModSounds.FX_IMPACT_HEAVY.get(), 1f, .7f);
+            at(p, t.position(), SoundEvents.PLAYER_ATTACK_KNOCKBACK, .9f, .7f);
+            at(p, t.position(), SoundEvents.GRAVEL_BREAK, 1f, .6f);
+        }
+        if (s.age == YANK_DOWN + DRAG_TICKS && s.hook == 4) { endHook(p, s, false); s.yankTarget = null; }
+        if (s.age >= YANK_TICKS) {
+            if (s.hook == 4) endHook(p, s, false);
+            s.yankTarget = null;
+            s.cooldowns[CD_GRAPNEL] = BatmanConfig.CD_GRAPNEL.get();
+            set(s, IDLE);
+        }
+    }
+    private static void tickDrags() {
+        for (Iterator<Drag> it = DRAGS.iterator(); it.hasNext(); ) {
+            Drag d = it.next();
+            if (d.target.isRemoved() || !d.target.isAlive() || d.age >= DRAG_TICKS) { it.remove(); continue; }
+            // Dragged along the ground on their back, slowing as the line goes slack.
+            double v = DRAG_DIST / DRAG_TICKS * 1.9 * (1 - d.age / (double) DRAG_TICKS);
+            Vec3 m = d.target.getDeltaMovement();
+            d.target.setDeltaMovement(d.dir.x * v, Math.min(m.y, 0), d.dir.z * v);
+            d.target.hurtMarked = true;
+            d.age++;
+        }
     }
     private static void strikeTick(ServerPlayer p, State s) {
         LivingEntity t = s.strikeTarget;
@@ -461,6 +520,7 @@ public final class BatmanController {
             case MINE_PLACE -> { if (s.age == MINE_AT) placeMine(p, s); }
             case GRAPNEL_AIM -> { if (!s.aiming) set(s, IDLE); }
             case GRAPNEL_STRIKE -> strikeTick(p, s);
+            case GRAPNEL_YANK -> yankTick(p, s);
             case WHEEL -> { if (!s.wheel) set(s, IDLE); }
             default -> {}
         }
@@ -481,7 +541,7 @@ public final class BatmanController {
         }
         if (s.action == GRAPNEL_STRIKE || s.action == GRAPNEL_PULL) s.noFall = true;
         int len = length(s.action);
-        if (len > 0 && s.age >= len && s.action != GRAPNEL_STRIKE) set(s, s.aiming ? GRAPNEL_AIM : IDLE);
+        if (len > 0 && s.age >= len && s.action != GRAPNEL_STRIKE && s.action != GRAPNEL_YANK) set(s, s.aiming ? GRAPNEL_AIM : IDLE);
         send(p, s);
     }
     @SubscribeEvent public static void serverTick(TickEvent.ServerTickEvent e) {
@@ -490,6 +550,7 @@ public final class BatmanController {
         tickPellets();
         tickClouds();
         tickMines();
+        tickDrags();
         if (!DAZED.isEmpty() && e.getServer().getTickCount() % 20 == 0) {
             long now = e.getServer().overworld().getGameTime();
             DAZED.values().removeIf(t -> t < now);
@@ -580,8 +641,13 @@ public final class BatmanController {
                 float k = (float) (1 - d / radius * .5);
                 hurt(p, t, f(BatmanConfig.MINE_DAMAGE) * k);
                 Vec3 out = flat(t.position().subtract(m.at));
-                t.setDeltaMovement(out.x * .35 * k, BatmanConfig.MINE_LAUNCH.get() * k, out.z * .35 * k);
+                double up = BatmanConfig.MINE_LAUNCH.get() * k;
+                t.setDeltaMovement(out.x * .35 * k, up, out.z * .35 * k);
                 t.hurtMarked = true;
+                // Dazed for as long as they are in the air (the game's own gravity and drag decide how long), and a little after.
+                double y = 0, vy = up; int air = 0;
+                do { y += vy; vy = (vy - .08) * .98; air++; } while (y > 0 && air < 200);
+                BatmanStagger.apply(t, air + 8);
             }
             fxAt(m.at, FX_MINE_BOOM, m.at, Vec3.ZERO, 1, -1, m.id, p);
             p.level().playSound(null, m.at.x, m.at.y, m.at.z, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 1.2f, 1.3f);
@@ -634,6 +700,13 @@ public final class BatmanController {
     }
     private static void hurt(ServerPlayer p, LivingEntity t, float damage) {
         if (damage <= 0) return;
+        // A staggered one takes a critical, and the stagger ends.
+        if (BatmanStagger.consume(t)) {
+            damage *= STAGGER_CRIT;
+            fx(p, FX_CRIT, t.getBoundingBox().getCenter(), Vec3.ZERO, damage, t.getId(), p.getId());
+            at(p, t.position(), SoundEvents.PLAYER_ATTACK_CRIT, 1f, .9f);
+            at(p, t.position(), ModSounds.FX_IMPACT_HEAVY.get(), .8f, 1.2f);
+        }
         t.invulnerableTime = 0;
         t.hurt(p.damageSources().playerAttack(p), damage);
     }

@@ -81,7 +81,7 @@ public final class BatmanClient {
     private static final Map<Integer, State> STATES = new HashMap<>();
 
     // his own input
-    private static boolean rDown, eDown, ctrlDown, glideSent;
+    private static boolean rDown, eDown, ctrlDown, glideSent, qDown;
     private static int rHeld;
     private static boolean wheelOpen;
     private static float wheelX, wheelY, lockYaw, lockPitch, wheelShown;
@@ -162,6 +162,10 @@ public final class BatmanClient {
             while (mc.options.keyAttack.consumeClick()) pick = true;
             if (pick && hovered >= 0) { send(IN_GADGET_SELECT, hovered, 0); closeWheel(false); rHeld = TAP_TICKS + 99; }
         }
+        // Q: the thermal vision on / off (it also comes on by itself in his own smoke and with the sensor).
+        boolean q = AbilityKeyHandler.KEY_ULTIMATE.isDown();
+        if (q && !qDown) BatmanThermal.toggle();
+        qDown = q;
         // E: the grapnel gun out / away.
         boolean clicked = false;
         while (mc.options.keyInventory.consumeClick()) clicked = true;
@@ -300,7 +304,7 @@ public final class BatmanClient {
         e.setNewFovModifier(Mth.lerp(.6f, e.getFovModifier(), 1f) * (1 + .12f * fovKick));
     }
     @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) {
-        STATES.clear(); wheelOpen = false; rDown = eDown = ctrlDown = glideSent = false; rHeld = 0;
+        STATES.clear(); wheelOpen = false; rDown = eDown = ctrlDown = glideSent = qDown = false; rHeld = 0;
     }
 
     // ------------------------------------------------------------------ HUD
@@ -323,12 +327,13 @@ public final class BatmanClient {
         HudStyle.caption(g, font, "BATMAN", 10, h - 46, GOLD, -1);
         int row = h - 124;
         String punch = s.action == PUNCH && s.combo > 0 ? (s.combo >= RAPID ? "Seri Yumruk x" + (s.combo + 1) : "Kombo x" + (s.combo + 1)) : "Yumruk";
-        hint(g, font, mc.options.keyAttack, s.aiming() ? "Kancayı Fırlat" : punch, 0, s.action == PUNCH && s.combo >= RAPID || s.aiming(), 10, row - 24);
-        hint(g, font, mc.options.keyUse, s.charge > 0 ? "Batarang x" + s.charge + " (bırak)" : "Batarang (basılı: çoklu)", 0, s.charge > 0, 10, row - 12);
+        hint(g, font, mc.options.keyAttack, s.aiming() ? "Kanca: çekil / düşmana vuruş" : punch, 0, s.action == PUNCH && s.combo >= RAPID || s.aiming(), 10, row - 24);
+        hint(g, font, mc.options.keyUse, s.aiming() ? "Kanca: düşmanı bacağından çek" : s.charge > 0 ? "Batarang x" + s.charge + " (bırak)" : "Batarang (basılı: çoklu)", 0, s.charge > 0 || s.aiming(), 10, row - 12);
         hint(g, font, AbilityKeyHandler.KEY_RAPID_FIRE, GADGET_NAMES[s.gadget] + " (basılı: seç)", s.cooldowns[s.gadget], wheelOpen, 10, row);
         hint(g, font, mc.options.keyInventory, s.aiming() ? "Kanca: hazır (sol tık)" : "Kanca", s.cooldowns[CD_GRAPNEL], s.aiming(), 10, row + 12);
         hintRaw(g, font, "CTRL", "Takla", s.cooldowns[CD_DODGE], s.action == DODGE, 10, row + 24);
         hint(g, font, mc.options.keyJump, "Pelerinle Süzül (havada basılı)", 0, s.gliding(), 10, row + 36);
+        hint(g, font, AbilityKeyHandler.KEY_ULTIMATE, "Termal Görüş", 0, BatmanThermal.amount() > .5f, 10, row + 48);
         belt(g, font, s, w, h, time);
         if (s.aiming()) reticle(g, font, mc, w, h, time);
         wheelShown = Mth.clamp(wheelShown + (wheelOpen ? .25f : -.25f), 0, 1);
@@ -376,7 +381,7 @@ public final class BatmanClient {
         if (!body && !block) {
             for (int i = -3; i <= 3; i++) { g.fill((int) cx + i, (int) cy + i, (int) cx + i + 1, (int) cy + i + 1, col); g.fill((int) cx + i, (int) cy - i, (int) cx + i + 1, (int) cy - i + 1, col); }
         }
-        String label = body ? "VURUŞ" : block ? String.format(Locale.ROOT, "%.0f m", bh.getLocation().distanceTo(eye)) : "MENZİL DIŞI";
+        String label = body ? "SOL: VURUŞ · SAĞ: ÇEK" : block ? String.format(Locale.ROOT, "%.0f m", bh.getLocation().distanceTo(eye)) : "MENZİL DIŞI";
         HudStyle.caption(g, font, label, (int) cx, (int) cy + 15, col, 0);
     }
     private static int hint(GuiGraphics g, Font font, KeyMapping key, String what, int cooldown, boolean active, int x, int y) {

@@ -15,7 +15,9 @@ public final class BatmanAction {
 
     // ------------------------------------------------------------------ actions (what his body does)
     public static final int IDLE = 0, PUNCH = 1, BATARANG = 2, BATARANG_CHARGE = 3, BATARANG_MULTI = 4, GADGET_THROW = 5,
-            MINE_PLACE = 6, GRAPNEL_AIM = 7, GRAPNEL_FIRE = 8, GRAPNEL_PULL = 9, GRAPNEL_STRIKE = 10, DODGE = 11, WHEEL = 12;
+            MINE_PLACE = 6, GRAPNEL_AIM = 7, GRAPNEL_FIRE = 8, GRAPNEL_PULL = 9, GRAPNEL_STRIKE = 10, DODGE = 11, WHEEL = 12,
+            /** Right click with the grapnel on a body: the line wraps their legs, his left hand hauls it in, they go down on their back. */
+            GRAPNEL_YANK = 13;
 
     // ------------------------------------------------------------------ cooldown slots
     public static final int CD_SMOKE = 0, CD_FLASH = 1, CD_THERMAL = 2, CD_MINE = 3, CD_GRAPNEL = 4, CD_DODGE = 5, COOLDOWNS = 6;
@@ -60,6 +62,16 @@ public final class BatmanAction {
     public static final int TAUT = 3;
     /** Grapnel strike (the line on a body): reached, uppercut at STRIKE_UPPER, he jumps after them at STRIKE_JUMP, kick at STRIKE_KICK, backflip, lands by STRIKE_TICKS. */
     public static final int STRIKE_UPPER = 3, STRIKE_JUMP = 6, STRIKE_KICK = 14, STRIKE_FLIP = 16, STRIKE_TICKS = 34;
+    /**
+     * Grapnel yank (right click on a body): the line has wrapped their legs (tick 0); his left hand grabs the line and
+     * hauls from YANK_PULL (the waist turning into it) and they are pulled off their feet at YANK_DOWN, then dragged
+     * toward him (DRAG_TICKS, about DRAG_DIST blocks); they lie DOWN_TICKS in all before getting up; he recovers by YANK_TICKS.
+     */
+    public static final int YANK_PULL = 3, YANK_DOWN = 5, YANK_TICKS = 22, DRAG_TICKS = 12, DOWN_TICKS = 26;
+    public static final double DRAG_DIST = 2.2;
+    /** Staggered (a stun): wobbling, slowed to 40 %, the next Batman blow lands as a critical (×STAGGER_CRIT). */
+    public static final int STAGGER_TICKS = 30;
+    public static final float STAGGER_SLOW = .6f, STAGGER_CRIT = 1.5f;
 
     // ------------------------------------------------------------------ CTRL: the roll
     /** The roll lasts DODGE_TICKS; untouchable from DODGE_SAFE_FROM to DODGE_SAFE_TO; it covers DODGE_DIST blocks. */
@@ -75,7 +87,9 @@ public final class BatmanAction {
     // ------------------------------------------------------------------ effects (BatmanFxPacket)
     public static final int FX_PUNCH = 0, FX_BATARANG = 1, FX_BATARANG_HIT = 2, FX_GADGET = 3, FX_SMOKE = 4, FX_FLASH = 5,
             FX_THERMAL = 6, FX_MINE = 7, FX_MINE_ARMED = 8, FX_MINE_BOOM = 9, FX_HOOK = 10, FX_HOOK_HIT = 11, FX_HOOK_END = 12,
-            FX_STRIKE = 13, FX_DODGE = 14, FX_LAND = 15;
+            FX_STRIKE = 13, FX_DODGE = 14, FX_LAND = 15,
+            /** Someone staggered (power = ticks), knocked down and dragged (dir = toward him, power = ticks), a critical hit. */
+            FX_STAGGER = 16, FX_DOWNED = 17, FX_CRIT = 18;
     /** What his own client tells the server (BatmanInputPacket). */
     public static final int IN_GLIDE_ON = 0, IN_GLIDE_OFF = 1, IN_DODGE = 2, IN_GADGET_SELECT = 3, IN_GADGET_USE = 4,
             IN_GRAPNEL_TOGGLE = 5, IN_GRAPNEL_FIRE = 6, IN_WHEEL_OPEN = 7, IN_WHEEL_CLOSE = 8;
@@ -90,6 +104,7 @@ public final class BatmanAction {
             case GADGET_THROW -> GADGET_TICKS;
             case MINE_PLACE -> MINE_TICKS;
             case GRAPNEL_STRIKE -> STRIKE_TICKS;
+            case GRAPNEL_YANK -> YANK_TICKS;
             case DODGE -> DODGE_TICKS;
             default -> 0;
         };

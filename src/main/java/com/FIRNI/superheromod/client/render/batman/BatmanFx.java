@@ -78,7 +78,7 @@ public final class BatmanFx {
     private static final List<Mote> MOTES = new ArrayList<>();
     private static final List<Ring> RINGS = new ArrayList<>();
     private static final Random RANDOM = new Random();
-    static final int SMOKE = 0x8b9096, SMOKE_DARK = 0x50555c, FLASH = 0xfffbf0, THERMAL = 0xff8a2b, SPARK = 0xffd9a0, DUST = 0x8a8075;
+    static final int SMOKE = 0x4c5056, SMOKE_DARK = 0x2c2f33, FLASH = 0xfffbf0, THERMAL = 0xff8a2b, SPARK = 0xffd9a0, DUST = 0x8a8075;
 
     private BatmanFx() {}
 
@@ -114,18 +114,33 @@ public final class BatmanFx {
             case FX_SMOKE -> {
                 PELLETS.remove(p.id());
                 CLOUDS.add(new Cloud(p.entity(), p.id(), at, p.power(), t, (float) dir.x));
-                RINGS.add(new Ring(at.add(0, .1, 0), p.power() * 1.1f, t, 18, 0xa4a9ae, false));
-                MOTES.add(new Mote(at.add(0, .3, 0), Vec3.ZERO, 1.6f, 0, FLASH, 3, t, M_GLOW, .4f));
+                RINGS.add(new Ring(at.add(0, .1, 0), p.power() * 1.1f, t, 18, 0x5a5e64, false));
+                MOTES.add(new Mote(at.add(0, .3, 0), Vec3.ZERO, 1.1f, 0, 0xfff0d8, 3, t, M_GLOW, .35f));
                 earth(at, (int) (10 * amount()), 1.2);
+                // The burst: gas thrown out along the ground before the cloud fills in behind it.
+                for (int i = 0; i < (int) (34 * amount()); i++) {
+                    double a = RANDOM.nextDouble() * Math.PI * 2, sp = .25 + RANDOM.nextDouble() * .35;
+                    MOTES.add(new Mote(at.add(0, .3, 0), new Vec3(Math.cos(a) * sp, .03 + RANDOM.nextDouble() * .08, Math.sin(a) * sp),
+                            .6f + RANDOM.nextFloat() * .5f, .09f, i % 2 == 0 ? SMOKE_DARK : SMOKE, 28 + RANDOM.nextInt(20), t, M_DUST, .55f));
+                }
+                // His own smoke: his thermal vision comes on by itself to see the ones lost in it.
+                if (p.entity() == me()) BatmanThermal.smoke(t + (float) dir.x);
             }
             case FX_FLASH -> {
                 if (p.entity() >= 0 && p.entity() == me()) { BatmanVision.flashed(p.power()); break; }
                 PELLETS.remove(p.id());
-                MOTES.add(new Mote(at, Vec3.ZERO, 7f, 0, FLASH, 6, t, M_GLOW, 1f));
-                MOTES.add(new Mote(at, Vec3.ZERO, 2.5f, 0, 0xffffff, 10, t, M_GLOW, 1f));
-                RINGS.add(new Ring(at.add(0, .05, 0), p.power() * .9f, t, 10, FLASH, true));
-                sparks(at, new Vec3(0, 1, 0), (int) (24 * amount()), .3f);
-                if (near(at, p.power() * 1.6)) BatmanClient.shake(.15f);
+                // For the ones it does not blind: a small, sharp pop of light with a bloom, lighting the ground round it for an instant.
+                MOTES.add(new Mote(at, Vec3.ZERO, 1.1f, 0, 0xffffff, 3, t, M_GLOW, 1f));
+                MOTES.add(new Mote(at, Vec3.ZERO, 3.2f, 0, FLASH, 5, t, M_GLOW, .75f));
+                MOTES.add(new Mote(at, Vec3.ZERO, 6.5f, 0, 0xdfe8ff, 4, t, M_GLOW, .25f));
+                RINGS.add(new Ring(at.add(0, .05, 0), 5.5f, t, 6, 0xfff8e8, true));
+                RINGS.add(new Ring(at.add(0, .05, 0), 2.6f, t, 5, 0xffffff, true));
+                sparks(at, new Vec3(0, 1, 0), (int) (16 * amount()), .26f);
+                var cam = mc.gameRenderer.getMainCamera().getPosition();
+                double d = cam.distanceTo(at);
+                boolean seen = d < p.power() * 2 && mc.level.clip(new ClipContext(cam, at, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player)).getType() == HitResult.Type.MISS;
+                if (seen) BatmanVision.glimpse((float) (1 - d / (p.power() * 2)));
+                if (near(at, p.power() * 1.6)) BatmanClient.shake(.12f);
             }
             case FX_THERMAL -> {
                 PELLETS.remove(p.id());
@@ -153,6 +168,9 @@ public final class BatmanFx {
                 Line l = LINES.get(p.id());
                 if (l != null) l.taut = t;
                 sparks(at, new Vec3(0, 1, 0), (int) (5 * amount()), .12f);
+                // The line round their legs: a little dust kicked up at their feet.
+                if (p.power() == 2) for (int i = 0; i < (int) (6 * amount()); i++)
+                    MOTES.add(new Mote(at.add(rnd(.3), 0, rnd(.3)), new Vec3(rnd(.04), .03, rnd(.04)), .3f, .04f, DUST, 14, t, M_DUST, .35f));
                 BatmanClient.hookHit(p.id());
             }
             case FX_HOOK_END -> { LINES.remove(p.id()); BatmanClient.arrived(p.id(), p.power() > 0); }
@@ -167,6 +185,16 @@ public final class BatmanFx {
             case FX_DODGE -> {
                 for (int i = 0; i < (int) (8 * amount()); i++)
                     MOTES.add(new Mote(at.add(rnd(.4), .1, rnd(.4)), new Vec3(rnd(.06), .02, rnd(.06)), .35f, .05f, DUST, 18, t, M_DUST, .35f));
+            }
+            case FX_STAGGER -> BatmanStatus.stagger(p.entity(), p.power());
+            case FX_DOWNED -> BatmanStatus.downed(p.entity(), dir, p.power(), p.id());
+            case FX_CRIT -> {
+                BatmanStatus.crit(p.entity());
+                MOTES.add(new Mote(at, Vec3.ZERO, 1f, 0, 0xffe27a, 4, t, M_GLOW, .8f));
+                for (int i = 0; i < (int) (14 * amount()); i++)
+                    MOTES.add(new Mote(at, new Vec3(rnd(.25), RANDOM.nextDouble() * .25, rnd(.25)), .02f, 0, i % 2 == 0 ? 0xffffff : 0xffd34a, 6 + RANDOM.nextInt(5), t, M_SPARK, 1));
+                for (int i = 0; i < 10; i++) mc.level.addParticle(ParticleTypes.CRIT, at.x, at.y, at.z, rnd(.6), RANDOM.nextDouble() * .5, rnd(.6));
+                if (p.id() == me() || p.entity() == me()) BatmanClient.shake(.2f);
             }
             case FX_LAND -> { earth(at, (int) (6 * amount()), .6); RINGS.add(new Ring(at.add(0, .05, 0), 1.6f, t, 10, 0xc8c0b4, false)); }
             default -> {}
@@ -236,7 +264,19 @@ public final class BatmanFx {
         RINGS.removeIf(r -> t - r.start() > r.life());
         CLOUDS.removeIf(c -> t - c.start() > c.life() + 30);
         MINES.values().removeIf(m -> t - m.start > 20 * 620);
-        // The armed mines blink; a little smoke still curls from a cloud as it thins.
+        // Smoke: gas keeps creeping out along the ground from the edge; inside someone else's, the view shakes a little.
+        var camPos = mc.gameRenderer.getMainCamera().getPosition();
+        for (Cloud c : CLOUDS) {
+            float age = t - c.start();
+            if (age < c.life() && RANDOM.nextFloat() < .9f * amount()) {
+                double a = RANDOM.nextDouble() * Math.PI * 2, r = c.radius() * (.6 + RANDOM.nextDouble() * .4);
+                Vec3 from = c.at().add(Math.cos(a) * r, .2 + RANDOM.nextDouble() * .6, Math.sin(a) * r);
+                MOTES.add(new Mote(from, new Vec3(Math.cos(a) * .045, .008, Math.sin(a) * .045), .7f + RANDOM.nextFloat() * .5f, .05f,
+                        RANDOM.nextBoolean() ? SMOKE : SMOKE_DARK, 40 + RANDOM.nextInt(30), t, M_DUST, .32f));
+            }
+            if (c.owner() != me() && c.inside(camPos, t) && ((int) t % 8) == 0) BatmanClient.shake(.03f);
+        }
+        // A little smoke still curls from a cloud as it thins.
         for (Cloud c : CLOUDS) {
             float age = t - c.start();
             if (age > c.life() - 40 && age < c.life() && RANDOM.nextFloat() < .3f * amount())
@@ -334,13 +374,17 @@ public final class BatmanFx {
         if (age < 0 || age > cl.life() + 30) return;
         float grow = 1 - (float) Math.pow(1 - Math.min(1, age / 22f), 3);
         float fade = 1 - Mth.clamp((age - cl.life()) / 30f, 0, 1);
-        int n = (int) (70 * Math.max(.3f, amount()));
-        float base = (own ? .12f : .62f) * fade;
+        // Fewer puffs when it is far away.
+        double far = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition().distanceTo(cl.at());
+        int n = (int) (90 * Math.max(.3f, amount()) * (far > 48 ? .4 : far > 24 ? .7 : 1));
+        float base = (own ? .1f : .7f) * fade;
         for (int i = 0; i < n; i++) {
             double h1 = FilmFx.hash(cl.id() * 131 + i), h2 = FilmFx.hash(cl.id() * 131 + i + 41), h3 = FilmFx.hash(cl.id() * 131 + i + 83);
             double a = h1 * Math.PI * 2 + age * .004 * (h2 - .5), rad = Math.sqrt(h2) * cl.radius() * grow;
             double y = (.25 + h3 * .85) * Math.min(cl.radius() * .7, 4.5) * (.4 + .6 * grow) * (1 - .45 * (rad / Math.max(.1, cl.radius())));
-            Vec3 at = cl.at().add(Math.cos(a) * rad + Math.sin(age * .03 + i) * .25, y + Math.sin(age * .02 + i * 1.7) * .15, Math.sin(a) * rad + Math.cos(age * .025 + i) * .25);
+            // Each puff churns slowly round its place and swells; the whole cloud breathes.
+            double churn = age * (.012 + .01 * h3) + i;
+            Vec3 at = cl.at().add(Math.cos(a) * rad + Math.sin(churn) * .45, y + Math.sin(age * .02 + i * 1.7) * .25, Math.sin(a) * rad + Math.cos(churn * .9) * .45);
             double size = (1.5 + h3 * 1.4) * (.5 + .5 * grow) * (1 + age / Math.max(1, cl.life()) * .35);
             int rgb = i % 3 == 0 ? SMOKE_DARK : SMOKE;
             FilmFx.puff(c, at, size, rgb, base * (.6f + .4f * (float) h1));
@@ -364,6 +408,14 @@ public final class BatmanFx {
         } else {
             double d = l.to.distanceTo(l.from), k = Math.min(1, (time - l.start) * HOOK_SPEED / Math.max(.1, d));
             to = l.from.lerp(l.to, k);
+        }
+        // The yank: his left hand holds the line between the gun and their legs, hauling it.
+        if (s != null && s.action == GRAPNEL_YANK) {
+            Vec3 hand = BatmanLayer.hand(l.batman, 1);
+            if (hand == null) hand = batman.getPosition(partial).add(0, 1.05, 0).add(batman.getViewVector(partial).scale(.5));
+            FilmFx.streak(c, from, hand, .03, 0x16181b, .95f, .95f, false);
+            FilmFx.streak(c, hand, to, .03, 0x16181b, .95f, .95f, false);
+            return;
         }
         Vec3 span = to.subtract(from);
         double len = span.length();
