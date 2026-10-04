@@ -132,6 +132,9 @@ public final class ColossusBody {
             frame.target[c3] = tx; frame.target[c3 + 1] = ty; frame.target[c3 + 2] = tz;
             frame.at[c3] = tx; frame.at[c3 + 1] = ty; frame.at[c3 + 2] = tz;
             boolean drawn = b != skip;
+            // A form that ended mid-build only collapses what had already arrived.
+            if (collapse >= 0 && progress < 1 && b != SWORD
+                    && progress < (KIND[i] == CORE ? ARRIVE[i] - FLIGHT[i] : ARRIVE[i])) { frame.state[i] = Frame.HIDDEN; continue; }
 
             if (KIND[i] == CORE) {
                 // The packed inside: fills its volume (or pours away) instead of flying.

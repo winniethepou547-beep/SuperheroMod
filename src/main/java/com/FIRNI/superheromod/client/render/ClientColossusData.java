@@ -23,6 +23,9 @@ public final class ClientColossusData {
     public static void set(UUID playerId, boolean active,
                            float progress, int[] crystalStates) {
         if (!active) {
+            // The giant does not just vanish: what he looked like last crumbles into sand.
+            if (colossi.containsKey(playerId))
+                com.FIRNI.superheromod.client.render.colossus.ColossusRenderer.dissolve(playerId);
             colossi.remove(playerId);
             formProgress.remove(playerId);
             formStart.remove(playerId);
@@ -30,7 +33,15 @@ public final class ClientColossusData {
         }
 
         boolean wasActive = colossi.containsKey(playerId);
+        int[] before = colossi.get(playerId);
         colossi.put(playerId, crystalStates);
+        // A crystal that took damage throws off shards (and bursts when it breaks).
+        if (before != null) {
+            for (int i = 0; i < Math.min(before.length, crystalStates.length); i++) {
+                if (crystalStates[i] > before[i])
+                    com.FIRNI.superheromod.client.render.colossus.ColossusRenderer.crystalChanged(playerId, i, before[i], crystalStates[i]);
+            }
+        }
         formProgress.put(playerId, progress);
 
         Minecraft mc = Minecraft.getInstance();
