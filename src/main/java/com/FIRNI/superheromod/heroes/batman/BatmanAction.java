@@ -1,0 +1,97 @@
+package com.FIRNI.superheromod.heroes.batman;
+
+/**
+ * Everything Batman can be doing (Arkham games reference), shared by the server (which decides) and the clients (which
+ * animate it from the synced clock), with every animation-coupled timing in one place. Gameplay numbers a server owner
+ * may want to change (damage, ranges, counts, cooldowns, durations) are in BatmanConfig.
+ * Keys: left click punches (the combo speeds up click after click into a rapid flurry); right click throws a Batarang
+ * (held: up to five, more the longer it is held); R held opens the gadget wheel (smoke, flash, thermal, mine), R tapped
+ * uses the gadget picked; E takes out the grapnel gun (left click fires it at a block or a body, E again puts it away);
+ * CTRL rolls (a short dodge, untouchable through it); SPACE held in the air spreads the cape and glides.
+ * No super powers: everything is equipment and fighting skill.
+ */
+public final class BatmanAction {
+    public static final String ID = "batman";
+
+    // ------------------------------------------------------------------ actions (what his body does)
+    public static final int IDLE = 0, PUNCH = 1, BATARANG = 2, BATARANG_CHARGE = 3, BATARANG_MULTI = 4, GADGET_THROW = 5,
+            MINE_PLACE = 6, GRAPNEL_AIM = 7, GRAPNEL_FIRE = 8, GRAPNEL_PULL = 9, GRAPNEL_STRIKE = 10, DODGE = 11, WHEEL = 12;
+
+    // ------------------------------------------------------------------ cooldown slots
+    public static final int CD_SMOKE = 0, CD_FLASH = 1, CD_THERMAL = 2, CD_MINE = 3, CD_GRAPNEL = 4, CD_DODGE = 5, COOLDOWNS = 6;
+
+    // ------------------------------------------------------------------ gadgets (the wheel, clockwise from the top)
+    public static final int G_SMOKE = 0, G_FLASH = 1, G_THERMAL = 2, G_MINE = 3, GADGETS = 4;
+    public static final String[] GADGET_NAMES = {"Sis Bombası", "Flaş Bombası", "Termal Sensör", "Mayın"};
+
+    // ------------------------------------------------------------------ left click: the punches
+    /**
+     * The combo speeds up: the n-th blow in a row (0-based) lasts PUNCH_TICKS[min(n, last)] ticks and lands at
+     * PUNCH_HIT of it; from RAPID on it is the flurry (alternating straights). A click within PUNCH_CHAIN ticks of the
+     * end of a blow keeps the chain; a pause longer than that starts it again.
+     */
+    public static final int[] PUNCH_TICKS = {9, 8, 7, 6, 5, 4};
+    public static final float PUNCH_HIT = .45f;
+    public static final int RAPID = 5, PUNCH_CHAIN = 10;
+    /** The blow the n-th punch of a chain is (for the pose): right straight, left straight, right hook, left uppercut, right elbow, then straights. */
+    public static final int B_RIGHT = 0, B_LEFT = 1, B_HOOK = 2, B_UPPER = 3, B_ELBOW = 4, B_KNEE = 5;
+    public static int blow(int n) {
+        if (n >= RAPID) return n % 2 == 0 ? B_RIGHT : B_LEFT;
+        return switch (n) { case 0 -> B_RIGHT; case 1 -> B_LEFT; case 2 -> B_HOOK; case 3 -> B_UPPER; default -> B_ELBOW; };
+    }
+    public static int punchTicks(int n) { return PUNCH_TICKS[Math.min(n, PUNCH_TICKS.length - 1)]; }
+
+    // ------------------------------------------------------------------ right click: Batarangs
+    /** Most he carries; one comes back every BATARANG_REFILL ticks. Held, one more every BATARANG_STEP ticks. */
+    public static final int BATARANG_MAX = 5, BATARANG_REFILL = 40, BATARANG_STEP = 4;
+    /** A single throw (the arm opens from across the body; released at BATARANG_AT); the many (both arms, at MULTI_AT). */
+    public static final int BATARANG_TICKS = 9, BATARANG_AT = 3, MULTI_TICKS = 11, MULTI_AT = 4;
+
+    // ------------------------------------------------------------------ R: gadgets
+    /** R let go within TAP_TICKS uses the gadget; held longer opens the wheel. */
+    public static final int TAP_TICKS = 5;
+    public static final int GADGET_TICKS = 11, GADGET_AT = 4, MINE_TICKS = 14, MINE_AT = 7;
+    /** A mine arms after MINE_ARM ticks. */
+    public static final int MINE_ARM = 30;
+
+    // ------------------------------------------------------------------ E: the grapnel
+    /** The hook flies HOOK_SPEED blocks a tick; the slack line snaps taut over TAUT ticks; he is pulled at PULL_SPEED (accelerating from PULL_START). */
+    public static final double HOOK_SPEED = 3.2, PULL_SPEED = 1.5, PULL_START = .4;
+    public static final int TAUT = 3;
+    /** Grapnel strike (the line on a body): reached, uppercut at STRIKE_UPPER, he jumps after them at STRIKE_JUMP, kick at STRIKE_KICK, backflip, lands by STRIKE_TICKS. */
+    public static final int STRIKE_UPPER = 3, STRIKE_JUMP = 6, STRIKE_KICK = 14, STRIKE_FLIP = 16, STRIKE_TICKS = 34;
+
+    // ------------------------------------------------------------------ CTRL: the roll
+    /** The roll lasts DODGE_TICKS; untouchable from DODGE_SAFE_FROM to DODGE_SAFE_TO; it covers DODGE_DIST blocks. */
+    public static final int DODGE_TICKS = 9, DODGE_SAFE_FROM = 1, DODGE_SAFE_TO = 7;
+    public static final double DODGE_DIST = 4.2;
+
+    // ------------------------------------------------------------------ SPACE: the glide
+    /** Gliding: forward speed, sink speed, and how much a dive (looking down) speeds him up. */
+    public static final double GLIDE_SPEED = .62, GLIDE_SINK = .075, GLIDE_DIVE = .9;
+    /** Ticks for the cape to spread / fold. */
+    public static final int CAPE_OPEN = 6;
+
+    // ------------------------------------------------------------------ effects (BatmanFxPacket)
+    public static final int FX_PUNCH = 0, FX_BATARANG = 1, FX_BATARANG_HIT = 2, FX_GADGET = 3, FX_SMOKE = 4, FX_FLASH = 5,
+            FX_THERMAL = 6, FX_MINE = 7, FX_MINE_ARMED = 8, FX_MINE_BOOM = 9, FX_HOOK = 10, FX_HOOK_HIT = 11, FX_HOOK_END = 12,
+            FX_STRIKE = 13, FX_DODGE = 14, FX_LAND = 15;
+    /** What his own client tells the server (BatmanInputPacket). */
+    public static final int IN_GLIDE_ON = 0, IN_GLIDE_OFF = 1, IN_DODGE = 2, IN_GADGET_SELECT = 3, IN_GADGET_USE = 4,
+            IN_GRAPNEL_TOGGLE = 5, IN_GRAPNEL_FIRE = 6, IN_WHEEL_OPEN = 7, IN_WHEEL_CLOSE = 8;
+
+    private BatmanAction() {}
+
+    /** Ticks an action lasts (0 = until something ends it). */
+    public static int length(int action) {
+        return switch (action) {
+            case BATARANG -> BATARANG_TICKS;
+            case BATARANG_MULTI -> MULTI_TICKS;
+            case GADGET_THROW -> GADGET_TICKS;
+            case MINE_PLACE -> MINE_TICKS;
+            case GRAPNEL_STRIKE -> STRIKE_TICKS;
+            case DODGE -> DODGE_TICKS;
+            default -> 0;
+        };
+    }
+}

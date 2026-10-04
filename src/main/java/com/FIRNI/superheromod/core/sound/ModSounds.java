@@ -79,6 +79,14 @@ public final class ModSounds {
     // sandman
     public static final RegistryObject<SoundEvent> SANDMAN_SAND_WHOOSH = reg("sandman.sand_whoosh");
     public static final RegistryObject<SoundEvent> SANDMAN_SAND_IMPACT = reg("sandman.sand_impact");
+    // batman
+    public static final RegistryObject<SoundEvent> BATMAN_PUNCH = reg("batman.punch");
+    public static final RegistryObject<SoundEvent> BATMAN_BATARANG = reg("batman.batarang");
+    public static final RegistryObject<SoundEvent> BATMAN_GRAPNEL = reg("batman.grapnel");
+    public static final RegistryObject<SoundEvent> BATMAN_SMOKE = reg("batman.smoke");
+    public static final RegistryObject<SoundEvent> BATMAN_FLASH = reg("batman.flash");
+    public static final RegistryObject<SoundEvent> BATMAN_MINE = reg("batman.mine");
+    public static final RegistryObject<SoundEvent> BATMAN_CAPE = reg("batman.cape");
 
     public static void register(IEventBus bus) { SOUNDS.register(bus); }
 }

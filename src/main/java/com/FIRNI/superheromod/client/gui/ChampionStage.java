@@ -97,6 +97,7 @@ final class ChampionStage {
             case "hulk", "ghost_rider" -> 50;
             case "black_panther" -> 84;
             case "magneto" -> 80;
+            case "batman" -> 74;
             default -> 40;
         };
     }
@@ -154,6 +155,15 @@ final class ChampionStage {
                 if (n == 51) play(s, SoundEvents.BEACON_ACTIVATE, 1.4f, .6f);
                 if (n == 58) { play(s, SoundEvents.WARDEN_SONIC_BOOM, 1.2f, .7f); play(s, SoundEvents.GENERIC_EXPLODE, .75f, .5f); play(s, SoundEvents.AMETHYST_BLOCK_CHIME, .6f, 1f); }
                 if (n == 64) play(s, SoundEvents.BEACON_DEACTIVATE, 1.4f, .5f);
+            }
+            case "batman" -> {
+                // The cape; the Batarangs counted into the hands, thrown wide; a smoke pellet into the floor.
+                if (n == 0) play(s, com.FIRNI.superheromod.core.sound.ModSounds.BATMAN_CAPE.get(), 1f, .9f);
+                if (n == 12 || n == 16 || n == 20) play(s, SoundEvents.ARMOR_EQUIP_CHAIN, 1.4f + n * .01f, .5f);
+                if (n == 25) { play(s, com.FIRNI.superheromod.core.sound.ModSounds.BATMAN_BATARANG.get(), .9f, 1f); play(s, SoundEvents.PLAYER_ATTACK_SWEEP, 1.8f, .4f); }
+                if (n == 33) play(s, SoundEvents.TRIDENT_HIT, 1.6f, .5f);
+                if (n == 41) play(s, com.FIRNI.superheromod.core.sound.ModSounds.FX_WHOOSH_LIGHT.get(), .9f, .5f);
+                if (n == 46) play(s, com.FIRNI.superheromod.core.sound.ModSounds.BATMAN_SMOKE.get(), 1f, .8f);
             }
             case "magneto" -> {
                 // The scrap rising off the floor; the rods called down; the shield; its burst; the landing.
@@ -265,6 +275,7 @@ final class ChampionStage {
             case "cyclops" -> new float[]{50, 60};
             case "sandman" -> new float[]{24, 58};
             case "magneto" -> new float[]{24, 27, 30, 54};
+            case "batman" -> new float[]{33, 46};
             default -> new float[0];
         };
         for (float hit : hits) if (st > hit) shake += 3 * (float) Math.exp(-(st - hit) / 3.5) * Mth.sin(st * 3.7f);
@@ -302,6 +313,15 @@ final class ChampionStage {
                 else if (st < 66) { Showcase.play(actor, PantherAction.RELEASE, st - 58); Showcase.glow(1, 0); }
                 else if (st < 80) { Showcase.play(actor, PantherAction.RELEASE_RECOVER, st - 66); Showcase.glow(.1f, 0); }
                 else { Showcase.play(actor, PantherAction.IDLE, st); Showcase.glow(.1f, 0); }
+            }
+            case "batman" -> {
+                float t = st;
+                if (t < 10) Showcase.play(actor, com.FIRNI.superheromod.heroes.batman.BatmanAction.IDLE, t);
+                else if (t < 22) Showcase.play(actor, com.FIRNI.superheromod.heroes.batman.BatmanAction.BATARANG_CHARGE, t - 10);
+                else if (t < 34) Showcase.play(actor, com.FIRNI.superheromod.heroes.batman.BatmanAction.BATARANG_MULTI, t - 22);
+                else if (t < 37) Showcase.play(actor, com.FIRNI.superheromod.heroes.batman.BatmanAction.IDLE, t);
+                else if (t < 48) Showcase.play(actor, com.FIRNI.superheromod.heroes.batman.BatmanAction.GADGET_THROW, t - 37);
+                else Showcase.play(actor, com.FIRNI.superheromod.heroes.batman.BatmanAction.IDLE, t);
             }
             case "magneto" -> {
                 // Lifts off as the scrap rises round him (the hand stirring it); calls the rods down out of the sky; the
@@ -407,10 +427,40 @@ final class ChampionStage {
             }
             case "black_panther" -> panther(g, st, px, py, s, fx0, fy0, fx1, fy1);
             case "magneto" -> magnetoLight(g, st, px, py, s);
+            case "batman" -> batman(g, st, px, py, s);
             case "ghost_rider" -> { if (st > 12) { light(); glowDisc(g, px, py - s * .9f, s * 1.3f, 0xFFFF6A10, .25f * (1 - ease((st - 30) / 14f))); normal(); } }
             default -> {}
         }
     }
+
+    // ------------------------------------------------------------------ Batman
+    /** Five Batarangs fanning out of his hands across the frame, then a smoke pellet bursting at his feet into a grey cloud. */
+    private void batman(GuiGraphics g, float st, float px, float py, float s) {
+        normal();
+        float throwAge = st - 25;
+        if (throwAge >= 0 && throwAge < 12) {
+            float k = easeOut(throwAge / 9f), a = 1 - Mth.clamp((throwAge - 7) / 5f, 0, 1);
+            for (int i = 0; i < 5; i++) {
+                float ang = (float) Math.toRadians(-150 + i * 30);
+                float x = px + Mth.cos(ang) * s * (.3f + 2.4f * k), y = py - s * 1.25f + Mth.sin(ang) * s * (.2f + 1.1f * k);
+                g.pose().pushPose();
+                g.pose().translate(x, y, 0);
+                g.pose().mulPose(com.mojang.math.Axis.ZP.rotation(throwAge * 1.4f + i));
+                com.FIRNI.superheromod.client.render.batman.BatmanWheel.batarang(g, 0, 0, s * .16f, com.FIRNI.superheromod.client.hud.HudStyle.alpha(0xFF1A1C20, a), 1);
+                g.pose().popPose();
+            }
+        }
+        float smokeAge = st - 46;
+        if (smokeAge >= 0) {
+            float grow = easeOut(smokeAge / 14f), fade = 1 - Mth.clamp((smokeAge - 16) / 12f, 0, 1);
+            for (int i = 0; i < 14; i++) {
+                float h1 = (float) FilmFxHash.h(i * 3 + 1), h2 = (float) FilmFxHash.h(i * 3 + 2);
+                float x = px + (h1 - .5f) * s * 3.2f * grow, y = py - s * (.1f + h2 * .9f) * grow;
+                glowDisc(g, x, y, s * (.5f + .5f * h2) * (.4f + .8f * grow), 0xFF8B9096, .5f * fade);
+            }
+        }
+    }
+    private static final class FilmFxHash { static double h(double n) { double x = Math.sin(n * 12.9898) * 43758.5453; return x - Math.floor(x); } }
 
     // ------------------------------------------------------------------ Zed: Death Mark
     /**

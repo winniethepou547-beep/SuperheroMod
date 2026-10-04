@@ -82,7 +82,14 @@ public final class Champions {
                     new Skill("E", "Hurda Telekinezisi", "Hedefin arkasından gelen hurda metal onu sarar ve havaya kaldırır; 3 saniye boyunca fareyle sürükler, duvara ya da yere çarpar. Sol tık: fırlat."),
                     new Skill("R", "Dev Demir Yumruk", "Önünde metalden dev bir yumruk belirir, nişanını takip eder; her sol tıkta yere iner (5 yumruk)."),
                     new Skill("F", "Manyetik Demir Kalkan", "Etrafından demir sütunlar yükselir, saldırıları durdurur. Tekrar basınca sütunlar parçalanıp her yöne fırlar."),
-                    new Skill("X", "Manyetik İnfaz", "Sinematik: kızıl fırtınalı ölü bir dünyada hedefi X şeklinde iki dev sütuna çiviler, sonra metalle birlikte ezip fırlatır."))));
+                    new Skill("X", "Manyetik İnfaz", "Sinematik: kızıl fırtınalı ölü bir dünyada hedefi X şeklinde iki dev sütuna çiviler, sonra metalle birlikte ezip fırlatır."))),
+            new Champion("batman", "BATMAN", "Bruce Wayne — Kara Şövalye", 0xFFE8C547, List.of(
+                    new Skill("SOL", "Yumruk Kombosu", "Arkham tarzı yakın dövüş: tıkladıkça hızlanan yumruk, kroşe, aparkat ve dirsek; sonunda seri yumruk yağmuru."),
+                    new Skill("SAĞ", "Batarang", "Dokun: tek Batarang. Basılı tut: her 0,2 saniyede bir daha, en fazla 5 Batarang'ı iki eliyle birden fırlatır. Kemerinde 5 tane taşır, zamanla dolar."),
+                    new Skill("R", "Alet Çarkı", "Basılı tut: çark açılır, fareyle alet seç (Sis Bombası, Flaş Bombası, Termal Sensör, Mayın). Dokun: seçili aleti kullan."),
+                    new Skill("E", "Kancalı Tabanca", "Kancayı çıkar, sol tıkla bir bloğa ya da düşmana fırlat. Blokta oraya çekilirsin; düşmanda üstüne uçup aparkat, havada tekme, geriye takla."),
+                    new Skill("CTRL", "Takla", "Hareket yönüne hızlı bir yuvarlanma; ortasında hasar almaz."),
+                    new Skill("BOŞLUK", "Pelerinle Süzülme", "Havadayken basılı tut: pelerin kanat gibi açılır, baktığın yöne süzülürsün; aşağı bakınca hızlanır.")))));
 
     /** How many card slots the grid always shows (the rest are "?" for the heroes to come). */
     public static final int MIN_SLOTS = 18;

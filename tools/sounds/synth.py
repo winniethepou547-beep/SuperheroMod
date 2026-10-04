@@ -549,6 +549,64 @@ def s_sand_impact():
     return mix(d, (thump(d, 100, 45, 0.12), 0, 1), (highpass(noise(d, 144), 1800) * env_ad(d, 0.003, 0.25), 0.01, .6))
 
 
+# Batman
+def s_bat_punch():
+    # A gloved, armoured fist into a body: a short low thud with a leathery slap on top.
+    d = 0.45
+    slap = bandpass(noise(d, 201), 900, 4200) * env_ad(d, 0.0008, 0.018)
+    return mix(d, (thump(d, 120, 55, 0.07), 0, 1.3), (slap, 0, .8), (lowpass(noise(d, 202), 500) * env_ad(d, 0.001, 0.05), 0, .7))
+
+
+def s_bat_batarang():
+    # A spinning blade cutting the air: a whistling whoosh with a fast flutter.
+    d = 0.55
+    t = t_axis(d)
+    air = whoosh(d, 1600, 5200, 3.2, 0.25, seed=203)
+    flutter = (0.55 + 0.45 * np.sin(2 * np.pi * 38 * t)) * env_ad(d, 0.01, 0.25)
+    tone = sine_sweep(d, 2400, 1700) * env_ad(d, 0.01, 0.2) * 0.25
+    return mix(d, (air * flutter, 0, 1), (tone, 0, .5), (crack(0.03, 204, 4000), 0, .4))
+
+
+def s_bat_grapnel():
+    # The grapnel gun: a compressed-air pop, then the line whizzing off the spool.
+    d = 0.8
+    pop = mix(0.2, (thump(0.2, 220, 90, 0.03), 0, 1), (highpass(noise(0.2, 205), 1500) * env_ad(0.2, 0.0005, 0.02), 0, 1))
+    t = t_axis(d)
+    spool = bandpass(noise(d, 206), 2500, 7000) * (0.6 + 0.4 * np.sign(np.sin(2 * np.pi * (90 - 60 * t) * t))) * env_ad(d, 0.03, 0.3)
+    return mix(d, (pop, 0, 1.1), (spool, 0.02, .55), (whoosh(0.5, 900, 3000, 2.5, 0.3, seed=207), 0.01, .5))
+
+
+def s_bat_smoke():
+    # A smoke pellet bursting: a dull pop and a long thick hiss that spreads.
+    d = 2.6
+    hiss = swept(noise(d, 208), 6000, 1800, 1.2, curve=0.6) * env_ad(d, 0.03, 0.8) * np.clip((d - t_axis(d)) / 0.9, 0, 1)
+    return reverb(mix(d, (thump(d, 90, 50, 0.08), 0, 1), (hiss, 0, .9), (lowpass(noise(d, 209), 700) * env_ad(d, 0.05, 0.8), 0, .5)), 0.7, 1.4, 0.2)
+
+
+def s_bat_flash():
+    # A flashbang: a sharp crack, a bright bang and a high ringing tail.
+    d = 2.2
+    t = t_axis(d)
+    ring = np.sin(2 * np.pi * 3600 * t) * env_ad(d, 0.05, 1.1) * 0.18
+    return reverb(mix(d, (crack(0.08, 210, 900), 0, 1.4), (thump(d, 160, 45, 0.18), 0, 1.2), (highpass(noise(d, 211), 3000) * env_ad(d, 0.001, 0.1), 0, .9), (ring, 0.02, 1)), 0.8, 1.5, 0.3)
+
+
+def s_bat_mine():
+    # Gadget electronics: two short beeps and a mechanical click.
+    d = 0.45
+    t = t_axis(d)
+    beep = np.sin(2 * np.pi * 2300 * t) * ((t < 0.07) | ((t > 0.14) & (t < 0.21))) * 0.6
+    return mix(d, (bandpass(beep, 1500, 4000), 0, 1), (crack(0.02, 212, 2500), 0.28, .6))
+
+
+def s_bat_cape():
+    # The heavy cape snapping open in the wind.
+    d = 0.6
+    snap = bandpass(noise(d, 213), 300, 2400) * env_ad(d, 0.004, 0.06)
+    flap = whoosh(d, 250, 1400, 1.4, 0.4, seed=214, body=0.4)
+    return mix(d, (snap, 0, 1), (flap, 0.01, .8))
+
+
 SOUNDS = {
     'fx': {'whoosh_light': s_whoosh_light, 'whoosh_heavy': s_whoosh_heavy, 'impact_heavy': s_impact_heavy, 'impact_metal': s_impact_metal,
            'electric_zap': s_electric_zap, 'electric_crackle': s_electric_crackle, 'energy_swell': s_energy_swell, 'energy_boom': s_energy_boom},
@@ -563,9 +621,11 @@ SOUNDS = {
     'cyclops': {'optic_beam': s_optic_beam, 'optic_blast': s_optic_blast},
     'ghost': {'chain_whip': s_chain_whip, 'hellfire': s_hellfire},
     'sandman': {'sand_whoosh': s_sand_whoosh, 'sand_impact': s_sand_impact},
+    'batman': {'punch': s_bat_punch, 'batarang': s_bat_batarang, 'grapnel': s_bat_grapnel, 'smoke': s_bat_smoke, 'flash': s_bat_flash,
+               'mine': s_bat_mine, 'cape': s_bat_cape},
 }
 # A few sounds get pitch/time variants so repeats never sound identical.
-VARIANTS = {'claw_slash': 3, 'blade_slash': 3, 'whoosh_light': 2, 'claw_hit': 2, 'hulk_punch': 2, 'shield_hit': 2, 'electric_zap': 2, 'metal_shing': 2}
+VARIANTS = {'punch': 3, 'batarang': 2, 'claw_slash': 3, 'blade_slash': 3, 'whoosh_light': 2, 'claw_hit': 2, 'hulk_punch': 2, 'shield_hit': 2, 'electric_zap': 2, 'metal_shing': 2}
 
 
 def resample(x, factor):

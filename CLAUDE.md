@@ -1,6 +1,6 @@
 # SuperheroMod — notes for Claude
 
-Forge 1.20.1 mod (Java 17, package `com.FIRNI.superheromod`). Heroes: **Ghost Rider**, **Cyclops**, **Sandman**, **Thor**, **Hulk**, **Zed**, **Black Panther**, **Magneto**.
+Forge 1.20.1 mod (Java 17, package `com.FIRNI.superheromod`). Heroes: **Ghost Rider**, **Cyclops**, **Sandman**, **Thor**, **Hulk**, **Zed**, **Black Panther**, **Magneto**, **Batman**.
 Older background and per-feature notes live in `docs/` (Turkish); `docs/PROJE_DEVIR_DOKUMANI.md` is the original handover.
 
 ## Working with the user
@@ -274,6 +274,25 @@ landing spot and the target to the crater.
   metal and his body by the storm light, skull mound + rubble (`FilmFx.cube`), wreckage, glowing pillar edges, sparks,
   splashes, dust, shock ring, 3D bolts (`ThorBolts`), rain round the camera, footsteps. Server `MagnetoUltSession`.
 
+## Batman (PvP hero, `heroes/batman/`, `client/render/batman/`) — Arkham games reference, Arkham Origins look
+- Id `batman`. No powers: gadgets, grapnel, fighting. `BatmanAction` = ids + animation-coupled timings (punch chain speeds
+  `PUNCH_TICKS`, `blow(n)` pose per blow, Batarang/gadget/mine/strike/roll/glide timings, FX and input ids); `BatmanConfig`
+  (`superheromod-batman.toml`, `-client.toml`). `BatmanController` (server) decides and simulates Batarangs, gadget pellets,
+  smoke clouds (blind players inside, mobs cannot target him: `LivingChangeTargetEvent`), mines and the hook; his own client
+  (`BatmanClient`) steers his body through the pull, the strike (jump at `STRIKE_JUMP`, backflip at `STRIKE_FLIP`), the
+  roll and the glide. `BatmanStatePacket` / `BatmanFxPacket` / `BatmanInputPacket` (glide, roll + direction, wheel, gadget pick/use, grapnel).
+- Keys: LMB punch chain (clicks buffered; RAPID flurry), RMB Batarang (tap 1 / hold +1 per `BATARANG_STEP`, max 5, belt refills),
+  R hold = gadget wheel (mouse moves a cursor: `ViewportEvent.ComputeCameraAngles` locks the view; LMB or release picks), R tap =
+  use gadget (smoke, flash, thermal, mine), E = grapnel gun out (LMB fires; block = pull, body = GRAPNEL_STRIKE combo),
+  CTRL (raw) = roll with i-frames, SPACE held in the air = cape glide (dive speeds up). No time slow on the wheel (multiplayer).
+- Vision: `BatmanVision` (thermal tint + edge arrows + outlines, smoke grey-out for others, flash white-out); outlines are the
+  vanilla glow outline switched on by `MinecraftGlowMixin` (`shouldEntityAppearGlowing`) and coloured by `EntityTeamColorMixin`.
+- HUD: `HudStyle.skill` rows, Batarang belt next to the crosshair (bat emblem + 5 icons filling back), grapnel reticle,
+  `BatmanWheel` (Arkham/Spider-Man 2 style wheel). Effects: `BatmanFx` (Batarangs, pellets, smoke puffs, flash, thermal ping,
+  mines, the slack-then-taut line). Look/animation: `BatmanBody`, `BatmanMotion`, `BatmanLayer`, `BatmanGear`, `BatmanFirstPerson`,
+  cape on `client/render/cloth/CapeCloth` (shared verlet cloth, also Magneto's cape; glide pins it to the hands as wings).
+  Sounds group `batman`. Docs for the user: `docs/BATMAN.md`.
+
 ## Champion select (P)
 - `client/gui/ChampionSelectScreen` (key P; the dev Pose Studio moved to F8 under a new key id) + roster data
   `client/gui/Champions` (name, title, accent, skills per hero; `MIN_SLOTS` "?" cards for future heroes).
@@ -303,6 +322,6 @@ landing spot and the target to the crater.
   would be copyrighted). It writes `assets/superheromod/sounds/<group>/<name>.ogg` + `sounds.json`; `core/sound/ModSounds`
   registers every `<group>.<name>` (constants `GROUP_NAME`, regenerate both together). They are LAYERED with the vanilla
   sounds at each call site (abilities, FX, film cues), never replacing them. Groups: fx, magneto, panther, thor, hulk, zed,
-  cyclops, ghost, sandman. Check new sounds as spectrograms (you cannot listen).
+  cyclops, ghost, sandman, batman. Check new sounds as spectrograms (you cannot listen).
 - Skill list on the left: `HudStyle.skill` (dark pill, hero-colour stripe, cooldown fill + seconds, ready sweep, `active`
   pulse); each hero client's `hint(...)` routes through it with its accent. Thor/Cyclops/Sandman/Ghost Rider have no list yet.

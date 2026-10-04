@@ -296,5 +296,50 @@
     "sounds": [
       "superheromod:sandman/sand_impact"
     ]
+  },
+  "batman.punch": {
+    "subtitle": "subtitles.superheromod.batman.punch",
+    "sounds": [
+      "superheromod:batman/punch",
+      "superheromod:batman/punch_1",
+      "superheromod:batman/punch_2"
+    ]
+  },
+  "batman.batarang": {
+    "subtitle": "subtitles.superheromod.batman.batarang",
+    "sounds": [
+      "superheromod:batman/batarang",
+      "superheromod:batman/batarang_1"
+    ]
+  },
+  "batman.grapnel": {
+    "subtitle": "subtitles.superheromod.batman.grapnel",
+    "sounds": [
+      "superheromod:batman/grapnel"
+    ]
+  },
+  "batman.smoke": {
+    "subtitle": "subtitles.superheromod.batman.smoke",
+    "sounds": [
+      "superheromod:batman/smoke"
+    ]
+  },
+  "batman.flash": {
+    "subtitle": "subtitles.superheromod.batman.flash",
+    "sounds": [
+      "superheromod:batman/flash"
+    ]
+  },
+  "batman.mine": {
+    "subtitle": "subtitles.superheromod.batman.mine",
+    "sounds": [
+      "superheromod:batman/mine"
+    ]
+  },
+  "batman.cape": {
+    "subtitle": "subtitles.superheromod.batman.cape",
+    "sounds": [
+      "superheromod:batman/cape"
+    ]
   }
 }
