@@ -59,6 +59,13 @@ siyah yarasa, siyah başlık ve kulaklar, zırhlı eldivenler ve botlar, yere ka
 - 4 saniye boyunca iki bilekten dönüşümlü çok hızlı sarı atışlar; nişangâhı nereye çevirirsen kolları oraya döner. Her atışta çok katmanlı namlu parlaması, kısa sarı iz, çevreye (zemin, duvar, Batman'in kolları, göğsü, pelerini) sarı ışık vurması, küçük kamera titreşimi.
 - İsabet: kıvılcım, kısa patlama, düşman geri itilir (zırhlı olan daha az); bloklarda toz ve parça. Sonda güçlü son atış, ardından soğuma buharı ve mekanizma kapanır. Ateş ederken yavaş yürüyebilirsin, yumruk ve takla yok.
 
+## Sonik Tuzak (Batman v Superman)
+- Alet seçiliyken sol elinde siyah, kırmızı düğmeli küçük bir kumanda görünür (yumruk, atış, kanca, takla sırasında saklanır).
+- R: kumandayı göğsüne kaldırır, başparmağıyla kırmızı düğmeye basar (düğme gerçekten iner), "bip".
+- Hedef: nişangâhtaki kişi, yoksa en yakın düşman. Hedefin iki yanında, sana doğru, iki sonik verici yerden çıkar: önce toprak kıpırdar, çatlar, toprak parçaları kenara savrulur; gövde, pistonlar ve ayaklar adım adım yükselir, "KLAK" diye kilitlenir.
+- 4 saniye boyunca iki cihazın başı hedefe yumuşakça döner ve çok hızlı sonik dalgalar atar (hasar yok): hedef %75 yavaşlar, ekranı güçlü titrer ve dalgalanır, sesler boğuklaşır, kulağında çınlama olur. Sesler hedefe çok yüksek, sana kısık gelir.
+- Her cihazın 4 kalbi (8 can) var; vurulup kırılırsa kıvılcım, kısa devre ve küçük bir patlamayla dağılır. Kırılmazsa süre bitince soğur, katlanır ve toprağın içine geri çekilir.
+
 ## Ayarlar
 `config/superheromod-batman.toml`: her hasar, menzil, süre, bekleme süresi ve sayı.
 `config/superheromod-batman-client.toml`: kamera sarsıntısı ve efekt miktarı.

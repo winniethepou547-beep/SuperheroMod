@@ -285,7 +285,10 @@ landing spot and the target to the crater.
   ribbon trail `BatmanFx.rangTrail`), R hold = gadget wheel (5 sectors, `BatmanWheel.SECTOR`; mouse moves a cursor:
   `ViewportEvent.ComputeCameraAngles` locks the view; LMB or release picks), R tap = use gadget (smoke, flash, electric gauntlets
   toggle `BatmanShock`/`BatmanShockFx` (worn: LMB = heavy electric boxing, `State.shock/energy` synced, energy bar), wrist cannon
-  `BatmanCannon`/`BatmanCannonFx`, sonic trap `BatmanSonic`/`BatmanSonicFx`; the thermal sensor and the mine were removed), E = grapnel gun out
+  `BatmanCannon`/`BatmanCannonFx` (deploy/fire/retract on the CANNON clock, fake light splashes on block faces, `cannon_*` sounds),
+  sonic trap `BatmanSonic`/`BatmanSonicFx` (two `SonicEmitterEntity` (ModEntities `sonic_emitter`, 8 HP, `SonicEmitterRenderer`) rise,
+  track and pulse the target: 0 damage, speed modifier, the target's own client shakes, `batman_sonic` post shader, muffled
+  sounds; sounds played per role); the thermal sensor and the mine were removed), E = grapnel gun out
   (LMB fires; block = pull, body = GRAPNEL_STRIKE combo, which at `STRIKE_KICK` sticks a bomb on the back of their head
   (`BatmanSticky`, `STICKY_FUSE` 2.5 s, blast + airtime stagger; drawn by `BatmanFx` via `stickyAt`); RMB on a body = GRAPNEL_YANK: line round the legs, left hand hauls, target
   DOWNED on its back and dragged `DRAG_DIST` 4.4, then BOUND (`BatmanBind` server / `BatmanBound` client: coils drawn, a bound
