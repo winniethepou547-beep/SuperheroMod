@@ -50,6 +50,8 @@ public final class HulkClient {
         float shownTime = -1, fallSpeed;
         public boolean hulk() { return (flags & FLAG_HULK) != 0; }
         public boolean rockFlying() { return (flags & FLAG_ROCK_FLYING) != 0; }
+        /** Carrying the rock overhead (C again to hurl it). */
+        public boolean holdingRock() { return (flags & FLAG_ROCK_HELD) != 0; }
         public BlockState rockState() { BlockState s = Block.stateById(rockBlock); return s.isAir() ? Blocks.STONE.defaultBlockState() : s; }
     }
     private static final Map<Integer, State> STATES = new HashMap<>();
@@ -105,6 +107,8 @@ public final class HulkClient {
         var in = new HulkMotion.Input(action, t, s.hulk(), s.charge, time, e.onGround(), s.fallSpeed,
                 e.getViewXRot(partial) * (float) Math.PI / 180, smashTick(e));
         HulkMotion.Pose target = HulkMotion.sample(in);
+        // Carrying the rock: the arms stay locked overhead on it, whatever the legs do (walking, the leap's crouch, the air, the landing).
+        if (s.holdingRock() && action != ROCK && action != ULTIMATE && action != TRANSFORM && action != REVERT) HulkMotion.carry(target, time);
         if (s.shown == null || time - s.shownTime > 10 || time < s.shownTime || FilmDirector.drawingStage()) s.shown = target.copy();
         else {
             float dt = Math.max(0, time - s.shownTime);
@@ -197,7 +201,7 @@ public final class HulkClient {
         int row = h - 118;
         hint(g, font, AbilityKeyHandler.KEY_RAPID_FIRE, "Thunderclap", s.cooldowns[0], 10, row);
         hint(g, font, AbilityKeyHandler.KEY_SKILL_F, "Yer Yumruğu", s.cooldowns[1], 10, row + 12);
-        hint(g, font, AbilityKeyHandler.KEY_RICOCHET, "Kaya", s.cooldowns[2], 10, row + 24);
+        hint(g, font, AbilityKeyHandler.KEY_RICOCHET, s.holdingRock() ? "Kayayı Fırlat (C / Sol tık)" : "Kaya", s.holdingRock() ? 0 : s.cooldowns[2], s.holdingRock(), 10, row + 24);
         hint(g, font, AbilityKeyHandler.KEY_XRAY, "Gama Öfkesi", s.cooldowns[3], 10, row + 36);
         hint(g, font, mc.options.keyJump, "Sıçrama", s.cooldowns[5], 10, row + 48);
         hint(g, font, mc.options.keyAttack, "Yıkıcı Yumruk (basılı)", s.cooldowns[4], 10, row + 60);

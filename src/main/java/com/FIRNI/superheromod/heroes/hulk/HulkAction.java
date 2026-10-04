@@ -13,7 +13,7 @@ public final class HulkAction {
             PUNCH_RELEASE = 6, GUARD = 7, THUNDERCLAP = 8, POUND = 9, LEAP_CHARGE = 10, LEAP = 11, LANDING = 12,
             ROCK = 13, ULTIMATE = 14;
     /** Flags sent with the state. */
-    public static final int FLAG_HULK = 1, FLAG_ROCK_FLYING = 2, FLAG_GUARD_BROKEN = 4;
+    public static final int FLAG_HULK = 1, FLAG_ROCK_FLYING = 2, FLAG_GUARD_BROKEN = 4, FLAG_ROCK_HELD = 8;
 
     // ------------------------------------------------------------------ the change
     public static final int TRANSFORM_TICKS = 44, REVERT_TICKS = 30;
@@ -48,6 +48,8 @@ public final class HulkAction {
 
     // ------------------------------------------------------------------ rock (C)
     public static final int ROCK_GRAB = 10, ROCK_LIFT = 20, ROCK_THROW = 26, ROCK_TICKS = 34;
+    /** Longest he carries the rock overhead before he hurls it anyway (ticks). */
+    public static final int ROCK_CARRY_MAX = 400;
     /** How far in front of him the boulder is torn out (so the hole never opens under his feet). */
     public static final double ROCK_AHEAD = 2.9;
 

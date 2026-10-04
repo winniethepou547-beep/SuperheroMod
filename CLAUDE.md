@@ -111,7 +111,8 @@ landing spot and the target to the crater.
   from `HulkFxPacket`. Space as Hulk is the leap (`HulkInputPacket`), not the vanilla hop.
 - Keys: LMB alternating punches (small block breaking), LMB hold = charged destructive punch (forward wave),
   RMB guard (front blocks more than back, stamina bar, slowed), **R** Thunderclap, **F** ground-shaking punch (wave
-  follows the terrain, trench), **C** rip up the ground and throw it, **Space hold** charged leap (one bounce on landing),
+  follows the terrain, trench), **C** rip up the ground and hold it overhead (`holdingRock`, `FLAG_ROCK_HELD`), C again or LMB throws it
+  (auto-throw after `ROCK_CARRY_MAX`); while carrying he can walk and leap, arms locked on the rock (`HulkMotion.carry`), **Space hold** charged leap (one bounce on landing),
   **X** GAMMA RAGE film (needs a target in front).
 - Scale: everything is sized for his 1.5× body (effects start at his fists/chest, not the vanilla eye height).
   Thunderclap is a travelling wall of air (`CLAP_SPEED`, `CLAP_SPREAD`): hits land when the front reaches them,
@@ -239,8 +240,10 @@ landing spot and the target to the crater.
   target + hold age, fist position/punch/punches left, shield age) and `MagnetoFxPacket` (each piece has an id so clients follow
   it; clients simulate the same flight and stop on their own world, the server's hit fixes the spot).
 - Keys: SHIFT or jump twice = flight (his client steers: `MagnetoClient.steer`, own velocity, look direction, jump up, CTRL
-  down, bob; server grants `mayfly` only against the floating kick). LMB shard / fist punch / throw the held. Q Iron Barrage
-  (3 charges, rods 8 blocks over the aim point, slanted, spinning, impale, AoE, no terrain damage). E telekinesis (scrap flies
+  down, bob; server grants `mayfly` only against the floating kick). Flight lasts `flightTime` (160 ticks = 8 s, bar on the
+  right `MagnetoClient.flightBar`); empty in the air = GLIDING (slow drift down, no fall damage), refills on the ground
+  (`flightRefillSeconds`), needs 15% to take off again. LMB shard / fist punch / throw the held. Q Iron Barrage
+  (3 charges, rods ×`ROD_SCALE` (2) size, 8 blocks over the aim point, slanted, spinning, impale, AoE, no terrain damage). E telekinesis (scrap flies
   in from behind the target and wraps them; 3 s drag with the aim, slam = commanded speed but stopped). R giant iron fist
   (spring-follows the aim's ground point, 5 punches). F shield columns round him (projectiles stopped, melee reduced);
   F again = burst into pieces that hit and stick. X = MAGNETIC EXECUTION film.

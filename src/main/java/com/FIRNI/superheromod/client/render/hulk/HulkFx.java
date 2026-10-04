@@ -779,14 +779,19 @@ public final class HulkFx {
         int light = e.getPackedLight();
         float walk = mc.player.walkDist + (mc.player.walkDist - mc.player.walkDistO) * e.getPartialTick();
         float bob = (float) Math.sin(walk * Math.PI) * .03f * Math.min(1, (float) mc.player.getDeltaMovement().horizontalDistance() * 8);
-        boolean rockHeld = s.action == ROCK && t >= ROCK_GRAB - 1 && t < ROCK_THROW;
+        boolean carrying = s.holdingRock() && s.action != ROCK;
+        boolean rockHeld = carrying || s.action == ROCK && t >= ROCK_GRAB - 1 && t < ROCK_THROW;
         for (int side = -1; side <= 1; side += 2) {
             boolean right = side > 0;
             p.pushPose();
             p.translate(side * .52, -.62 + (right ? bob : -bob), -.72);
             p.mulPose(Axis.YP.rotationDegrees(-side * 8));
             p.mulPose(Axis.XP.rotationDegrees(8));
-            switch (s.action) {
+            if (carrying) {
+                // Both forearms up holding the rock over his head.
+                p.translate(-side * .18, .55, 0);
+                p.mulPose(Axis.XP.rotationDegrees(-60));
+            } else switch (s.action) {
                 case PUNCH_RIGHT, PUNCH_LEFT -> {
                     boolean mine = right == (s.action == PUNCH_RIGHT);
                     float hit = HulkMotion.snap(t, 1, PUNCH_HIT) * (1 - HulkMotion.k(t, PUNCH_HIT + 1, PUNCH_TICKS));
@@ -843,7 +848,7 @@ public final class HulkFx {
             p.popPose();
         }
         if (rockHeld) {
-            float lift = HulkMotion.k(t, ROCK_GRAB, ROCK_LIFT), hurl = HulkMotion.snap(t, ROCK_LIFT + 2, ROCK_THROW);
+            float lift = carrying ? 1 : HulkMotion.k(t, ROCK_GRAB, ROCK_LIFT), hurl = carrying ? 0 : HulkMotion.snap(t, ROCK_LIFT + 2, ROCK_THROW);
             p.pushPose();
             p.translate(0, -.3 + 1.1 * lift - .5 * hurl, -1.5 - .4 * hurl);
             boulder(p, b, s.rockState(), light, 1.6f, mc.player.getId());

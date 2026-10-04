@@ -287,6 +287,21 @@ public final class HulkMotion {
         return p;
     }
 
+    /**
+     * Carrying the rock overhead: both arms up and locked on it (the same hold the lift ends in), elbows bent under the
+     * weight, the head tipped back a little; the body and legs are left to whatever else he is doing, so a leap with it
+     * is all legs. A slow sway sells the weight.
+     */
+    public static void carry(Pose p, float time) {
+        float sway = (float) Math.sin(time * .12) * .04f;
+        p.rArmX = -3.0f + sway; p.lArmX = -3.0f - sway; p.rElbow = 1.1f; p.lElbow = 1.1f;
+        p.rArmY = -.25f; p.lArmY = .25f; p.rArmZ = .1f; p.lArmZ = -.1f;
+        p.headPitch = Math.min(p.headPitch, -.3f);
+        p.torsoPitch = Math.min(p.torsoPitch, p.torsoPitch * .6f);
+        p.fists = .2f;
+        p.rock = 1;
+    }
+
     // ------------------------------------------------------------------ ONE PUNCH
     /** How far one punch's arm is out at time t: a short draw back, a snap out to the hit, a pull back. */
     private static float punchCurve(float t, float hit, float dur) {
