@@ -9,6 +9,7 @@ import com.FIRNI.superheromod.network.packet.BeamSyncPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
@@ -127,6 +128,7 @@ public class RapidFireController {
 
         level.playSound(null, shooter.blockPosition(),
                 SoundEvents.BLAZE_SHOOT, SoundSource.PLAYERS, 0.55f, 1.9f);
+        level.playSound(null, shooter.blockPosition(), ModSounds.CYCLOPS_OPTIC_BEAM.get(), SoundSource.PLAYERS, (0.55f) * 1.0f, 1.3f);
         CyclopsBeamRenderer.renderOriginFlash(level, eye.add(dir.scale(0.35)));
     }
 

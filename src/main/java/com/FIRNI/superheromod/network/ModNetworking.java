@@ -46,7 +46,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
  */
 public final class ModNetworking {
 
-    private static final String PROTOCOL_VERSION = "16";
+    private static final String PROTOCOL_VERSION = "23";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(SuperheroMod.MODID, "main"),
@@ -217,6 +217,46 @@ public final class ModNetworking {
                 com.FIRNI.superheromod.network.packet.ZedFxPacket::decode,
                 com.FIRNI.superheromod.network.packet.ZedFxPacket::handle,
                 java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.PantherStatePacket.class,
+                com.FIRNI.superheromod.network.packet.PantherStatePacket::encode,
+                com.FIRNI.superheromod.network.packet.PantherStatePacket::decode,
+                com.FIRNI.superheromod.network.packet.PantherStatePacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.PantherFxPacket.class,
+                com.FIRNI.superheromod.network.packet.PantherFxPacket::encode,
+                com.FIRNI.superheromod.network.packet.PantherFxPacket::decode,
+                com.FIRNI.superheromod.network.packet.PantherFxPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.PantherInputPacket.class,
+                com.FIRNI.superheromod.network.packet.PantherInputPacket::encode,
+                com.FIRNI.superheromod.network.packet.PantherInputPacket::decode,
+                com.FIRNI.superheromod.network.packet.PantherInputPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.MagnetoStatePacket.class,
+                com.FIRNI.superheromod.network.packet.MagnetoStatePacket::encode,
+                com.FIRNI.superheromod.network.packet.MagnetoStatePacket::decode,
+                com.FIRNI.superheromod.network.packet.MagnetoStatePacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.MagnetoFxPacket.class,
+                com.FIRNI.superheromod.network.packet.MagnetoFxPacket::encode,
+                com.FIRNI.superheromod.network.packet.MagnetoFxPacket::decode,
+                com.FIRNI.superheromod.network.packet.MagnetoFxPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.MagnetoInputPacket.class,
+                com.FIRNI.superheromod.network.packet.MagnetoInputPacket::encode,
+                com.FIRNI.superheromod.network.packet.MagnetoInputPacket::decode,
+                com.FIRNI.superheromod.network.packet.MagnetoInputPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.SpikeStuckPacket.class,
+                com.FIRNI.superheromod.network.packet.SpikeStuckPacket::encode,
+                com.FIRNI.superheromod.network.packet.SpikeStuckPacket::decode,
+                com.FIRNI.superheromod.network.packet.SpikeStuckPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.SpikePullPacket.class,
+                com.FIRNI.superheromod.network.packet.SpikePullPacket::encode,
+                com.FIRNI.superheromod.network.packet.SpikePullPacket::decode,
+                com.FIRNI.superheromod.network.packet.SpikePullPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
         CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.ChampionLockPacket.class,
                 com.FIRNI.superheromod.network.packet.ChampionLockPacket::encode,
                 com.FIRNI.superheromod.network.packet.ChampionLockPacket::decode,

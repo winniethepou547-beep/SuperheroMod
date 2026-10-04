@@ -9,6 +9,7 @@ import com.FIRNI.superheromod.network.packet.BeamSyncPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
@@ -54,6 +55,7 @@ public class OpticBlastAbility extends Ability {
 
         player.level().playSound(null, player.blockPosition(),
                 SoundEvents.BLAZE_SHOOT, SoundSource.PLAYERS, 1.0f, 1.5f);
+        player.level().playSound(null, player.blockPosition(), ModSounds.CYCLOPS_OPTIC_BLAST.get(), SoundSource.PLAYERS, (1.0f) * 1.0f, 1.0f);
 
         if (result.didHitEntity()) {
             for (RaycastResult.EntityHit hit : result.getEntityHits()) {

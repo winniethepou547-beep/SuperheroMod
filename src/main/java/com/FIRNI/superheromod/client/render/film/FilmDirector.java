@@ -36,6 +36,9 @@ public final class FilmDirector {
     private static CameraType savedCamera;
     private static Field cameraPosition;
     private static float lastCueTime = -1;
+    /** The film's sound cues, built once when it starts (building them every frame churned the garbage collector). */
+    private static Film.Cue[] cueCache = new Film.Cue[0];
+    private static Film cueOwner;
     /** Camera position in stage space for the current frame (virtual segments). */
     private static Vec3 stageCamera = Vec3.ZERO;
     /** Camera angles used this frame on the virtual stage (the backdrop shader rebuilds its rays from them). */
@@ -210,7 +213,8 @@ public final class FilmDirector {
         if (e.phase != TickEvent.Phase.START || !playing()) return;
         var mc = Minecraft.getInstance();
         float t = film.time(mc.getFrameTime());
-        for (Film.Cue cue : film.cues())
+        if (cueOwner != film) { cueOwner = film; cueCache = film.cues(); }
+        for (Film.Cue cue : cueCache)
             if (cue.time() > lastCueTime && cue.time() <= t)
                 mc.getSoundManager().play(SimpleSoundInstance.forUI(cue.sound(), cue.pitch(), cue.volume()));
         lastCueTime = Math.max(lastCueTime, t);

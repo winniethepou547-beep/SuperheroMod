@@ -14,6 +14,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 
@@ -128,7 +129,7 @@ final class RageFilm implements Film {
             float t = ULT_HITS[i], p = ULT_POWER[i];
             if (i < 5 || i == ULT_HITS.length - 1) {
                 // The opening blows and the last: each one heavy and on its own.
-                add(c, t, SoundEvents.PLAYER_ATTACK_KNOCKBACK, 1f, .55f + .05f * i);
+                add(c, t, SoundEvents.PLAYER_ATTACK_KNOCKBACK, 1f, .55f + .05f * i); add(c, t, ModSounds.HULK_HULK_PUNCH.get(), (1f) * 0.8f, 1.0f);
                 add(c, t, SoundEvents.ANVIL_LAND, .3f + .2f * p, .45f);
                 add(c, t, SoundEvents.IRON_GOLEM_ATTACK, .8f, .6f);
                 if (p > 1.2f) add(c, t, SoundEvents.GENERIC_EXPLODE, .6f, 1.2f);
@@ -142,7 +143,7 @@ final class RageFilm implements Film {
         // The roar of the air the barrage churns up.
         add(c, ULT_BARRAGE + 20, SoundEvents.ELYTRA_FLYING, .5f, 1.1f);
         add(c, ULT_BARRAGE + 45, SoundEvents.ELYTRA_FLYING, .8f, 1.5f);
-        add(c, ULT_STOP, SoundEvents.GENERIC_EXPLODE, .8f, .6f);
+        add(c, ULT_STOP, SoundEvents.GENERIC_EXPLODE, .8f, .6f); add(c, ULT_STOP, ModSounds.FX_IMPACT_HEAVY.get(), (.8f) * 1.0f, 1.0f);
         // Silence; stones settling.
         add(c, ULT_STOP + 10, SoundEvents.GRAVEL_FALL, .4f, .6f);
         add(c, ULT_STOP + 26, SoundEvents.STONE_BREAK, .25f, .6f);
@@ -156,16 +157,16 @@ final class RageFilm implements Film {
         add(c, ULT_FREEZE, SoundEvents.RAVAGER_ROAR, 1f, .45f);
         add(c, ULT_FREEZE, SoundEvents.WARDEN_ROAR, .9f, .6f);
         // The punch, after a breath of nothing.
-        add(c, ULT_PUNCH, SoundEvents.GENERIC_EXPLODE, 1f, .35f);
-        add(c, ULT_PUNCH, SoundEvents.WARDEN_SONIC_BOOM, 1f, .45f);
+        add(c, ULT_PUNCH, SoundEvents.GENERIC_EXPLODE, 1f, .35f); add(c, ULT_PUNCH, ModSounds.FX_IMPACT_HEAVY.get(), (1f) * 1.0f, 1.0f);
+        add(c, ULT_PUNCH, SoundEvents.WARDEN_SONIC_BOOM, 1f, .45f); add(c, ULT_PUNCH, ModSounds.HULK_THUNDERCLAP.get(), (1f) * 1.0f, 0.9f);
         add(c, ULT_PUNCH, SoundEvents.ANVIL_LAND, 1f, .3f);
         // The air current: a vast wind, thinning out.
-        add(c, ULT_IMPACT_END, SoundEvents.WARDEN_SONIC_BOOM, .8f, .3f);
+        add(c, ULT_IMPACT_END, SoundEvents.WARDEN_SONIC_BOOM, .8f, .3f); add(c, ULT_IMPACT_END, ModSounds.HULK_THUNDERCLAP.get(), (.8f) * 1.0f, 0.9f);
         add(c, ULT_IMPACT_END, SoundEvents.ELYTRA_FLYING, 1f, .7f);
-        add(c, ULT_IMPACT_END + 4, SoundEvents.GENERIC_EXPLODE, .6f, .3f);
+        add(c, ULT_IMPACT_END + 4, SoundEvents.GENERIC_EXPLODE, .6f, .3f); add(c, ULT_IMPACT_END + 4, ModSounds.FX_IMPACT_HEAVY.get(), (.6f) * 1.0f, 1.0f);
         add(c, 300, SoundEvents.ELYTRA_FLYING, .6f, .5f);
         // The mountain giving way, far off.
-        add(c, ULT_REVEAL - 12, SoundEvents.GENERIC_EXPLODE, .7f, .25f);
+        add(c, ULT_REVEAL - 12, SoundEvents.GENERIC_EXPLODE, .7f, .25f); add(c, ULT_REVEAL - 12, ModSounds.FX_IMPACT_HEAVY.get(), (.7f) * 1.0f, 1.0f);
         add(c, ULT_REVEAL - 10, SoundEvents.ZOMBIE_BREAK_WOODEN_DOOR, .5f, .3f);
         for (int i = 0; i < 9; i++) add(c, ULT_REVEAL + 6 + i * 13, i % 2 == 0 ? SoundEvents.STONE_BREAK : SoundEvents.GRAVEL_BREAK, .3f - i * .02f, .45f + .05f * (i % 3));
         add(c, ULT_WIDE + 6, SoundEvents.ELYTRA_FLYING, .2f, .5f);

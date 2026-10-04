@@ -59,10 +59,23 @@ public final class FilmSessions {
         sync(attacker, target, s, true);
         return true;
     }
+    /**
+     * A film with no one else in it (it plays for the attacker alone, on its own stage): they are held where they
+     * stand, facing the way they looked, until the script lets go.
+     */
+    public static boolean startSolo(ServerPlayer attacker, Script script) {
+        if (busy(attacker.getUUID())) return false;
+        Session s = new Session();
+        s.script = script; s.target = null; s.anchor = attacker.position(); s.targetAt = attacker.position();
+        s.yaw = attacker.getYRot();
+        ACTIVE.put(attacker.getUUID(), s);
+        sync(attacker, null, s, true);
+        return true;
+    }
     public static void stop(ServerPlayer attacker) {
         Session s = ACTIVE.get(attacker.getUUID());
         if (s == null) return;
-        LivingEntity target = attacker.serverLevel().getEntity(s.target) instanceof LivingEntity living ? living : null;
+        LivingEntity target = s.target != null && attacker.serverLevel().getEntity(s.target) instanceof LivingEntity living ? living : null;
         finish(attacker, target, s);
     }
 
@@ -70,9 +83,9 @@ public final class FilmSessions {
         if (e.phase != TickEvent.Phase.END || !(e.player instanceof ServerPlayer p)) return;
         Session s = ACTIVE.get(p.getUUID());
         if (s == null) return;
-        LivingEntity target = p.serverLevel().getEntity(s.target) instanceof LivingEntity living ? living : null;
+        LivingEntity target = s.target != null && p.serverLevel().getEntity(s.target) instanceof LivingEntity living ? living : null;
         boolean gone = target == null || !target.isAlive();
-        if (!p.isAlive() || target == null && !s.script.outlivesTarget() || target != null && target.distanceTo(p) > 40) { finish(p, target, s); return; }
+        if (!p.isAlive() || target == null && s.target != null && !s.script.outlivesTarget() || target != null && target.distanceTo(p) > 40) { finish(p, target, s); return; }
         s.age++;
         Vec3 forward = Vec3.directionFromRotation(0, s.yaw);
         if (s.age < s.script.release()) {
@@ -81,7 +94,7 @@ public final class FilmSessions {
         } else if (s.age == s.script.release() && target instanceof Mob mob) mob.setNoAi(s.aiWasOff);
         s.script.tick(p, target, s.age, forward);
         sync(p, target, s, true);
-        if (s.age >= s.script.total() || gone && !s.script.outlivesTarget() && s.age >= s.script.release()) finish(p, target, s);
+        if (s.age >= s.script.total() || gone && s.target != null && !s.script.outlivesTarget() && s.age >= s.script.release()) finish(p, target, s);
     }
     private static void hold(LivingEntity body, Vec3 at, float facing) {
         if (body instanceof ServerPlayer player) {
@@ -105,7 +118,7 @@ public final class FilmSessions {
     }
     @SubscribeEvent public static void logout(PlayerEvent.PlayerLoggedOutEvent e) {
         Session s = ACTIVE.remove(e.getEntity().getUUID());
-        if (s != null && e.getEntity() instanceof ServerPlayer p && p.serverLevel().getEntity(s.target) instanceof Mob mob) mob.setNoAi(s.aiWasOff);
+        if (s != null && s.target != null && e.getEntity() instanceof ServerPlayer p && p.serverLevel().getEntity(s.target) instanceof Mob mob) mob.setNoAi(s.aiWasOff);
     }
     @SubscribeEvent public static void stopped(ServerStoppedEvent e) { ACTIVE.clear(); }
 }

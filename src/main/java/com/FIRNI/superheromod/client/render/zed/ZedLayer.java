@@ -59,6 +59,7 @@ public final class ZedLayer extends RenderLayer<AbstractClientPlayer, PlayerMode
         blend.run += (want - blend.run) * (1 - (float) Math.exp(-dt * .35f));
         pose.run = blend.run;
         blend.last = pose;
+        if (com.FIRNI.superheromod.client.render.magneto.MagnetoFx.impaled(e.getId(), partial) != null) { pose = pose.copy(); com.FIRNI.superheromod.client.render.magneto.SpikePull.zed(pose, e, partial); }
         var model = getParentModel();
         if (pose.vanish >= .98f) return;
         ZedBody.capture = true;

@@ -74,14 +74,22 @@ public final class HeroArmPose {
             return;
         }
 
-        // Thor, Hulk and Zed draw their whole bodies themselves (ThorLayer, HulkLayer, ZedLayer); the player model stays out of the way.
+        // Thor, Hulk, Zed, Black Panther and Magneto draw their whole bodies themselves (ThorLayer, HulkLayer, ZedLayer, PantherLayer, MagnetoLayer); the player model stays out of the way.
         if (com.FIRNI.superheromod.client.render.thor.ThorClient.isThor(player)
                 || com.FIRNI.superheromod.client.render.hulk.HulkClient.isHero(player)
-                || com.FIRNI.superheromod.client.render.zed.ZedClient.isHero(player)) {
+                || com.FIRNI.superheromod.client.render.zed.ZedClient.isHero(player)
+                || com.FIRNI.superheromod.client.render.panther.PantherClient.isHero(player)
+                || com.FIRNI.superheromod.client.render.magneto.MagnetoClient.isHero(player)) {
             elbow.remove(id);
             model.head.visible = model.hat.visible = model.body.visible = model.jacket.visible = false;
             model.rightArm.visible = model.leftArm.visible = model.rightSleeve.visible = model.leftSleeve.visible = false;
             model.rightLeg.visible = model.leftLeg.visible = model.rightPants.visible = model.leftPants.visible = false;
+            return;
+        }
+
+        // A Magneto spike in them: both hands on it, yanking (SpikePull).
+        if (com.FIRNI.superheromod.client.render.magneto.SpikePull.vanilla(model, player, ageInTicks - player.tickCount)) {
+            elbow.remove(id);
             return;
         }
 

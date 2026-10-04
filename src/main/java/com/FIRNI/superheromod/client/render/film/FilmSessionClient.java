@@ -29,7 +29,9 @@ public final class FilmSessionClient {
             SandArmyFilm.ID, SandArmyFilm::new,
             GodOfThunderFilm.ID, GodOfThunderFilm::new,
             RageFilm.ID, RageFilm::new,
-            ShadowExecutionFilm.ID, ShadowExecutionFilm::new);
+            ShadowExecutionFilm.ID, ShadowExecutionFilm::new,
+            FinalPursuitFilm.ID, FinalPursuitFilm::new,
+            MagneticExecutionFilm.ID, MagneticExecutionFilm::new);
 
     public static void receive(FilmSessionPacket p) {
         var mc = Minecraft.getInstance();

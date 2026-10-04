@@ -10,6 +10,7 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -142,6 +143,7 @@ public final class SandWallController {
 
         player.level().playSound(null, player.blockPosition(),
                 SoundEvents.SAND_STEP, SoundSource.PLAYERS, 0.9f, 1.4f);
+        player.level().playSound(null, player.blockPosition(), ModSounds.SANDMAN_SAND_WHOOSH.get(), SoundSource.PLAYERS, (0.9f) * 0.6f, 1.2f);
     }
 
     public static void confirm(ServerPlayer player) {
@@ -153,6 +155,7 @@ public final class SandWallController {
 
         wall.level.playSound(null, BlockPos.containing(wall.center),
                 SoundEvents.SAND_PLACE, SoundSource.PLAYERS, 1.5f, 0.55f);
+        wall.level.playSound(null, BlockPos.containing(wall.center), ModSounds.SANDMAN_SAND_WHOOSH.get(), SoundSource.PLAYERS, (1.5f) * 0.7f, 1.0f);
         burst(wall, 30, 0.2);
     }
 
@@ -163,6 +166,7 @@ public final class SandWallController {
         walls.remove(player.getUUID());
         player.level().playSound(null, player.blockPosition(),
                 SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 0.7f, 1.2f);
+        player.level().playSound(null, player.blockPosition(), ModSounds.SANDMAN_SAND_IMPACT.get(), SoundSource.PLAYERS, (0.7f) * 0.8f, 1.0f);
     }
 
     /** Dikenleri cikarir; kisa beklemeden sonra duvar firlar. */
@@ -176,6 +180,7 @@ public final class SandWallController {
 
         wall.level.playSound(null, BlockPos.containing(wall.center),
                 SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 1.6f, 0.75f);
+        wall.level.playSound(null, BlockPos.containing(wall.center), ModSounds.SANDMAN_SAND_IMPACT.get(), SoundSource.PLAYERS, (1.6f) * 0.8f, 1.0f);
     }
 
     public static boolean hasPreview(UUID playerId) {
@@ -358,6 +363,7 @@ public final class SandWallController {
 
             wall.level.playSound(null, BlockPos.containing(wall.center),
                     SoundEvents.SAND_BREAK, SoundSource.BLOCKS, 1.4f, 0.6f);
+            wall.level.playSound(null, BlockPos.containing(wall.center), ModSounds.SANDMAN_SAND_IMPACT.get(), SoundSource.BLOCKS, (1.4f) * 0.8f, 1.0f);
         }
     }
 
@@ -454,6 +460,7 @@ public final class SandWallController {
                 45, wall.halfWidth * 0.9, wall.halfHeight * 0.9, wall.halfDepth, 0.22);
         wall.level.playSound(null, BlockPos.containing(wall.center),
                 SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 1.2f, 0.7f);
+        wall.level.playSound(null, BlockPos.containing(wall.center), ModSounds.SANDMAN_SAND_IMPACT.get(), SoundSource.PLAYERS, (1.2f) * 0.8f, 1.0f);
     }
 
     /** Tum aktif duvarlari yakindaki oyunculara gonderir. */

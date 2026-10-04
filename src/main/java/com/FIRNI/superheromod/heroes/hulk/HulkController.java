@@ -13,6 +13,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -68,6 +69,8 @@ public final class HulkController {
         final int[] cooldowns = new int[HulkStatePacket.COOLDOWNS];
         // leap
         boolean bounced, leaping; double fallSpeed; int airTicks;
+        // the rock carried overhead (C to pick it up, C again or a click to hurl it)
+        boolean holdingRock, rockThrowing; int carried;
         // charged punch: the shock wave travelling out from the fist, then bursting
         boolean punchWave; Vec3 pwFrom = Vec3.ZERO, pwDir = Vec3.ZERO; double pwDist, pwRange; float pwCharge; HulkBlocks.Budget pwBudget;
         final Set<Integer> pwHits = new HashSet<>();
@@ -114,6 +117,12 @@ public final class HulkController {
     public static void press(ServerPlayer p, AbilitySlot slot) {
         State s = state(p);
         if (FilmSessions.busy(p.getUUID())) return;
+        // Carrying the rock his arms are full: C or a click hurls it; punches, guard and the other moves wait.
+        if (s.holdingRock) {
+            if (slot == AbilitySlot.SKILL_C || slot == AbilitySlot.LMB) throwCarried(p, s);
+            else if (slot == AbilitySlot.SKILL_G) transform(p, s);
+            return;
+        }
         switch (slot) {
             case SKILL_G -> transform(p, s);
             case LMB -> { s.lmbDown = true; s.lmbAge = 0; }
@@ -192,6 +201,7 @@ public final class HulkController {
         s.punchSide = 1 - s.punchSide;
         set(s, s.punchSide == 0 ? PUNCH_RIGHT : PUNCH_LEFT);
         sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, .7f, .6f);
+        sound(p, ModSounds.FX_WHOOSH_HEAVY.get(), .7f, 1.15f);
     }
     /**
      * A jab: a short, heavy blow from the hand that swings. Whatever stands in front of that side of
@@ -247,6 +257,7 @@ public final class HulkController {
         p.level().playSound(null, burst.x, burst.y, burst.z, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, .45f, 1.7f);
         sound(p, SoundEvents.PLAYER_ATTACK_KNOCKBACK, 1f, .55f);
         sound(p, SoundEvents.IRON_GOLEM_ATTACK, .8f, .8f);
+        sound(p, ModSounds.HULK_HULK_PUNCH.get(), 1.2f, .95f + p.getRandom().nextFloat() * .1f);
     }
     private static void startCharge(ServerPlayer p, State s) {
         if (!s.hulk || busy(s) || s.action == GUARD || s.action == LEAP_CHARGE) return;
@@ -259,6 +270,7 @@ public final class HulkController {
         set(s, PUNCH_RELEASE);
         s.cooldowns[CD_CHARGED] = HulkConfig.get(HulkConfig.CHARGED_COOLDOWN);
         sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, 1f, .4f);
+        sound(p, ModSounds.FX_WHOOSH_HEAVY.get(), 1f, .7f);
     }
     /**
      * The charged punch: the fist drives a shock wave out ahead (PUNCH_WAVE_SPEED blocks a tick). It
@@ -279,6 +291,8 @@ public final class HulkController {
         sound(p, SoundEvents.GENERIC_EXPLODE, .6f + .5f * c, 1.4f - .4f * c);
         sound(p, SoundEvents.WARDEN_SONIC_BOOM, .5f + .5f * c, 1.3f);
         sound(p, SoundEvents.IRON_GOLEM_ATTACK, 1f, .5f);
+        sound(p, ModSounds.HULK_HULK_PUNCH.get(), 1.4f, .8f);
+        sound(p, ModSounds.HULK_THUNDERCLAP.get(), .4f + .4f * c, 1.3f);
         punchWaveStep(p, s);
     }
     private static void punchWaveStep(ServerPlayer p, State s) {
@@ -331,6 +345,7 @@ public final class HulkController {
         fx(p, FX_BLAST, at, s.pwDir, c, ground == null ? HulkBlocks.id(p.level().getBlockState(BlockPos.containing(at))) : HulkBlocks.id(p.level().getBlockState(ground)));
         p.level().playSound(null, at.x, at.y, at.z, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 1.6f + c, .7f);
         p.level().playSound(null, at.x, at.y, at.z, SoundEvents.ZOMBIE_BREAK_WOODEN_DOOR, SoundSource.PLAYERS, 1.2f, .5f);
+        p.level().playSound(null, at.x, at.y, at.z, ModSounds.HULK_GROUND_SLAM.get(), SoundSource.PLAYERS, 1.3f + c * .5f, 1f);
         for (LivingEntity t : targets(p, new AABB(at, at).inflate(radius))) {
             if (s.pwHits.contains(t.getId())) continue;
             Vec3 to = t.getBoundingBox().getCenter().subtract(at);
@@ -426,6 +441,7 @@ public final class HulkController {
         sound(p, SoundEvents.IRON_GOLEM_ATTACK, 1.3f, .5f);
         sound(p, SoundEvents.WARDEN_SONIC_BOOM, 1f, 1.2f);
         sound(p, SoundEvents.LIGHTNING_BOLT_THUNDER, .5f, 1.6f);
+        sound(p, ModSounds.HULK_THUNDERCLAP.get(), 1.6f, 1f);
         clapStep(p, s);
     }
     private static void clapStep(ServerPlayer p, State s) {
@@ -512,6 +528,7 @@ public final class HulkController {
         sound(p, SoundEvents.GENERIC_EXPLODE, 1.5f, .6f);
         sound(p, SoundEvents.ZOMBIE_BREAK_WOODEN_DOOR, 1.2f, .5f);
         sound(p, SoundEvents.WARDEN_SONIC_BOOM, .5f, .5f);
+        sound(p, ModSounds.HULK_GROUND_SLAM.get(), 1.6f, .95f);
         // The blow shoves him back a little.
         p.setDeltaMovement(p.getDeltaMovement().add(s.waveDir.scale(-.35)).add(0, .08, 0));
         p.hurtMarked = true;
@@ -612,6 +629,7 @@ public final class HulkController {
         fx(p, FX_LANDING, p.position(), new Vec3(0, 1, 0), .3f + .4f * s.charge, HulkBlocks.id(under));
         sound(p, SoundEvents.RAVAGER_STEP, 1f, .6f);
         sound(p, SoundEvents.GENERIC_EXPLODE, .3f + .4f * s.charge, 1.6f);
+        sound(p, ModSounds.HULK_LEAP.get(), 1.1f, 1f);
     }
     /** Touching down: the harder the fall, the bigger the blow and the crater; then a short bounce. */
     private static void land(ServerPlayer p, State s) {
@@ -621,6 +639,7 @@ public final class HulkController {
         fx(p, FX_LANDING, p.position(), new Vec3(0, 1, 0), power, HulkBlocks.id(ground));
         sound(p, SoundEvents.GENERIC_EXPLODE, .5f + .8f * power, 1.2f - .4f * power);
         sound(p, SoundEvents.ANVIL_LAND, .6f, .5f);
+        sound(p, ModSounds.FX_IMPACT_HEAVY.get(), .8f + .7f * power, 1f - .2f * power);
         double radius = HulkConfig.get(HulkConfig.LANDING_RADIUS) * (.4 + .6 * power);
         for (LivingEntity t : targets(p, p.getBoundingBox().inflate(radius, 2, radius))) {
             Vec3 to = t.position().subtract(p.position());
@@ -664,6 +683,7 @@ public final class HulkController {
     }
 
     // ------------------------------------------------------------------ rock
+    /** C: tear a rock up out of the ground and lift it overhead (he keeps it there until C again). */
     private static void rock(ServerPlayer p, State s) {
         if (!needHulk(p, s) || busy(s) || s.action == PUNCH_CHARGE) return;
         if (!ready(p, s, CD_ROCK, "Kaya Fırlatma")) return;
@@ -671,10 +691,28 @@ public final class HulkController {
         BlockPos source = surface(p.serverLevel(), BlockPos.containing(p.position().add(flat(p).scale(ROCK_AHEAD))), 2);
         BlockState st = source == null ? null : p.level().getBlockState(source);
         if (st == null || !HulkBlocks.earth(st) || st.hasBlockEntity()) { tell(p, "Önünde sökülecek taş ya da toprak yok"); return; }
-        s.cooldowns[CD_ROCK] = HulkConfig.get(HulkConfig.ROCK_COOLDOWN);
         if (s.action == GUARD) endGuard(p, s);
         s.rockBlock = st; s.rockFrom = source;
+        s.rockThrowing = false;
         set(s, ROCK);
+    }
+    /** C again (or a click): the carried rock is hurled the way he looks, from wherever he is, in the air too. */
+    private static void throwCarried(ServerPlayer p, State s) {
+        if (!s.holdingRock) return;
+        s.holdingRock = false;
+        s.rockThrowing = true;
+        s.cooldowns[CD_ROCK] = HulkConfig.get(HulkConfig.ROCK_COOLDOWN);
+        set(s, ROCK);
+        s.age = ROCK_LIFT;
+    }
+    /** He lets it go without a throw (turning back into Banner, dying): it falls apart where he is. */
+    private static void dropCarried(ServerPlayer p, State s) {
+        if (!s.holdingRock) return;
+        s.holdingRock = false;
+        s.cooldowns[CD_ROCK] = HulkConfig.get(HulkConfig.ROCK_COOLDOWN);
+        s.dirty = true;
+        fx(p, FX_ROCK_HIT, p.position().add(0, 2.5, 0), new Vec3(0, -1, 0), .5f, HulkBlocks.id(s.rockBlock));
+        sound(p, SoundEvents.STONE_BREAK, 1.2f, .6f);
     }
     private static void launchRock(ServerPlayer p, State s) {
         s.rockFlying = true; s.rockTravel = 0; s.dirty = true;
@@ -683,14 +721,17 @@ public final class HulkController {
         s.rockVel = aim.scale(HulkConfig.get(HulkConfig.ROCK_SPEED));
         sound(p, SoundEvents.IRON_GOLEM_ATTACK, 1f, .4f);
         sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, 1f, .4f);
+        sound(p, ModSounds.FX_WHOOSH_HEAVY.get(), 1.1f, .6f);
     }
     private static void tickRock(ServerPlayer p, State s) {
         ServerLevel level = p.serverLevel();
         Vec3 from = s.rockPos, to = from.add(s.rockVel);
-        s.rockVel = s.rockVel.add(0, -.035, 0).scale(.995);
+        // A real throw: gravity pulls it down the whole way, thrown up it slows, turns over and falls; it flies on
+        // until it meets the ground, a wall or a body (no range where it would stop in mid-air).
+        s.rockVel = s.rockVel.add(0, -.04, 0).scale(.995);
         s.rockTravel += s.rockVel.length();
-        // Never into unloaded ground or out of the world.
-        if (!level.isLoaded(BlockPos.containing(to)) || to.y < level.getMinBuildHeight() || s.rockTravel > HulkConfig.get(HulkConfig.ROCK_RANGE)) {
+        // Never into unloaded ground or out of the world (and not forever).
+        if (!level.isLoaded(BlockPos.containing(to)) || to.y < level.getMinBuildHeight() || s.rockTravel > 600) {
             rockImpact(p, s, from, null); return;
         }
         var block = level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, p));
@@ -711,6 +752,7 @@ public final class HulkController {
         fx(p, FX_ROCK_HIT, at, dir, 1, HulkBlocks.id(s.rockBlock));
         p.level().playSound(null, at.x, at.y, at.z, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 1.2f, .9f);
         p.level().playSound(null, at.x, at.y, at.z, SoundEvents.STONE_BREAK, SoundSource.PLAYERS, 1.5f, .6f);
+        p.level().playSound(null, at.x, at.y, at.z, ModSounds.FX_IMPACT_HEAVY.get(), SoundSource.PLAYERS, 1.4f, .8f);
         if (direct != null) {
             hit(p, direct, HulkConfig.get(HulkConfig.ROCK_DAMAGE).floatValue(), dir, 1.4, .4);
             direct.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 80, 3));
@@ -754,6 +796,10 @@ public final class HulkController {
         State s = state(p);
         s.age++;
         for (int i = 0; i < s.cooldowns.length; i++) if (s.cooldowns[i] > 0) s.cooldowns[i]--;
+        if (s.holdingRock) {
+            if (!s.hulk || s.action == REVERT || !p.isAlive()) dropCarried(p, s);
+            else if (++s.carried > ROCK_CARRY_MAX) throwCarried(p, s);
+        }
         if (s.guardBroken > 0) s.guardBroken--;
         if (s.action != GUARD) {
             if (s.staminaPause > 0) s.staminaPause--;
@@ -824,8 +870,10 @@ public final class HulkController {
                         crater(p, s.rockFrom, 1, 1, budget, .55);
                     }
                 }
+                // Lifted overhead: he keeps it there (walking, leaping) until he throws it.
+                if (s.age == ROCK_LIFT && !s.rockThrowing) { s.holdingRock = true; s.carried = 0; set(s, IDLE); break; }
                 if (s.age == ROCK_THROW) launchRock(p, s);
-                if (s.age >= ROCK_TICKS) set(s, IDLE);
+                if (s.age >= ROCK_TICKS) { s.rockThrowing = false; set(s, s.leaping ? LEAP : IDLE); }
             }
             case ULTIMATE -> { if (!FilmSessions.playing(p.getUUID(), HulkRageSession.ID)) set(s, IDLE); }
             default -> {}
@@ -894,7 +942,7 @@ public final class HulkController {
 
     // ------------------------------------------------------------------ sync
     private static void send(ServerPlayer p, State s) {
-        int flags = (s.hulk ? FLAG_HULK : 0) | (s.rockFlying ? FLAG_ROCK_FLYING : 0) | (s.guardBroken > 0 ? FLAG_GUARD_BROKEN : 0);
+        int flags = (s.hulk ? FLAG_HULK : 0) | (s.rockFlying ? FLAG_ROCK_FLYING : 0) | (s.guardBroken > 0 ? FLAG_GUARD_BROKEN : 0) | (s.holdingRock ? FLAG_ROCK_HELD : 0);
         float charge = s.action == PUNCH_CHARGE ? Math.min(1, s.age / (float) CHARGE_MAX) : s.action == LEAP_CHARGE ? Math.min(1, Math.max(0, (s.age - LEAP_TAP) / (float) LEAP_CHARGE_MAX)) : s.charge;
         ModNetworking.CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> p),
                 new HulkStatePacket(p.getId(), s.action, s.age, flags, charge, s.stamina, s.rockPos, HulkBlocks.id(s.rockBlock),

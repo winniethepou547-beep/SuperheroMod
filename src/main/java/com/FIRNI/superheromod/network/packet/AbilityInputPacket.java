@@ -40,6 +40,8 @@ public class AbilityInputPacket {
             AbilitySlot[] slots = AbilitySlot.values();
             if (msg.slotOrdinal < 0 || msg.slotOrdinal >= slots.length) return;
             AbilitySlot slot = slots[msg.slotOrdinal];
+            // A Magneto spike in them: their left click is for pulling it out, not for attacking.
+            if (slot == AbilitySlot.LMB && msg.pressed && com.FIRNI.superheromod.heroes.magneto.MagnetoSpike.stuck(player)) return;
 
             if (msg.pressed) {
                 AbilityManager.activateAbility(player, slot);

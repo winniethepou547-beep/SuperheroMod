@@ -12,6 +12,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -109,6 +110,7 @@ public final class ThorController {
         s.comboStep = step; s.queued = false; s.sinceSwing = 999;
         set(s, step == 1 ? SWING_RIGHT : step == 2 ? SWING_LEFT : UPPERCUT);
         sound(p, step == 3 ? SoundEvents.PLAYER_ATTACK_STRONG : SoundEvents.PLAYER_ATTACK_SWEEP, .8f, step == 3 ? .7f : .85f + step * .08f);
+        sound(p, ModSounds.THOR_HAMMER_WHOOSH.get(), .8f, step == 3 ? .8f : 1f + step * .06f);
     }
 
     private static void throwOrRecall(ServerPlayer p, State s) {
@@ -138,6 +140,7 @@ public final class ThorController {
         s.carried = -1;
         fx(p, FX_TAKEOFF, p.position(), p.getLookAngle(), .5f + .5f * s.charge);
         sound(p, SoundEvents.TRIDENT_RIPTIDE_3, .7f + .4f * s.charge, 1.2f - .3f * s.charge);
+        sound(p, ModSounds.THOR_HAMMER_WHOOSH.get(), 1f, .85f);
         if (s.charge >= 1) sound(p, SoundEvents.LIGHTNING_BOLT_IMPACT, .5f, 1.6f);
     }
     /**
@@ -155,6 +158,7 @@ public final class ThorController {
                 fx(p, FX_HAMMER_HIT, t.position().add(0, t.getBbHeight() * .55, 0), dir, .6f + .4f * s.charge);
                 sound(p, SoundEvents.ANVIL_LAND, .6f, 1.2f);
                 sound(p, SoundEvents.PLAYER_ATTACK_KNOCKBACK, 1f, .7f);
+                sound(p, ModSounds.THOR_HAMMER_IMPACT.get(), .7f, 1.1f);
                 s.carried = t.getId(); s.dirty = true;
                 break;
             }
@@ -201,9 +205,11 @@ public final class ThorController {
         if (s.age == BM_SKY) {
             fx(p, FX_SKY_BOLT, p.position().add(0, 2.9, 0), new Vec3(0, 1, 0), .7f);
             sound(p, SoundEvents.LIGHTNING_BOLT_THUNDER, 1f, 1.1f);
+            sound(p, ModSounds.THOR_LIGHTNING_CRACKLE.get(), 1f, 1f);
         }
         if (s.age >= BM_AIM && s.age < BM_END) {
             if ((s.age - BM_AIM) % 8 == 0) sound(p, SoundEvents.LIGHTNING_BOLT_IMPACT, .8f, .7f + p.getRandom().nextFloat() * .3f);
+            if ((s.age - BM_AIM) % 8 == 0) sound(p, ModSounds.THOR_LIGHTNING_CRACKLE.get(), .7f, .9f + p.getRandom().nextFloat() * .2f);
             if (s.age == BM_AIM) sound(p, SoundEvents.LIGHTNING_BOLT_THUNDER, .8f, 1.5f);
             if ((s.age - BM_AIM) % BM_HIT_EVERY == 0) beamHits(p);
         }
@@ -341,6 +347,7 @@ public final class ThorController {
         }
         if (any) {
             sound(p, upper ? SoundEvents.ANVIL_LAND : SoundEvents.PLAYER_ATTACK_KNOCKBACK, upper ? .5f : .9f, upper ? 1.4f : .7f);
+            sound(p, ModSounds.THOR_HAMMER_IMPACT.get(), upper ? .8f : .55f, upper ? .9f : 1.15f);
             if (upper) sound(p, SoundEvents.LIGHTNING_BOLT_IMPACT, .7f, 1.5f);
             s.poweredTicks = 30;
         } else {
@@ -368,6 +375,7 @@ public final class ThorController {
         s.throwCooldown = THROW_COOLDOWN;
         fx(p, FX_RELEASE, s.hammerPos, p.getLookAngle(), 1);
         sound(p, SoundEvents.TRIDENT_THROW, 1f, .7f);
+        sound(p, ModSounds.THOR_HAMMER_WHOOSH.get(), 1f, .9f);
         sound(p, SoundEvents.TRIDENT_THUNDER, .25f, 1.8f);
     }
     private static void tickHammer(ServerPlayer p, State s) {
@@ -390,6 +398,7 @@ public final class ThorController {
                     fx(p, FX_HAMMER_HIT, at, dir, 1);
                     level.playSound(null, at.x, at.y, at.z, SoundEvents.ANVIL_LAND, SoundSource.PLAYERS, .7f, 1.2f);
                     level.playSound(null, at.x, at.y, at.z, SoundEvents.LIGHTNING_BOLT_IMPACT, SoundSource.PLAYERS, 1f, 1.3f);
+                    level.playSound(null, at.x, at.y, at.z, ModSounds.THOR_HAMMER_IMPACT.get(), SoundSource.PLAYERS, 1.1f, 1f);
                     s.hammerPos = at.subtract(dir.scale(.4));
                     s.hammer = HOLD; s.hammerAge = 0; s.dirty = true;
                     s.poweredTicks = 30;
@@ -415,6 +424,7 @@ public final class ThorController {
                     set(s, CATCH);
                     fx(p, FX_CATCH, goal, Vec3.ZERO, 1);
                     sound(p, SoundEvents.TRIDENT_RETURN, 1f, .8f);
+                    sound(p, ModSounds.THOR_HAMMER_CATCH.get(), 1f, 1f);
                     sound(p, SoundEvents.ANVIL_PLACE, .3f, 1.9f);
                     s.poweredTicks = 20;
                     return;
@@ -458,6 +468,7 @@ public final class ThorController {
         if (s.age == WK_SHOUT) {
             sound(p, SoundEvents.RAVAGER_ROAR, 1.2f, .75f);
             sound(p, SoundEvents.LIGHTNING_BOLT_THUNDER, 1.2f, .9f);
+            sound(p, ModSounds.THOR_LIGHTNING_CRACKLE.get(), 1.2f, .9f);
             fx(p, FX_SHOUT, p.position().add(0, 1.4, 0), Vec3.ZERO, 1);
             fx(p, FX_SKY_BOLT, p.position().add(0, 1.0, 0), new Vec3(0, 1, 0), 1.2f);
         }
@@ -481,6 +492,7 @@ public final class ThorController {
         level.playSound(null, at.x, at.y, at.z, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 1.6f, .55f);
         level.playSound(null, at.x, at.y, at.z, SoundEvents.LIGHTNING_BOLT_THUNDER, SoundSource.PLAYERS, 1.6f, .7f);
         level.playSound(null, at.x, at.y, at.z, SoundEvents.LIGHTNING_BOLT_IMPACT, SoundSource.PLAYERS, 1.4f, .6f);
+        level.playSound(null, at.x, at.y, at.z, ModSounds.THOR_HAMMER_IMPACT.get(), SoundSource.PLAYERS, 1.6f, .8f);
         for (LivingEntity t : level.getEntitiesOfClass(LivingEntity.class, new AABB(at, at).inflate(radius, 4, radius),
                 t -> t != p && t.isAlive() && !t.isSpectator())) {
             Vec3 away = t.position().subtract(at);
@@ -513,6 +525,7 @@ public final class ThorController {
             fx(thor, FX_CLANG, shield, look, .8f);
             sound(thor, SoundEvents.SHIELD_BLOCK, 1f, 1.4f);
             sound(thor, SoundEvents.ANVIL_PLACE, .4f, 2f);
+            sound(thor, ModSounds.FX_IMPACT_METAL.get(), .8f, 1.3f);
             projectile.discard();
             return;
         }
@@ -525,6 +538,7 @@ public final class ThorController {
                 fx(thor, FX_COUNTER, attacker.position().add(0, attacker.getBbHeight() * .6, 0), look, 1);
                 sound(thor, SoundEvents.LIGHTNING_BOLT_IMPACT, 1f, 1.2f);
                 sound(thor, SoundEvents.ANVIL_LAND, .6f, 1.5f);
+                sound(thor, ModSounds.THOR_LIGHTNING_CRACKLE.get(), .9f, 1.2f);
                 attacker.invulnerableTime = 0;
                 attacker.hurt(thor.damageSources().playerAttack(thor), COUNTER_DAMAGE);
                 attacker.knockback(1.3, -look.x, -look.z);

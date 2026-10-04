@@ -378,12 +378,13 @@ public final class HulkFx {
             }
             case FX_ROCK_HIT -> {
                 // The boulder buries itself where it hit and stays there a while.
-                Vec3 rest = at;
+                // (Met someone high in the air, with no ground under it: it bursts apart there instead.)
+                Vec3 rest = null;
                 BlockPos column = BlockPos.containing(at);
-                for (int i = 0; i < 4; i++) if (!mc.level.getBlockState(column.below(i + 1)).isAir()) { rest = new Vec3(at.x, column.getY() - i, at.z); break; }
+                for (int i = -1; i < 4; i++) if (!mc.level.getBlockState(column.below(i + 1)).isAir()) { rest = new Vec3(at.x, column.getY() - i, at.z); break; }
                 Random sr = random();
-                STUCK.add(new Stuck(rest, ground, now(), sr.nextFloat() * 360, .2f + sr.nextFloat() * .5f));
-                cap(STUCK, 12);
+                if (rest != null) { STUCK.add(new Stuck(rest, ground, now(), sr.nextFloat() * 360, .2f + sr.nextFloat() * .5f)); cap(STUCK, 12); }
+                else particles(at, 90, 2.4, .7, ground);
                 ring(at.add(0, .05, 0), null, 7, .9, 12, AIR, .7f, true, 0);
                 ring(at, dir, 3, .6, 7, AIR, .6f, true, 0);
                 glow(at, 3.2, 6, AIR, .8f);
@@ -565,7 +566,7 @@ public final class HulkFx {
         Vec3 cam = e.getCamera().getPosition();
         p.translate(-cam.x, -cam.y, -cam.z);
         var mv = RenderSystem.getModelViewStack(); mv.pushPose(); mv.last().pose().identity(); RenderSystem.applyModelViewMatrix();
-        var buffers = mc.renderBuffers().bufferSource();
+        var buffers = FilmFx.batched();     // (one buffer per kind: no draw forced between a glow and a puff)
         var rotation = e.getCamera().rotation();
         var r = new Vector3f(1, 0, 0).rotate(rotation); var u = new Vector3f(0, 1, 0).rotate(rotation);
         FilmContext c = new FilmContext(p, buffers, cam, new Vec3(r.x, r.y, r.z), new Vec3(u.x, u.y, u.z), time, 0, partial);
@@ -779,14 +780,19 @@ public final class HulkFx {
         int light = e.getPackedLight();
         float walk = mc.player.walkDist + (mc.player.walkDist - mc.player.walkDistO) * e.getPartialTick();
         float bob = (float) Math.sin(walk * Math.PI) * .03f * Math.min(1, (float) mc.player.getDeltaMovement().horizontalDistance() * 8);
-        boolean rockHeld = s.action == ROCK && t >= ROCK_GRAB - 1 && t < ROCK_THROW;
+        boolean carrying = s.holdingRock() && s.action != ROCK;
+        boolean rockHeld = carrying || s.action == ROCK && t >= ROCK_GRAB - 1 && t < ROCK_THROW;
         for (int side = -1; side <= 1; side += 2) {
             boolean right = side > 0;
             p.pushPose();
             p.translate(side * .52, -.62 + (right ? bob : -bob), -.72);
             p.mulPose(Axis.YP.rotationDegrees(-side * 8));
             p.mulPose(Axis.XP.rotationDegrees(8));
-            switch (s.action) {
+            if (carrying) {
+                // Both forearms up holding the rock over his head.
+                p.translate(-side * .18, .55, 0);
+                p.mulPose(Axis.XP.rotationDegrees(-60));
+            } else switch (s.action) {
                 case PUNCH_RIGHT, PUNCH_LEFT -> {
                     boolean mine = right == (s.action == PUNCH_RIGHT);
                     float hit = HulkMotion.snap(t, 1, PUNCH_HIT) * (1 - HulkMotion.k(t, PUNCH_HIT + 1, PUNCH_TICKS));
@@ -843,7 +849,7 @@ public final class HulkFx {
             p.popPose();
         }
         if (rockHeld) {
-            float lift = HulkMotion.k(t, ROCK_GRAB, ROCK_LIFT), hurl = HulkMotion.snap(t, ROCK_LIFT + 2, ROCK_THROW);
+            float lift = carrying ? 1 : HulkMotion.k(t, ROCK_GRAB, ROCK_LIFT), hurl = carrying ? 0 : HulkMotion.snap(t, ROCK_LIFT + 2, ROCK_THROW);
             p.pushPose();
             p.translate(0, -.3 + 1.1 * lift - .5 * hurl, -1.5 - .4 * hurl);
             boulder(p, b, s.rockState(), light, 1.6f, mc.player.getId());

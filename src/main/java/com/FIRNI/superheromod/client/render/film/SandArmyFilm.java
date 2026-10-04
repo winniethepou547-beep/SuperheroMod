@@ -14,6 +14,7 @@ import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import java.util.ArrayList;
@@ -100,24 +101,24 @@ final class SandArmyFilm implements Film {
     @Override public Cue[] cues() {
         List<Cue> c = new ArrayList<>();
         add(c, 4, SoundEvents.SAND_STEP, .8f, .7f); add(c, 20, SoundEvents.ELYTRA_FLYING, .25f, .6f);
-        for (int i = 0; i < COUNT; i++) { add(c, spawn(i) + 1, SoundEvents.SAND_BREAK, .9f, .55f + i * .03f); if (i % 3 == 0) add(c, spawn(i) + 4, SoundEvents.WARDEN_DIG, .5f, 1.3f); }
+        for (int i = 0; i < COUNT; i++) { add(c, spawn(i) + 1, SoundEvents.SAND_BREAK, .9f, .55f + i * .03f); add(c, spawn(i) + 1, ModSounds.SANDMAN_SAND_IMPACT.get(), (.9f) * 0.9f, 1.0f); if (i % 3 == 0) add(c, spawn(i) + 4, SoundEvents.WARDEN_DIG, .5f, 1.3f); }
         add(c, 40, SoundEvents.HUSK_AMBIENT, .7f, .6f);
         for (int i = 0; i < 8; i++) add(c, 94 + i * 5, SoundEvents.SAND_STEP, .9f, .8f + (i % 3) * .1f);
         add(c, 118, SoundEvents.HUSK_AMBIENT, .9f, .9f); add(c, COUNTER, SoundEvents.PLAYER_ATTACK_STRONG, 1f, .7f);
-        add(c, COUNTER + 1, SoundEvents.SAND_BREAK, 1f, .5f); add(c, COUNTER + 3, SoundEvents.SAND_FALL, 1f, .6f);
+        add(c, COUNTER + 1, SoundEvents.SAND_BREAK, 1f, .5f); add(c, COUNTER + 1, ModSounds.SANDMAN_SAND_IMPACT.get(), (1f) * 0.9f, 1.0f); add(c, COUNTER + 3, SoundEvents.SAND_FALL, 1f, .6f); add(c, COUNTER + 3, ModSounds.SANDMAN_SAND_WHOOSH.get(), (1f) * 0.8f, 0.9f);
         add(c, BACKHAND - 4, SoundEvents.PLAYER_ATTACK_SWEEP, 1f, .7f); add(c, BACKHAND, SoundEvents.PLAYER_ATTACK_KNOCKBACK, 1f, .7f);
-        add(c, BACKHAND + 1, SoundEvents.SAND_BREAK, 1f, .45f);
+        add(c, BACKHAND + 1, SoundEvents.SAND_BREAK, 1f, .45f); add(c, BACKHAND + 1, ModSounds.SANDMAN_SAND_IMPACT.get(), (1f) * 0.9f, 1.0f);
         for (int i = 0; i < 6; i++) add(c, 166 + i * 3, SoundEvents.SAND_STEP, .9f, .7f + i * .05f);
         add(c, GRAB, SoundEvents.SAND_HIT, 1f, .6f); add(c, GRAB + 2, SoundEvents.PLAYER_HURT, .7f, .8f);
         for (int i = 2; i < COUNT; i++) for (int p = 0; p < 3; p++) if ((i + p) % 2 == 0) add(c, punch(i, p) + 4, SoundEvents.PLAYER_ATTACK_STRONG, .7f, .8f + (i % 3) * .1f);
-        add(c, MOUND, SoundEvents.SAND_FALL, 1f, .4f); add(c, MOUND + 8, SoundEvents.SAND_PLACE, 1f, .5f);
+        add(c, MOUND, SoundEvents.SAND_FALL, 1f, .4f); add(c, MOUND, ModSounds.SANDMAN_SAND_WHOOSH.get(), (1f) * 0.8f, 0.9f); add(c, MOUND + 8, SoundEvents.SAND_PLACE, 1f, .5f); add(c, MOUND + 8, ModSounds.SANDMAN_SAND_WHOOSH.get(), (1f) * 0.8f, 1.0f);
         add(c, LIFT, SoundEvents.WARDEN_EMERGE, .6f, 1.4f); add(c, LIFT + 6, SoundEvents.ELYTRA_FLYING, .5f, .5f);
-        add(c, GIANT, SoundEvents.WARDEN_EMERGE, 1f, .6f); add(c, GIANT + 20, SoundEvents.SAND_FALL, 1f, .4f);
+        add(c, GIANT, SoundEvents.WARDEN_EMERGE, 1f, .6f); add(c, GIANT + 20, SoundEvents.SAND_FALL, 1f, .4f); add(c, GIANT + 20, ModSounds.SANDMAN_SAND_WHOOSH.get(), (1f) * 0.8f, 0.9f);
         add(c, GIANT_UP, SoundEvents.RAVAGER_ROAR, 1f, .55f); add(c, 316, SoundEvents.ELYTRA_FLYING, .7f, .4f);
         add(c, SLAM - 3, SoundEvents.PLAYER_ATTACK_SWEEP, 1f, .4f);
-        add(c, SLAM, SoundEvents.GENERIC_EXPLODE, 1f, .5f); add(c, SLAM, SoundEvents.ANVIL_LAND, .9f, .5f);
-        add(c, SLAM + 1, SoundEvents.SAND_BREAK, 1f, .4f); add(c, SLAM + 3, SoundEvents.LIGHTNING_BOLT_THUNDER, .6f, 1.4f);
-        add(c, CRUMBLE, SoundEvents.SAND_FALL, 1f, .35f); add(c, CRUMBLE + 6, SoundEvents.SAND_BREAK, .8f, .4f);
+        add(c, SLAM, SoundEvents.GENERIC_EXPLODE, 1f, .5f); add(c, SLAM, ModSounds.FX_IMPACT_HEAVY.get(), (1f) * 1.0f, 1.0f); add(c, SLAM, SoundEvents.ANVIL_LAND, .9f, .5f);
+        add(c, SLAM + 1, SoundEvents.SAND_BREAK, 1f, .4f); add(c, SLAM + 1, ModSounds.SANDMAN_SAND_IMPACT.get(), (1f) * 0.9f, 1.0f); add(c, SLAM + 3, SoundEvents.LIGHTNING_BOLT_THUNDER, .6f, 1.4f);
+        add(c, CRUMBLE, SoundEvents.SAND_FALL, 1f, .35f); add(c, CRUMBLE, ModSounds.SANDMAN_SAND_WHOOSH.get(), (1f) * 0.8f, 0.9f); add(c, CRUMBLE + 6, SoundEvents.SAND_BREAK, .8f, .4f); add(c, CRUMBLE + 6, ModSounds.SANDMAN_SAND_IMPACT.get(), (.8f) * 0.9f, 1.0f);
         add(c, 362, SoundEvents.ELYTRA_FLYING, .3f, .7f);
         return c.toArray(new Cue[0]);
     }

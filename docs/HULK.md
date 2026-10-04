@@ -11,7 +11,7 @@ Minecraft **1.20.1**, **Forge** (Java 17). Kahramanı seçmek için: `/superhero
 | **Sağ tık basılı tut** | Gard: önden gelen hasarı çok, arkadan geleni az azaltır; yavaşlatır; dayanıklılık çubuğu biter |
 | **R** | Thunderclap: el çırpar, önüne yerden giden hava duvarı (havadayken de); iter, sersemletir, toprak parçaları fırlatır, arkasında toz bırakır; Hulk biraz geri itilir |
 | **F** | Yer Sarsan Yumruk: yarık 3 blok önünden başlar, hızlı ve düzensiz ilerler, ~6 blok geniş ve 15 blok derin; toprak sağa-sola fırlar, yarık fırlayan toprakla birlikte açılır |
-| **C** | Kaya Sök ve Fırlat: yerden dev bir kaya söker, başının üstünde taşır, fırlatır; çarptığı yerde alan hasarı ve yavaşlatma, kaya bir süre oraya saplı kalır |
+| **C** | Kaya Sök ve Fırlat: yerden dev bir kaya söker ve başının üstünde tutar. Tutarken yürüyebilir ve sıçrayabilir (Boşluk; kollar kayada kalır, sıçrayış sadece bacaklarla). C'ye tekrar basınca (ya da sol tık) baktığı yere fırlatır; ~20 sn içinde atmazsa kendisi atar; çarptığı yerde alan hasarı ve yavaşlatma, kaya bir süre oraya saplı kalır |
 | **Boşluk (bas-çek)** | Normal zıplama, hiçbir şey kırılmaz |
 | **Boşluk basılı tut** | Şarjlı Sıçrama (bar yarım saniyede dolar): baktığın yöne fırlar, ağır ve hızlı düşer; iniş gücü düşüş hızına göre, krater, bir kez seker |
 | **X** | GAMA ÖFKESİ (ulti, önünde bir hedef ister) |

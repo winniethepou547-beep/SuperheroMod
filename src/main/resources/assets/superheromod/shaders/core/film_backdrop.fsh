@@ -2,6 +2,8 @@
 // Procedural film backdrop, evaluated per pixel every frame.
 // Scene 0/3: rushing hell clouds (falling down / plunging back).
 // Scene 1/2: space with a burning banded star, its halo and a spinning ring.
+// Scene 9: a city at night (Black Panther's The Final Pursuit).
+// Scene 10: a dead world under a crimson storm (Magneto's Magnetic Execution).
 uniform float Time;      // seconds
 uniform float Scene;
 uniform vec3 CamPos;     // stage space
@@ -128,6 +130,88 @@ vec3 warpStreaks(vec3 col) {
                  * smoothstep(0.12, 0.6, rad) * step(0.45, h);
     return col + vec3(1.0, 0.86, 0.7) * streak * Motion.y * 0.9;
 }
+
+// ---- Scene 10: the wasteland under the crimson storm ----
+// Planet.xyz: where the lightning strikes (stage space, far off), Planet.w: the flash (0..1+).
+// Ring.x: the bolt's seed, Ring.y: the bolt channel's brightness. Motion.x: wind, Motion.z: rain.
+float boltDist(vec3 rd, vec3 target, float seed) {
+    // The channel as seen from the camera: from the cloud base straight down to where it strikes, jagged on the way.
+    vec3 to = target - CamPos;
+    float azT = atan(to.x, to.z);
+    float base = atan(to.y + 220.0, length(to.xz)) ;
+    float foot = atan(to.y, length(to.xz));
+    float up = asin(clamp(rd.y, -1.0, 1.0));
+    float az = atan(rd.x, rd.z);
+    if (up < foot - 0.002 || up > base) return 1.0;
+    float u = (up - foot) / max(0.001, base - foot);
+    float jag = (fbm3(vec3(u * 6.0, seed, 1.0)) - 0.5) * 0.08 + (noise3(vec3(u * 28.0, seed, 4.0)) - 0.5) * 0.018;
+    float d = abs(az - azT - jag * (0.4 + u));
+    // A fork leaving half way up.
+    float fu = clamp((0.62 - u) / 0.4, 0.0, 1.0);
+    float fork = abs(az - azT - jag * (0.4 + u) - fu * fu * 0.07 * sign(hash13(vec3(seed, 2.0, 2.0)) - 0.5) - (noise3(vec3(u * 22.0, seed, 9.0)) - 0.5) * 0.02);
+    d = min(d, fork + step(0.62, u) * 1.0 + (1.0 - step(0.25, u)) * 0.6);
+    return d;
+}
+vec3 wasteSky(vec3 rd, float flash) {
+    float up = rd.y;
+    vec3 zenith = vec3(0.05, 0.005, 0.01);
+    vec3 horizon = vec3(0.62, 0.08, 0.045);
+    vec3 col = mix(horizon, zenith, smoothstep(-0.02, 0.4, up));
+    float az = atan(rd.x, rd.z);
+    if (up > -0.02) {
+        // Low, heavy storm clouds over the whole sky, rolling in the wind: black-red bellies, their undersides
+        // and edges lit blood red by the burning horizon, breaks here and there showing the glow behind.
+        float h = max(up, 0.0) + 0.05;
+        vec2 cp = rd.xz / h * 0.55 + vec2(Time * Motion.x * 0.04, Time * Motion.x * 0.015);
+        float warp = fbm3(vec3(cp * 0.3, Time * 0.025));
+        float c = fbm(vec3(cp * 0.5 + warp * 1.6, Time * 0.015));
+        float body = smoothstep(0.3, 0.55, c);
+        float shade = fbm3(vec3(cp * 0.5 + vec2(0.11, -0.07) + warp * 1.6, 3.0));
+        float lit = smoothstep(0.42, 0.75, shade) * (0.4 + 0.6 * exp(-up * 2.5));
+        vec3 belly = vec3(0.09, 0.012, 0.016), edge = vec3(0.72, 0.11, 0.06);
+        vec3 cloud = mix(belly, edge, lit);
+        cloud *= 0.75 + 0.5 * smoothstep(0.5, 0.8, c);
+        col = mix(col, cloud, body * smoothstep(-0.02, 0.05, up) * 0.95);
+        // Glow breaking through between the masses, near the horizon.
+        col += vec3(0.5, 0.07, 0.03) * (1.0 - body) * exp(-up * 6.0) * 0.4;
+        // The flash lights the clouds from inside, strongest round the strike.
+        vec3 to = normalize(Planet.xyz - CamPos);
+        float near = pow(max(0.0, dot(normalize(vec3(rd.x, max(up, 0.05), rd.z)), normalize(vec3(to.x, 0.2, to.z)))), 6.0);
+        col += vec3(1.0, 0.6, 0.66) * flash * (0.12 + 0.88 * near) * (0.3 + 0.7 * body) * smoothstep(-0.02, 0.1, up) * 0.8;
+    }
+    // A broken horizon: ruined towers with torn tops and bare girders, heaps of wreckage, black against the red,
+    // fires glowing low among them.
+    float heap = 0.006 + 0.03 * fbm3(vec3(az * 2.2, 0.0, 7.0)) + 0.012 * fbm3(vec3(az * 14.0, 5.0, 1.0));
+    float cellAz = floor(az * 26.0);
+    float fa = fract(az * 26.0);
+    float pick = hash13(vec3(cellAz, 3.0, 1.0));
+    float height = (0.025 + 0.08 * hash13(vec3(cellAz, 8.0, 2.0))) * step(0.45, pick);
+    float wide = 0.3 + 0.45 * hash13(vec3(cellAz, 1.0, 9.0));
+    float inside = step(0.5 - wide * 0.5, fa) * step(fa, 0.5 + wide * 0.5);
+    // Torn tops: a slant and a bite out of them.
+    float slant = (fa - 0.5) * (hash13(vec3(cellAz, 4.0, 4.0)) - 0.5) * 0.12;
+    float bite = step(0.6, hash13(vec3(cellAz, 6.0, 2.0))) * smoothstep(0.08, 0.0, abs(fa - 0.3 - 0.4 * hash13(vec3(cellAz, 7.0, 7.0)))) * 0.03;
+    float tower = (height + slant - bite) * inside;
+    // A skeleton of girders above some of them.
+    float rib = step(0.7, hash13(vec3(cellAz, 9.0, 3.0))) * inside * smoothstep(0.03, 0.0, abs(fract(fa * 5.0) - 0.5) - 0.42);
+    float top = max(heap, max(tower, rib * (height + 0.03)));
+    if (up < top && up > -0.004) {
+        col = mix(col, vec3(0.025, 0.005, 0.007), 0.94);
+        col += vec3(0.6, 0.25, 0.12) * flash * 0.12;
+        // Windows burnt out, a few still lit by fire inside.
+        vec2 g = vec2(az * 520.0, up * 420.0);
+        float h = hash13(vec3(floor(g), 2.0));
+        vec2 f = abs(fract(g) - 0.5);
+        if (up > heap && h > 0.93) col += vec3(0.9, 0.25, 0.05) * step(f.x, 0.28) * step(f.y, 0.22) * (0.25 + 0.2 * sin(Time * 5.0 + h * 30.0));
+        vec2 g2 = vec2(az * 240.0, up * 240.0);
+        float h2 = hash13(vec3(floor(g2), 6.0));
+        float spot = smoothstep(0.5, 0.0, length(fract(g2) - 0.5));
+        if (h2 > 0.975 && up < heap * 0.7) col += vec3(1.0, 0.38, 0.08) * spot * (0.7 + 0.3 * sin(Time * 7.0 + h2 * 40.0));
+    }
+    col += vec3(0.38, 0.05, 0.025) * exp(-abs(up) * 22.0) * 0.6;
+    return col;
+}
+
 void main() {
     vec3 rd = normalize(CamF + ndc.x * Lens.x * Lens.y * CamR + ndc.y * Lens.x * CamU);
     vec3 ro = CamPos;
@@ -367,6 +451,122 @@ void main() {
             col = mix(horizon * 0.95, sand, exp(-t * 0.006));
         }
         col = mix(col, vec3(0.86, 0.80, 0.70), clamp(dust, 0.0, 1.0) * (0.25 + 0.6 * exp(-max(up, 0.0) * 4.0)));
+    }
+    if (scene == 9) {
+        // A city at night (The Final Pursuit): a black sky warmed at the horizon by the city's light, low cloud
+        // lit from beneath, towers all round with lit windows and red lamps on their tops, hills behind dotted with
+        // flats, a long bridge strung with lights far off; the dust of the crash hanging in it (Motion.z).
+        float up = rd.y;
+        float dust = Motion.z;
+        vec3 zenith = vec3(0.010, 0.012, 0.028);
+        vec3 glow = vec3(0.13, 0.075, 0.13);
+        col = mix(glow, zenith, smoothstep(-0.02, 0.42, up));
+        col += vec3(0.06, 0.025, 0.012) * exp(-max(up, 0.0) * 10.0);
+        if (up > 0.0) {
+            vec2 cp = rd.xz / (up + 0.1) * 1.2 + vec2(Time * 0.004, 0.0);
+            float c = fbm3(vec3(cp * 0.7, 2.0));
+            float body = smoothstep(0.45, 0.72, c);
+            vec3 cloud = vec3(0.12, 0.065, 0.11) * (0.6 + 0.6 * c) * (0.4 + 0.6 * exp(-up * 3.0));
+            col = mix(col, cloud, body * smoothstep(0.0, 0.1, up) * 0.85);
+        }
+        float az = atan(rd.x, rd.z);
+        // The hills behind, their slopes full of the small lights of flats.
+        float hill = 0.035 + 0.07 * fbm3(vec3(az * 1.4, 0.0, 9.0));
+        if (up < hill && up > -0.01) {
+            col = mix(col, vec3(0.02, 0.018, 0.03), 0.92);
+            vec2 g = vec2(az * 900.0, up * 700.0);
+            vec2 cell = floor(g);
+            float h = hash13(vec3(cell, 4.0));
+            float spot = smoothstep(0.42, 0.0, length(fract(g) - 0.5));
+            if (h > 0.82) col += mix(vec3(1.0, 0.75, 0.42), vec3(0.75, 0.85, 1.0), step(0.95, h)) * spot * 0.55 * smoothstep(-0.01, hill, hill - up + 0.01);
+        }
+        // The towers: a ring of silhouettes, windows lit here and there, red lamps blinking on top.
+        float cellAz = floor(az * 46.0);
+        float th = 0.012 + 0.085 * hash13(vec3(cellAz, 2.0, 7.0)) * (0.45 + 0.55 * fbm3(vec3(az * 2.0, 3.0, 1.0)));
+        if (up < th && up > -0.01) {
+            col = vec3(0.016, 0.016, 0.026);
+            vec2 g = vec2(az * 520.0, up * 420.0);
+            vec2 cell = floor(g);
+            float h = hash13(vec3(cell, 1.0));
+            vec2 f = abs(fract(g) - 0.5);
+            float win = step(f.x, 0.3) * step(f.y, 0.26);
+            if (h > 0.62) col += mix(vec3(1.0, 0.78, 0.45), vec3(0.7, 0.82, 1.0), step(0.86, h)) * win * (0.25 + 0.35 * hash13(vec3(cell, 9.0)));
+            float top = smoothstep(0.003, 0.0, abs(up - th + 0.002)) * smoothstep(0.004, 0.0, abs(fract(az * 46.0) - 0.5) - 0.01);
+            col += vec3(1.0, 0.1, 0.08) * top * step(0.5, hash13(vec3(cellAz, 5.0, 1.0))) * (0.5 + 0.5 * sin(Time * 3.0 + cellAz));
+        }
+        // The bridge, far off on one side: a long sagging line of lights on the water, its towers marked.
+        if (az > 0.9 && az < 2.1) {
+            float u = (az - 0.9) / 1.2;
+            float sag = 0.022 - 0.012 * sin(3.14159 * fract(u * 3.0));
+            float line = smoothstep(0.0015, 0.0, abs(up - sag));
+            float beads = smoothstep(0.45, 0.0, abs(fract(az * 260.0) - 0.5));
+            vec3 tint = mix(vec3(0.4, 0.8, 1.0), vec3(0.85, 0.5, 1.0), 0.5 + 0.5 * sin(az * 7.0 + Time * 0.4));
+            col += tint * line * (0.35 + 0.65 * beads) * 0.9;
+            col += tint * smoothstep(0.004, 0.0, abs(up - 0.006)) * 0.2;
+        }
+        if (up < -0.01) col = mix(glow * 0.7, vec3(0.02, 0.02, 0.03), smoothstep(-0.01, -0.12, up));
+        col = mix(col, vec3(0.30, 0.22, 0.17), clamp(dust, 0.0, 1.0) * (0.45 + 0.4 * exp(-abs(up) * 3.0)));
+    }
+    if (scene == 10) {
+        float flash = Planet.w;
+        float up = rd.y;
+        col = wasteSky(rd, flash);
+        if (up < -0.0005) {
+            // The dead ground: black, broken, soaked; cracked into slabs, strewn with rubble; puddles everywhere
+            // holding the red sky and the flashes, rippled by the rain; it fades into the red haze far off.
+            float t = -ro.y / up;
+            vec3 p = ro + rd * t;
+            float big = fbm3(vec3(p.xz * 0.05, 3.0));
+            float small = fbm3(vec3(p.xz * 0.8, 5.0));
+            vec3 ground = mix(vec3(0.05, 0.028, 0.024), vec3(0.11, 0.06, 0.045), smoothstep(0.35, 0.75, small));
+            ground *= 0.65 + 0.6 * big;
+            // Cracks between slabs (a cell pattern) and pale grit.
+            vec2 cg = p.xz * 0.45 + vec2(fbm3(vec3(p.xz * 0.2, 1.0)), fbm3(vec3(p.xz * 0.2, 2.0))) * 1.5;
+            vec2 ci = floor(cg), cf = fract(cg);
+            float edge = min(min(cf.x, 1.0 - cf.x), min(cf.y, 1.0 - cf.y));
+            ground *= mix(0.35, 1.0, smoothstep(0.0, 0.05, edge));
+            ground *= 0.85 + 0.3 * hash13(vec3(ci, 8.0));
+            float grit = step(0.93, hash13(vec3(floor(p.xz * 9.0), 4.0)));
+            ground += vec3(0.08, 0.05, 0.045) * grit * exp(-t * 0.08);
+            float wet = smoothstep(0.47, 0.53, big + 0.22 * (small - 0.5));
+            // Rain rings on the water.
+            vec2 cell = floor(p.xz * 1.6);
+            float phase = Time * 1.7 + hash13(vec3(cell, 1.0)) * 5.0;
+            float rh = hash13(vec3(cell, floor(phase)));
+            vec2 rc = (cell + 0.25 + 0.5 * vec2(hash13(vec3(cell, 3.0)), hash13(vec3(cell, 4.0)))) / 1.6;
+            float age = fract(phase);
+            float rr = length(p.xz - rc) - age * 0.3;
+            float ring = smoothstep(0.035, 0.0, abs(rr)) * (1.0 - age) * step(0.4, rh) * Motion.z * exp(-t * 0.05);
+            vec3 nrm = normalize(vec3(ring * 0.25 * sign(p.x - rc.x) + (small - 0.5) * 0.05, 1.0, ring * 0.25 * sign(p.z - rc.y) + (big - 0.5) * 0.05));
+            vec3 mirror = wasteSky(reflect(rd, nrm), flash * 0.35);
+            float fres = 0.25 + 0.75 * pow(1.0 - clamp(-up, 0.0, 1.0), 5.0);
+            // Everything is soaked: a sheen on the slabs, a mirror in the puddles.
+            vec3 soaked = ground * 0.8 + mirror * fres * 0.22;
+            ground = mix(soaked, ground * 0.3 + mirror * (0.3 + 0.7 * fres), wet);
+            ground += vec3(0.85, 0.6, 0.65) * flash * (0.04 + 0.2 * wet) * exp(-t * 0.01);
+            float haze = exp(-t * 0.011);
+            col = mix(wasteSky(vec3(rd.x, 0.0, rd.z), flash) * 0.8, ground, haze);
+        }
+        // The lightning channel itself, with its halo.
+        if (Ring.y > 0.0) {
+            float d = boltDist(rd, Planet.xyz, Ring.x);
+            col += vec3(1.0, 0.92, 1.0) * smoothstep(0.0025, 0.0, d) * Ring.y * 2.0;
+            col += vec3(1.0, 0.45, 0.55) * exp(-d * 60.0) * Ring.y * 0.45;
+        }
+        // Sheets of rain blown slant across everything.
+        if (Motion.z > 0.0) {
+            for (int k = 0; k < 2; k++) {
+                float fk = float(k);
+                vec2 q = vec2(ndc.x * Lens.y + ndc.y * (0.18 + 0.05 * fk), ndc.y);
+                float lanes = q.x * (95.0 + 70.0 * fk);
+                float hh = hash13(vec3(floor(lanes), 3.0 + fk, 1.0));
+                float y = fract(q.y * (0.45 + 0.2 * fk) + Time * (1.6 + 0.9 * fk) * (0.8 + 0.4 * hh) + hh * 9.0);
+                float drop = smoothstep(0.0, 0.02, y) * smoothstep(0.22, 0.05, y) * smoothstep(0.35, 0.0, abs(fract(lanes) - 0.5)) * step(0.55, hh);
+                col += mix(vec3(0.5, 0.18, 0.16), vec3(0.9, 0.85, 0.95), flash) * drop * Motion.z * (0.16 - 0.05 * fk);
+            }
+            col = mix(col, vec3(0.22, 0.04, 0.035) + flash * 0.2, Motion.z * 0.12);
+        }
+        col += vec3(0.55, 0.4, 0.5) * flash * 0.12;
     }
     if (Motion.y > 0.0) col = warpStreaks(col);
     if (scene != 6) col = mix(col, Tint.rgb, Tint.a);

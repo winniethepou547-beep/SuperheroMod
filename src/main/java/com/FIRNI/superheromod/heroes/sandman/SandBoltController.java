@@ -8,6 +8,7 @@ import net.minecraft.core.particles.BlockParticleOption;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvents;
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.block.Blocks;
@@ -65,6 +66,7 @@ public final class SandBoltController {
 
         level.playSound(null, shooter.blockPosition(),
                 SoundEvents.SAND_BREAK, SoundSource.HOSTILE, 1.2f, 1.5f);
+        level.playSound(null, shooter.blockPosition(), ModSounds.SANDMAN_SAND_IMPACT.get(), SoundSource.HOSTILE, (1.2f) * 0.8f, 1.0f);
         level.sendParticles(sand(), origin.x, origin.y, origin.z,
                 12, 0.2, 0.2, 0.2, 0.06);
     }
@@ -178,6 +180,7 @@ public final class SandBoltController {
         level.sendParticles(sand(), pos.x, pos.y, pos.z, 20, 0.3, 0.3, 0.3, 0.14);
         level.playSound(null, BlockPos.containing(pos),
                 SoundEvents.SAND_BREAK, SoundSource.HOSTILE, 0.9f, 1.1f);
+        level.playSound(null, BlockPos.containing(pos), ModSounds.SANDMAN_SAND_IMPACT.get(), SoundSource.HOSTILE, (0.9f) * 0.8f, 1.0f);
     }
 
     private static BlockParticleOption sand() {

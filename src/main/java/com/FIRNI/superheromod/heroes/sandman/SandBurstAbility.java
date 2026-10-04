@@ -6,6 +6,7 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
@@ -103,6 +104,7 @@ public class SandBurstAbility extends Ability {
 
         level.playSound(null, player.blockPosition(),
                 SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 1.6f, 0.5f);
+        level.playSound(null, player.blockPosition(), ModSounds.SANDMAN_SAND_IMPACT.get(), SoundSource.PLAYERS, (1.6f) * 0.8f, 1.0f);
         level.playSound(null, player.blockPosition(),
                 SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 0.8f + fill * 0.6f, 1.3f);
     }
