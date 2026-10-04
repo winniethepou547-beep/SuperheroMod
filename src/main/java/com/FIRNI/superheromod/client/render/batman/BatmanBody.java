@@ -112,9 +112,10 @@ public final class BatmanBody {
         if (cape != null) cape.reset();
         if (capture) handRight = handLeft = muzzle = eyes = null;
         p.pushPose();
+        // The extra turn first (about the vertical through his middle), so the root's shifts go along it too.
+        if (align != 0) p.mulPose(Axis.YP.rotation(align));
         px(p, v[SHIFT_X], -v[LIFT], v[SHIFT_Z]);
         px(p, 0, 11, 0);
-        if (align != 0) p.mulPose(Axis.YP.rotation(align));
         if (v[ROOT_PITCH] != 0) p.mulPose(Axis.XP.rotation(v[ROOT_PITCH]));
         if (v[ROOT_YAW] != 0) p.mulPose(Axis.YP.rotation(v[ROOT_YAW]));
         if (v[ROOT_ROLL] != 0) p.mulPose(Axis.ZP.rotation(v[ROOT_ROLL]));
@@ -285,6 +286,8 @@ public final class BatmanBody {
     }
     private static void bat(PoseStack p, MultiBufferSource b, int light) {
         float z = -3.25f, d = .4f;
+        p.pushPose();
+        px(p, 0, .9f, 0);
         part(p, b, light, 0, -4.05f, z, .9f, 1.5f, d, ARMOR);
         part(p, b, light, 0, -4.95f, z, .55f, .5f, d, ARMOR);
         for (int s = -1; s <= 1; s += 2) {
@@ -297,6 +300,7 @@ public final class BatmanBody {
             part(p, b, light, s * 2.0f, -4.05f, z, 0, 0, s * .2f, .55f, .4f, d, ARMOR);
             part(p, b, light, s * 2.75f, -4.2f, z, 0, 0, s * .1f, .45f, .35f, d, ARMOR);
         }
+        p.popPose();
     }
 
     // ------------------------------------------------------------------ arms: segmented pads, gauntlets with fins, gloves
@@ -461,18 +465,19 @@ public final class BatmanBody {
     // ------------------------------------------------------------------ first person
     /**
      * One arm for the first-person view, from the elbow down (the stack at the elbow, the forearm along +y): the
-     * gauntlet with its fins, the glove, whatever it holds (HOLD/HOLD_ARG).
+     * gauntlet with its fins, the glove, whatever it holds (HOLD/HOLD_ARG). With capture on, it records the hand and the
+     * muzzle as for the world draw (the first-person stack is in view space, which world() turns into the world).
      */
     public static void firstPersonArm(PoseStack p, MultiBufferSource b, int light, int side, float wristX, float wristZ, float curl) {
-        boolean was = capture;
-        capture = false;
+        CapeCloth.Frame saved = cape;
+        cape = null;
         int s = side == 0 ? -1 : 1;
         forearm(p, b, light, side);
         px(p, 0, 4.8f, 0);
         p.mulPose(Axis.XP.rotation(wristX));
         p.mulPose(Axis.ZP.rotation(s < 0 ? wristZ : -wristZ));
         hand(p, b, light, side, curl);
-        capture = was;
+        cape = saved;
     }
     /** A strip of the cape for the first-person glide (the stack at the hand, the cloth hanging back along +y and out). */
     public static void firstPersonCape(PoseStack p, MultiBufferSource b, int light, int side, float time) {

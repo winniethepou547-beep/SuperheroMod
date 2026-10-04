@@ -87,9 +87,10 @@ public final class Champions {
                     new Skill("SOL", "Yumruk Kombosu", "Arkham tarzı yakın dövüş: tıkladıkça hızlanan yumruk, kroşe, aparkat ve dirsek; sonunda seri yumruk yağmuru."),
                     new Skill("SAĞ", "Batarang", "Dokun: tek Batarang. Basılı tut: her 0,2 saniyede bir daha, en fazla 5 Batarang'ı iki eliyle birden fırlatır. Kemerinde 5 tane taşır, zamanla dolar."),
                     new Skill("R", "Alet Çarkı", "Basılı tut: çark açılır, fareyle alet seç (Sis Bombası, Flaş Bombası, Termal Sensör, Mayın). Dokun: seçili aleti kullan."),
-                    new Skill("E", "Kancalı Tabanca", "Kancayı çıkar, sol tıkla bir bloğa ya da düşmana fırlat. Blokta oraya çekilirsin; düşmanda üstüne uçup aparkat, havada tekme, geriye takla."),
+                    new Skill("E", "Kancalı Tabanca", "Kancayı eline al, nereye atacağını seç. Sol tık: bloğa çekilirsin; düşmana uçup aparkat, havada tekme, geriye takla. Sağ tık: düşmanın bacaklarına dolar, sırt üstü düşürüp sürüklersin (sersemler)."),
+                    new Skill("Q", "Termal Görüş", "Dünya soğuk tonlara döner, canlılar duvar arkasından bile ısı imzası olarak parlar; zeminden tarama dalgaları yayılır. Kendi sisinde kendiliğinden açılır."),
                     new Skill("CTRL", "Takla", "Hareket yönüne hızlı bir yuvarlanma; ortasında hasar almaz."),
-                    new Skill("BOŞLUK", "Pelerinle Süzülme", "Havadayken basılı tut: pelerin kanat gibi açılır, baktığın yöne süzülürsün; aşağı bakınca hızlanır.")))));
+                    new Skill("BOŞLUK", "Pelerinle Süzülme", "Havadayken basılı tut: pelerin kanat gibi açılır, baktığın yöne süzülürsün; aşağı bakınca hızlanır."))));
 
     /** How many card slots the grid always shows (the rest are "?" for the heroes to come). */
     public static final int MIN_SLOTS = 18;

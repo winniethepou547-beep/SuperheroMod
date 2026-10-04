@@ -200,17 +200,17 @@ public final class BatmanMotion {
     }
     /** The kneel: down on the right knee, the left foot planted ahead, the body over the left thigh, the right hand on the ground. */
     static Pose kneel(Pose base) {
-        Pose k = base.copy().set(PLANT, 0).set(CROUCH, 0).set(LIFT, -5).set(SPINE_PITCH, .85f).set(CHEST_PITCH, .2f).set(HEAD_PITCH, -.55f).set(NECK, .6f);
+        Pose k = base.copy().set(PLANT, 0).set(CROUCH, 0).set(LIFT, -5).set(SPINE_PITCH, .65f).set(CHEST_PITCH, .2f).set(HEAD_PITCH, -.45f).set(NECK, .6f);
         k.leg(0, LEG_X, .15f).leg(0, KNEE, 1.65f).leg(0, ANKLE, .6f).leg(0, LEG_Z, .05f);
         k.leg(1, LEG_X, -1.4f).leg(1, KNEE, 1.4f).leg(1, ANKLE, 0).leg(1, LEG_Z, .1f);
-        k.arm(0, SH_FWD, 1.5f).arm(0, ARM_X, -.9f).arm(0, ARM_Y, -.32f).arm(0, ARM_Z, 0).arm(0, ELBOW, .35f).arm(0, CURL, .55f).arm(0, WRIST_X, .5f);
-        k.arm(1, ARM_X, -.15f).arm(1, ARM_Y, -.43f).arm(1, ELBOW, .97f).arm(1, CURL, .7f);
+        k.arm(0, SH_FWD, 1.6f).arm(0, SH_UP, -.5f).arm(0, ARM_X, -.86f).arm(0, ARM_Y, -.42f).arm(0, ARM_Z, 0).arm(0, ELBOW, .25f).arm(0, CURL, .55f).arm(0, WRIST_X, .5f);
+        k.arm(1, ARM_X, .19f).arm(1, ARM_Y, -.48f).arm(1, ELBOW, 1.92f).arm(1, CURL, .7f);
         return k;
     }
     static Track mine(Pose base) {
         Pose down = kneel(base);
         Pose set = down.copy().add(SPINE_PITCH, .05f);
-        set.arm(0, ARM_X, -.82f).arm(0, ELBOW, .2f).arm(0, CURL, .3f).arm(0, WRIST_X, .7f);
+        set.arm(0, ARM_X, -.9f).arm(0, ELBOW, .02f).arm(0, CURL, .3f).arm(0, WRIST_X, .7f);
         Pose up = down.copy();
         up.arm(0, ARM_X, -.6f).arm(0, ELBOW, .9f).arm(0, CURL, .7f);
         Pose half = base.copy();
@@ -276,7 +276,7 @@ public final class BatmanMotion {
         float flip = k(t, STRIKE_FLIP, STRIKE_FLIP + 9.5f);
         if (flip > 0 && flip < 1) {
             float tuck = Mth.sin(Mth.PI * flip);
-            p.add(ROOT_PITCH, -Mth.TWO_PI * flip).set(PLANT, 0).add(SPINE_PITCH, .45f * tuck).add(HEAD_PITCH, .35f * tuck).add(LIFT, 2.5f * tuck);
+            p.add(ROOT_PITCH, -Mth.TWO_PI * flip).set(PLANT, Mth.lerp(tuck, p.get(PLANT), 0)).add(SPINE_PITCH, .45f * tuck).add(HEAD_PITCH, .35f * tuck).add(LIFT, 2.5f * tuck);
             for (int side = 0; side < 2; side++) {
                 p.leg(side, LEG_X, Mth.lerp(tuck, p.leg(side, LEG_X), -1.4f)).leg(side, KNEE, Mth.lerp(tuck, p.leg(side, KNEE), 2.05f))
                         .arm(side, ARM_X, Mth.lerp(tuck, p.arm(side, ARM_X), -1.15f)).arm(side, ELBOW, Mth.lerp(tuck, p.arm(side, ELBOW), 1.5f))
@@ -340,10 +340,15 @@ public final class BatmanMotion {
         float dive = k(t, 0, .9f) * (1 - k(t, DODGE_TICKS - 2.2f, DODGE_TICKS));
         Pose p = base.copy();
         p.add(CROUCH, 3.2f * dive * (1 - tuck)).add(SPINE_PITCH, .45f * dive);
-        if (k > 0 && k < 1) {
-            p.add(ROOT_PITCH, (back ? -1 : 1) * Mth.TWO_PI * turn).set(PLANT, 1 - tuck).add(LIFT, -4.2f * tuck)
-                    .add(SPINE_PITCH, .5f * tuck).add(HEAD_PITCH, .55f * tuck).set(NECK, Mth.lerp(tuck, p.get(NECK), .9f));
-        }
+        float a = k > 0 && k < 1 ? (back ? -1 : 1) * Mth.TWO_PI * turn : 0;
+        p.add(ROOT_PITCH, a);
+        // The body turns about the tucked ball's middle (ahead of the hips), held about 12 px off the ground, so it rolls
+        // over the ground instead of swinging the head through it (checked against the box body).
+        float dy0 = .3f, dz0 = -7.3f, ca = Mth.cos(a), sa = Mth.sin(a);
+        float ry = dy0 * ca - dz0 * sa, rz = dy0 * sa + dz0 * ca;
+        p.add(LIFT, tuck * (-.7f - (dy0 - ry))).add(SHIFT_Z, tuck * (dz0 - rz));
+        p.set(PLANT, Mth.lerp(tuck, p.get(PLANT), 0))
+                .add(SPINE_PITCH, .5f * tuck).add(HEAD_PITCH, .55f * tuck).set(NECK, Mth.lerp(tuck, p.get(NECK), .9f));
         for (int side = 0; side < 2; side++) {
             p.leg(side, LEG_X, Mth.lerp(tuck, p.leg(side, LEG_X), -1.45f + .15f * side)).leg(side, KNEE, Mth.lerp(tuck, p.leg(side, KNEE), 2.15f))
                     .leg(side, ANKLE, Mth.lerp(tuck, p.leg(side, ANKLE), .4f))

@@ -79,11 +79,18 @@ public final class HeroArmPose {
                 || com.FIRNI.superheromod.client.render.hulk.HulkClient.isHero(player)
                 || com.FIRNI.superheromod.client.render.zed.ZedClient.isHero(player)
                 || com.FIRNI.superheromod.client.render.panther.PantherClient.isHero(player)
-                || com.FIRNI.superheromod.client.render.magneto.MagnetoClient.isHero(player)) {
+                || com.FIRNI.superheromod.client.render.magneto.MagnetoClient.isHero(player)
+                || com.FIRNI.superheromod.client.render.batman.BatmanClient.isHero(player)) {
             elbow.remove(id);
             model.head.visible = model.hat.visible = model.body.visible = model.jacket.visible = false;
             model.rightArm.visible = model.leftArm.visible = model.rightSleeve.visible = model.leftSleeve.visible = false;
             model.rightLeg.visible = model.leftLeg.visible = model.rightPants.visible = model.leftPants.visible = false;
+            return;
+        }
+
+        // Knocked down on their back by Batman's grapnel: arms thrown up over the head.
+        if (com.FIRNI.superheromod.client.render.batman.BatmanStatus.downedArms(model, player, ageInTicks)) {
+            elbow.remove(id);
             return;
         }
 
