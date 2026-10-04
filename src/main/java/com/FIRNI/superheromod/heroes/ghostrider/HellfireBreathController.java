@@ -1,5 +1,6 @@
 package com.FIRNI.superheromod.heroes.ghostrider;
 
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import com.FIRNI.superheromod.SuperheroMod;
 import com.FIRNI.superheromod.core.ability.AbilityManager;
 import com.FIRNI.superheromod.core.cinematic.CinematicDirector;
