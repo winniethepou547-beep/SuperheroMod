@@ -8,6 +8,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
@@ -23,8 +25,8 @@ import java.util.Map;
 import static com.FIRNI.superheromod.heroes.panther.PantherAction.CAMO_SEEN;
 
 /**
- * What Black Panther sees in his camouflage: an eye over every other player's head (only on his own screen, through
- * walls). Violet and struck through: they cannot see him. Red and open: he is inside CAMO_SEEN blocks of them, they
+ * What Black Panther sees in his camouflage: an eye over the head of every other player and every creature that could
+ * spot him (only on his own screen, through walls; the nearest ones first). Violet and struck through: they cannot see him. Red and open: he is inside CAMO_SEEN blocks of them, they
  * see his shimmer. The eye pops when it changes and the red one beats like a pulse; it fades in and out with the
  * camouflage.
  */
@@ -33,7 +35,9 @@ public final class PantherSight {
     private static final ResourceLocation HIDDEN = new ResourceLocation(SuperheroMod.MODID, "textures/gui/panther/eye_hidden.png");
     private static final ResourceLocation SEEN = new ResourceLocation(SuperheroMod.MODID, "textures/gui/panther/eye_seen.png");
     private static final int FULL = 15728880;
-    private static final double RANGE = 64;
+    private static final double RANGE = 48, MOB_RANGE = 24;
+    private static final int MAX = 24;
+    private static final java.util.List<LivingEntity> WATCHERS = new java.util.ArrayList<>();
     /** Per player: seen now, and when that last changed (level time). */
     private static final Map<Integer, float[]> STATE = new HashMap<>();
     /** How far the eyes have faded in (0..1), and when that was last stepped. */
@@ -58,11 +62,20 @@ public final class PantherSight {
         var buffers = mc.renderBuffers().bufferSource();
         var rotation = e.getCamera().rotation();
         Vec3 me = mc.player.getPosition(e.getPartialTick());
-        for (Player other : mc.level.players()) {
-            if (other == mc.player || other.isSpectator() || !other.isAlive()) continue;
+        // Who could see him: other players, and creatures with eyes (not armour stands or the like), nearest first.
+        WATCHERS.clear();
+        for (var entity : mc.level.entitiesForRendering()) {
+            if (!(entity instanceof LivingEntity living) || living == mc.player || !living.isAlive() || living.isInvisible()) continue;
+            boolean player = living instanceof Player;
+            if (player ? living.isSpectator() : !(living instanceof Mob)) continue;
+            if (living.distanceToSqr(me) <= (player ? RANGE * RANGE : MOB_RANGE * MOB_RANGE)) WATCHERS.add(living);
+        }
+        WATCHERS.sort(java.util.Comparator.comparingDouble((LivingEntity w) -> w.distanceToSqr(me)));
+        int drawn = 0;
+        for (LivingEntity other : WATCHERS) {
+            if (drawn++ >= MAX) break;
             Vec3 at = other.getPosition(e.getPartialTick());
             double d = at.distanceTo(me);
-            if (d > RANGE) continue;
             boolean seen = d <= CAMO_SEEN;
             float[] st = STATE.computeIfAbsent(other.getId(), id -> new float[]{seen ? 1 : 0, -100});
             if ((st[0] > .5f) != seen) { st[0] = seen ? 1 : 0; st[1] = now; }
@@ -87,6 +100,7 @@ public final class PantherSight {
             p.popPose();
         }
         buffers.endBatch();
+        WATCHERS.clear();
         if (STATE.size() > 128) STATE.clear();
     }
 

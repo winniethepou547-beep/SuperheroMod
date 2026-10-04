@@ -48,6 +48,8 @@ public final class PantherAction {
     // ------------------------------------------------------------------ right click: the marked dash
     /** A dash straight to a marked target, claws crossed in front, then thrown open outward (CROSS) as he arrives. */
     public static final int DASH_TICKS = 5, CROSS_TICKS = 11, CROSS_HIT = 1;
+    /** The dash takes longer the farther it goes (a short one in DASH_TICKS, a long one up to 9): it reads as a flight, not a blink. */
+    public static int dashTicks(double reach) { return Math.max(DASH_TICKS, Math.min(9, (int) Math.round(reach / 2.4))); }
 
     // ------------------------------------------------------------------ SHIFT: Panther Pounce
     /**

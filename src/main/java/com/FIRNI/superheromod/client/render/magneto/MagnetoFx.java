@@ -45,6 +45,8 @@ import static com.FIRNI.superheromod.heroes.magneto.MagnetoAction.*;
  */
 @Mod.EventBusSubscriber(modid = SuperheroMod.MODID, value = Dist.CLIENT)
 public final class MagnetoFx {
+    /** The giant fist is drawn this much larger than MetalMesh builds it. */
+    static final float FIST_SCALE = 1.45f;
     private MagnetoFx() {}
 
     static final int STEEL = 0xd4d8e2, SPARK = 0xffc777, DUST = 0x8a7f72, FIELD = 0xb8c6ff, FLASH = 0xfff2dc;
@@ -142,7 +144,7 @@ public final class MagnetoFx {
                     }
                 }
             }
-            case FX_FIST_UP -> earth(at.subtract(0, MagnetoConfig.FIST_HEIGHT.get(), 0), (int) (14 * amount()), 1.2);
+            case FX_FIST_UP -> earth(new Vec3(at.x, groundY(at), at.z), (int) (14 * amount()), 1.2);
             case FX_PUNCH -> {
                 impact(at, p.power(), 1f);
                 RINGS.add(new Ring(at.add(0, .1, 0), p.power() * 1.6f, t, 12, 0xd8d2c8, false));
@@ -165,9 +167,20 @@ public final class MagnetoFx {
                 }
                 if (near(at, 16)) MagnetoClient.shake(.12f);
             }
-            case FX_BLOCK -> { sparks(at, dir.scale(-1), (int) (8 * amount()), .18f); MOTES.add(new Mote(at, Vec3.ZERO, .5f, 0, FLASH, 3, t, M_GLOW, .7f)); }
+            case FX_BLOCK -> {
+                // Struck: the sphere ripples from the spot and lightning crackles off it; violet-white sparks spray out.
+                Entity owner = mc.level.getEntity(p.entity());
+                if (owner != null) MagnetoShield.hit(p.entity(), at, owner.position(), t);
+                Vec3 out = owner == null ? dir.scale(-1) : at.subtract(owner.position().add(0, 1.05, 0)).normalize();
+                for (int i = 0; i < (int) (14 * amount()); i++) {
+                    Vec3 vel = out.scale(.12 + RANDOM.nextDouble() * .1).add((RANDOM.nextDouble() - .5) * .3, (RANDOM.nextDouble() - .3) * .25, (RANDOM.nextDouble() - .5) * .3);
+                    MOTES.add(new Mote(at, vel, .02f, 0, i % 3 == 0 ? 0xffffff : 0xc9a6ff, 4 + RANDOM.nextInt(6), t, M_SPARK, 1));
+                }
+                MOTES.add(new Mote(at, Vec3.ZERO, .7f, 0, 0xb784ff, 4, t, M_GLOW, .8f));
+            }
             case FX_BURST -> {
                 COLUMNS.remove(p.entity());
+                MagnetoShield.burst(p.entity(), at, p.power(), t);
                 MOTES.add(new Mote(at.add(0, 1.2, 0), Vec3.ZERO, 2.4f, 0, FLASH, 4, t, M_GLOW, .55f));
                 RINGS.add(new Ring(at.add(0, .1, 0), p.power() * 3.5f, t, 14, 0xd8d2c8, false));
                 RINGS.add(new Ring(at.add(0, 1.2, 0), p.power() * 2.6f, t, 8, STEEL, true));
@@ -288,15 +301,14 @@ public final class MagnetoFx {
             float[] col = COLUMNS.get(entry.getKey());
             Entity owner = mc.level.getEntity(entry.getKey());
             if (col == null || owner == null || !s.shield() || s.shieldAge > SHIELD_RAISE_TICKS || ((int) t & 1) != 0) continue;
-            for (int i = 0; i < (int) col[0]; i++) earth(column(owner.position(), s.shieldAge, i, (int) col[0], col[1]), 1, .3);
+            for (int i = 0; i < (int) col[0]; i++) {
+                Vec3 pl = MagnetoShield.plate(owner.position(), s.shieldAge, i, (int) col[0], col[1], t);
+                earth(new Vec3(pl.x, owner.getY(), pl.z), 1, .3);
+            }
         }
     }
 
     // ------------------------------------------------------------------ positions
-    private static Vec3 column(Vec3 owner, float age, int i, int n, float radius) {
-        double a = Math.PI * 2 * i / n + age * .004;
-        return owner.add(Math.cos(a) * radius, 0, Math.sin(a) * radius);
-    }
     /** Where piece i of the scrap sits on the one held (relative to their feet), slowly circling round them. */
     private static Vec3 offset(Grab g, int i, Entity target, float t) {
         float h = MetalMesh.hash(g.seed() + i * 3), a = MetalMesh.hash(g.seed() + i * 5) * 6.283f + (t - g.start()) * .025f;
@@ -396,25 +408,14 @@ public final class MagnetoFx {
                 p.mulPose(Axis.YP.rotationDegrees(-owner.getViewYRot(partial)));
                 p.mulPose(Axis.XP.rotation((float) Mth.clamp(moving.z * .4, -.4, .4)));
                 p.mulPose(Axis.ZP.rotation((float) Mth.clamp(-moving.x * .4, -.4, .4) + .03f * Mth.sin(time * .07f)));
+                p.scale(FIST_SCALE, FIST_SCALE, FIST_SCALE);
                 MetalMesh.fist(p, v, light(at), assemble, entry.getKey());
                 p.popPose();
             }
             float[] col = COLUMNS.get(entry.getKey());
             if (s.shield() && col != null) {
-                float age = s.shieldAge + partial;
-                float rise = Mth.clamp(age / SHIELD_RAISE_TICKS, 0, 1);
-                rise = 1 - (1 - rise) * (1 - rise) * (1 - rise);
                 Vec3 pos = owner.getPosition(partial);
-                for (int i = 0; i < (int) col[0]; i++) {
-                    Vec3 c = column(pos, age, i, (int) col[0], col[1]);
-                    float height = 3.2f + .5f * MetalMesh.hash(entry.getKey() + i);
-                    p.pushPose();
-                    p.translate(c.x - cam.x, c.y - cam.y - height * (1 - rise) - .3, c.z - cam.z);
-                    p.mulPose(Axis.YP.rotation((float) (Math.PI * 2 * i / col[0]) + age * .004f));
-                    p.mulPose(Axis.ZP.rotation(.03f * Mth.sin(time * .05f + i)));
-                    MetalMesh.column(p, v, light(c.add(0, 1, 0)), height, entry.getKey() * 7 + i);
-                    p.popPose();
-                }
+                MagnetoShield.plates(p, v, light(pos.add(0, 1, 0)), cam, pos, entry.getKey(), s.shieldAge + partial, (int) col[0], col[1], time);
             }
         }
         buffers.endBatch();
@@ -443,6 +444,15 @@ public final class MagnetoFx {
                     default -> FilmFx.glow(c, at, m.size * (1 + .5f * age), m.rgb, m.alpha * (1 - age));
                 }
             }
+            // The shields: the sphere, its lightning, the blows it takes; the bursts.
+            for (var entry : MagnetoClient.all()) {
+                MagnetoClient.State s = entry.getValue();
+                float[] col = COLUMNS.get(entry.getKey());
+                Entity owner = mc.level.getEntity(entry.getKey());
+                if (s.shield() && col != null && owner != null)
+                    MagnetoShield.light(c, owner.getPosition(partial), entry.getKey(), s.shieldAge + partial, (int) col[0], col[1], time);
+            }
+            MagnetoShield.pops(c, time);
             // Flying rods: a faint glint at the tip.
             for (Bit b : BITS.values()) if (b.kind == ROD && !b.stuck) FilmFx.glow(c, b.prev.lerp(b.pos, partial).add(b.axis.scale(1.9)), .25, STEEL, .25f);
             if (MagnetoConfig.FIELD_LINES.get()) fieldLines(c, time, partial);
@@ -518,13 +528,16 @@ public final class MagnetoFx {
             p.mulPose(Axis.YP.rotationDegrees(-8 * sx));
             p.mulPose(Axis.XP.rotationDegrees(-70 - 20 * reach));
             p.mulPose(Axis.ZP.rotationDegrees(10 * sx));
+            MagnetoBody.GLOW[side] = MagnetoMotion.glow(action, t, side);
+            MagnetoBody.glowTime = time;
             MagnetoBody.firstPersonArm(p, e.getMultiBufferSource(), e.getPackedLight(), side, -.2f, curl);
+            MagnetoBody.GLOW[side] = 0;
             p.popPose();
         }
     }
 
     private static void clear() { BITS.clear(); GRABS.clear(); FALLS.clear(); MOTES.clear(); RINGS.clear(); COLUMNS.clear(); }
-    @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) { clear(); MagnetoLayer.clear(); }
+    @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) { clear(); MagnetoLayer.clear(); MagnetoShield.clear(); }
 
     @Mod.EventBusSubscriber(modid = SuperheroMod.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
     public static final class Registration {

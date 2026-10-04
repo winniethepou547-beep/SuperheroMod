@@ -58,7 +58,7 @@ public final class PantherConfig {
         b.pop();
         b.comment("Right click: dash to a target his strikes have marked, claws thrown open as he arrives").push("markedDash");
         DASH_DAMAGE = b.defineInRange("damage", 9.0, 0, 100);
-        DASH_RANGE = b.comment("Farthest marked target he dashes to").defineInRange("range", 15.0, 2, 40);
+        DASH_RANGE = b.comment("Farthest marked target he dashes to (blocks)").defineInRange("maxRange", 20.0, 2, 48);
         DASH_COOLDOWN = b.defineInRange("cooldown", 40, 0, 4000);
         b.pop();
         b.comment("Holding the sprint key (CTRL): crouch; two seconds of it and he fades into camouflage").push("camouflage");

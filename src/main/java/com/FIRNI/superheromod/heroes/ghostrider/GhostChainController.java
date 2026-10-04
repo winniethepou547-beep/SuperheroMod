@@ -74,6 +74,7 @@ public final class GhostChainController {
             s.mode = Mode.CAST;
         }
         p.level().playSound(null, p.blockPosition(), SoundEvents.CHAIN_PLACE, SoundSource.PLAYERS, 0.8f, 0.8f + s.combo * 0.15f);
+        p.level().playSound(null, p.blockPosition(), ModSounds.GHOST_CHAIN_WHIP.get(), SoundSource.PLAYERS, (0.8f) * 1.0f, 1.0f);
         sync(p, s);
     }
     public static void release(ServerPlayer p,AbilitySlot slot) {
@@ -106,6 +107,7 @@ public final class GhostChainController {
             if(s.escape>=1) {
                 var rider=victim.server.getPlayerList().getPlayer(entry.getKey());
                 victim.level().playSound(null,victim.blockPosition(),SoundEvents.CHAIN_BREAK,SoundSource.PLAYERS,1.2f,.7f);
+                victim.level().playSound(null, victim.blockPosition(), ModSounds.FX_IMPACT_METAL.get(), SoundSource.PLAYERS, (1.2f) * 0.7f, 1.1f);
                 victim.level().playSound(null,victim.blockPosition(),SoundEvents.ITEM_BREAK,SoundSource.PLAYERS,1f,.6f);
                 end(s);
                 if(rider!=null)sync(rider,s);
@@ -143,8 +145,10 @@ public final class GhostChainController {
                 p.yBodyRot=p.getYRot();
                 s.heat=Math.max(s.heat,Math.min(10,s.age/4));s.idleTicks=0;
                 if(s.age==GhostComboMotion.CHARGE_FULL)p.level().playSound(null,p.blockPosition(),SoundEvents.CHAIN_BREAK,SoundSource.PLAYERS,.9f,.6f);
+                if(s.age==GhostComboMotion.CHARGE_FULL)p.level().playSound(null, p.blockPosition(), ModSounds.FX_IMPACT_METAL.get(), SoundSource.PLAYERS, (.9f) * 0.7f, 1.1f);
                 if(s.age==GhostComboMotion.CHARGE_FULL+GhostComboMotion.CHARGE_COIL)
                     p.level().playSound(null,p.blockPosition(),SoundEvents.PLAYER_ATTACK_SWEEP,SoundSource.PLAYERS,1f,.5f);
+                    p.level().playSound(null, p.blockPosition(), ModSounds.GHOST_CHAIN_WHIP.get(), SoundSource.PLAYERS, (1f) * 1.0f, 0.95f);
                 if(s.age>=GhostComboMotion.chargeRelease()) {
                     s.mode=Mode.FLY;s.age=0;s.held=false;s.struck.clear();
                     s.tip=p.getEyePosition().add(p.getLookAngle());s.direction=p.getLookAngle();
@@ -157,6 +161,7 @@ public final class GhostChainController {
                 int impact=GhostComboMotion.impactTick(s.combo);
                 // Heavy whoosh as the raised chain starts coming down.
                 if(s.age==impact-3)p.level().playSound(null,p.blockPosition(),SoundEvents.PLAYER_ATTACK_SWEEP,SoundSource.PLAYERS,.9f,.55f+s.combo*.08f);
+                if(s.age==impact-3)p.level().playSound(null, p.blockPosition(), ModSounds.GHOST_CHAIN_WHIP.get(), SoundSource.PLAYERS, (.9f) * 1.0f, 0.95f);
                 if (s.age >= impact-1 && s.age <= impact+2) {
                     boolean landed = false;
                     double reach=(p.getVehicle() instanceof HellCycleEntity?8:4.5)*GhostComboMotion.REACH;
@@ -174,6 +179,7 @@ public final class GhostChainController {
                     if (landed) {
                         s.heat = Math.min(10, s.heat + 1); s.idleTicks = 0;
                         p.level().playSound(null,p.blockPosition(),SoundEvents.ANVIL_LAND,SoundSource.PLAYERS,.35f,.55f+s.combo*.1f);
+                        p.level().playSound(null, p.blockPosition(), ModSounds.FX_IMPACT_HEAVY.get(), SoundSource.PLAYERS, (.35f) * 1.5f, 1.0f);
                         p.level().playSound(null,p.blockPosition(),SoundEvents.PLAYER_ATTACK_STRONG,SoundSource.PLAYERS,1f,.6f);
                     }
                 }
@@ -215,6 +221,7 @@ public final class GhostChainController {
                 // Wind-up: the chain stays in the hand until the arm comes through.
                 if(s.age<CAST_RELEASE){s.tip=hand(p);s.direction=p.getLookAngle();break;}
                 if(s.age==CAST_RELEASE)p.level().playSound(null,p.blockPosition(),SoundEvents.PLAYER_ATTACK_SWEEP,SoundSource.PLAYERS,.8f,.8f);
+                if(s.age==CAST_RELEASE)p.level().playSound(null, p.blockPosition(), ModSounds.GHOST_CHAIN_WHIP.get(), SoundSource.PLAYERS, (.8f) * 1.0f, 0.95f);
                 var hit = RaycastSystem.cast(p.level(), p, s.tip, s.direction, 1.7, 0.25f, false,
                         t -> t instanceof LivingEntity && t != p && t.isAlive() && !t.isSpectator());
                 if (hit.didHitEntity()) {

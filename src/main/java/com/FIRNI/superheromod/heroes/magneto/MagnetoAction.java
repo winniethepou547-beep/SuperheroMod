@@ -44,6 +44,8 @@ public final class MagnetoAction {
     // ------------------------------------------------------------------ F: Magnetic Iron Shield
     /** The columns rising out of the ground round him, and the burst (his arms flung out, the columns torn apart). */
     public static final int SHIELD_RAISE_TICKS = 14, BURST_TICKS = 10;
+    /** How fast the shield's plates circle him (radians per tick; the server throws the burst from where they are). */
+    public static final float PLATE_SPIN = .02f;
     /** How long a shard of the burst stays stuck where it hit, and how long it takes to go. */
     public static final int SHARD_STAY = 100, SHARD_FADE = 20;
 

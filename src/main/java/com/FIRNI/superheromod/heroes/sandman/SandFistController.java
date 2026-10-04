@@ -9,6 +9,7 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.block.Blocks;
@@ -112,6 +113,7 @@ public final class SandFistController {
 
         player.level().playSound(null, player.blockPosition(),
                 SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 1.0f, 0.6f);
+        player.level().playSound(null, player.blockPosition(), ModSounds.SANDMAN_SAND_IMPACT.get(), SoundSource.PLAYERS, (1.0f) * 0.8f, 1.0f);
     }
 
     /**
@@ -186,6 +188,7 @@ public final class SandFistController {
             if (strike.ticks == CHARGE_END) {
                 level.playSound(null, player.blockPosition(),
                         SoundEvents.SAND_PLACE, SoundSource.PLAYERS, 1.5f, 0.7f);
+                level.playSound(null, player.blockPosition(), ModSounds.SANDMAN_SAND_WHOOSH.get(), SoundSource.PLAYERS, (1.5f) * 0.7f, 1.0f);
             }
             return;
         }
@@ -197,6 +200,7 @@ public final class SandFistController {
             if (strike.length >= maxLength - 0.001) {
                 level.playSound(null, player.blockPosition(),
                         SoundEvents.SAND_PLACE, SoundSource.PLAYERS, 1.2f, 0.5f);
+                level.playSound(null, player.blockPosition(), ModSounds.SANDMAN_SAND_WHOOSH.get(), SoundSource.PLAYERS, (1.2f) * 0.7f, 1.0f);
                 strike.hammer = 0.001f;
             }
         } else if (strike.hammer > 0f && strike.hammer < 1f) {
@@ -285,6 +289,7 @@ public final class SandFistController {
                 8 + (int) (hammer * 8), 0.35, 0.35, 0.35, 0.09);
         level.playSound(null, BlockPos.containing(at),
                 SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 0.8f, 0.7f);
+        level.playSound(null, BlockPos.containing(at), ModSounds.SANDMAN_SAND_IMPACT.get(), SoundSource.PLAYERS, (0.8f) * 0.8f, 1.0f);
     }
 
     /**
@@ -344,6 +349,7 @@ public final class SandFistController {
 
             level.playSound(null, target.blockPosition(),
                     SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 1.4f, 0.55f);
+            level.playSound(null, target.blockPosition(), ModSounds.SANDMAN_SAND_IMPACT.get(), SoundSource.PLAYERS, (1.4f) * 0.8f, 1.0f);
             level.sendParticles(SAND_BLOCK,
                     target.getX(), target.getY() + target.getBbHeight() * 0.5, target.getZ(),
                     22, 0.35, 0.4, 0.35, 0.16);

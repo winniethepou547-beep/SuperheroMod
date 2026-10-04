@@ -12,6 +12,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.util.Mth;
@@ -162,7 +163,9 @@ public final class PantherController {
         ModNetworking.CHANNEL.send(PacketDistributor.TRACKING_ENTITY.with(() -> p), new PantherFxPacket(FX_DOUBLE_JUMP, p.position(), Vec3.ZERO, 1, p.getId()));
         sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, .35f, 1.5f);
         sound(p, SoundEvents.WOOL_STEP, .7f, .7f);
+        sound(p, ModSounds.PANTHER_POUNCE.get(), .5f, 1.3f);
     }
+        
 
     // ------------------------------------------------------------------ left click: the claws and the frenzy
     private static int chainAt(int action) { return action == CLAW_DOUBLE ? DOUBLE_CHAIN : action == CLAW_UPPER ? UPPER_CHAIN : CLAW_CHAIN; }
@@ -183,6 +186,7 @@ public final class PantherController {
         s.lastCombat = p.level().getGameTime();
         sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, .6f, 1.9f);
         sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, .5f, 1.4f);
+        sound(p, ModSounds.PANTHER_CLAW_SLASH.get(), .9f, .9f);
     }
     private static void nextStrike(ServerPlayer p, State s) {
         s.queued = false;
@@ -195,6 +199,7 @@ public final class PantherController {
         // The air parting: a higher, quicker note for the single claws, deeper for the double and the uppercut.
         float[] pitch = {1.9f, 1.7f, 1.35f, 1.1f};
         hand(p, step == 1 ? 1 : step == 0 ? -1 : 0, SoundEvents.PLAYER_ATTACK_SWEEP, step >= 2 ? .6f : .4f, pitch[step] + (p.getRandom().nextFloat() - .5f) * .1f);
+        hand(p, step == 1 ? 1 : step == 0 ? -1 : 0, ModSounds.PANTHER_CLAW_SLASH.get(), step >= 2 ? 1f : .8f, (step >= 2 ? .85f : 1.05f) + (p.getRandom().nextFloat() - .5f) * .1f);
     }
     /**
      * Everyone in the area in front of him a strike sweeps: within reach on the flat, inside the arc either side
@@ -243,6 +248,7 @@ public final class PantherController {
             }
             // The claws themselves: a bright metallic bite.
             p.level().playSound(null, at.x, at.y, at.z, SoundEvents.TRIDENT_HIT, SoundSource.PLAYERS, .45f, a == CLAW_DOUBLE ? 1.5f : 1.85f);
+            p.level().playSound(null, at.x, at.y, at.z, ModSounds.PANTHER_CLAW_HIT.get(), SoundSource.PLAYERS, .9f, a == CLAW_UPPER ? .85f : 1f + p.getRandom().nextFloat() * .1f);
         }
         if (a == CLAW_UPPER) { sound(p, SoundEvents.PLAYER_ATTACK_KNOCKBACK, .9f, 1.15f); sound(p, SoundEvents.PLAYER_ATTACK_CRIT, .8f, 1.3f); }
         else sound(p, SoundEvents.PLAYER_ATTACK_STRONG, .7f, a == CLAW_DOUBLE ? 1.1f : 1.4f);
@@ -269,6 +275,7 @@ public final class PantherController {
                 Vec3 at = t.getBoundingBox().getCenter();
                 fx(p, FX_CLAW_HIT, at, p.getLookAngle(), s.flags == 0 ? 1.5f : -1.5f, t.getId());
                 p.level().playSound(null, at.x, at.y, at.z, SoundEvents.TRIDENT_HIT, SoundSource.PLAYERS, .3f, 1.7f + p.getRandom().nextFloat() * .3f);
+                p.level().playSound(null, at.x, at.y, at.z, ModSounds.PANTHER_CLAW_HIT.get(), SoundSource.PLAYERS, .6f, 1.05f + p.getRandom().nextFloat() * .15f);
                 s.target = t;
             }
             s.lastCombat = p.level().getGameTime();
@@ -288,11 +295,12 @@ public final class PantherController {
             Vec3 to = t.getBoundingBox().getCenter().subtract(eye);
             double d = to.length();
             if (d > range) continue;
-            if (p.level().clip(new ClipContext(eye, t.getEyePosition(), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, p)).getType() != HitResult.Type.MISS) continue;
+            // In sight: the eyes, the chest or the feet will do (a low wall or a bush must not hide a target he can see).
+            if (!clear(p, eye, t.getEyePosition()) && !clear(p, eye, t.getBoundingBox().getCenter()) && !clear(p, eye, t.position().add(0, .3, 0))) continue;
             double score = to.normalize().dot(look) * 2 - d / range;
             if (score > bestScore) { bestScore = score; best = t; }
         }
-        if (best == null) { tell(p, "Pençe Atılışı: işaretli hedef yok (önce vurarak işaretle)"); return; }
+        if (best == null) { tell(p, "Pençe Atılışı: " + (int) Math.round(range) + " blok içinde işaretli hedef yok (önce vurarak işaretle)"); return; }
         if (!ready(p, s, CD_DASH, "Pençe Atılışı")) return;
         s.cooldowns[CD_DASH] = PantherConfig.DASH_COOLDOWN.get();
         s.target = best;
@@ -308,6 +316,10 @@ public final class PantherController {
         fx(p, FX_DASH, s.from, s.dir, 1, p.getId());
         sound(p, SoundEvents.TRIDENT_RIPTIDE_1, .7f, 1.8f);
         sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, .6f, 1.2f);
+        sound(p, ModSounds.PANTHER_DASH.get(), 1f, 1f);
+    }
+    private static boolean clear(ServerPlayer p, Vec3 from, Vec3 to) {
+        return p.level().clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, p)).getType() == HitResult.Type.MISS;
     }
     /** He arrives: the crossed claws thrown open outward through the target (and anyone right beside them). */
     private static void crossHit(ServerPlayer p, State s) {
@@ -331,6 +343,8 @@ public final class PantherController {
         fx(p, FX_CROSS, p.position().add(0, 1.1, 0), s.dir, any ? 1 : .6f, p.getId());
         sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, 1f, .9f);
         if (any) { sound(p, SoundEvents.PLAYER_ATTACK_CRIT, 1f, 1.1f); sound(p, SoundEvents.TRIDENT_HIT, .8f, 1.3f); }
+        sound(p, ModSounds.PANTHER_CLAW_SLASH.get(), 1f, .8f);
+        if (any) sound(p, ModSounds.PANTHER_CLAW_HIT.get(), 1f, .9f);
     }
 
     // ------------------------------------------------------------------ marks
@@ -385,6 +399,7 @@ public final class PantherController {
         fx(p, FX_POUNCE, p.position(), s.dir, 1, p.getId());
         sound(p, SoundEvents.FIREWORK_ROCKET_LAUNCH, .5f, 1.8f);
         sound(p, SoundEvents.TRIDENT_RIPTIDE_1, .5f, 1.7f);
+        sound(p, ModSounds.PANTHER_POUNCE.get(), .9f, 1f);
     }
     /** The camouflage: the suit bends the light round him; any hit breaks it. */
     private static void camo(ServerPlayer p, State s, boolean on, boolean broken) {
@@ -394,6 +409,7 @@ public final class PantherController {
             fx(p, FX_CAMO, p.position(), Vec3.ZERO, 1, p.getId());
             sound(p, SoundEvents.ILLUSIONER_PREPARE_MIRROR, .6f, 1.6f);
             sound(p, SoundEvents.BEACON_POWER_SELECT, .3f, 1.9f);
+            sound(p, ModSounds.PANTHER_CAMO_ON.get(), .8f, 1f);
             return;
         }
         if (s.camoLeft <= 0) return;
@@ -404,6 +420,7 @@ public final class PantherController {
         fx(p, FX_CAMO, p.position(), Vec3.ZERO, broken ? -1 : 0, p.getId());
         if (broken) { sound(p, SoundEvents.ILLUSIONER_MIRROR_MOVE, .8f, 1.4f); sound(p, SoundEvents.AMETHYST_BLOCK_BREAK, .7f, 1.6f); }
         else sound(p, SoundEvents.ILLUSIONER_MIRROR_MOVE, .5f, .9f);
+        sound(p, ModSounds.PANTHER_CAMO_OFF.get(), broken ? 1f : .6f, broken ? 1.1f : 1f);
     }
     /** The leap leaves from where he really is once the load is over (he may have still been running when he pressed). */
     private static void pounceStart(ServerPlayer p, State s) {
@@ -464,6 +481,7 @@ public final class PantherController {
         p.level().playSound(null, at.x, at.y, at.z, SoundEvents.PLAYER_ATTACK_KNOCKBACK, SoundSource.PLAYERS, 1f, .8f);
         p.level().playSound(null, at.x, at.y, at.z, SoundEvents.SHIELD_BLOCK, SoundSource.PLAYERS, .5f, .6f);
         sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, .8f, .6f);
+        sound(p, ModSounds.PANTHER_KICK_IMPACT.get(), .7f, 1.1f);
         set(s, POUNCE_FLIP);
     }
     /** The target held where they are while he goes over them. */
@@ -488,6 +506,7 @@ public final class PantherController {
         p.level().playSound(null, at.x, at.y, at.z, SoundEvents.PLAYER_ATTACK_CRIT, SoundSource.PLAYERS, 1f, .7f);
         p.level().playSound(null, at.x, at.y, at.z, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, .35f, 1.7f);
         p.level().playSound(null, at.x, at.y, at.z, SoundEvents.TRIDENT_RIPTIDE_2, SoundSource.PLAYERS, .6f, 1.3f);
+        p.level().playSound(null, at.x, at.y, at.z, ModSounds.PANTHER_KICK_IMPACT.get(), SoundSource.PLAYERS, 1.3f, .9f);
     }
 
     // ------------------------------------------------------------------ Q: the spinning triple kick
@@ -533,6 +552,7 @@ public final class PantherController {
         sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, last ? .9f : .6f, last ? .75f : index == 0 ? 1.15f : 1f);
         if (any) {
             sound(p, last ? SoundEvents.PLAYER_ATTACK_KNOCKBACK : SoundEvents.PLAYER_ATTACK_STRONG, 1f, last ? .75f : 1.05f);
+            sound(p, ModSounds.PANTHER_KICK_IMPACT.get(), last ? 1.2f : .8f, last ? .85f : 1.05f);
             if (last) sound(p, SoundEvents.GENERIC_EXPLODE, .3f, 1.6f);
         }
         fx(p, FX_SPIN_KICK, at, s.dir, last ? -2 : -1, -1);
@@ -595,6 +615,7 @@ public final class PantherController {
         s.lastCombat = p.level().getGameTime();
         sound(p, SoundEvents.BEACON_POWER_SELECT, .8f, .6f);
         sound(p, SoundEvents.CONDUIT_AMBIENT_SHORT, 1f, 1.3f);
+        sound(p, ModSounds.FX_ENERGY_SWELL.get(), .7f, 1.2f);
     }
     private static void burst(ServerPlayer p, State s) {
         float k = power(s);
@@ -623,6 +644,7 @@ public final class PantherController {
         sound(p, SoundEvents.GENERIC_EXPLODE, .6f + .5f * k, .75f);
         sound(p, SoundEvents.AMETHYST_BLOCK_CHIME, 1f, .6f);
         sound(p, SoundEvents.BEACON_DEACTIVATE, .7f, 1.4f);
+        sound(p, ModSounds.PANTHER_KINETIC_RELEASE.get(), .9f + .5f * k, 1.05f - .1f * k);
         s.energy = 0;
     }
     /** How much of a full charge went into the release (0..1). */
@@ -637,6 +659,7 @@ public final class PantherController {
         fx(p, FX_REFLEX, p.position(), Vec3.ZERO, 1, p.getId());
         sound(p, SoundEvents.WARDEN_HEARTBEAT, .8f, 1.6f);
         sound(p, SoundEvents.BEACON_ACTIVATE, .35f, 1.9f);
+        sound(p, ModSounds.PANTHER_VIBRANIUM_ABSORB.get(), .5f, 1.25f);
     }
     /**
      * With the reflex on, anything that comes at him from in front (the half circle he faces) is turned aside on his
@@ -667,6 +690,7 @@ public final class PantherController {
         sound(p, SoundEvents.SHIELD_BLOCK, .7f, 1.5f + p.getRandom().nextFloat() * .2f);
         sound(p, SoundEvents.TRIDENT_HIT, .45f, 1.9f);
         sound(p, SoundEvents.AMETHYST_BLOCK_HIT, .6f, 1.3f);
+        sound(p, ModSounds.PANTHER_VIBRANIUM_ABSORB.get(), .9f, 1.1f + p.getRandom().nextFloat() * .1f);
         return true;
     }
     /** An attack is coming: he slips it, away from where it comes from. */
@@ -714,6 +738,7 @@ public final class PantherController {
         }
         sound(p, SoundEvents.PLAYER_ATTACK_NODAMAGE, .7f, 1.6f);
         sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, .2f, 2f);
+        sound(p, ModSounds.FX_WHOOSH_LIGHT.get(), .6f, 1.2f);
         return true;
     }
 
@@ -803,7 +828,7 @@ public final class PantherController {
             }
             case DASH -> {
                 p.fallDistance = 0;
-                if (s.age >= DASH_TICKS) { set(s, CROSS); }
+                if (s.age >= dashTicks(s.reach)) { set(s, CROSS); }
             }
             case CROSS -> {
                 if (s.age == CROSS_HIT) crossHit(p, s);
@@ -884,6 +909,8 @@ public final class PantherController {
             // A hit tears the camouflage: it glitches and falls away.
             if (s.camoLeft > 0) camo(p, s, false, true);
             s.energy = Math.min(f(PantherConfig.ENERGY_MAX), s.energy + amount * f(PantherConfig.ENERGY_PER_DAMAGE));
+            // The suit drinking the blow: its hum, louder the harder it was hit.
+            if (amount > .5f) sound(p, ModSounds.PANTHER_VIBRANIUM_ABSORB.get(), Math.min(1f, .35f + amount * .07f), 1.15f - Math.min(.3f, amount * .03f));
             s.hurtAge = 0;
             s.hurtPower = amount < 3 ? 0 : amount < 7 ? 1 : 2;
             Entity from = e.getSource().getDirectEntity() != null ? e.getSource().getDirectEntity() : e.getSource().getEntity();

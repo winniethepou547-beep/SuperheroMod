@@ -13,6 +13,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.util.Mth;
@@ -58,7 +59,7 @@ public final class MagnetoController {
         boolean flying, grantedFly; int flightAge, groundTicks;
         int charges = -1, recharge;
         Vec3 barrageAt = Vec3.ZERO; int barrageLeft, barrageNext, barrageSeed;
-        LivingEntity held; int holdAge, holdTicks, lastSlam = -100, thrownAge = -1; double holdDist; Vec3 commanded = Vec3.ZERO, lastPos = Vec3.ZERO, prevMoved = Vec3.ZERO;
+        LivingEntity held; int holdAge, holdTicks, lastSlam = -100, thrownAge = -1; double holdDist; Vec3 commanded = Vec3.ZERO, lastPos = Vec3.ZERO, prevMoved = Vec3.ZERO, prevWant = null, swing = Vec3.ZERO;
         LivingEntity thrown;
         boolean fist; Vec3 fistPos = Vec3.ZERO, fistVel = Vec3.ZERO, punchFrom = Vec3.ZERO, punchAt = Vec3.ZERO; int fistAge, punchAge = -1, punchesLeft;
         boolean shield; int shieldAge;
@@ -97,7 +98,7 @@ public final class MagnetoController {
         if (FilmSessions.busy(p.getUUID())) return;
         switch (slot) {
             case LMB -> click(p, s);
-            case RMB -> { if (s.held != null) release(p, s, false); }
+            case RMB -> { if (s.held != null) throwUp(p, s); }
             case SHIFT -> flight(p, s, !s.flying);
             case ULTIMATE -> barrage(p, s);
             case SKILL_V -> grab(p, s);
@@ -140,6 +141,7 @@ public final class MagnetoController {
         fx(p, on ? FX_LIFT : FX_LAND, p.position(), Vec3.ZERO, 1, p.getId(), 0);
         sound(p, on ? SoundEvents.BEACON_POWER_SELECT : SoundEvents.ARMOR_EQUIP_IRON, .4f, on ? 1.4f : .8f);
         if (on) sound(p, SoundEvents.ELYTRA_FLYING, .25f, 1.6f);
+        if (on) sound(p, ModSounds.MAGNETO_MAGNETIC_HUM.get(), .45f, 1.25f);
     }
 
     // ------------------------------------------------------------------ left click: shard, punch, throw
@@ -158,6 +160,7 @@ public final class MagnetoController {
         fx(p, FX_SHARD, from, m.vel, 0, p.getId(), m.id);
         sound(p, SoundEvents.TRIDENT_THROW, .5f, 1.7f);
         sound(p, SoundEvents.CHAIN_PLACE, .4f, 1.6f);
+        sound(p, ModSounds.MAGNETO_METAL_SHING.get(), .7f, .95f + p.getRandom().nextFloat() * .1f);
     }
 
     // ------------------------------------------------------------------ Q: Iron Barrage
@@ -172,6 +175,7 @@ public final class MagnetoController {
         if (!s.fist && s.action != CONTROL) set(s, BARRAGE);
         sound(p, SoundEvents.BEACON_ACTIVATE, .5f, 1.6f);
         sound(p, SoundEvents.ARMOR_EQUIP_NETHERITE, .7f, .7f);
+        sound(p, ModSounds.MAGNETO_METAL_RISE.get(), .8f, .9f);
     }
     /** One rod: high over a spot near the target point, thrown down at a slant, turning as it falls. */
     private static void spawnRod(ServerPlayer p, State s, int index) {
@@ -190,11 +194,12 @@ public final class MagnetoController {
         METAL.add(m);
         fx(p, FX_ROD, start, vel, (float) g, p.getId(), m.id);
         p.level().playSound(null, start.x, start.y, start.z, SoundEvents.TRIDENT_RIPTIDE_1, SoundSource.PLAYERS, .5f, .6f + .2f * r.nextFloat());
+        p.level().playSound(null, start.x, start.y, start.z, ModSounds.MAGNETO_ROD_WHISTLE.get(), SoundSource.PLAYERS, .9f, .9f + .2f * r.nextFloat());
     }
 
     // ------------------------------------------------------------------ E: Metal Scrap Telekinesis
     private static void grab(ServerPlayer p, State s) {
-        if (s.held != null) { release(p, s, false); return; }
+        if (s.held != null) { fling(p, s); return; }
         if (casting(s) || s.fist || !ready(p, s, CD_GRAB, "Hurda Telekinezisi")) return;
         LivingEntity t = aimed(p, MagnetoConfig.GRAB_RANGE.get(), .96);
         if (t == null) { tell(p, "Hurda Telekinezisi: bakışında hedef yok"); return; }
@@ -205,6 +210,8 @@ public final class MagnetoController {
         s.lastPos = t.position();
         s.commanded = Vec3.ZERO;
         s.prevMoved = Vec3.ZERO;
+        s.prevWant = null;
+        s.swing = Vec3.ZERO;
         s.lastSlam = -100;
         set(s, GRAB);
         Vec3 dir = t.position().subtract(p.position());
@@ -212,6 +219,7 @@ public final class MagnetoController {
         fx(p, FX_GRAB, t.position(), dir, MagnetoConfig.SCRAP_PIECES.get(), t.getId(), p.getRandom().nextInt(100000));
         sound(p, SoundEvents.CHAIN_BREAK, .8f, .6f);
         sound(p, SoundEvents.ARMOR_EQUIP_IRON, .8f, .6f);
+        sound(p, ModSounds.MAGNETO_TELEKINESIS_GRAB.get(), .9f, 1f);
         p.level().playSound(null, t.getX(), t.getY(), t.getZ(), SoundEvents.ANVIL_PLACE, SoundSource.PLAYERS, .5f, 1.6f);
     }
     /** Holding them: wrapped first, then dragged where he aims, slammed into whatever is in the way. */
@@ -238,6 +246,9 @@ public final class MagnetoController {
             // Never below the ground: the aim can sweep them along it, slamming them, but not bury them.
             double floor = ground(p.serverLevel(), want).y + t.getBbHeight() * .5;
             if (want.y < floor) want = new Vec3(want.x, floor, want.z);
+            // How fast his aim is sweeping the hold point (smoothed): what a flick of the mouse would fling them with.
+            if (s.prevWant != null) s.swing = s.swing.scale(.45).add(want.subtract(s.prevWant).scale(.55));
+            s.prevWant = want;
             Vec3 to = want.subtract(centre);
             double max = MagnetoConfig.DRAG_SPEED.get();
             v = to.scale(.34);
@@ -252,13 +263,15 @@ public final class MagnetoController {
     }
     private static void slam(ServerPlayer p, State s, LivingEntity t, Vec3 v, double speed) {
         s.lastSlam = s.holdAge;
-        float damage = (float) (MagnetoConfig.SLAM_DAMAGE.get() * Mth.clamp(speed / .9, .4, 1.6));
+        // The faster they were going, the harder it hurts (a flung body hits much harder than a dragged one).
+        float damage = (float) (MagnetoConfig.SLAM_DAMAGE.get() * Mth.clamp(speed / .9, .4, 3.0));
         hurt(p, t, damage);
         Vec3 at = t.position().add(0, t.getBbHeight() * .5, 0);
         fx(p, FX_SLAM, at, v.normalize(), (float) Mth.clamp(speed, .2, 2), t.getId(), MagnetoConfig.SLAM_SHOCKWAVE.get() ? 1 : 0);
         p.level().playSound(null, at.x, at.y, at.z, SoundEvents.ANVIL_LAND, SoundSource.PLAYERS, 1f, .55f);
         p.level().playSound(null, at.x, at.y, at.z, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, .45f, 1.3f);
         p.level().playSound(null, at.x, at.y, at.z, SoundEvents.ZOMBIE_ATTACK_IRON_DOOR, SoundSource.PLAYERS, .8f, .7f);
+        p.level().playSound(null, at.x, at.y, at.z, ModSounds.FX_IMPACT_HEAVY.get(), SoundSource.PLAYERS, (float) Math.min(1.4, .6 + speed * .4), .9f);
         // A small shockwave: those right beside the slam are knocked back.
         if (MagnetoConfig.SLAM_SHOCKWAVE.get()) for (LivingEntity o : targets(p, new AABB(at, at).inflate(2.2))) {
             if (o == t) continue;
@@ -268,6 +281,41 @@ public final class MagnetoController {
             o.hurtMarked = true;
             hurt(p, o, damage * .3f);
         }
+    }
+    /**
+     * E again while holding: let go, and they keep the speed his aim was sweeping them with (a fast flick of the mouse
+     * flings them across the field, and the harder they hit something, the more it hurts; let go gently and they drop).
+     */
+    private static void fling(ServerPlayer p, State s) {
+        LivingEntity t = s.held;
+        Vec3 v = s.swing.length() > s.commanded.length() ? s.swing : s.commanded;
+        double max = MagnetoConfig.THROW_SPEED.get() * 1.6;
+        if (v.length() > max) v = v.normalize().scale(max);
+        if (t == null || v.length() < MagnetoConfig.SLAM_SPEED.get()) { release(p, s, false); return; }
+        launch(p, s, t, v.add(0, .08, 0));
+        sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, .6f + .3f * (float) Math.min(1, v.length() / max), .5f + .4f * (float) Math.min(1, v.length() / max));
+        sound(p, ModSounds.MAGNETO_FLING.get(), .6f + .5f * (float) Math.min(1, v.length() / max), .85f + .3f * (float) Math.min(1, v.length() / max));
+    }
+    /** Right click while holding: they are hurled straight up into the air. */
+    private static void throwUp(ServerPlayer p, State s) {
+        LivingEntity t = s.held;
+        if (t == null) return;
+        Vec3 look = p.getLookAngle();
+        launch(p, s, t, new Vec3(look.x * .15, MagnetoConfig.THROW_SPEED.get() * .8, look.z * .15));
+        sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, .9f, .7f);
+        sound(p, SoundEvents.TRIDENT_RIPTIDE_1, .7f, .9f);
+        sound(p, ModSounds.MAGNETO_FLING.get(), .9f, .8f);
+    }
+    /** Let go with a speed: thrown, watched for the moment they hit something. */
+    private static void launch(ServerPlayer p, State s, LivingEntity t, Vec3 v) {
+        release(p, s, true);
+        t.setDeltaMovement(v);
+        t.hurtMarked = true;
+        s.thrown = t;
+        s.thrownAge = 0;
+        s.commanded = v;
+        s.lastPos = t.position();
+        set(s, THROW);
     }
     /** Left click while holding: they are hurled the way he looks. */
     private static void throwHeld(ServerPlayer p, State s) {
@@ -283,12 +331,13 @@ public final class MagnetoController {
         set(s, THROW);
         sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, .9f, .6f);
         sound(p, SoundEvents.TRIDENT_RIPTIDE_2, .7f, .8f);
+        sound(p, ModSounds.MAGNETO_FLING.get(), 1f, 1f);
     }
     /** Thrown: if they come to a sudden stop in the first second, that was a wall or the ground. */
     private static void thrownTick(ServerPlayer p, State s) {
         LivingEntity t = s.thrown;
         if (t == null) return;
-        if (!t.isAlive() || ++s.thrownAge > 24) { s.thrown = null; return; }
+        if (!t.isAlive() || ++s.thrownAge > 40) { s.thrown = null; return; }
         Vec3 moved = t.position().subtract(s.lastPos);
         double before = s.commanded.length();
         if (s.thrownAge > 1 && before > MagnetoConfig.SLAM_SPEED.get() && moved.length() < before * .3) {
@@ -312,7 +361,9 @@ public final class MagnetoController {
 
     // ------------------------------------------------------------------ R: Giant Iron Fist
     private static void fist(ServerPlayer p, State s) {
-        if (s.fist) return;
+        // Pressed again: the shield bursts if it stands; otherwise the fist is let go and falls apart.
+        if (s.shield) { burst(p, s); return; }
+        if (s.fist) { if (s.punchAge < 0) breakFist(p, s); return; }
         if (casting(s) || s.held != null || !ready(p, s, CD_FIST, "Dev Demir Yumruk")) return;
         s.fist = true;
         s.fistAge = 0;
@@ -324,10 +375,27 @@ public final class MagnetoController {
         fx(p, FX_FIST_UP, s.fistPos, Vec3.ZERO, 1, p.getId(), 0);
         sound(p, SoundEvents.ANVIL_USE, .8f, .5f);
         p.level().playSound(null, s.fistPos.x, s.fistPos.y, s.fistPos.z, SoundEvents.IRON_GOLEM_REPAIR, SoundSource.PLAYERS, 1f, .5f);
+        p.level().playSound(null, s.fistPos.x, s.fistPos.y, s.fistPos.z, ModSounds.MAGNETO_FIST_ASSEMBLE.get(), SoundSource.PLAYERS, 1.3f, 1f);
     }
-    /** Where the fist floats: over the ground where he aims. */
+    /**
+     * Where the fist floats: over the ground where he aims, a few blocks out at least, and never higher than a little
+     * above the line he looks along, so it stays in his view (aiming at the ground used to put it over the screen's top).
+     */
     private static Vec3 hover(ServerPlayer p) {
-        return ground(p.serverLevel(), aimPoint(p, MagnetoConfig.FIST_RANGE.get())).add(0, MagnetoConfig.FIST_HEIGHT.get(), 0);
+        Vec3 eye = p.getEyePosition();
+        Vec3 aim = aimPoint(p, MagnetoConfig.FIST_RANGE.get());
+        Vec3 flatLook = new Vec3(aim.x - eye.x, 0, aim.z - eye.z);
+        double flat = flatLook.length();
+        if (flat < 4) {
+            Vec3 dir = flat < 1e-3 ? Vec3.directionFromRotation(0, p.getYRot()) : flatLook.scale(1 / flat);
+            aim = new Vec3(eye.x + dir.x * 4, aim.y, eye.z + dir.z * 4);
+            flat = 4;
+        }
+        Vec3 ground = ground(p.serverLevel(), aim);
+        double up = Math.toRadians(Mth.clamp(-p.getXRot() + 9, -75, 75));
+        double ceiling = eye.y + flat * Math.tan(up);
+        double y = Math.max(ground.y + 2.2, Math.min(ground.y + MagnetoConfig.FIST_HEIGHT.get(), ceiling));
+        return new Vec3(ground.x, y, ground.z);
     }
     private static void fistTick(ServerPlayer p, State s) {
         if (!s.fist) return;
@@ -364,9 +432,10 @@ public final class MagnetoController {
         s.punchAge = 0;
         s.punchesLeft--;
         s.punchFrom = s.fistPos;
-        s.punchAt = ground(p.serverLevel(), s.fistPos.subtract(0, MagnetoConfig.FIST_HEIGHT.get() - .5, 0));
+        s.punchAt = ground(p.serverLevel(), s.fistPos);
         p.level().playSound(null, s.fistPos.x, s.fistPos.y, s.fistPos.z, SoundEvents.PLAYER_ATTACK_SWEEP, SoundSource.PLAYERS, 1f, .4f);
         p.level().playSound(null, s.fistPos.x, s.fistPos.y, s.fistPos.z, SoundEvents.ELYTRA_FLYING, SoundSource.PLAYERS, .4f, 1.8f);
+        p.level().playSound(null, s.fistPos.x, s.fistPos.y, s.fistPos.z, ModSounds.FX_WHOOSH_HEAVY.get(), SoundSource.PLAYERS, 1f, .75f);
     }
     /** The fist hits the ground: everyone round it hurt and thrown out, the ground shaken. */
     private static void impact(ServerPlayer p, State s) {
@@ -387,6 +456,7 @@ public final class MagnetoController {
         p.level().playSound(null, at.x, at.y, at.z, SoundEvents.ANVIL_LAND, SoundSource.PLAYERS, 1.2f, .45f);
         p.level().playSound(null, at.x, at.y, at.z, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, .9f, .7f);
         p.level().playSound(null, at.x, at.y, at.z, SoundEvents.IRON_GOLEM_ATTACK, SoundSource.PLAYERS, 1f, .5f);
+        p.level().playSound(null, at.x, at.y, at.z, ModSounds.MAGNETO_FIST_SLAM.get(), SoundSource.PLAYERS, 1.5f, .95f + p.getRandom().nextFloat() * .1f);
     }
     private static void breakFist(ServerPlayer p, State s) {
         s.fist = false;
@@ -396,6 +466,7 @@ public final class MagnetoController {
         fx(p, FX_FIST_BREAK, s.fistPos, s.fistVel, 1, p.getId(), p.getRandom().nextInt(100000));
         p.level().playSound(null, s.fistPos.x, s.fistPos.y, s.fistPos.z, SoundEvents.ANVIL_DESTROY, SoundSource.PLAYERS, .9f, .6f);
         p.level().playSound(null, s.fistPos.x, s.fistPos.y, s.fistPos.z, SoundEvents.CHAIN_BREAK, SoundSource.PLAYERS, 1f, .5f);
+        p.level().playSound(null, s.fistPos.x, s.fistPos.y, s.fistPos.z, ModSounds.MAGNETO_METAL_CLANG_BIG.get(), SoundSource.PLAYERS, .8f, 1.25f);
     }
 
     // ------------------------------------------------------------------ F: Magnetic Iron Shield
@@ -409,12 +480,19 @@ public final class MagnetoController {
         sound(p, SoundEvents.IRON_GOLEM_STEP, 1f, .5f);
         sound(p, SoundEvents.ANVIL_PLACE, .7f, .5f);
         sound(p, SoundEvents.PISTON_EXTEND, .8f, .5f);
+        sound(p, ModSounds.MAGNETO_SHIELD_UP.get(), 1.1f, 1f);
     }
-    /** Where a column stands (round him, turning slowly). */
+    /** Where plate i circles round him (the same orbit his clients draw: MagnetoShield.plate), at its foot. */
     private static Vec3 column(ServerPlayer p, State s, int i, int n) {
-        double a = Math.PI * 2 * i / n + s.shieldAge * .004;
-        double r = MagnetoConfig.SHIELD_RADIUS.get();
+        double a = Math.PI * 2 * i / n + s.shieldAge * PLATE_SPIN;
+        double r = MagnetoConfig.SHIELD_RADIUS.get() + .45;
         return p.position().add(Math.cos(a) * r, 0, Math.sin(a) * r);
+    }
+    /** Where something coming from a point meets the sphere of the shield. */
+    private static Vec3 onShield(ServerPlayer p, Vec3 from) {
+        Vec3 centre = p.position().add(0, 1.05, 0), d = from.subtract(centre);
+        if (d.lengthSqr() < 1e-4) d = p.getLookAngle();
+        return centre.add(d.normalize().scale(MagnetoConfig.SHIELD_RADIUS.get()));
     }
     private static void shieldTick(ServerPlayer p, State s) {
         if (!s.shield) return;
@@ -424,13 +502,15 @@ public final class MagnetoController {
         if (!MagnetoConfig.SHIELD_BLOCKS_PROJECTILES.get() || s.shieldAge < SHIELD_RAISE_TICKS / 2) return;
         // Projectiles coming at him stop dead against the iron.
         double r = MagnetoConfig.SHIELD_RADIUS.get();
-        Vec3 centre = p.position().add(0, 1, 0);
-        for (Projectile pr : p.level().getEntitiesOfClass(Projectile.class, p.getBoundingBox().inflate(r + 2.5, 2, r + 2.5), pr -> pr.getOwner() != p && pr.isAlive())) {
+        Vec3 centre = p.position().add(0, 1.05, 0);
+        for (Projectile pr : p.level().getEntitiesOfClass(Projectile.class, p.getBoundingBox().inflate(r + 2.5, r + 2, r + 2.5), pr -> pr.getOwner() != p && pr.isAlive())) {
+            // Against the sphere: anything coming in that reaches its skin stops there.
             Vec3 to = centre.subtract(pr.position());
-            double flat = Math.sqrt(to.x * to.x + to.z * to.z);
-            if (flat > r + .8 || flat < r - 1.2 || pr.getDeltaMovement().dot(to) <= 0) continue;
-            fx(p, FX_BLOCK, pr.position(), pr.getDeltaMovement().normalize(), 1, p.getId(), 0);
+            double dist = to.length();
+            if (dist > r + .9 || dist < r - 1.4 || pr.getDeltaMovement().dot(to) <= 0) continue;
+            fx(p, FX_BLOCK, onShield(p, pr.position()), pr.getDeltaMovement().normalize(), 1, p.getId(), 0);
             p.level().playSound(null, pr.getX(), pr.getY(), pr.getZ(), SoundEvents.ANVIL_LAND, SoundSource.PLAYERS, .4f, 1.8f);
+            p.level().playSound(null, pr.getX(), pr.getY(), pr.getZ(), ModSounds.MAGNETO_SHIELD_HIT.get(), SoundSource.PLAYERS, 1f, .9f + p.getRandom().nextFloat() * .2f);
             // Arrows and tridents drop off the iron (a trident is someone's item); anything else is destroyed.
             if (pr instanceof AbstractArrow) { pr.setDeltaMovement(pr.getDeltaMovement().scale(-.1)); pr.hurtMarked = true; }
             else pr.discard();
@@ -453,7 +533,8 @@ public final class MagnetoController {
             double turn = (r.nextDouble() - .5) * (Math.PI * 2 / n) * 1.2;
             out = new Vec3(out.x * Math.cos(turn) - out.z * Math.sin(turn), 0, out.x * Math.sin(turn) + out.z * Math.cos(turn));
             Vec3 vel = out.scale(speed * (.8 + .4 * r.nextDouble())).add(0, .05 + .25 * r.nextDouble(), 0);
-            Vec3 pos = base.add(0, .4 + 2.6 * r.nextDouble(), 0);
+            // From the plate itself, as it hung.
+            Vec3 pos = base.add(0, .15 + .95 * (col % 2) + .8 * r.nextDouble(), 0);
             Metal m = new Metal(nextId++, BURST_PIECE, p, pos, vel, vel.normalize(), .35f, .035f);
             METAL.add(m);
             fx(p, FX_PIECE, pos, vel, .035f, p.getId(), m.id);
@@ -463,6 +544,7 @@ public final class MagnetoController {
         sound(p, SoundEvents.ANVIL_DESTROY, 1f, .6f);
         sound(p, SoundEvents.CHAIN_BREAK, 1f, .5f);
         sound(p, SoundEvents.WARDEN_SONIC_BOOM, .4f, 1.6f);
+        sound(p, ModSounds.MAGNETO_SHIELD_BURST.get(), 1.3f, 1f);
     }
 
     // ------------------------------------------------------------------ X: Magnetic Execution
@@ -506,6 +588,7 @@ public final class MagnetoController {
                     t.hurtMarked = true;
                     fx(p, m.kind == SHARD_PIECE ? FX_SHARD_HIT : FX_PIECE_HIT, eh.getLocation(), push, -1, t.getId(), m.id);
                     p.level().playSound(null, t.getX(), t.getY(), t.getZ(), SoundEvents.TRIDENT_HIT, SoundSource.PLAYERS, .7f, 1.2f);
+                    p.level().playSound(null, t.getX(), t.getY(), t.getZ(), ModSounds.FX_IMPACT_METAL.get(), SoundSource.PLAYERS, .5f, 1.4f);
                     it.remove();
                     continue;
                 }
@@ -550,6 +633,7 @@ public final class MagnetoController {
         p.level().playSound(null, at.x, at.y, at.z, SoundEvents.ANVIL_LAND, SoundSource.PLAYERS, 1f, .6f);
         p.level().playSound(null, at.x, at.y, at.z, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, .5f, 1.5f);
         p.level().playSound(null, at.x, at.y, at.z, SoundEvents.TRIDENT_HIT_GROUND, SoundSource.PLAYERS, 1f, .5f);
+        p.level().playSound(null, at.x, at.y, at.z, ModSounds.MAGNETO_ROD_IMPALE.get(), SoundSource.PLAYERS, 1.2f, .9f + p.getRandom().nextFloat() * .2f);
     }
 
     // ------------------------------------------------------------------ every tick
@@ -612,7 +696,8 @@ public final class MagnetoController {
         Entity direct = e.getSource().getDirectEntity();
         if (direct instanceof Projectile && MagnetoConfig.SHIELD_BLOCKS_PROJECTILES.get()) {
             e.setCanceled(true);
-            fx(p, FX_BLOCK, direct.position(), direct.getDeltaMovement().normalize(), 1, p.getId(), 0);
+            fx(p, FX_BLOCK, onShield(p, direct.position()), direct.getDeltaMovement().normalize(), 1, p.getId(), 0);
+            p.level().playSound(null, p.getX(), p.getY() + 1, p.getZ(), ModSounds.MAGNETO_SHIELD_HIT.get(), SoundSource.PLAYERS, 1f, 1f);
         }
     }
     @SubscribeEvent public static void hurtEvent(LivingHurtEvent e) {
@@ -625,8 +710,9 @@ public final class MagnetoController {
         e.setAmount((float) (e.getAmount() * (1 - MagnetoConfig.SHIELD_REDUCTION.get())));
         Vec3 to = from.position().subtract(p.position());
         Vec3 dir = new Vec3(to.x, 0, to.z).lengthSqr() < 1e-4 ? new Vec3(1, 0, 0) : new Vec3(to.x, 0, to.z).normalize();
-        fx(p, FX_BLOCK, p.position().add(dir.scale(MagnetoConfig.SHIELD_RADIUS.get())).add(0, 1.2, 0), dir.scale(-1), 1, p.getId(), 0);
+        fx(p, FX_BLOCK, onShield(p, from.getBoundingBox().getCenter()), dir.scale(-1), 1, p.getId(), 0);
         p.level().playSound(null, p.getX(), p.getY(), p.getZ(), SoundEvents.ANVIL_LAND, SoundSource.PLAYERS, .4f, 1.6f);
+        p.level().playSound(null, p.getX(), p.getY(), p.getZ(), ModSounds.MAGNETO_SHIELD_HIT.get(), SoundSource.PLAYERS, 1f, .95f + p.getRandom().nextFloat() * .15f);
     }
     /** He floats down: falls barely hurt him. */
     @SubscribeEvent public static void fall(LivingFallEvent e) {

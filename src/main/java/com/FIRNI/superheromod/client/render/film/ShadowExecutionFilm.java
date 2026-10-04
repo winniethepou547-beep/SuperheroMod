@@ -15,6 +15,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
@@ -60,7 +61,7 @@ final class ShadowExecutionFilm implements Film {
         add(c, 1, SoundEvents.ENDERMAN_STARE, .35f, .6f); add(c, 3, SoundEvents.WARDEN_HEARTBEAT, .6f, 1f);
         if (path().step) { add(c, .5f, SoundEvents.ILLUSIONER_MIRROR_MOVE, .7f, .8f); add(c, 9, SoundEvents.ENDERMAN_TELEPORT, .4f, 1.4f); }
         // The hook; the slip under it; the cuts, each metal on flesh; the landings.
-        add(c, 14, SoundEvents.PLAYER_BREATH, .8f, .8f); add(c, 22, SoundEvents.PLAYER_ATTACK_SWEEP, .9f, .7f);
+        add(c, 14, SoundEvents.PLAYER_BREATH, .8f, .8f); add(c, 22, SoundEvents.PLAYER_ATTACK_SWEEP, .9f, .7f); add(c, 22, ModSounds.ZED_BLADE_SLASH.get(), (.9f) * 1.0f, 1.0f);
         add(c, ULT_BURST, SoundEvents.TRIDENT_RIPTIDE_1, .6f, 1.6f);
         add(c, ULT_CUT1, SoundEvents.PLAYER_ATTACK_CRIT, 1f, 1.3f); add(c, ULT_CUT1, SoundEvents.TRIDENT_HIT, .9f, 1.6f); add(c, ULT_CUT1, SoundEvents.ANVIL_LAND, .2f, 2f);
         add(c, ULT_LAND1, SoundEvents.GENERIC_SMALL_FALL, .6f, .8f); add(c, ULT_LEAP2, SoundEvents.TRIDENT_RIPTIDE_2, .7f, 1.5f);
@@ -69,21 +70,21 @@ final class ShadowExecutionFilm implements Film {
         add(c, ULT_CUT3, SoundEvents.PLAYER_ATTACK_KNOCKBACK, 1f, .8f); add(c, ULT_CUT3, SoundEvents.TRIDENT_HIT, 1f, 1.1f); add(c, ULT_CUT3, SoundEvents.PLAYER_ATTACK_CRIT, 1f, .9f);
         add(c, 66, SoundEvents.ELYTRA_FLYING, .5f, 1.6f);
         // He comes apart; the dark gathers and circles.
-        add(c, ULT_FADE, SoundEvents.SOUL_ESCAPE, 1f, .6f); add(c, 76, SoundEvents.ILLUSIONER_MIRROR_MOVE, .7f, .6f); add(c, ULT_GONE, SoundEvents.ENDERMAN_STARE, .4f, .5f);
-        for (int t = 96; t < 196; t += 20) add(c, t, SoundEvents.SOUL_ESCAPE, .6f, .5f + (t / 20 % 3) * .1f);
+        add(c, ULT_FADE, SoundEvents.SOUL_ESCAPE, 1f, .6f); add(c, ULT_FADE, ModSounds.ZED_SHADOW_WHOOSH.get(), (1f) * 1.0f, 0.9f); add(c, 76, SoundEvents.ILLUSIONER_MIRROR_MOVE, .7f, .6f); add(c, ULT_GONE, SoundEvents.ENDERMAN_STARE, .4f, .5f);
+        for (int t = 96; t < 196; t += 20) add(c, t, SoundEvents.SOUL_ESCAPE, .6f, .5f + (t / 20 % 3) * .1f); add(c, t, ModSounds.ZED_SHADOW_WHOOSH.get(), (.6f) * 1.0f, 0.9f);
         add(c, 100, SoundEvents.ELYTRA_FLYING, .25f, .6f); add(c, 140, SoundEvents.ELYTRA_FLYING, .3f, .55f);
         add(c, ULT_RISE, SoundEvents.WARDEN_EMERGE, .5f, 1.4f);
         for (float eyes : new float[]{137, 146, 152, 159, 166, 162, 176}) add(c, eyes, SoundEvents.FIRECHARGE_USE, .25f, 1.7f);
         add(c, 186, SoundEvents.WARDEN_HEARTBEAT, .8f, .8f); add(c, 193, SoundEvents.WARDEN_HEARTBEAT, .9f, .8f);
         // Silence for the held breath. Then everything at once.
         add(c, ULT_ATTACK - 3, SoundEvents.WARDEN_SONIC_CHARGE, .6f, 1.6f);
-        add(c, ULT_ATTACK, SoundEvents.PLAYER_ATTACK_SWEEP, 1f, .8f); add(c, ULT_ATTACK + 1, SoundEvents.PLAYER_ATTACK_SWEEP, 1f, 1f);
-        add(c, ULT_ATTACK + 2, SoundEvents.PLAYER_ATTACK_SWEEP, 1f, 1.2f); add(c, ULT_ATTACK, SoundEvents.TRIDENT_RIPTIDE_1, .8f, 1.2f);
+        add(c, ULT_ATTACK, SoundEvents.PLAYER_ATTACK_SWEEP, 1f, .8f); add(c, ULT_ATTACK, ModSounds.ZED_BLADE_SLASH.get(), (1f) * 1.0f, 1.0f); add(c, ULT_ATTACK + 1, SoundEvents.PLAYER_ATTACK_SWEEP, 1f, 1f); add(c, ULT_ATTACK + 1, ModSounds.ZED_BLADE_SLASH.get(), (1f) * 1.0f, 1.0f);
+        add(c, ULT_ATTACK + 2, SoundEvents.PLAYER_ATTACK_SWEEP, 1f, 1.2f); add(c, ULT_ATTACK + 2, ModSounds.ZED_BLADE_SLASH.get(), (1f) * 1.0f, 1.0f); add(c, ULT_ATTACK, SoundEvents.TRIDENT_RIPTIDE_1, .8f, 1.2f);
         for (int t = ULT_STORM; t < ULT_FLASH - 1; t += 2) add(c, t, t % 4 == 0 ? SoundEvents.PLAYER_ATTACK_SWEEP : SoundEvents.PLAYER_ATTACK_CRIT, .5f, .6f + (t % 6) * .12f);
         add(c, 226, SoundEvents.GENERIC_BIG_FALL, .6f, .8f);
-        add(c, ULT_FLASH, SoundEvents.WARDEN_SONIC_BOOM, 1f, .7f); add(c, ULT_FLASH, SoundEvents.GENERIC_EXPLODE, .8f, .6f); add(c, ULT_FLASH, SoundEvents.WITHER_BREAK_BLOCK, .5f, .7f);
+        add(c, ULT_FLASH, SoundEvents.WARDEN_SONIC_BOOM, 1f, .7f); add(c, ULT_FLASH, SoundEvents.GENERIC_EXPLODE, .8f, .6f); add(c, ULT_FLASH, ModSounds.ZED_MARK_BURST.get(), (.8f) * 1.0f, 1.0f); add(c, ULT_FLASH, SoundEvents.WITHER_BREAK_BLOCK, .5f, .7f);
         // It sinks into the ground; he is back.
-        add(c, ULT_COLLAPSE + 2, SoundEvents.SOUL_ESCAPE, 1f, .5f); add(c, 250, SoundEvents.FIRE_EXTINGUISH, .4f, .5f); add(c, 262, SoundEvents.SOUL_ESCAPE, .5f, .45f);
+        add(c, ULT_COLLAPSE + 2, SoundEvents.SOUL_ESCAPE, 1f, .5f); add(c, ULT_COLLAPSE + 2, ModSounds.ZED_SHADOW_WHOOSH.get(), (1f) * 1.0f, 0.9f); add(c, 250, SoundEvents.FIRE_EXTINGUISH, .4f, .5f); add(c, 262, SoundEvents.SOUL_ESCAPE, .5f, .45f); add(c, 262, ModSounds.ZED_SHADOW_WHOOSH.get(), (.5f) * 1.0f, 0.9f);
         add(c, ULT_REFORM, SoundEvents.ENDERMAN_STARE, .3f, .7f); add(c, ULT_SOLID, SoundEvents.ARMOR_EQUIP_IRON, .6f, .7f); add(c, ULT_SOLID + 4, SoundEvents.PLAYER_BREATH, .4f, .6f);
         add(c, 318, SoundEvents.WARDEN_HEARTBEAT, .4f, .6f);
         return c.toArray(new Cue[0]);

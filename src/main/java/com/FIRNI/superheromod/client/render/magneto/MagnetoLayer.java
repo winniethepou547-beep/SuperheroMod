@@ -30,6 +30,7 @@ public final class MagnetoLayer extends RenderLayer<AbstractClientPlayer, Player
         int action = -1; float changed, fade = 2.5f; Pose from, last;
         float fly, at = -1;
         float lift, speed, side, clothAt = -1;
+        float[] glow = new float[2];
     }
     private static final Map<Integer, Blend> BLENDS = new HashMap<>();
 
@@ -80,7 +81,18 @@ public final class MagnetoLayer extends RenderLayer<AbstractClientPlayer, Player
         pose.add(CHEST_YAW, .2f * lookYaw).add(CHEST_PITCH, .15f * lookPitch);
         float headYaw = lookYaw * .8f, headPitch = lookPitch * .85f;
 
-        MagnetoBody.draw(p, b, light, pose, headYaw, headPitch, time, cloth(blend, e, now, fly));
+        // The working hand's glow, eased in and out.
+        for (int side = 0; side < 2; side++) {
+            float want = MagnetoMotion.glow(action, t, side);
+            blend.glow[side] += (want - blend.glow[side]) * Math.min(1, dt * (want > blend.glow[side] ? .35f : .15f));
+            MagnetoBody.GLOW[side] = blend.glow[side];
+        }
+        MagnetoBody.glowTime = now;
+        try {
+            MagnetoBody.draw(p, b, light, pose, headYaw, headPitch, time, cloth(blend, e, now, fly));
+        } finally {
+            MagnetoBody.GLOW[0] = MagnetoBody.GLOW[1] = 0;
+        }
     }
 
     /** The cape's lift on a damped spring: speed through the air pushes it back, falling lifts it, turning swings it. */

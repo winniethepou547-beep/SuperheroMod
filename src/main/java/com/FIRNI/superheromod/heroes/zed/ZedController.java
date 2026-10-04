@@ -13,6 +13,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -138,6 +139,7 @@ public final class ZedController {
         // The air parting: a different note for each cut, deeper for the finisher.
         float[] pitch = {1.75f, 1.45f, 1.05f};
         sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, step == 2 ? .7f : .45f, pitch[step] + (p.getRandom().nextFloat() - .5f) * .1f);
+        sound(p, ModSounds.ZED_BLADE_SLASH.get(), step == 2 ? 1f : .8f, (step == 2 ? .85f : 1.05f) + (p.getRandom().nextFloat() - .5f) * .1f);
     }
     private static void slashHit(ServerPlayer p, State s) {
         boolean finisher = s.action == SLASH_FINISH;
@@ -166,6 +168,7 @@ public final class ZedController {
         } else {
             sound(p, SoundEvents.PLAYER_ATTACK_STRONG, .8f, s.action == SLASH_RIGHT ? 1.45f : 1.2f);
             sound(p, SoundEvents.TRIDENT_HIT, .35f, s.action == SLASH_RIGHT ? 1.9f : 1.6f);
+            sound(p, ModSounds.PANTHER_CLAW_HIT.get(), .6f, 1.25f);
         }
         // Contempt for the Weak: the wounded are cut deeper (once in a while per target).
         long now = p.level().getGameTime();
@@ -213,6 +216,7 @@ public final class ZedController {
         set(s, THROW);
         if (s.w.alive) { s.w.action = THROW; s.w.actionAge = 0; }
         sound(p, SoundEvents.TRIDENT_THROW, .7f, 1.6f);
+        sound(p, ModSounds.ZED_SHURIKEN_WHIR.get(), 1f, 1f);
     }
     /** Where both shurikens are aimed: the first body along his look, or the point at full range. */
     private static Vec3 aimPoint(ServerPlayer p) {
@@ -295,6 +299,7 @@ public final class ZedController {
         fx(p, FX_SHADOW_CAST, from, to.subtract(from), 1, -1);
         sound(p, SoundEvents.ENDERMAN_TELEPORT, .5f, .5f);
         sound(p, SoundEvents.WITHER_SHOOT, .25f, 1.8f);
+        sound(p, ModSounds.ZED_SHADOW_WHOOSH.get(), .9f, 1f);
     }
     /** Zed and a shadow trade places in a blink. */
     private static void swap(ServerPlayer p, State s, Shadow sh, boolean returning) {
@@ -306,6 +311,7 @@ public final class ZedController {
         fx(p, returning ? FX_RETURN : FX_SWAP, here, there.subtract(here), 1, -1);
         sound(p, SoundEvents.ENDERMAN_TELEPORT, .8f, .7f);
         sound(p, SoundEvents.ILLUSIONER_MIRROR_MOVE, .8f, .8f);
+        sound(p, ModSounds.ZED_SHADOW_WHOOSH.get(), 1f, 1.2f);
         if (returning) sh.alive = false;
         else { sh.pos = here; sh.yaw = yaw; }
         set(s, returning ? MARK_RETURN : SWAP);
@@ -319,6 +325,7 @@ public final class ZedController {
         if (s.w.alive) { s.w.action = SPIN; s.w.actionAge = 0; }
         sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, 1f, .9f);
         sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, .7f, 1.4f);
+        sound(p, ModSounds.ZED_BLADE_SLASH.get(), 1f, .8f);
     }
     private static void spinHit(ServerPlayer p, State s) {
         Set<Integer> hit = new HashSet<>();
@@ -400,6 +407,7 @@ public final class ZedController {
         fx(p, FX_MARK_DASH, s.dashFrom, t.position().subtract(s.dashFrom), 1, t.getId());
         sound(p, SoundEvents.TRIDENT_RIPTIDE_3, .8f, 1.6f);
         sound(p, SoundEvents.SOUL_ESCAPE, 1f, .7f);
+        sound(p, ModSounds.ZED_SHADOW_WHOOSH.get(), 1f, .8f);
         set(s, MARK_DASH);
     }
     /** The copies go into the target: the X burns on them. */
@@ -432,12 +440,14 @@ public final class ZedController {
             fx(p, FX_MARK_POP, chest, at.subtract(t.position()), Math.min(1, damage / 20f), t.getId());
             p.level().playSound(null, chest.x, chest.y, chest.z, SoundEvents.WITHER_BREAK_BLOCK, SoundSource.PLAYERS, .6f, 1.6f);
             p.level().playSound(null, chest.x, chest.y, chest.z, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, .5f, 1.8f);
+            p.level().playSound(null, chest.x, chest.y, chest.z, ModSounds.ZED_MARK_BURST.get(), SoundSource.PLAYERS, 1.3f, 1f);
         }
         s.markTarget = -1;
         s.r.left = Math.max(s.r.left, R_SHADOW_LIFE);
         fx(p, FX_MARK_VANISH, p.position(), Vec3.ZERO, -1, p.getId());
         sound(p, SoundEvents.TRIDENT_RIPTIDE_1, .9f, 1.5f);
         sound(p, SoundEvents.ILLUSIONER_MIRROR_MOVE, .8f, .8f);
+        sound(p, ModSounds.ZED_SHADOW_WHOOSH.get(), .9f, 1.1f);
         set(s, MARK_STRIKE);
     }
     private static void tickMark(ServerPlayer p, State s) {

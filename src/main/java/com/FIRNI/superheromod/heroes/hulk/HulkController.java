@@ -13,6 +13,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -192,6 +193,7 @@ public final class HulkController {
         s.punchSide = 1 - s.punchSide;
         set(s, s.punchSide == 0 ? PUNCH_RIGHT : PUNCH_LEFT);
         sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, .7f, .6f);
+        sound(p, ModSounds.FX_WHOOSH_HEAVY.get(), .7f, 1.15f);
     }
     /**
      * A jab: a short, heavy blow from the hand that swings. Whatever stands in front of that side of
@@ -247,6 +249,7 @@ public final class HulkController {
         p.level().playSound(null, burst.x, burst.y, burst.z, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, .45f, 1.7f);
         sound(p, SoundEvents.PLAYER_ATTACK_KNOCKBACK, 1f, .55f);
         sound(p, SoundEvents.IRON_GOLEM_ATTACK, .8f, .8f);
+        sound(p, ModSounds.HULK_HULK_PUNCH.get(), 1.2f, .95f + p.getRandom().nextFloat() * .1f);
     }
     private static void startCharge(ServerPlayer p, State s) {
         if (!s.hulk || busy(s) || s.action == GUARD || s.action == LEAP_CHARGE) return;
@@ -259,6 +262,7 @@ public final class HulkController {
         set(s, PUNCH_RELEASE);
         s.cooldowns[CD_CHARGED] = HulkConfig.get(HulkConfig.CHARGED_COOLDOWN);
         sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, 1f, .4f);
+        sound(p, ModSounds.FX_WHOOSH_HEAVY.get(), 1f, .7f);
     }
     /**
      * The charged punch: the fist drives a shock wave out ahead (PUNCH_WAVE_SPEED blocks a tick). It
@@ -279,6 +283,8 @@ public final class HulkController {
         sound(p, SoundEvents.GENERIC_EXPLODE, .6f + .5f * c, 1.4f - .4f * c);
         sound(p, SoundEvents.WARDEN_SONIC_BOOM, .5f + .5f * c, 1.3f);
         sound(p, SoundEvents.IRON_GOLEM_ATTACK, 1f, .5f);
+        sound(p, ModSounds.HULK_HULK_PUNCH.get(), 1.4f, .8f);
+        sound(p, ModSounds.HULK_THUNDERCLAP.get(), .4f + .4f * c, 1.3f);
         punchWaveStep(p, s);
     }
     private static void punchWaveStep(ServerPlayer p, State s) {
@@ -331,6 +337,7 @@ public final class HulkController {
         fx(p, FX_BLAST, at, s.pwDir, c, ground == null ? HulkBlocks.id(p.level().getBlockState(BlockPos.containing(at))) : HulkBlocks.id(p.level().getBlockState(ground)));
         p.level().playSound(null, at.x, at.y, at.z, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 1.6f + c, .7f);
         p.level().playSound(null, at.x, at.y, at.z, SoundEvents.ZOMBIE_BREAK_WOODEN_DOOR, SoundSource.PLAYERS, 1.2f, .5f);
+        p.level().playSound(null, at.x, at.y, at.z, ModSounds.HULK_GROUND_SLAM.get(), SoundSource.PLAYERS, 1.3f + c * .5f, 1f);
         for (LivingEntity t : targets(p, new AABB(at, at).inflate(radius))) {
             if (s.pwHits.contains(t.getId())) continue;
             Vec3 to = t.getBoundingBox().getCenter().subtract(at);
@@ -426,6 +433,7 @@ public final class HulkController {
         sound(p, SoundEvents.IRON_GOLEM_ATTACK, 1.3f, .5f);
         sound(p, SoundEvents.WARDEN_SONIC_BOOM, 1f, 1.2f);
         sound(p, SoundEvents.LIGHTNING_BOLT_THUNDER, .5f, 1.6f);
+        sound(p, ModSounds.HULK_THUNDERCLAP.get(), 1.6f, 1f);
         clapStep(p, s);
     }
     private static void clapStep(ServerPlayer p, State s) {
@@ -512,6 +520,7 @@ public final class HulkController {
         sound(p, SoundEvents.GENERIC_EXPLODE, 1.5f, .6f);
         sound(p, SoundEvents.ZOMBIE_BREAK_WOODEN_DOOR, 1.2f, .5f);
         sound(p, SoundEvents.WARDEN_SONIC_BOOM, .5f, .5f);
+        sound(p, ModSounds.HULK_GROUND_SLAM.get(), 1.6f, .95f);
         // The blow shoves him back a little.
         p.setDeltaMovement(p.getDeltaMovement().add(s.waveDir.scale(-.35)).add(0, .08, 0));
         p.hurtMarked = true;
@@ -612,6 +621,7 @@ public final class HulkController {
         fx(p, FX_LANDING, p.position(), new Vec3(0, 1, 0), .3f + .4f * s.charge, HulkBlocks.id(under));
         sound(p, SoundEvents.RAVAGER_STEP, 1f, .6f);
         sound(p, SoundEvents.GENERIC_EXPLODE, .3f + .4f * s.charge, 1.6f);
+        sound(p, ModSounds.HULK_LEAP.get(), 1.1f, 1f);
     }
     /** Touching down: the harder the fall, the bigger the blow and the crater; then a short bounce. */
     private static void land(ServerPlayer p, State s) {
@@ -621,6 +631,7 @@ public final class HulkController {
         fx(p, FX_LANDING, p.position(), new Vec3(0, 1, 0), power, HulkBlocks.id(ground));
         sound(p, SoundEvents.GENERIC_EXPLODE, .5f + .8f * power, 1.2f - .4f * power);
         sound(p, SoundEvents.ANVIL_LAND, .6f, .5f);
+        sound(p, ModSounds.FX_IMPACT_HEAVY.get(), .8f + .7f * power, 1f - .2f * power);
         double radius = HulkConfig.get(HulkConfig.LANDING_RADIUS) * (.4 + .6 * power);
         for (LivingEntity t : targets(p, p.getBoundingBox().inflate(radius, 2, radius))) {
             Vec3 to = t.position().subtract(p.position());
@@ -683,6 +694,7 @@ public final class HulkController {
         s.rockVel = aim.scale(HulkConfig.get(HulkConfig.ROCK_SPEED));
         sound(p, SoundEvents.IRON_GOLEM_ATTACK, 1f, .4f);
         sound(p, SoundEvents.PLAYER_ATTACK_SWEEP, 1f, .4f);
+        sound(p, ModSounds.FX_WHOOSH_HEAVY.get(), 1.1f, .6f);
     }
     private static void tickRock(ServerPlayer p, State s) {
         ServerLevel level = p.serverLevel();
@@ -711,6 +723,7 @@ public final class HulkController {
         fx(p, FX_ROCK_HIT, at, dir, 1, HulkBlocks.id(s.rockBlock));
         p.level().playSound(null, at.x, at.y, at.z, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 1.2f, .9f);
         p.level().playSound(null, at.x, at.y, at.z, SoundEvents.STONE_BREAK, SoundSource.PLAYERS, 1.5f, .6f);
+        p.level().playSound(null, at.x, at.y, at.z, ModSounds.FX_IMPACT_HEAVY.get(), SoundSource.PLAYERS, 1.4f, .8f);
         if (direct != null) {
             hit(p, direct, HulkConfig.get(HulkConfig.ROCK_DAMAGE).floatValue(), dir, 1.4, .4);
             direct.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 80, 3));

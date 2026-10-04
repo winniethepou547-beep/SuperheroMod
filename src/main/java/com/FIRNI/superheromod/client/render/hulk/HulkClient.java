@@ -215,8 +215,11 @@ public final class HulkClient {
         }
     }
     private static void hint(net.minecraft.client.gui.GuiGraphics g, net.minecraft.client.gui.Font font, KeyMapping key, String what, int cooldown, int x, int y) {
+        hint(g, font, key, what, cooldown, false, x, y);
+    }
+    /** One row of the skill list in his colour (HudStyle.skill); active = running right now. */
+    private static void hint(net.minecraft.client.gui.GuiGraphics g, net.minecraft.client.gui.Font font, KeyMapping key, String what, int cooldown, boolean active, int x, int y) {
         String k = key.getTranslatedKeyMessage().getString().toUpperCase(Locale.ROOT);
-        int width = HudStyle.hint(g, font, k, what, x, y);
-        if (cooldown > 0) HudStyle.caption(g, font, String.format(Locale.ROOT, "%.1f", cooldown / 20f), x + width + 6, y + 1, 0xFFFF9A5A, -1);
+        HudStyle.skill(g, font, k, what, cooldown, active, x, y, 0xFF6BE04F);
     }
 }

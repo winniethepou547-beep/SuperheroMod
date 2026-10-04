@@ -17,6 +17,7 @@ import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.resources.sounds.AbstractTickableSoundInstance;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
@@ -87,7 +88,7 @@ final class FinalPursuitFilm implements Film {
         add(c, ULT_BEHIND, SoundEvents.WARDEN_SONIC_CHARGE, .12f, 1.7f);
         add(c, ULT_BEHIND + 2, SoundEvents.MINECART_RIDING, .5f, .55f);
         add(c, ULT_BEHIND + 12, SoundEvents.ELYTRA_FLYING, .5f, 1.1f);
-        add(c, ULT_BEHIND + 14, SoundEvents.AMETHYST_BLOCK_CHIME, .25f, .7f);
+        add(c, ULT_BEHIND + 14, SoundEvents.AMETHYST_BLOCK_CHIME, .25f, .7f); add(c, ULT_BEHIND + 14, ModSounds.PANTHER_VIBRANIUM_ABSORB.get(), (.25f) * 0.8f, 1.0f);
         // The turn, the gun up, the rear side window smashed out; the roar of the air.
         add(c, ULT_RAISE, SoundEvents.ARMOR_EQUIP_LEATHER, .5f, 1.2f);
         add(c, ULT_SMASH, SoundEvents.GLASS_BREAK, 1f, .9f);
@@ -103,7 +104,7 @@ final class FinalPursuitFilm implements Film {
             add(c, s.time() + 2, SoundEvents.FIREWORK_ROCKET_BLAST, .3f, 1.05f);
             add(c, s.time() + 4, SoundEvents.CHAIN_STEP, .2f, 2f);
             switch (s.hits()) {
-                case 0 -> { add(c, s.time() + .5f, SoundEvents.AMETHYST_BLOCK_CHIME, 1f, 1.5f); add(c, s.time() + .5f, SoundEvents.BEACON_POWER_SELECT, .45f, 1.9f);
+                case 0 -> { add(c, s.time() + .5f, SoundEvents.AMETHYST_BLOCK_CHIME, 1f, 1.5f); add(c, s.time() + .5f, ModSounds.PANTHER_VIBRANIUM_ABSORB.get(), (1f) * 0.8f, 1.0f); add(c, s.time() + .5f, SoundEvents.BEACON_POWER_SELECT, .45f, 1.9f);
                     add(c, s.time() + .5f, SoundEvents.ANVIL_LAND, .15f, 2f); add(c, s.time() + 1.5f, SoundEvents.AMETHYST_CLUSTER_HIT, .6f, .8f); }
                 case 1 -> { add(c, s.time() + .5f, SoundEvents.ANVIL_LAND, .3f, 1.9f); add(c, s.time() + .5f, SoundEvents.CHAIN_HIT, .6f, 1.5f); }
                 case 2 -> add(c, s.time() + .5f, SoundEvents.GLASS_BREAK, .5f, 1.6f);
@@ -117,7 +118,7 @@ final class FinalPursuitFilm implements Film {
         add(c, ULT_COIL, SoundEvents.ARMOR_EQUIP_LEATHER, .4f, .7f);
         add(c, ULT_COIL + 6, SoundEvents.WARDEN_HEARTBEAT, .5f, 1.2f);
         add(c, ULT_LEAP, SoundEvents.PHANTOM_FLAP, .7f, 1.2f);
-        add(c, ULT_LEAP, SoundEvents.PLAYER_ATTACK_SWEEP, .45f, .7f);
+        add(c, ULT_LEAP, SoundEvents.PLAYER_ATTACK_SWEEP, .45f, .7f); add(c, ULT_LEAP, ModSounds.PANTHER_CLAW_SLASH.get(), (.45f) * 0.9f, 0.9f);
         add(c, ULT_LEAP, SoundEvents.IRON_TRAPDOOR_CLOSE, .5f, .6f);
         add(c, ULT_LEAP + 1, SoundEvents.ELYTRA_FLYING, .6f, 1.6f);
         // Down on the roof: the blow through the metal, the claws scraping till they catch.
@@ -133,7 +134,7 @@ final class FinalPursuitFilm implements Film {
             float p = hit == ULT_CLAW_R ? 1 : 1.08f;
             add(c, hit, SoundEvents.ANVIL_LAND, .9f, 1.25f * p);
             add(c, hit, SoundEvents.ZOMBIE_ATTACK_IRON_DOOR, .9f, 1.1f * p);
-            add(c, hit, SoundEvents.TRIDENT_HIT, .6f, .9f * p);
+            add(c, hit, SoundEvents.TRIDENT_HIT, .6f, .9f * p); add(c, hit, ModSounds.PANTHER_CLAW_HIT.get(), (.6f) * 1.0f, 0.9f);
             add(c, hit + 1, SoundEvents.IRON_GOLEM_HURT, .4f, 1.5f * p);
         }
         // The tear: the metal groaning, rending, then ripping free; the back windows bursting.
@@ -149,7 +150,7 @@ final class FinalPursuitFilm implements Film {
         add(c, ULT_ROOF_FREE + 30, SoundEvents.ANVIL_LAND, .25f, 1.4f);
         // The gunman hauled out and flung up into the night.
         add(c, ULT_REACH + 6, SoundEvents.ARMOR_EQUIP_LEATHER, .7f, .9f);
-        add(c, ULT_THROW + 2, SoundEvents.PLAYER_ATTACK_SWEEP, .9f, .6f);
+        add(c, ULT_THROW + 2, SoundEvents.PLAYER_ATTACK_SWEEP, .9f, .6f); add(c, ULT_THROW + 2, ModSounds.PANTHER_CLAW_SLASH.get(), (.9f) * 0.9f, 0.9f);
         add(c, ULT_THROW + 3, SoundEvents.ELYTRA_FLYING, .8f, 1.8f);
         add(c, ULT_THROW + 3, SoundEvents.VINDICATOR_HURT, .6f, 1.1f);
         // The charge: the hum rising, a heartbeat closer each time; a breath of silence; the release.
@@ -160,12 +161,12 @@ final class FinalPursuitFilm implements Film {
         add(c, ULT_CHARGE + 38, SoundEvents.BEACON_POWER_SELECT, .4f, .6f);
         add(c, ULT_HOLD + 1, SoundEvents.WARDEN_SONIC_CHARGE, .45f, .5f);
         add(c, ULT_BOOM, SoundEvents.GENERIC_EXPLODE, 1f, .55f);
-        add(c, ULT_BOOM, SoundEvents.WARDEN_SONIC_BOOM, 1f, .6f);
+        add(c, ULT_BOOM, SoundEvents.WARDEN_SONIC_BOOM, 1f, .6f); add(c, ULT_BOOM, ModSounds.PANTHER_KINETIC_RELEASE.get(), (1f) * 0.9f, 0.85f);
         add(c, ULT_BOOM, SoundEvents.LIGHTNING_BOLT_THUNDER, .7f, .6f);
         add(c, ULT_BOOM, SoundEvents.BEACON_DEACTIVATE, .8f, .5f);
         add(c, ULT_BOOM + 1, SoundEvents.GLASS_BREAK, 1f, .7f);
         // The slow motion: everything stretched low.
-        add(c, ULT_BOOM + 4, SoundEvents.WARDEN_SONIC_BOOM, .5f, .3f);
+        add(c, ULT_BOOM + 4, SoundEvents.WARDEN_SONIC_BOOM, .5f, .3f); add(c, ULT_BOOM + 4, ModSounds.PANTHER_KINETIC_RELEASE.get(), (.5f) * 0.9f, 0.85f);
         add(c, ULT_BOOM + 8, SoundEvents.ANVIL_LAND, .6f, .45f);
         add(c, ULT_BOOM + 9, SoundEvents.GRINDSTONE_USE, .6f, .4f);
         add(c, ULT_BOOM + 20, SoundEvents.ZOMBIE_BREAK_WOODEN_DOOR, .5f, .4f);
@@ -180,7 +181,7 @@ final class FinalPursuitFilm implements Film {
         add(c, land, SoundEvents.GENERIC_BIG_FALL, 1f, .7f);
         add(c, land + 1, SoundEvents.GRINDSTONE_USE, .7f, 1.2f);
         // The whip to the car; its groaning as it turns over; the crash; the debris; the fire.
-        add(c, PursuitCamera.WHIP, SoundEvents.PLAYER_ATTACK_SWEEP, .6f, .5f);
+        add(c, PursuitCamera.WHIP, SoundEvents.PLAYER_ATTACK_SWEEP, .6f, .5f); add(c, PursuitCamera.WHIP, ModSounds.PANTHER_CLAW_SLASH.get(), (.6f) * 0.9f, 0.9f);
         add(c, PursuitCamera.WHIP + 1, SoundEvents.ELYTRA_FLYING, .5f, .9f);
         add(c, PursuitCamera.WHIP + 10, SoundEvents.IRON_GOLEM_HURT, .4f, .4f);
         add(c, PursuitCamera.WHIP + 20, SoundEvents.IRON_GOLEM_HURT, .4f, .45f);
@@ -201,7 +202,7 @@ final class FinalPursuitFilm implements Film {
         add(c, 722, SoundEvents.BEACON_DEACTIVATE, .5f, .9f);
         add(c, 726, SoundEvents.ARMOR_EQUIP_NETHERITE, .4f, 1.3f);
         add(c, 727, SoundEvents.LEVER_CLICK, .2f, 1.8f);
-        add(c, 738, SoundEvents.AMETHYST_BLOCK_CHIME, .2f, 1.2f);
+        add(c, 738, SoundEvents.AMETHYST_BLOCK_CHIME, .2f, 1.2f); add(c, 738, ModSounds.PANTHER_VIBRANIUM_ABSORB.get(), (.2f) * 0.8f, 1.0f);
         return c.toArray(new Cue[0]);
     }
     private static void add(List<Cue> list, float t, SoundEvent sound, float volume, float pitch) { list.add(new Cue(t, sound, volume, pitch)); }

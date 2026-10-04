@@ -129,7 +129,7 @@ landing spot and the target to the crater.
   The rock is a boulder (`HulkFx.boulder`, ~2.3 blocks) in hand, in flight and stuck where it lands (`STUCK_LIFE`);
   its impact slows everyone near. GAMMA RAGE starts the gather some way back (`HulkFx.ragePath`) so the leap is long.
 - Look follows Marvel Rivals' Hulk: V torso, huge traps/delts/forearms, fingered hands, navy torn shorts, purple
-  waistband shreds, silver gamma belt with green lights and buckle, black swept hair, glowing green eyes, toes. The rules file is `superheromod-hulk.toml` (renamed so the bigger defaults apply).
+  waistband shreds, silver gamma belt with green lights and buckle, black swept hair, glowing green eyes, toes. Face (rebuilt): square head, flat-top black hair, dark V brows, deep-set eyes, short broad nose, clenched-teeth grimace, hinged jaw for the roar (not a troll). The rules file is `superheromod-hulk.toml` (renamed so the bigger defaults apply).
 - `HulkLayer` draws the whole body (player model hidden in `HeroArmPose`), one parametric body that grows from
   Banner to Hulk with `pose.size` (×1.5 overall); `HulkMotion` is the pure pose math; `HulkFx` world effects
   (rings, dust, chunks of the real ground, cracks, flying rock, first-person fists, the film's performers).
@@ -184,14 +184,14 @@ landing spot and the target to the crater.
   crosshair; held `FRENZY_HOLD` ticks → berserk FRENZY (Marvel Rivals Wolverine: arms at full length swept flat right across,
   alternating, X after X, driving forward; own cooldown `CD_FRENZY`, in the HUD). Every hit puts a 5 s purple scratch MARK
   (`mark()`, `PantherFx.scratch`, blinks at the end). Claw trails: a pale unlit air smear per hand + four thin fanned claw lines.
-  RMB: DASH to a marked target within 15 blocks (claws crossed) → CROSS (thrown open inside-out), spends the mark, 2 s cooldown.
+  RMB: DASH to a marked target within 20 blocks (`maxRange`; longer dashes take up to 9 ticks, `dashTicks`) (claws crossed) → CROSS (thrown open inside-out), spends the mark, 2 s cooldown.
   SHIFT tap (< `TAP_TICKS`) = pounce (launch on release; load → pounce → on contact FLIP over the target with a half twist,
   the local view turns 180°, the flip camera orbits (`PantherClient.camera`) → flying side KICK → target thrown (`throwBody`)
   then slides (`tickThrown`) with surface debris, groove + berms (`PantherFx.scrape`) → LAND; no contact → POUNCE_MISS);
-  the sprint key (CTRL) held = SNEAK (slow crouch; read raw off the keyboard and taken from the vanilla sprint, `INPUT_CROUCH_*`),
+  SHIFT held = his run (vanilla sneak is never used for him: `held()` clears it and sets sprinting); the sprint key (CTRL) held = SNEAK (slow crouch; read raw off the keyboard and taken from the vanilla sprint, `INPUT_CROUCH_*`),
   `CAMO_CHARGE` ticks → camouflage (`camoLeft`, invisibility effect, 2x speed modifier, name tag hidden), broken by any hit
   (glitch: colour-split copies). Others see the glass only within `CAMO_SEEN` (4) blocks, very faint (`PantherLayer.OTHERS_SEE`),
-  nothing further; he sees himself as glass and `PantherSight` draws an eye over each player (violet struck through = not
+  nothing further; he sees himself as glass and `PantherSight` draws an eye over each player and nearby mob (violet struck through = not
   seen, red open = seen; textures from `tools/icons/panther_sight.py`). Double jump in the air
   (`PantherInputPacket`, front flip `PantherMotion.flipJump`, white splash). Q spin (R-L-R kicks, one continuous turn),
   E release (energy from damage taken; radial knockback scaled by energy; lines off after), R reflex (guard stance
@@ -246,7 +246,16 @@ landing spot and the target to the crater.
   F again = burst into pieces that hit and stick. X = MAGNETIC EXECUTION film.
 - Look: `MagnetoBody` (same joint chain/pose layout as Panther: `PantherMotion.Pose`, `PantherMotion.Track` made public),
   `MagnetoMotion` (calm, minimal gestures; flight = arms open like the painting), `MagnetoLayer` (cape on a damped spring),
-  `MetalMesh` (rods/girders, scrap, columns, fist, fragments), `MagnetoFx`. Docs for the user: `docs/MAGNETO.md`.
+  `MetalMesh` (rods/girders, scrap, columns, plates, fist, fragments), `MagnetoFx`. Docs for the user: `docs/MAGNETO.md`.
+- Face: white brows, moustache and beard (Rivals portrait). `MagnetoBody.GLOW[side]` (set per frame by the layer from
+  `MagnetoMotion.glow`, by the first-person arm and the film) turns the casting hand translucent violet with sparks.
+  Body/metal colours are clamped to 1 (values over 1 wrapped in the vertex bytes: the "blue face" flicker in the film).
+- Shield (F): `MagnetoShield` = violet sphere (fresnel rim, scan bands, hit ripples), iron plates orbiting at
+  `MagnetoAction.PLATE_SPIN` (server `column()` throws the burst from the same places), arcs, hit lightning (`FX_BLOCK`
+  on the sphere point `onShield`), the pop. F again or R = burst. R again = fist dissolves. Fist hovers inside the view
+  (`hover()`: capped a little above the look line), drawn ×`MagnetoFx.FIST_SCALE`.
+- Telekinesis (E): E again = `fling` with the aim's sweep speed (`swing`), LMB = forward throw, RMB = `throwUp`; slams
+  are detected from real movement (`prevMoved`), damage ×speed up to 3×; never pushed under the ground.
 - **MAGNETIC EXECUTION (X), `client/render/film/MagneticExecutionFilm.java`, 20.6 s**, own stage (backdrop scene 10 WASTELAND:
   crimson storm, lightning (`Planet` = strike point + flash, `Ring.x/y` = bolt seed/brightness), rain, wet reflective cracked
   ground, ruins on the horizon). `MagneticPath` = the pure timeline (beats `MagnetoAction.ULT_*`): Magneto's gesture track
@@ -279,3 +288,13 @@ landing spot and the target to the crater.
   bike, F hell-pit slam. Keep the physics checks passing.
 - Sandman: Colossus ultimate is parked ("later"). Cyclops: sounds still unfinished.
 - Large local-only folders are gitignored: `tmp/`, `references/` (reference videos), `logs/`.
+
+## Sounds and the skill HUD
+- The mod's own sounds are synthesised by `tools/sounds/synth.py` (numpy/scipy + ffmpeg libvorbis; nothing recorded or
+  ripped from games/videos — the user asked for "sounds from the internet", the cloud blocks sound sites and ripped audio
+  would be copyrighted). It writes `assets/superheromod/sounds/<group>/<name>.ogg` + `sounds.json`; `core/sound/ModSounds`
+  registers every `<group>.<name>` (constants `GROUP_NAME`, regenerate both together). They are LAYERED with the vanilla
+  sounds at each call site (abilities, FX, film cues), never replacing them. Groups: fx, magneto, panther, thor, hulk, zed,
+  cyclops, ghost, sandman. Check new sounds as spectrograms (you cannot listen).
+- Skill list on the left: `HudStyle.skill` (dark pill, hero-colour stripe, cooldown fill + seconds, ready sweep, `active`
+  pulse); each hero client's `hint(...)` routes through it with its accent. Thor/Cyclops/Sandman/Ghost Rider have no list yet.

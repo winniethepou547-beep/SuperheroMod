@@ -100,6 +100,59 @@ public final class HudStyle {
         caption(g, font, action, x + w + 4, y + 2, MUTED, -1);
         return w + 4 + captionWidth(font, action);
     }
+    /** Per skill (by its label): the longest cooldown seen (for the fill), when it last came ready, its last value. */
+    private static final java.util.Map<String, float[]> SKILLS = new java.util.HashMap<>();
+    /**
+     * One row of a hero's skill list: a soft dark pill fading out to the right, the hero's colour in a thin stripe down
+     * its left edge, the keycap, the skill's name. While it cools down the pill fills back up from the left in the hero's
+     * colour and the seconds count down at its end; when it comes ready a light sweeps across it and the stripe flares.
+     * active = the skill is running right now (the stripe pulses). Returns the row's width.
+     */
+    public static int skill(GuiGraphics g, Font font, String key, String action, int cooldown, boolean active, int x, int y, int accent) {
+        long ms = System.currentTimeMillis();
+        float now = (ms % 10_000_000L) / 50f;
+        float[] st = SKILLS.computeIfAbsent(action, k -> new float[]{0, -100, 0});
+        if (cooldown > st[2] + 1) st[0] = cooldown;
+        if (cooldown <= 0 && st[2] > 0) { st[1] = now; st[0] = 0; }
+        st[2] = cooldown;
+        if (SKILLS.size() > 96) SKILLS.clear();
+        float max = Math.max(cooldown, st[0]);
+        float progress = cooldown <= 0 ? 1 : 1 - cooldown / Math.max(1f, max);
+        float ready = Math.max(0, 1 - (now - st[1]) / 12f);
+        String cd = cooldown > 0 ? String.format(Locale.ROOT, "%.1f", cooldown / 20f) : "";
+        int capW = Math.max(11, font.width(key) + 7), labelW = captionWidth(font, action);
+        int w = 3 + capW + 5 + labelW + (cd.isEmpty() ? 8 : 6 + font.width(cd) + 6);
+        int h = 11;
+        // The pill: dark, fading out to the right; the cooldown's fill in the hero's colour.
+        for (int i = 0; i < w; i += 2) {
+            float fadeOut = i > w - 14 ? (w - i) / 14f : 1;
+            g.fill(x + i, y, Math.min(x + w, x + i + 2), y + h, alpha(0xC0060408, .75f * fadeOut));
+        }
+        if (cooldown > 0) {
+            int filled = Math.round((w - 3) * progress);
+            g.fill(x + 3, y + h - 2, x + 3 + filled, y + h - 1, alpha(accent, .9f));
+            g.fill(x + 3, y + 1, x + 3 + filled, y + h - 2, alpha(accent, .12f));
+        } else g.fill(x + 3, y + h - 2, x + w - 6, y + h - 1, alpha(accent, .28f));
+        // The stripe: steady when ready, dim while cooling, pulsing while the skill runs, flaring as it comes ready.
+        float pulse = active ? .65f + .35f * (float) Math.sin(now * .35f) : 1;
+        float stripe = (cooldown > 0 ? .35f : 1) * pulse;
+        g.fill(x, y, x + 2, y + h, alpha(accent, stripe));
+        if (ready > 0) {
+            g.fill(x, y - 1, x + 3, y + h + 1, alpha(0xFFFFFFFF, ready));
+            int sweep = Math.round((w + 20) * (1 - ready)) - 10;
+            for (int k = -6; k <= 6; k++) {
+                int sx = x + sweep + k;
+                if (sx < x || sx >= x + w) continue;
+                g.fill(sx, y, sx + 1, y + h, alpha(0xFFFFFFFF, ready * .5f * (1 - Math.abs(k) / 7f)));
+            }
+        }
+        // Keycap, name, seconds.
+        boolean lit = cooldown <= 0 && (active || ready > 0);
+        keycap(g, font, key, x + 3, y, lit);
+        caption(g, font, action, x + 3 + capW + 5, y + 2, cooldown > 0 ? alpha(MUTED, .7f) : alpha(TEXT, .95f), -1);
+        if (!cd.isEmpty()) g.drawString(font, cd, x + 3 + capW + 5 + labelW + 6, y + 2, alpha(accent | 0xFF000000, 1), false);
+        return w;
+    }
     public static int hintWidth(Font font, String key, String action) {
         return Math.max(11, font.width(key) + 7) + 4 + captionWidth(font, action);
     }

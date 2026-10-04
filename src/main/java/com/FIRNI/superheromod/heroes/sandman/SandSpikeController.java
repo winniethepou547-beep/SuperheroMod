@@ -9,6 +9,7 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -121,6 +122,7 @@ public final class SandSpikeController {
 
         level.playSound(null, BlockPos.containing(ground),
                 SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 1.3f, 0.55f);
+        level.playSound(null, BlockPos.containing(ground), ModSounds.SANDMAN_SAND_IMPACT.get(), SoundSource.PLAYERS, (1.3f) * 0.8f, 1.0f);
     }
 
     /**
@@ -202,6 +204,7 @@ public final class SandSpikeController {
         if (spike.ticks == HOLD_END + 1) {
             spike.level.playSound(null, BlockPos.containing(spike.base),
                     SoundEvents.SAND_BREAK, SoundSource.PLAYERS, 0.8f, 0.9f);
+            spike.level.playSound(null, BlockPos.containing(spike.base), ModSounds.SANDMAN_SAND_IMPACT.get(), SoundSource.PLAYERS, (0.8f) * 0.8f, 1.0f);
         }
     }
 
@@ -275,6 +278,7 @@ public final class SandSpikeController {
 
         level.playSound(null, BlockPos.containing(spike.base),
                 SoundEvents.SAND_PLACE, SoundSource.PLAYERS, 1.5f, 0.5f);
+        level.playSound(null, BlockPos.containing(spike.base), ModSounds.SANDMAN_SAND_WHOOSH.get(), SoundSource.PLAYERS, (1.5f) * 0.7f, 1.0f);
     }
 
     /**

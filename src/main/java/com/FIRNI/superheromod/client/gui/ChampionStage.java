@@ -96,7 +96,7 @@ final class ChampionStage {
             case "sandman" -> 84;
             case "hulk", "ghost_rider" -> 50;
             case "black_panther" -> 84;
-            case "magneto" -> 72;
+            case "magneto" -> 80;
             default -> 40;
         };
     }
@@ -156,11 +156,15 @@ final class ChampionStage {
                 if (n == 64) play(s, SoundEvents.BEACON_DEACTIVATE, 1.4f, .5f);
             }
             case "magneto" -> {
-                if (n == 0) { play(s, SoundEvents.BEACON_POWER_SELECT, 1.3f, .5f); play(s, SoundEvents.ELYTRA_FLYING, 1.5f, .3f); }
-                if (n == 22) play(s, SoundEvents.ARMOR_EQUIP_NETHERITE, .7f, .8f);
-                if (n == 26 || n == 29 || n == 32) play(s, SoundEvents.ANVIL_LAND, .55f + n * .01f, .35f);
-                if (n == 40) { play(s, SoundEvents.IRON_GOLEM_STEP, .5f, .7f); play(s, SoundEvents.ANVIL_PLACE, .5f, .5f); }
-                if (n == 50) { play(s, SoundEvents.GENERIC_EXPLODE, .8f, .45f); play(s, SoundEvents.CHAIN_BREAK, .5f, .6f); }
+                // The scrap rising off the floor; the rods called down; the shield; its burst; the landing.
+                if (n == 0) { play(s, SoundEvents.BEACON_POWER_SELECT, 1.3f, .5f); play(s, SoundEvents.ELYTRA_FLYING, 1.5f, .3f); play(s, SoundEvents.CHAIN_STEP, .6f, .6f); }
+                if (n == 6) play(s, SoundEvents.IRON_GOLEM_REPAIR, .8f, .4f);
+                if (n == 18) { play(s, SoundEvents.ARMOR_EQUIP_NETHERITE, .7f, .8f); play(s, SoundEvents.TRIDENT_RIPTIDE_1, .6f, .4f); }
+                if (n == 24 || n == 27 || n == 30) { play(s, SoundEvents.ANVIL_LAND, .5f + n * .01f, .4f); play(s, SoundEvents.TRIDENT_HIT_GROUND, .6f, .5f); }
+                if (n == 36) { play(s, SoundEvents.IRON_GOLEM_STEP, .5f, .7f); play(s, SoundEvents.BEACON_ACTIVATE, 1.4f, .5f); play(s, SoundEvents.PISTON_EXTEND, .6f, .5f); }
+                if (n == 42 || n == 47) play(s, SoundEvents.AMETHYST_BLOCK_CHIME, 1.6f, .45f);
+                if (n == 54) { play(s, SoundEvents.GENERIC_EXPLODE, .8f, .45f); play(s, SoundEvents.CHAIN_BREAK, .5f, .6f); play(s, SoundEvents.WARDEN_SONIC_BOOM, 1.6f, .25f); }
+                if (n == 64) play(s, SoundEvents.ARMOR_EQUIP_IRON, .8f, .5f);
             }
             default -> {}
         }
@@ -195,6 +199,7 @@ final class ChampionStage {
                 float z = "sandman".equals(hero) ? 120 : 50;
                 Runnable draw = () -> body(g, actor, x, py, z, s, bodyYaw, headYaw, headPitch, Vec3.ZERO, partial);
                 if (hulk) HulkClient.asHulk(actor, draw); else draw.run();
+                if (showing && "magneto".equals(hero)) magnetoMetal(g, st, x, py, z, s, partial);
             }
             Showcase.stop();
             ClientHeroRegistry.set(id, null);
@@ -259,7 +264,7 @@ final class ChampionStage {
             case "zed" -> new float[]{18, 48};
             case "cyclops" -> new float[]{50, 60};
             case "sandman" -> new float[]{24, 58};
-            case "magneto" -> new float[]{26, 29, 32, 50};
+            case "magneto" -> new float[]{24, 27, 30, 54};
             default -> new float[0];
         };
         for (float hit : hits) if (st > hit) shake += 3 * (float) Math.exp(-(st - hit) / 3.5) * Mth.sin(st * 3.7f);
@@ -299,12 +304,13 @@ final class ChampionStage {
                 else { Showcase.play(actor, PantherAction.IDLE, st); Showcase.glow(.1f, 0); }
             }
             case "magneto" -> {
-                // Lifts off, arms opening; drives the rods down; raises the shield and bursts it; sets down again.
-                float fly = st < 58 ? 1 : 0;
-                if (st < 20) Showcase.play(actor, MagnetoAction.IDLE, st);
-                else if (st < 34) Showcase.play(actor, MagnetoAction.BARRAGE, st - 20);
-                else if (st < 48) Showcase.play(actor, MagnetoAction.SHIELD_RAISE, st - 34);
-                else if (st < 58) Showcase.play(actor, MagnetoAction.BURST, st - 48);
+                // Lifts off as the scrap rises round him (the hand stirring it); calls the rods down out of the sky; the
+                // shield (plates round a violet sphere); bursts it; sets down again and faces the screen.
+                float fly = st < 62 ? 1 : 0;
+                if (st < 16) Showcase.play(actor, MagnetoAction.GRAB, Math.min(st, MagnetoAction.GRAB_TICKS - 1));
+                else if (st < 34) Showcase.play(actor, MagnetoAction.BARRAGE, st - 16);
+                else if (st < 54) Showcase.play(actor, st < 50 ? MagnetoAction.SHIELD_RAISE : MagnetoAction.SHIELD, st < 50 ? st - 36 : st - 50);
+                else if (st < 66) Showcase.play(actor, MagnetoAction.BURST, st - 54);
                 else Showcase.play(actor, MagnetoAction.IDLE, st);
                 Showcase.glow(0, fly);
             }
@@ -385,7 +391,7 @@ final class ChampionStage {
             case "zed" -> { light(); glowDisc(g, px, py - s * 1.0f, s * 1.4f, 0xFFB01020, .22f * in * out); normal(); }
             case "cyclops" -> { light(); glowDisc(g, px, py - s * 1.4f, s * 1.3f, 0xFFFF2030, .12f * in * out); normal(); }
             case "black_panther" -> { light(); glowDisc(g, px, py - s * 1.1f, s * 1.5f, 0xFF7A3CFF, (.16f + .3f * span(st, 44, 58) * (1 - span(st, 58, 70))) * in * out); normal(); }
-            case "magneto" -> { light(); glowDisc(g, px, py - s * 1.3f, s * 1.6f, 0xFFB0303A, (.14f + .25f * span(st, 46, 50) * (1 - span(st, 50, 62))) * in * out); normal(); }
+            case "magneto" -> { light(); glowDisc(g, px, py - s * 1.3f, s * 1.6f, 0xFF9A50FF, (.14f + .3f * span(st, 36, 46) * (1 - span(st, 54, 64))) * in * out); normal(); }
             default -> {}
         }
     }
@@ -400,6 +406,7 @@ final class ChampionStage {
                 risings(g, st, px, py, s);
             }
             case "black_panther" -> panther(g, st, px, py, s, fx0, fy0, fx1, fy1);
+            case "magneto" -> magnetoLight(g, st, px, py, s);
             case "ghost_rider" -> { if (st > 12) { light(); glowDisc(g, px, py - s * .9f, s * 1.3f, 0xFFFF6A10, .25f * (1 - ease((st - 30) / 14f))); normal(); } }
             default -> {}
         }
@@ -687,6 +694,102 @@ final class ChampionStage {
             p.popPose();
             Lighting.setupFor3DItems();
         }
+    }
+
+    // ------------------------------------------------------------------ Magneto
+    private static float mhash(int n) { double x = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return (float) (x - Math.floor(x)); }
+    /**
+     * Magneto's metal, in 3D round the body (same space as the body: blocks from his feet, -z toward the screen): scrap
+     * rising off the floor into an orbit, three rods called down into the floor in front of him, the shield's plates
+     * coming up out of the floor round him, then flung outward when it bursts.
+     */
+    private static void magnetoMetal(GuiGraphics g, float st, float x, float y, float z, float s, float partial) {
+        PoseStack p = g.pose();
+        p.pushPose();
+        p.translate(x, y, z);
+        p.mulPoseMatrix(new Matrix4f().scaling(s, s, -s));
+        p.mulPose(new Quaternionf().rotateZ((float) Math.PI));
+        Lighting.setupForEntityInInventory();
+        int light = 15728880;
+        try {
+            var buffers = g.bufferSource();
+            var v = com.FIRNI.superheromod.client.render.magneto.MetalMesh.buffer(buffers);
+            // The scrap: up off the floor, round him, faster as he works; it falls away when the shield takes over.
+            float gone = span(st, 34, 40);
+            for (int i = 0; i < 10 && gone < 1; i++) {
+                float rise = easeOut((st - i * .8f) / 12f), a = mhash(i * 3) * 6.283f + st * (.06f + .03f * mhash(i * 5)) * (1 + 2 * span(st, 14, 24));
+                float r = 1.2f + .7f * mhash(i * 7), h = Mth.lerp(rise, .05f, .5f + 1.9f * mhash(i * 11)) - gone * 2;
+                p.pushPose();
+                p.translate(Mth.cos(a) * r, h, Mth.sin(a) * r);
+                p.mulPose(Axis.XP.rotation(st * .1f + i)); p.mulPose(Axis.ZP.rotation(st * .07f + i * 2));
+                if (i % 3 == 0) com.FIRNI.superheromod.client.render.magneto.MetalMesh.rod(p, v, light, .9f, i);
+                else com.FIRNI.superheromod.client.render.magneto.MetalMesh.scrap(p, v, light, i * 13, .3f);
+                p.popPose();
+            }
+            // The rods: down out of the sky, one after another, stuck slanting in the floor in front of him.
+            float[][] rods = {{-1.5f, -1.1f, 22}, {1.6f, -.9f, 25}, {.2f, -1.9f, 28}};
+            for (int i = 0; i < 3; i++) {
+                float k = Mth.clamp((st - rods[i][2] + 6) / 6f, 0, 1);
+                if (k <= 0 || st > 70) continue;
+                float fall = 1 - k * k, sink = 1 - span(st, 62, 70);
+                p.pushPose();
+                p.translate(rods[i][0] + fall * .8f, .9f + fall * 7 - (1 - sink) * 2.2f, rods[i][1]);
+                p.mulPose(Axis.ZP.rotation(.25f * (i % 2 == 0 ? 1 : -1)));
+                p.mulPose(Axis.XP.rotation(-.15f));
+                p.mulPose(Axis.YP.rotation(st * (1 - k) * .4f + i));
+                p.mulPose(Axis.XP.rotation((float) Math.PI));
+                com.FIRNI.superheromod.client.render.magneto.MetalMesh.rod(p, v, light, 2.6f, i * 3);
+                p.popPose();
+            }
+            // The plates: up out of the floor round him, circling; at the burst, thrown outward tumbling.
+            if (st >= 36 && st < 68) {
+                for (int i = 0; i < 8; i++) {
+                    float age = st - 36, a = 6.283f * i / 8 + age * .05f;
+                    float up = easeOut((age - i * .6f) / 10f), out = st > 54 ? (st - 54) * .55f : 0;
+                    float r = 1.55f + out, h = Mth.lerp(up, -1.4f, .55f + (i % 2) * .9f) + (st > 54 ? (st - 54) * .08f : 0);
+                    p.pushPose();
+                    p.translate(Mth.cos(a) * r, h, Mth.sin(a) * r);
+                    p.mulPose(Axis.YP.rotation((float) Math.PI / 2 - a));
+                    p.mulPose(Axis.XP.rotation(-.18f + (1 - up) * 2 + out * .5f));
+                    p.mulPose(Axis.ZP.rotation(out * .7f * (i % 2 == 0 ? 1 : -1)));
+                    com.FIRNI.superheromod.client.render.magneto.MetalMesh.plate(p, v, light, .8f, 1.1f, i);
+                    p.popPose();
+                }
+            }
+            g.flush();
+        } finally {
+            p.popPose();
+            Lighting.setupFor3DItems();
+        }
+    }
+    /** In front: the violet sphere of the shield (bright rim, faint body, a crawl of lightning), its pop, the rods' dust. */
+    private void magnetoLight(GuiGraphics g, float st, float px, float py, float s) {
+        float cy = py - s * 1.05f;
+        light();
+        // Each rod striking the floor: a flash and dust.
+        for (float hit : new float[]{24, 27, 30}) {
+            float a = 1 - Mth.clamp((st - hit) / 10f, 0, 1);
+            if (st >= hit && a > 0) glowDisc(g, px + (hit == 24 ? 1.5f : hit == 27 ? -1.6f : -.2f) * s, py - 2, s * .7f, 0xFFE0D8FF, .5f * a);
+        }
+        float shield = span(st, 36, 44) * (1 - span(st, 53, 55));
+        if (shield > .01f) {
+            float r = s * (1.5f + .05f * Mth.sin(st * .4f)) * (.3f + .7f * easeOut((st - 36) / 8f));
+            glowDisc(g, px, cy, r, 0xFF6A30D0, .16f * shield);
+            ringFill(g, px, cy, r, r, s * .1f, 0xFFC9A6FF, .45f * shield);
+            ringFill(g, px, cy, r * .96f, r * .96f, s * .03f, 0xFFF4ECFF, .5f * shield);
+            for (int i = 0; i < 3; i++) {
+                int slot = (int) (st / 3) + i * 17;
+                double a0 = mhash(slot) * 6.283, a1 = a0 + .6 + mhash(slot + 1);
+                bolt(g, px + (float) Math.cos(a0) * r * .95f, cy + (float) Math.sin(a0) * r * .95f, px + (float) Math.cos(a1) * r * .7f, cy + (float) Math.sin(a1) * r * .7f, slot, 1.2f, 0xFFE8D8FF, .7f * shield);
+            }
+        }
+        float pop = st - 54;
+        if (pop >= 0 && pop < 8) {
+            float k = pop / 8;
+            ringFill(g, px, cy, s * (1.5f + 1.6f * k), s * (1.5f + 1.6f * k), s * .12f * (1 - k), 0xFFC9A6FF, .7f * (1 - k));
+            glowDisc(g, px, cy, s * 2.2f, 0xFFFFFFFF, .35f * (1 - k));
+        }
+        normal();
     }
 
     // ------------------------------------------------------------------ Hulk

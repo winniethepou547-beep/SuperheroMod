@@ -10,6 +10,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.LivingEntity;
@@ -58,6 +59,7 @@ final class HellSlam {
             case SLAM_THROW -> {
                 if(s.age==GhostComboMotion.SLAM_WINDUP)
                     level.playSound(null,p.blockPosition(),SoundEvents.PLAYER_ATTACK_SWEEP,SoundSource.PLAYERS,1f,.55f);
+                    level.playSound(null, p.blockPosition(), ModSounds.GHOST_CHAIN_WHIP.get(), SoundSource.PLAYERS, (1f) * 1.0f, 0.9f);
                 if(s.age<GhostComboMotion.SLAM_WINDUP){s.tip=hand;break;}
                 double travel=(s.age-GhostComboMotion.SLAM_WINDUP)*CHAIN_SPEED;
                 if(target==null) {
@@ -72,6 +74,7 @@ final class HellSlam {
                     s.mode=Mode.SLAM_LIFT;s.age=0;s.tip=center;
                     s.slam.start=target.position();
                     level.playSound(null,target.blockPosition(),SoundEvents.CHAIN_HIT,SoundSource.PLAYERS,1.4f,.6f);
+                    level.playSound(null, target.blockPosition(), ModSounds.FX_IMPACT_METAL.get(), SoundSource.PLAYERS, (1.4f) * 0.6f, 1.0f);
                     level.playSound(null,target.blockPosition(),SoundEvents.CHAIN_BREAK,SoundSource.PLAYERS,.8f,.5f);
                 } else s.tip=hand.add(center.subtract(hand).normalize().scale(travel));
             }
@@ -88,6 +91,7 @@ final class HellSlam {
                     double clearance=p.position().multiply(1,0,1).distanceTo(s.slam.start.multiply(1,0,1))-1.6;
                     s.slam.radius=Math.max(1.5,Math.min(RADIUS,clearance));
                     level.playSound(null,p.blockPosition(),SoundEvents.PLAYER_ATTACK_SWEEP,SoundSource.PLAYERS,1.2f,.4f);
+                    level.playSound(null, p.blockPosition(), ModSounds.GHOST_CHAIN_WHIP.get(), SoundSource.PLAYERS, (1.2f) * 1.0f, 0.9f);
                 }
             }
             case SLAM_DOWN -> {
@@ -102,6 +106,7 @@ final class HellSlam {
                         Vec3 impact=new Vec3(slam.start.x,ground,slam.start.z);
                         target.hurt(p.damageSources().playerAttack(p),4);
                         level.playSound(null,BlockPos.containing(impact),SoundEvents.GENERIC_EXPLODE,SoundSource.PLAYERS,1.4f,.55f);
+                        level.playSound(null, BlockPos.containing(impact), ModSounds.FX_IMPACT_HEAVY.get(), SoundSource.PLAYERS, (1.4f) * 1.0f, 0.9f);
                         level.playSound(null,BlockPos.containing(impact),SoundEvents.ANVIL_LAND,SoundSource.PLAYERS,.8f,.5f);
                         shockwave(p,impact,(float)(slam.radius+3),.75f);
                         rim(level,p,slam);
@@ -117,6 +122,7 @@ final class HellSlam {
                         target.hurt(p.damageSources().playerAttack(p),14);
                         target.setSecondsOnFire(6);
                         level.playSound(null,BlockPos.containing(bottom),SoundEvents.GENERIC_EXPLODE,SoundSource.PLAYERS,1.6f,.45f);
+                        level.playSound(null, BlockPos.containing(bottom), ModSounds.FX_IMPACT_HEAVY.get(), SoundSource.PLAYERS, (1.6f) * 1.0f, 0.9f);
                         level.playSound(null,BlockPos.containing(bottom),SoundEvents.BLAZE_SHOOT,SoundSource.PLAYERS,1.2f,.5f);
                         ModNetworking.CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(()->p),new GhostSlamPacket(bottom));
                         shockwave(p,new Vec3(slam.start.x,ground,slam.start.z),(float)(slam.radius+5),.9f);

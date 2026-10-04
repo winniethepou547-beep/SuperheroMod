@@ -69,6 +69,8 @@ public final class PantherLayer extends RenderLayer<AbstractClientPlayer, Player
         float t = s == null ? 0 : PantherClient.clock(s, partial);
         boolean shown = Showcase.is(e);
         if (shown) { action = Showcase.action(); t = Showcase.time(); }
+        // SHIFT held while running is his run, not a pounce gathering: no crouch for the load while the feet carry him.
+        else if (action == POUNCE_LOAD && (e.getX() - e.xo) * (e.getX() - e.xo) + (e.getZ() - e.zo) * (e.getZ() - e.zo) > .012) action = IDLE;
         float now = level.getGameTime() + partial;
         float combat = s == null || shown ? (shown ? 1 : 0) : 1 - ease((s.quiet - 60) / 40f);
         float reflex = s == null || s.reflexLeft <= 0 ? 0 : Math.min(1, s.reflexLeft / 8f);

@@ -95,9 +95,13 @@ public final class MagneticStage {
         p.mulPose(Axis.YP.rotation(Mth.PI - yaw(t)));
         p.scale(-BODY_SCALE, -BODY_SCALE, BODY_SCALE);
         p.translate(0, -1.501, 0);
+        MagnetoBody.GLOW[0] = effort(t);
+        MagnetoBody.GLOW[1] = Math.max(window(t, ULT_PULL, ULT_SLAM + 4, 6), .6f * window(t, ULT_PIN - 2, ULT_PIN + 14, 4)) * (t > ULT_PIN ? 0 : 1);
+        MagnetoBody.glowTime = time;
         try {
             MagnetoBody.draw(p, c.buffers(), FULL, pose, look[0], look[1], time, cloth(t));
         } finally {
+            MagnetoBody.GLOW[0] = MagnetoBody.GLOW[1] = 0;
             p.popPose();
         }
     }

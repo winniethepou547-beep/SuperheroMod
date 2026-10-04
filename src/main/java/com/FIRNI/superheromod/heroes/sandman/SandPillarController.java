@@ -8,6 +8,7 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
@@ -112,6 +113,7 @@ public final class SandPillarController {
                 SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 0.9f, 1.5f);
         level.playSound(null, origin,
                 SoundEvents.SAND_PLACE, SoundSource.PLAYERS, 1.7f, 0.55f);
+        level.playSound(null, origin, ModSounds.SANDMAN_SAND_WHOOSH.get(), SoundSource.PLAYERS, (1.7f) * 0.7f, 1.0f);
 
         level.sendParticles(ParticleTypes.EXPLOSION, c.x, c.y, c.z, 3, 0.9, 0.15, 0.9, 0.0);
 

@@ -7,6 +7,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
@@ -113,37 +114,37 @@ final class GodOfThunderFilm implements Film {
         add(c, 2, SoundEvents.WEATHER_RAIN, .3f, .8f);
         add(c, ULT_LUNGE, SoundEvents.TRIDENT_RIPTIDE_1, .6f, 1.4f);
         // The hits: metal, flesh and a crack of lightning each.
-        add(c, ULT_HIT1 - 4, SoundEvents.PLAYER_ATTACK_SWEEP, 1f, .7f);
-        add(c, ULT_HIT1, SoundEvents.ANVIL_LAND, 1f, .9f); add(c, ULT_HIT1, SoundEvents.PLAYER_ATTACK_KNOCKBACK, 1f, .6f);
+        add(c, ULT_HIT1 - 4, SoundEvents.PLAYER_ATTACK_SWEEP, 1f, .7f); add(c, ULT_HIT1 - 4, ModSounds.THOR_HAMMER_WHOOSH.get(), (1f) * 1.0f, 1.0f);
+        add(c, ULT_HIT1, SoundEvents.ANVIL_LAND, 1f, .9f); add(c, ULT_HIT1, ModSounds.THOR_HAMMER_IMPACT.get(), (1f) * 1.0f, 1.0f); add(c, ULT_HIT1, SoundEvents.PLAYER_ATTACK_KNOCKBACK, 1f, .6f);
         add(c, ULT_HIT1, SoundEvents.LIGHTNING_BOLT_IMPACT, .7f, 1.6f);
-        add(c, ULT_HIT2 - 4, SoundEvents.PLAYER_ATTACK_SWEEP, 1f, .6f);
-        add(c, ULT_HIT2, SoundEvents.SHIELD_BREAK, 1f, .7f); add(c, ULT_HIT2, SoundEvents.ANVIL_LAND, 1f, .7f);
+        add(c, ULT_HIT2 - 4, SoundEvents.PLAYER_ATTACK_SWEEP, 1f, .6f); add(c, ULT_HIT2 - 4, ModSounds.THOR_HAMMER_WHOOSH.get(), (1f) * 1.0f, 1.0f);
+        add(c, ULT_HIT2, SoundEvents.SHIELD_BREAK, 1f, .7f); add(c, ULT_HIT2, SoundEvents.ANVIL_LAND, 1f, .7f); add(c, ULT_HIT2, ModSounds.THOR_HAMMER_IMPACT.get(), (1f) * 1.0f, 1.0f);
         add(c, ULT_HIT2, SoundEvents.LIGHTNING_BOLT_IMPACT, .8f, 1.3f);
         // A short silence while he sinks into the crouch.
         add(c, ULT_LOAD + 8, SoundEvents.TRIDENT_RIPTIDE_2, .5f, .6f);
-        add(c, ULT_UPPER, SoundEvents.ANVIL_LAND, 1f, .5f); add(c, ULT_UPPER, SoundEvents.GENERIC_EXPLODE, .8f, 1.1f);
-        add(c, ULT_UPPER, SoundEvents.PLAYER_ATTACK_CRIT, 1f, .6f); add(c, ULT_UPPER, SoundEvents.LIGHTNING_BOLT_THUNDER, .6f, 1.4f);
+        add(c, ULT_UPPER, SoundEvents.ANVIL_LAND, 1f, .5f); add(c, ULT_UPPER, ModSounds.THOR_HAMMER_IMPACT.get(), (1f) * 1.0f, 1.0f); add(c, ULT_UPPER, SoundEvents.GENERIC_EXPLODE, .8f, 1.1f);
+        add(c, ULT_UPPER, SoundEvents.PLAYER_ATTACK_CRIT, 1f, .6f); add(c, ULT_UPPER, SoundEvents.LIGHTNING_BOLT_THUNDER, .6f, 1.4f); add(c, ULT_UPPER, ModSounds.THOR_LIGHTNING_CRACKLE.get(), (.6f) * 0.8f, 1.0f);
         add(c, ULT_UPPER + 5, SoundEvents.ELYTRA_FLYING, .8f, 1.3f);
-        add(c, ULT_UPPER + 33, SoundEvents.LIGHTNING_BOLT_THUNDER, .6f, .6f);
-        add(c, ULT_UPPER + 50, SoundEvents.LIGHTNING_BOLT_THUNDER, .9f, .9f); add(c, ULT_UPPER + 60, SoundEvents.LIGHTNING_BOLT_IMPACT, 1f, 1f);
-        add(c, ULT_UPPER + 70, SoundEvents.LIGHTNING_BOLT_THUNDER, .9f, .8f);
+        add(c, ULT_UPPER + 33, SoundEvents.LIGHTNING_BOLT_THUNDER, .6f, .6f); add(c, ULT_UPPER + 33, ModSounds.THOR_LIGHTNING_CRACKLE.get(), (.6f) * 0.8f, 1.0f);
+        add(c, ULT_UPPER + 50, SoundEvents.LIGHTNING_BOLT_THUNDER, .9f, .9f); add(c, ULT_UPPER + 50, ModSounds.THOR_LIGHTNING_CRACKLE.get(), (.9f) * 0.8f, 1.0f); add(c, ULT_UPPER + 60, SoundEvents.LIGHTNING_BOLT_IMPACT, 1f, 1f);
+        add(c, ULT_UPPER + 70, SoundEvents.LIGHTNING_BOLT_THUNDER, .9f, .8f); add(c, ULT_UPPER + 70, ModSounds.THOR_LIGHTNING_CRACKLE.get(), (.9f) * 0.8f, 1.0f);
         add(c, ULT_SPIN, SoundEvents.TRIDENT_RIPTIDE_1, .8f, 1f); add(c, ULT_SPIN + 10, SoundEvents.TRIDENT_RIPTIDE_2, .9f, 1.1f);
         add(c, ULT_RISE, SoundEvents.TRIDENT_RIPTIDE_3, 1f, .9f); add(c, ULT_RISE + 2, SoundEvents.ELYTRA_FLYING, .7f, 1f);
         add(c, ULT_TOSS, SoundEvents.TRIDENT_THROW, 1f, .6f); add(c, ULT_TOSS + 2, SoundEvents.TRIDENT_THUNDER, .5f, 1.4f);
-        add(c, ULT_VANISH, SoundEvents.LIGHTNING_BOLT_THUNDER, 1f, .8f);
+        add(c, ULT_VANISH, SoundEvents.LIGHTNING_BOLT_THUNDER, 1f, .8f); add(c, ULT_VANISH, ModSounds.THOR_LIGHTNING_CRACKLE.get(), (1f) * 0.8f, 1.0f);
         add(c, ULT_CATCH, SoundEvents.PLAYER_ATTACK_KNOCKBACK, 1f, .5f); add(c, ULT_CATCH, SoundEvents.ANVIL_PLACE, .5f, .6f);
         add(c, ULT_SCREAM, SoundEvents.RAVAGER_ROAR, 1f, .65f);
-        add(c, ULT_EYEBOLT, SoundEvents.LIGHTNING_BOLT_THUNDER, 1f, 1.2f); add(c, ULT_EYEBOLT, SoundEvents.LIGHTNING_BOLT_IMPACT, 1f, 1f);
+        add(c, ULT_EYEBOLT, SoundEvents.LIGHTNING_BOLT_THUNDER, 1f, 1.2f); add(c, ULT_EYEBOLT, ModSounds.THOR_LIGHTNING_CRACKLE.get(), (1f) * 0.8f, 1.0f); add(c, ULT_EYEBOLT, SoundEvents.LIGHTNING_BOLT_IMPACT, 1f, 1f);
         for (int t = ULT_STORM; t < ULT_BLAST; t += 5) add(c, t, t % 2 == 0 ? SoundEvents.LIGHTNING_BOLT_THUNDER : SoundEvents.LIGHTNING_BOLT_IMPACT, .9f, .7f + (t % 3) * .15f);
-        add(c, ULT_BLAST, SoundEvents.GENERIC_EXPLODE, 1f, .5f); add(c, ULT_BLAST, SoundEvents.LIGHTNING_BOLT_THUNDER, 1f, .5f);
+        add(c, ULT_BLAST, SoundEvents.GENERIC_EXPLODE, 1f, .5f); add(c, ULT_BLAST, SoundEvents.LIGHTNING_BOLT_THUNDER, 1f, .5f); add(c, ULT_BLAST, ModSounds.THOR_LIGHTNING_CRACKLE.get(), (1f) * 0.8f, 1.0f);
         // Then nothing until the white clears.
         add(c, ULT_FADE + 4, SoundEvents.WEATHER_RAIN, .4f, .7f); add(c, ULT_LET_GO + 2, SoundEvents.ELYTRA_FLYING, .6f, .7f);
-        add(c, ULT_RECALL - 14, SoundEvents.TRIDENT_RETURN, 1f, .7f); add(c, ULT_RECALL - 14, SoundEvents.LIGHTNING_BOLT_THUNDER, .7f, 1f);
+        add(c, ULT_RECALL - 14, SoundEvents.TRIDENT_RETURN, 1f, .7f); add(c, ULT_RECALL - 14, SoundEvents.LIGHTNING_BOLT_THUNDER, .7f, 1f); add(c, ULT_RECALL - 14, ModSounds.THOR_LIGHTNING_CRACKLE.get(), (.7f) * 0.8f, 1.0f);
         add(c, ULT_RECALL, SoundEvents.ANVIL_PLACE, .5f, 1.6f); add(c, ULT_RECALL, SoundEvents.LIGHTNING_BOLT_IMPACT, .8f, 1.3f);
-        add(c, ULT_CRASH, SoundEvents.GENERIC_EXPLODE, 1f, .6f); add(c, ULT_CRASH, SoundEvents.ANVIL_LAND, 1f, .4f);
+        add(c, ULT_CRASH, SoundEvents.GENERIC_EXPLODE, 1f, .6f); add(c, ULT_CRASH, SoundEvents.ANVIL_LAND, 1f, .4f); add(c, ULT_CRASH, ModSounds.THOR_HAMMER_IMPACT.get(), (1f) * 1.0f, 1.0f);
         add(c, ULT_CRASH + 1, SoundEvents.LIGHTNING_BOLT_IMPACT, .8f, .8f);
         add(c, ULT_LANDED, SoundEvents.STONE_STEP, 1f, .6f); add(c, ULT_LANDED + 1, SoundEvents.ARMOR_EQUIP_IRON, .5f, .8f);
-        add(c, ULT_LANDED + 10, SoundEvents.LIGHTNING_BOLT_THUNDER, .4f, .6f);
+        add(c, ULT_LANDED + 10, SoundEvents.LIGHTNING_BOLT_THUNDER, .4f, .6f); add(c, ULT_LANDED + 10, ModSounds.THOR_LIGHTNING_CRACKLE.get(), (.4f) * 0.8f, 1.0f);
         return c.toArray(new Cue[0]);
     }
     private static void add(List<Cue> list, float t, SoundEvent sound, float volume, float pitch) { list.add(new Cue(t, sound, volume, pitch)); }

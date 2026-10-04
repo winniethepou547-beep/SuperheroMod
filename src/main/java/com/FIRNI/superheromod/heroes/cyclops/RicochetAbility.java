@@ -8,6 +8,7 @@ import com.FIRNI.superheromod.network.packet.BeamSyncPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
@@ -54,6 +55,7 @@ public class RicochetAbility extends Ability {
 
         level.playSound(null, player.blockPosition(),
                 SoundEvents.FIREWORK_ROCKET_BLAST, SoundSource.PLAYERS, 1.2f, 0.8f);
+        level.playSound(null, player.blockPosition(), ModSounds.CYCLOPS_OPTIC_BLAST.get(), SoundSource.PLAYERS, (1.2f) * 0.8f, 1.1f);
 
         Vec3 origin = RaycastSystem.getEyeOrigin(player);
         Vec3 direction = RaycastSystem.getLookDirection(player);

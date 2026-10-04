@@ -1,0 +1,300 @@
+{
+  "fx.whoosh_light": {
+    "subtitle": "subtitles.superheromod.fx.whoosh_light",
+    "sounds": [
+      "superheromod:fx/whoosh_light",
+      "superheromod:fx/whoosh_light_1"
+    ]
+  },
+  "fx.whoosh_heavy": {
+    "subtitle": "subtitles.superheromod.fx.whoosh_heavy",
+    "sounds": [
+      "superheromod:fx/whoosh_heavy"
+    ]
+  },
+  "fx.impact_heavy": {
+    "subtitle": "subtitles.superheromod.fx.impact_heavy",
+    "sounds": [
+      "superheromod:fx/impact_heavy"
+    ]
+  },
+  "fx.impact_metal": {
+    "subtitle": "subtitles.superheromod.fx.impact_metal",
+    "sounds": [
+      "superheromod:fx/impact_metal"
+    ]
+  },
+  "fx.electric_zap": {
+    "subtitle": "subtitles.superheromod.fx.electric_zap",
+    "sounds": [
+      "superheromod:fx/electric_zap",
+      "superheromod:fx/electric_zap_1"
+    ]
+  },
+  "fx.electric_crackle": {
+    "subtitle": "subtitles.superheromod.fx.electric_crackle",
+    "sounds": [
+      "superheromod:fx/electric_crackle"
+    ]
+  },
+  "fx.energy_swell": {
+    "subtitle": "subtitles.superheromod.fx.energy_swell",
+    "sounds": [
+      "superheromod:fx/energy_swell"
+    ]
+  },
+  "fx.energy_boom": {
+    "subtitle": "subtitles.superheromod.fx.energy_boom",
+    "sounds": [
+      "superheromod:fx/energy_boom"
+    ]
+  },
+  "magneto.magnetic_hum": {
+    "subtitle": "subtitles.superheromod.magneto.magnetic_hum",
+    "sounds": [
+      "superheromod:magneto/magnetic_hum"
+    ]
+  },
+  "magneto.metal_rise": {
+    "subtitle": "subtitles.superheromod.magneto.metal_rise",
+    "sounds": [
+      "superheromod:magneto/metal_rise"
+    ]
+  },
+  "magneto.metal_clang_big": {
+    "subtitle": "subtitles.superheromod.magneto.metal_clang_big",
+    "sounds": [
+      "superheromod:magneto/metal_clang_big"
+    ]
+  },
+  "magneto.metal_shing": {
+    "subtitle": "subtitles.superheromod.magneto.metal_shing",
+    "sounds": [
+      "superheromod:magneto/metal_shing",
+      "superheromod:magneto/metal_shing_1"
+    ]
+  },
+  "magneto.shield_up": {
+    "subtitle": "subtitles.superheromod.magneto.shield_up",
+    "sounds": [
+      "superheromod:magneto/shield_up"
+    ]
+  },
+  "magneto.shield_hit": {
+    "subtitle": "subtitles.superheromod.magneto.shield_hit",
+    "sounds": [
+      "superheromod:magneto/shield_hit",
+      "superheromod:magneto/shield_hit_1"
+    ]
+  },
+  "magneto.shield_burst": {
+    "subtitle": "subtitles.superheromod.magneto.shield_burst",
+    "sounds": [
+      "superheromod:magneto/shield_burst"
+    ]
+  },
+  "magneto.telekinesis_grab": {
+    "subtitle": "subtitles.superheromod.magneto.telekinesis_grab",
+    "sounds": [
+      "superheromod:magneto/telekinesis_grab"
+    ]
+  },
+  "magneto.fling": {
+    "subtitle": "subtitles.superheromod.magneto.fling",
+    "sounds": [
+      "superheromod:magneto/fling"
+    ]
+  },
+  "magneto.fist_assemble": {
+    "subtitle": "subtitles.superheromod.magneto.fist_assemble",
+    "sounds": [
+      "superheromod:magneto/fist_assemble"
+    ]
+  },
+  "magneto.fist_slam": {
+    "subtitle": "subtitles.superheromod.magneto.fist_slam",
+    "sounds": [
+      "superheromod:magneto/fist_slam"
+    ]
+  },
+  "magneto.rod_whistle": {
+    "subtitle": "subtitles.superheromod.magneto.rod_whistle",
+    "sounds": [
+      "superheromod:magneto/rod_whistle"
+    ]
+  },
+  "magneto.rod_impale": {
+    "subtitle": "subtitles.superheromod.magneto.rod_impale",
+    "sounds": [
+      "superheromod:magneto/rod_impale"
+    ]
+  },
+  "panther.claw_slash": {
+    "subtitle": "subtitles.superheromod.panther.claw_slash",
+    "sounds": [
+      "superheromod:panther/claw_slash",
+      "superheromod:panther/claw_slash_1",
+      "superheromod:panther/claw_slash_2"
+    ]
+  },
+  "panther.claw_hit": {
+    "subtitle": "subtitles.superheromod.panther.claw_hit",
+    "sounds": [
+      "superheromod:panther/claw_hit",
+      "superheromod:panther/claw_hit_1"
+    ]
+  },
+  "panther.vibranium_absorb": {
+    "subtitle": "subtitles.superheromod.panther.vibranium_absorb",
+    "sounds": [
+      "superheromod:panther/vibranium_absorb"
+    ]
+  },
+  "panther.kinetic_release": {
+    "subtitle": "subtitles.superheromod.panther.kinetic_release",
+    "sounds": [
+      "superheromod:panther/kinetic_release"
+    ]
+  },
+  "panther.pounce": {
+    "subtitle": "subtitles.superheromod.panther.pounce",
+    "sounds": [
+      "superheromod:panther/pounce"
+    ]
+  },
+  "panther.kick_impact": {
+    "subtitle": "subtitles.superheromod.panther.kick_impact",
+    "sounds": [
+      "superheromod:panther/kick_impact"
+    ]
+  },
+  "panther.camo_on": {
+    "subtitle": "subtitles.superheromod.panther.camo_on",
+    "sounds": [
+      "superheromod:panther/camo_on"
+    ]
+  },
+  "panther.camo_off": {
+    "subtitle": "subtitles.superheromod.panther.camo_off",
+    "sounds": [
+      "superheromod:panther/camo_off"
+    ]
+  },
+  "panther.dash": {
+    "subtitle": "subtitles.superheromod.panther.dash",
+    "sounds": [
+      "superheromod:panther/dash"
+    ]
+  },
+  "thor.hammer_whoosh": {
+    "subtitle": "subtitles.superheromod.thor.hammer_whoosh",
+    "sounds": [
+      "superheromod:thor/hammer_whoosh"
+    ]
+  },
+  "thor.hammer_impact": {
+    "subtitle": "subtitles.superheromod.thor.hammer_impact",
+    "sounds": [
+      "superheromod:thor/hammer_impact"
+    ]
+  },
+  "thor.lightning_crackle": {
+    "subtitle": "subtitles.superheromod.thor.lightning_crackle",
+    "sounds": [
+      "superheromod:thor/lightning_crackle"
+    ]
+  },
+  "thor.hammer_catch": {
+    "subtitle": "subtitles.superheromod.thor.hammer_catch",
+    "sounds": [
+      "superheromod:thor/hammer_catch"
+    ]
+  },
+  "hulk.hulk_punch": {
+    "subtitle": "subtitles.superheromod.hulk.hulk_punch",
+    "sounds": [
+      "superheromod:hulk/hulk_punch",
+      "superheromod:hulk/hulk_punch_1"
+    ]
+  },
+  "hulk.ground_slam": {
+    "subtitle": "subtitles.superheromod.hulk.ground_slam",
+    "sounds": [
+      "superheromod:hulk/ground_slam"
+    ]
+  },
+  "hulk.thunderclap": {
+    "subtitle": "subtitles.superheromod.hulk.thunderclap",
+    "sounds": [
+      "superheromod:hulk/thunderclap"
+    ]
+  },
+  "hulk.leap": {
+    "subtitle": "subtitles.superheromod.hulk.leap",
+    "sounds": [
+      "superheromod:hulk/leap"
+    ]
+  },
+  "zed.blade_slash": {
+    "subtitle": "subtitles.superheromod.zed.blade_slash",
+    "sounds": [
+      "superheromod:zed/blade_slash",
+      "superheromod:zed/blade_slash_1",
+      "superheromod:zed/blade_slash_2"
+    ]
+  },
+  "zed.shadow_whoosh": {
+    "subtitle": "subtitles.superheromod.zed.shadow_whoosh",
+    "sounds": [
+      "superheromod:zed/shadow_whoosh"
+    ]
+  },
+  "zed.shuriken_whir": {
+    "subtitle": "subtitles.superheromod.zed.shuriken_whir",
+    "sounds": [
+      "superheromod:zed/shuriken_whir"
+    ]
+  },
+  "zed.mark_burst": {
+    "subtitle": "subtitles.superheromod.zed.mark_burst",
+    "sounds": [
+      "superheromod:zed/mark_burst"
+    ]
+  },
+  "cyclops.optic_beam": {
+    "subtitle": "subtitles.superheromod.cyclops.optic_beam",
+    "sounds": [
+      "superheromod:cyclops/optic_beam"
+    ]
+  },
+  "cyclops.optic_blast": {
+    "subtitle": "subtitles.superheromod.cyclops.optic_blast",
+    "sounds": [
+      "superheromod:cyclops/optic_blast"
+    ]
+  },
+  "ghost.chain_whip": {
+    "subtitle": "subtitles.superheromod.ghost.chain_whip",
+    "sounds": [
+      "superheromod:ghost/chain_whip"
+    ]
+  },
+  "ghost.hellfire": {
+    "subtitle": "subtitles.superheromod.ghost.hellfire",
+    "sounds": [
+      "superheromod:ghost/hellfire"
+    ]
+  },
+  "sandman.sand_whoosh": {
+    "subtitle": "subtitles.superheromod.sandman.sand_whoosh",
+    "sounds": [
+      "superheromod:sandman/sand_whoosh"
+    ]
+  },
+  "sandman.sand_impact": {
+    "subtitle": "subtitles.superheromod.sandman.sand_impact",
+    "sounds": [
+      "superheromod:sandman/sand_impact"
+    ]
+  }
+}

@@ -52,6 +52,19 @@ public final class MagnetoMotion {
         return p;
     }
 
+    /** How strongly a hand glows during a move (side 0 right, 1 left): the hand that works the metal, both for the shield. */
+    public static float glow(int action, float t, int side) {
+        boolean right = side == 0;
+        return switch (action) {
+            case SHARD -> right ? 1 - PantherMotion.ease((t - SHARD_TICKS) / 4) : 0;
+            case BARRAGE -> right ? 1 : .25f;
+            case GRAB, CONTROL, FIST -> right ? 1 : 0;
+            case THROW -> right ? 1 - PantherMotion.ease((t - THROW_TICKS) / 4) : 0;
+            case FIST_SUMMON -> right ? 1 : .8f;
+            case SHIELD_RAISE, SHIELD, BURST -> 1;
+            default -> 0;
+        };
+    }
     /** A move's pose at its clock t over the base (the stance or the hover). */
     public static Pose sample(int action, float t, Pose base) {
         return switch (action) {

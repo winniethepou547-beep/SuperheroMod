@@ -31,7 +31,7 @@ public final class MetalMesh {
         p.translate(x0, y0, z0);
         // (The unit part is a 16-pixel cube: one block.)
         p.scale((x1 - x0), (y1 - y0), (z1 - z0));
-        UNIT.render(p, v, light, OverlayTexture.NO_OVERLAY, c[0] * SHADE[0], c[1] * SHADE[1], c[2] * SHADE[2], 1);
+        UNIT.render(p, v, light, OverlayTexture.NO_OVERLAY, Math.min(1, c[0] * SHADE[0]), Math.min(1, c[1] * SHADE[1]), Math.min(1, c[2] * SHADE[2]), 1);
         p.popPose();
     }
     private static void cbox(PoseStack p, VertexConsumer v, int light, float cx, float cy, float cz, float w, float h, float d, float[] c) {
@@ -170,6 +170,31 @@ public final class MetalMesh {
         cbox(p, v, light, cx, cy, cz, w, h, d, c);
     }
 
+    /**
+     * A plate of the shield, upright, centred, facing -z: a thick slab of dark iron torn from something bigger, a raised
+     * rim, a seam and rivets across it, rust down one side, one corner bitten off.
+     */
+    public static void plate(PoseStack p, VertexConsumer v, int light, float w, float h, int seed) {
+        float hw = w / 2, hh = h / 2, d = .16f;
+        float[] face = tint(IRON, seed), dark = tint(IRON_DARK, seed + 1);
+        box(p, v, light, -hw, -hh, -d / 2, hw - .22f, hh, d / 2, dark);
+        box(p, v, light, hw - .22f, -hh, -d / 2, hw, hh - .3f, d / 2, dark);
+        // The face, proud of the slab, split by a seam.
+        box(p, v, light, -hw + .07f, -hh + .07f, -d / 2 - .04f, hw - .07f, -.03f, -d / 2 + .01f, face);
+        box(p, v, light, -hw + .07f, .03f, -d / 2 - .04f, hw - .3f, hh - .07f, -d / 2 + .01f, tint(IRON, seed + 5));
+        // The rim along the edges.
+        box(p, v, light, -hw - .03f, -hh - .03f, -d / 2 - .06f, hw + .03f, -hh + .06f, d / 2 + .02f, IRON_LIGHT);
+        box(p, v, light, -hw - .03f, hh - .06f, -d / 2 - .06f, hw - .28f, hh + .03f, d / 2 + .02f, IRON_LIGHT);
+        box(p, v, light, -hw - .03f, -hh, -d / 2 - .06f, -hw + .06f, hh, d / 2 + .02f, IRON_LIGHT);
+        // Rivets across the seam and rust running down.
+        for (int i = 0; i < 4; i++) {
+            float x = -hw + .2f + i * (w - .4f) / 3;
+            cbox(p, v, light, x, 0, -d / 2 - .06f, .07f, .07f, .03f, IRON_DARK);
+        }
+        if (hash(seed * 3) < .7f) box(p, v, light, -hw + .15f + .4f * hash(seed), -hh * .8f, -d / 2 - .05f, -hw + .25f + .4f * hash(seed), hh * .3f, -d / 2 - .04f, RUST);
+        // The bitten corner: a step and a bent tongue of metal.
+        cbox(p, v, light, hw - .12f, hh - .2f, 0, .14f, .22f, d * .7f, RUST_DARK);
+    }
     /** A jagged piece of a torn column. */
     public static void fragment(PoseStack p, VertexConsumer v, int light, int seed, float size) {
         float s = size * (.7f + .6f * hash(seed));

@@ -29,8 +29,15 @@ public final class MagnetoBody {
     private static final int FULL = 15728880;
     static final float[] RED = {.56f, .07f, .08f}, RED_DARK = {.30f, .03f, .045f}, RED_LIGHT = {.74f, .13f, .13f}, RED_SEAM = {.2f, .02f, .03f},
             VIOLET = {.34f, .15f, .48f}, VIOLET_DARK = {.18f, .07f, .27f}, VIOLET_LIGHT = {.5f, .27f, .66f}, CAPE_IN = {.14f, .05f, .21f},
-            STEEL = {.6f, .62f, .68f}, STEEL_DARK = {.34f, .35f, .4f}, SKIN = {.80f, .62f, .52f}, SKIN_SHADE = {.66f, .49f, .41f},
-            BROW = {.72f, .72f, .74f}, EYE = {.12f, .1f, .1f};
+            STEEL = {.6f, .62f, .68f}, STEEL_DARK = {.34f, .35f, .4f}, SKIN = {.84f, .68f, .6f}, SKIN_SHADE = {.69f, .53f, .46f},
+            BROW = {.93f, .93f, .92f}, EYE = {.12f, .1f, .1f}, BEARD = {.9f, .9f, .88f}, BEARD_SHADE = {.72f, .72f, .71f}, MOUTH = {.36f, .2f, .19f};
+    /**
+     * How strongly each hand glows while he works metal (0 right, 1 left; 0..1): set by whoever draws him, read while the
+     * hands are drawn (the hand turns translucent violet and throws off tiny pale sparks), then put back to 0.
+     */
+    public static final float[] GLOW = {0, 0};
+    /** The clock the sparks run on. */
+    public static float glowTime;
     /** How lifted the cape is (speed, falling), how fast it is moving, which way it is pushed sideways, and the flight (0..1). */
     public record Cloth(float lift, float speed, float side, float flying) {}
 
@@ -44,7 +51,9 @@ public final class MagnetoBody {
         p.translate(-w / 32, -h / 32, -d / 32);
         p.scale(w, h, d);
         float[] k = MetalMesh.SHADE;
-        UNIT.render(p, b.getBuffer(RenderType.entityCutoutNoCull(GhostMaterials.TEXTURE)), light, OverlayTexture.NO_OVERLAY, c[0] * k[0], c[1] * k[1], c[2] * k[2], 1);
+        // (Clamped: a colour over 1 wraps round in the vertex bytes, which is what turned his face blue in the film's flashes.)
+        UNIT.render(p, b.getBuffer(RenderType.entityCutoutNoCull(GhostMaterials.TEXTURE)), light, OverlayTexture.NO_OVERLAY,
+                Math.min(1, c[0] * k[0]), Math.min(1, c[1] * k[1]), Math.min(1, c[2] * k[2]), 1);
         p.popPose();
     }
     private static void part(PoseStack p, MultiBufferSource b, int light, float x, float y, float z, float w, float h, float d, float[] c) {
@@ -180,22 +189,58 @@ public final class MagnetoBody {
     }
     /** The gloved hand: the palm, four fingers that curl (open: splayed a little; closed: a fist), the thumb. */
     private static void hand(PoseStack p, MultiBufferSource b, int light, int s, float curl) {
-        part(p, b, light, 0, 1.1f, 0, 2.9f, 2.4f, 3.1f, VIOLET);
+        handShape(p, b, light, s, curl, false, 0);
+        float glow = GLOW[s < 0 ? 0 : 1];
+        if (glow > .02f) {
+            handShape(p, b, light, s, curl, true, Math.min(1, glow));
+            sparks(p, b, s, Math.min(1, glow));
+        }
+    }
+    /** A glowing copy of a part: a little larger, violet light added over what is behind it. */
+    private static void glowPart(PoseStack p, MultiBufferSource b, float x, float y, float z, float w, float h, float d, float k) {
+        p.pushPose();
+        px(p, x, y, z);
+        p.translate(-(w + .5f) / 32, -(h + .5f) / 32, -(d + .5f) / 32);
+        p.scale(w + .5f, h + .5f, d + .5f);
+        float pulse = .8f + .2f * Mth.sin(glowTime * .45f);
+        UNIT.render(p, b.getBuffer(RenderType.eyes(GhostMaterials.TEXTURE)), FULL, OverlayTexture.NO_OVERLAY, .42f * k * pulse, .2f * k * pulse, .78f * k * pulse, 1);
+        p.popPose();
+    }
+    /** Tiny pale violet and white sparks leaping off the glowing hand and dying away. */
+    private static void sparks(PoseStack p, MultiBufferSource b, int s, float k) {
+        for (int i = 0; i < 10; i++) {
+            float phase = glowTime * (.06f + .03f * MetalMesh.hash(i * 13 + s)) + MetalMesh.hash(i * 7 + s * 3);
+            phase -= (float) Math.floor(phase);
+            float a = MetalMesh.hash(i * 5 + (int) (glowTime * .06f + MetalMesh.hash(i * 7 + s * 3))) * Mth.TWO_PI, e = (MetalMesh.hash(i * 11 + 1) - .3f) * 2.2f;
+            float out = 1.6f + phase * 5.5f;
+            float x = Mth.cos(a) * Mth.cos(e) * out, y = 2.3f + Mth.sin(e) * out, z = Mth.sin(a) * Mth.cos(e) * out;
+            float fade = (1 - phase) * k, white = i % 3 == 0 ? 1 : .55f;
+            p.pushPose();
+            px(p, x, y, z);
+            p.scale(.32f, .32f, .32f);
+            p.translate(-.5f / 16, -.5f / 16, -.5f / 16);
+            UNIT.render(p, b.getBuffer(RenderType.eyes(GhostMaterials.TEXTURE)), FULL, OverlayTexture.NO_OVERLAY, fade * (.7f + .3f * white), fade * (.55f + .45f * white), fade, 1);
+            p.popPose();
+        }
+    }
+    private static void handShape(PoseStack p, MultiBufferSource b, int light, int s, float curl, boolean glow, float k) {
+        if (glow) glowPart(p, b, 0, 1.1f, 0, 2.9f, 2.4f, 3.1f, k);
+        else part(p, b, light, 0, 1.1f, 0, 2.9f, 2.4f, 3.1f, VIOLET);
         for (int f = 0; f < 4; f++) {
             p.pushPose();
             px(p, s * .2f, 2.3f, -1.1f + f * .73f);
             p.mulPose(Axis.XP.rotation(0));
             p.mulPose(Axis.ZP.rotation(s * (curl * 1.3f + .05f)));
-            part(p, b, light, 0, .75f, 0, .75f, 1.5f, .62f, VIOLET);
+            if (glow) glowPart(p, b, 0, .75f, 0, .75f, 1.5f, .62f, k); else part(p, b, light, 0, .75f, 0, .75f, 1.5f, .62f, VIOLET);
             px(p, 0, 1.45f, 0);
             p.mulPose(Axis.ZP.rotation(s * curl * 1.2f));
-            part(p, b, light, 0, .6f, 0, .7f, 1.2f, .58f, VIOLET_DARK);
+            if (glow) glowPart(p, b, 0, .6f, 0, .7f, 1.2f, .58f, k); else part(p, b, light, 0, .6f, 0, .7f, 1.2f, .58f, VIOLET_DARK);
             p.popPose();
         }
         p.pushPose();
         px(p, s * -.9f, 1.4f, -1.5f);
         p.mulPose(Axis.XP.rotation(-.5f - .6f * curl));
-        part(p, b, light, 0, .7f, 0, .8f, 1.6f, .8f, VIOLET);
+        if (glow) glowPart(p, b, 0, .7f, 0, .8f, 1.6f, .8f, k); else part(p, b, light, 0, .7f, 0, .8f, 1.6f, .8f, VIOLET);
         p.popPose();
     }
     /** The rounded crimson helmet, its crest and cheek guards, violet trim round the face; inside it an old man's face. */
@@ -203,15 +248,27 @@ public final class MagnetoBody {
         // The face (inside the helmet's opening).
         part(p, b, light, 0, -3.6f, -.2f, 7.4f, 7.2f, 7.4f, SKIN);
         part(p, b, light, 0, -3.5f, -3.95f, .9f, 2.0f, .8f, SKIN);
-        part(p, b, light, 0, -1.25f, -3.92f, 3.6f, .5f, .3f, SKIN_SHADE);
-        part(p, b, light, 0, -.6f, -3.9f, 2.0f, .3f, .3f, new float[]{.42f, .22f, .2f});
         for (int s = -1; s <= 1; s += 2) {
             part(p, b, light, s * 1.6f, -4.4f, -3.92f, 1.3f, .7f, .2f, new float[]{.9f, .9f, .88f});
             part(p, b, light, s * 1.6f, -4.4f, -4.0f, .55f, .6f, .2f, EYE);
-            part(p, b, light, s * 1.7f, -5.35f, -3.95f, 0, 0, s * -.15f, 1.9f, .5f, .3f, BROW);
-            // Lines of age: the deep fold from nose to mouth, the cheek.
-            part(p, b, light, s * 1.25f, -2.2f, -3.92f, 0, 0, s * .35f, .2f, 1.6f, .2f, SKIN_SHADE);
+            // Heavy white brows drawn down toward the nose: the stern look of the reference.
+            part(p, b, light, s * 1.65f, -5.25f, -4.0f, 0, 0, s * -.28f, 2.1f, .7f, .45f, BROW);
+            // Lines of age under the eyes and down the cheeks.
+            part(p, b, light, s * 1.55f, -3.8f, -3.93f, 1.2f, .2f, .2f, SKIN_SHADE);
+            part(p, b, light, s * 1.25f, -2.6f, -3.92f, 0, 0, s * .35f, .2f, 1.0f, .2f, SKIN_SHADE);
         }
+        // The white beard: a full moustache over the mouth, the beard round the jaw and down past the chin, its shading.
+        part(p, b, light, 0, -1.75f, -4.05f, 3.4f, .65f, .45f, BEARD);
+        for (int s = -1; s <= 1; s += 2) {
+            part(p, b, light, s * 1.55f, -1.2f, -4.0f, 0, 0, s * -.35f, 1.0f, 1.1f, .45f, BEARD);
+            part(p, b, light, s * 2.75f, -1.7f, -3.0f, 1.2f, 3.4f, 2.0f, BEARD);
+            part(p, b, light, s * 2.9f, -2.9f, -2.4f, .9f, 1.4f, 2.4f, BEARD_SHADE);
+        }
+        part(p, b, light, 0, -1.05f, -4.0f, 1.6f, .3f, .3f, MOUTH);
+        part(p, b, light, 0, -.15f, -3.85f, 5.0f, 1.6f, .8f, BEARD);
+        part(p, b, light, 0, .9f, -3.55f, 3.6f, 1.2f, 1.2f, BEARD);
+        part(p, b, light, 0, 1.7f, -3.25f, 2.2f, .8f, .9f, BEARD_SHADE);
+        part(p, b, light, 0, .2f, -2.0f, 6.0f, 1.4f, 3.2f, BEARD_SHADE);
         // The dome: a big box, a smaller one over it to round the top, the back down over the neck.
         part(p, b, light, 0, -5.4f, .6f, 8.8f, 6.0f, 8.0f, RED);
         part(p, b, light, 0, -8.6f, .4f, 7.6f, 1.2f, 7.4f, RED);

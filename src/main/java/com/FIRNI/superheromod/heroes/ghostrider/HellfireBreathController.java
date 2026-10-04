@@ -61,6 +61,7 @@ public final class HellfireBreathController {
         length=Math.min(length,Math.max(0,s.age-3)*2.25);
         if(s.age%2==0)send(p,true,s.age,(float)length);
         if(s.age==4 || s.age%16==0)p.level().playSound(null,p.blockPosition(),SoundEvents.FIRECHARGE_USE,SoundSource.PLAYERS,.75f,.65f);
+        if(s.age==4 || s.age%16==0)p.level().playSound(null, p.blockPosition(), ModSounds.GHOST_HELLFIRE.get(), SoundSource.PLAYERS, (.75f) * 1.3f, 1.0f);
         if(s.age%5!=0)return;
         Set<UUID> touching=new HashSet<>();
         for(LivingEntity target:p.level().getEntitiesOfClass(LivingEntity.class,new AABB(origin,origin.add(dir.scale(length))).inflate(HellfireBreathMath.radius(length)),

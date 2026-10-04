@@ -41,11 +41,21 @@ public final class HulkLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
             BANNER_HAIR = {.18f, .14f, .11f}, HULK_HAIR = {.06f, .065f, .07f}, SHOE = {.22f, .15f, .1f},
             SILVER = {.74f, .76f, .8f}, SILVER_DARK = {.4f, .42f, .47f}, GAMMA_LIT = {.55f, 1f, .32f}, GLASSES = {.08f, .08f, .09f},
             TEETH = {.92f, .9f, .8f}, MOUTH = {.16f, .05f, .05f}, EYE = {.95f, .95f, .92f};
+    // The face: Banner's brown eyebrows, lips and eyes; Hulk's near-black brows, white eyes with a gamma tint.
+    static final float[] BROW = {.07f, .085f, .06f}, LIP = {.72f, .48f, .42f}, IRIS = {.35f, .22f, .12f},
+            EYE_HULK = {.88f, .97f, .82f}, PUPIL = {.03f, .09f, .03f}, TONGUE = {.42f, .14f, .14f};
+    /** The head's colours of this frame are mixed into these, so drawing the face allocates nothing. */
+    private static final float[] C_DEEP = new float[3], C_HAIR = new float[3], C_BROW = new float[3], C_LIP = new float[3],
+            C_WHITE = new float[3], C_IRIS = new float[3];
 
     public HulkLayer(RenderLayerParent<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> parent) { super(parent); }
 
     private static float l(float a, float b, float k) { return a + (b - a) * k; }
     private static float[] mix(float[] a, float[] b, float k) { return new float[]{l(a[0], b[0], k), l(a[1], b[1], k), l(a[2], b[2], k)}; }
+    private static float[] mix(float[] out, float[] a, float[] b, float k) {
+        out[0] = l(a[0], b[0], k); out[1] = l(a[1], b[1], k); out[2] = l(a[2], b[2], k);
+        return out;
+    }
     /** A box in pixels: corner (x, y, z), size (w, h, d). */
     static void box(PoseStack p, MultiBufferSource b, int light, float x, float y, float z, float w, float h, float d, float[] c) {
         if (w <= .01f || h <= .01f || d <= .01f) return;
@@ -58,6 +68,10 @@ public final class HulkLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
     /** A box centred on x (and on z), standing from y down by h. */
     static void centred(PoseStack p, MultiBufferSource b, int light, float x, float y, float z, float w, float h, float d, float[] c) {
         box(p, b, light, x - w / 2, y, z - d / 2, w, h, d, c);
+    }
+    /** A slab on the face: centred on x, from y down by h, standing `out` in front of the face plane z. */
+    private static void onFace(PoseStack p, MultiBufferSource b, int light, float x, float y, float face, float w, float h, float out, float[] c) {
+        box(p, b, light, x - w / 2, y, face - out, w, h, out, c);
     }
     private static void px(PoseStack p, double x, double y, double z) { p.translate(x / 16, y / 16, z / 16); }
     private static void rot(PoseStack p, float x, float y, float z) { p.mulPose(new Quaternionf().rotationZYX(z, y, x)); }
@@ -127,19 +141,19 @@ public final class HulkLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
             p.popPose();
         }
 
-        // ---- head: sunk between Hulk's shoulders, it keeps looking where the player looks.
+        // ---- head: set between Hulk's traps, it keeps looking where the player looks.
         p.pushPose();
-        // Hulk's head sits low and forward between the traps.
-        px(p, 0, l(0, 2.2f, k), l(0, -2f, k));
+        // Hulk's head sits low between the traps, the chin just on the chest (not pushed forward like a troll's).
+        px(p, 0, l(0, .6f, k), l(0, -1.4f, k));
         float headYaw = Mth.clamp(Mth.wrapDegrees((model.head.yRot - pose.torsoYaw + pose.headYaw) * Mth.RAD_TO_DEG), -75, 75) * Mth.DEG_TO_RAD;
         // His thick neck: the head turns about its own middle (not the neck's base, which buried it in his back
         // when he looked up) and only so far up or down.
         float headPitch = Mth.clamp(model.head.xRot + pose.headPitch - pose.torsoPitch * .6f - pose.bodyPitch * .8f, l(-1.4f, -.65f, k), l(1.4f, .7f, k));
-        float pivot = l(0, -4.2f, k);
+        float pivot = l(0, -4.6f, k);
         px(p, 0, pivot, 0);
         p.mulPose(Axis.YP.rotation(headYaw)); p.mulPose(Axis.XP.rotation(headPitch));
         px(p, 0, -pivot, 0);
-        head(p, b, light, k, skin, shade, pose);
+        head(p, b, light, k, skin, shade, light2, pose);
         p.popPose();
 
         // Gamma: a green glow coming off him while he is charged or raging.
@@ -323,61 +337,141 @@ public final class HulkLayer extends RenderLayer<AbstractClientPlayer, PlayerMod
         }
     }
 
-    private void head(PoseStack p, MultiBufferSource b, int light, float k, float[] skin, float[] shade, HulkMotion.Pose pose) {
-        float s = l(8, 8.2f, k);
-        float[] deep = mix(shade, GREEN_DEEP, k);
-        centred(p, b, light, 0, -s, 0, s, s, s, skin);
-        // Hulk's face: a heavy brow ridge in a frown, high cheekbones, broad nose, a jaw wider than the skull.
-        if (k > .05f) {
-            centred(p, b, light, 0, -s - .2f * k, 0, s - .6f, 1, s - .6f, skin);                                    // crown
-            for (int side = -1; side <= 1; side += 2) {
-                p.pushPose(); px(p, side * s * .22f, -s * .64f, -s / 2 - .55f * k);
-                p.mulPose(Axis.ZP.rotation(side * -.22f * k));
-                centred(p, b, light, 0, 0, 0, s * .5f, 1.3f * k, 1.3f * k, shade);                                  // brow, angled into a scowl
-                p.popPose();
-                centred(p, b, light, side * s * .3f, -s * .36f, -s / 2 - .3f * k, s * .25f, 1.2f * k, .8f * k, skin);   // cheekbone
-            }
-            centred(p, b, light, 0, -s * .5f, -s / 2 - .65f * k, 2.4f, 2.4f * k, 1.2f * k, shade);                    // nose
-            centred(p, b, light, 0, -2.4f, -s / 2 - .35f * k, s + .9f * k, 2.6f * k, 1.4f * k, skin);                 // jaw
-            centred(p, b, light, 0, -.6f, -s * .1f, s + .9f * k, 1.4f * k, s * .9f, deep);                           // under the jaw
+    /**
+     * The head: one square block that turns from Banner's into Hulk's. Hulk's face is the classic blocky
+     * Hulk: short black hair flat on top with a clean hairline and short sides, a strong flat brow with dark
+     * eyebrows angled down to the nose in a frown, deep-set narrow eyes, a broad short nose, a wide square
+     * jaw and a grimace of clenched teeth. The jaw is its own block hinged under the ears, so the roar
+     * opens it. Head space: y from -s (crown) to 0 (chin), the face is the -z side.
+     */
+    private void head(PoseStack p, MultiBufferSource b, int light, float k, float[] skin, float[] shade, float[] light2, HulkMotion.Pose pose) {
+        float s = l(8, 9.2f, k), h = s / 2, f = -h;
+        float tint = Mth.clamp((k - .05f) / .6f, 0, 1);
+        float grim = Mth.clamp((k - .25f) / .45f, 0, 1);                    // how far the lips draw back off the teeth
+        float[] deep = mix(C_DEEP, shade, GREEN_DEEP, k), lip = mix(C_LIP, LIP, GREEN_DEEP, tint);
+        float ey = -s * l(.52f, .55f, k), eh = l(1, .8f, k);               // top of the eyes, their height
+        float ex = s * l(.23f, .232f, k), ew = l(2, 2.2f, k);             // eye centre off the middle, eye width
+        float ym = -s * l(.27f, .255f, k);                                  // the mouth line: skull above, jaw below
+        float zh = s * .15f;                                                // the jaw's hinge, under the ears
+        float tw = s * l(.1625f, .25f, k), mw = tw + .45f;                  // half the width of the teeth, of the open mouth
+        float lipTop = ym - l(.3f, .95f, k), open = Mth.clamp(pose.mouth, 0, 1);
+
+        // Skull down to the mouth line, and its back down to the neck behind the jaw's hinge.
+        centred(p, b, light, 0, -s, 0, s, s + ym, s, skin);
+        box(p, b, light, -h, ym, zh, s, -ym, h - zh, skin);
+        // Ears: small, at the sides, level with the eyes and nose.
+        float earW = l(.45f, .5f, k);
+        for (int side = -1; side <= 1; side += 2) {
+            centred(p, b, light, side * (h + earW / 2), ey + .1f, zh - .1f, earW, l(1.8f, 1.9f, k), 1.2f, skin);
+            centred(p, b, light, side * (h + earW + .01f), ey + .55f, zh - .1f, .06f, 1, .55f, shade);    // the hollow of the ear
         }
-        // Eyes: Banner's calm brown; Hulk's narrowed and burning green.
+
+        // Brow: a strong flat ridge right across, the dark eyebrows on it angled down to the nose in a frown,
+        // two creases between them.
+        float bh = l(.7f, 1.15f, k), by = ey - bh, ridge = .6f * k;
+        float[] brow = mix(C_BROW, BANNER_HAIR, BROW, k);
+        onFace(p, b, light, 0, by, f, s - .3f, bh, ridge, skin);
+        onFace(p, b, light, 0, by - .3f * k, f, s - .6f, .3f * k, ridge * .6f, light2);       // the forehead rolling into it
+        for (int side = -1; side <= 1; side += 2) {
+            float len = l(2.2f, 3.3f, k), th = l(.4f, .85f, k);
+            p.pushPose(); px(p, side * l(1.84f, 1.95f, k), by + bh * .4f * k, f - ridge);
+            p.mulPose(Axis.ZP.rotation(side * -.32f * k));
+            box(p, b, light, -len / 2, -th / 2, -.12f, len, th, .3f, brow);
+            p.popPose();
+            onFace(p, b, light, side * .28f, by - .3f, f, .16f, 1.1f * k, ridge + .05f, deep);         // frown crease
+        }
+
+        // Eyes: Banner's calm brown; Hulk's set deep under the brow, narrowed, white with a burning green iris.
         boolean lit = k > .5f || pose.gamma > .4f;
         int eyeLight = lit ? FULL : light;
-        float[] white = mix(EYE, new float[]{.7f, 1f, .55f}, k), iris = mix(new float[]{.35f, .22f, .12f}, GAMMA_LIT, Math.max(k, pose.gamma));
+        float[] white = mix(C_WHITE, EYE, EYE_HULK, k), iris = mix(C_IRIS, IRIS, GAMMA_LIT, Math.max(k, pose.gamma));
         for (int side = -1; side <= 1; side += 2) {
-            float ex = side * s * .23f, ey = -s * .52f + .5f * k;
-            box(p, b, eyeLight, ex - 1, ey, -s / 2 - .15f - .3f * k, 2, l(1, .6f, k), .2f, white);
-            box(p, b, eyeLight, ex - .45f, ey, -s / 2 - .2f - .3f * k, .9f, l(1, .6f, k), .2f, iris);
+            float x = side * ex, ix = x - side * .1f * k;
+            onFace(p, b, light, x, ey, f, ew + .5f * k, eh + .4f * k, .03f * k, deep);                   // the socket's shadow
+            onFace(p, b, eyeLight, x, ey, f, ew, eh, .07f, white);
+            onFace(p, b, eyeLight, ix, ey, f, l(.9f, .85f, k), eh, .1f, iris);
+            if (k > .3f) onFace(p, b, light, ix, ey + eh * .25f, f, .36f, eh * .5f, .15f, PUPIL);
         }
-        // Mouth: a line on Banner; a grimace of bared teeth on Hulk; wide open in a roar.
-        float open = pose.mouth;
-        float mz = -s / 2 - .2f - .9f * k;
-        box(p, b, light, -s * .3f, -2.8f, mz, s * .6f, .5f + 2.4f * open, .3f, MOUTH);
-        if (k > .3f) {
-            box(p, b, light, -s * .28f, -2.9f, mz - .1f, s * .56f, .45f, .3f, TEETH);
-            box(p, b, light, -s * .28f, -2.75f + 2.1f * open, mz - .1f, s * .56f, .4f, .3f, TEETH);
+
+        // Nose: broad and short, a narrow bridge down from the brow, nostrils underneath.
+        float noseBot = lipTop - l(.25f, .03f, k), nh = l(.95f, .8f, k), nw = l(1.5f, 2.8f, k), nout = l(.45f, .9f, k);
+        onFace(p, b, light, 0, ey - .1f, f, l(.8f, 1.1f, k), noseBot - nh - ey + .4f, l(.25f, .5f, k), skin);   // bridge
+        onFace(p, b, light, 0, noseBot - nh, f, nw, nh, nout, skin);
+        onFace(p, b, light, 0, noseBot - nh + .1f, f, nw * .45f, nh * .5f, nout + .04f, light2);             // the tip catching the light
+        for (int side = -1; side <= 1; side += 2) {
+            onFace(p, b, light, side * (nw / 2 + .2f), noseBot - nh * .75f, f, .45f, nh * .75f, nout * .55f, shade);   // wing
+            if (k > .2f) onFace(p, b, light, side * nw * .22f, noseBot - .26f, f, nw * .2f, .26f, nout + .03f, deep);   // nostril
         }
+
+        // Cheekbones over a shadowed hollow, and the snarl's folds from the nose down to the mouth corners.
+        if (k > .05f) for (int side = -1; side <= 1; side += 2) {
+            onFace(p, b, light, side * (ex + .45f), ey + eh + .15f, f, 2.1f, .7f, .32f * k, light2);
+            onFace(p, b, light, side * (ex + .75f), ey + eh + .85f, f, 1.6f, 1.1f, .05f * k, deep);
+            p.pushPose(); px(p, side * (nw / 2 + .35f), noseBot - .2f, f);
+            p.mulPose(Axis.ZP.rotation(-side * .5f));
+            box(p, b, light, -.1f, 0, -.08f, .2f, 1.3f * k, .1f, deep);
+            p.popPose();
+        }
+
+        // Mouth, upper half: the lip drawn back off clenched teeth, dark at the corners.
+        float teethOut = l(.08f, .14f, k), lipOut = l(.12f, .32f, k), dark = l(.25f, .7f, k);
+        onFace(p, b, light, 0, ym - dark, f, 2 * tw + .3f, dark, .04f, MOUTH);
+        if (k > .25f) {
+            onFace(p, b, light, 0, ym - .62f, f, 2 * tw, .58f, teethOut, TEETH);
+            for (int i = -2; i <= 2; i++) onFace(p, b, light, i * tw * .4f, ym - .62f, f, .1f, .58f, teethOut + .04f, MOUTH);
+        }
+        onFace(p, b, light, 0, lipTop, f, 2 * tw + .5f, ym - lipTop - .62f * grim, lipOut, lip);
+        // Seen only when the jaw drops (inside the closed jaw until then): the dark of the throat, and the
+        // cheeks either side of it so the mouth opens no wider than the lips.
+        if (open > .01f) {
+            box(p, b, light, -mw, ym + .02f, f + .1f, 2 * mw, -ym - .35f, zh - f - .3f, MOUTH);
+            for (int side = -1; side <= 1; side += 2)
+                box(p, b, light, side < 0 ? -h + .02f : mw, ym - .01f, f + .02f, h - .02f - mw, -ym - .34f, zh - .8f - f, skin);
+        }
+
+        // The jaw, hinged under the ears: a touch wider than the skull for the square jaw line; the lower teeth,
+        // the lip and the square chin drop open with the roar.
+        p.pushPose();
+        px(p, 0, ym, zh); p.mulPose(Axis.XP.rotation(open * l(.32f, .42f, k))); px(p, 0, -ym, -zh);
+        float jw = s + .5f * k;
+        box(p, b, light, -jw / 2, ym, f, jw, -ym, zh - f, skin);
+        if (open > .01f) {
+            box(p, b, light, -mw, ym - .04f, f + .15f, 2 * mw, .04f, zh - f - .5f, MOUTH);              // the mouth's floor
+            box(p, b, light, -tw * .75f, ym - .3f, f + .5f, tw * 1.5f, .3f, 2.2f, TONGUE);             // tongue on it
+        }
+        onFace(p, b, light, 0, ym, f, 2 * tw + .3f, dark - .05f, .04f, MOUTH);
+        if (k > .25f) {
+            onFace(p, b, light, 0, ym + .04f, f, 2 * tw - .5f, .52f, teethOut, TEETH);
+            for (int i = -1; i <= 1; i++) onFace(p, b, light, i * tw * .45f, ym + .04f, f, .1f, .52f, teethOut + .04f, MOUTH);
+        }
+        float lipBot = ym + l(.3f, .9f, k);
+        onFace(p, b, light, 0, ym + .56f * grim, f, 2 * tw + .4f, lipBot - ym - .56f * grim, lipOut, lip);
+        onFace(p, b, light, 0, lipBot + .15f, f, l(2.6f, 3.8f, k), -lipBot - .3f, .3f * k, skin);         // chin
+        p.popPose();
+
         // Banner's glasses, gone the moment he starts to change.
         if (k < .15f) {
             for (int side = -1; side <= 1; side += 2) {
-                float ex = side * s * .23f, ey = -s * .52f - .3f;
-                box(p, b, light, ex - 1.3f, ey, -s / 2 - .35f, 2.6f, .35f, .2f, GLASSES);
-                box(p, b, light, ex - 1.3f, ey + 1.5f, -s / 2 - .35f, 2.6f, .35f, .2f, GLASSES);
-                box(p, b, light, side > 0 ? ex - 1.3f : ex + 1f, ey, -s / 2 - .35f, .3f, 1.8f, .2f, GLASSES);
+                float x = side * ex, y = ey - .3f;
+                box(p, b, light, x - 1.3f, y, f - .35f, 2.6f, .35f, .2f, GLASSES);
+                box(p, b, light, x - 1.3f, y + 1.5f, f - .35f, 2.6f, .35f, .2f, GLASSES);
+                box(p, b, light, side > 0 ? x - 1.3f : x + 1f, y, f - .35f, .3f, 1.8f, .2f, GLASSES);
             }
-            box(p, b, light, -.6f, -s * .52f, -s / 2 - .35f, 1.2f, .3f, .2f, GLASSES);
+            box(p, b, light, -.6f, ey, f - .35f, 1.2f, .3f, .2f, GLASSES);
         }
-        // Hair: Banner's neat brown; Hulk's black, short at the sides, swept up and back on top.
-        float[] hair = mix(BANNER_HAIR, HULK_HAIR, k);
-        centred(p, b, light, 0, -s - .6f - .4f * k, .3f * k, s + .4f, 1.6f + .4f * k, s + .4f - .4f * k, hair);
-        centred(p, b, light, 0, -s + .5f, s / 2 - .2f, s + .4f, 2.8f - .8f * k, 1.1f, hair);
-        for (int side = -1; side <= 1; side += 2) centred(p, b, light, side * (s / 2 + .1f), -s + .3f, .6f, .5f, 2.4f - .6f * k, s * .7f, hair);
-        if (k > .2f) for (int i = 0; i < 5; i++) {
-            p.pushPose(); px(p, (i - 2) * s * .18f, -s - 1.2f * k, -s / 2 + 1.4f + (i % 2) * .6f);
-            p.mulPose(Axis.ZP.rotation((i - 2) * .18f)); p.mulPose(Axis.XP.rotation(.55f));
-            box(p, b, light, -.8f, -2.4f * k, -.8f, 1.6f, 2.4f * k, 2.2f, hair);
-            p.popPose();
+
+        // Hair: Banner's neat brown; Hulk's black, flat on top, cut straight across the forehead, short at the
+        // sides and the back, the temples bare.
+        float[] hair = mix(C_HAIR, BANNER_HAIR, HULK_HAIR, k);
+        float top = l(1.1f, 1f, k), fringe = l(1.1f, 1.6f, k), temple = l(1f, 1.4f, k), sides = ey + .1f + s, o = .22f;
+        box(p, b, light, -h - o, -s - top, f - .35f, s + 2 * o, top + .3f, s + .35f + o, hair);
+        box(p, b, light, -h - o + .3f, -s - top - .3f * k, f - .35f, s + 2 * o - .6f, .3f * k, s * .45f, hair);   // brushed up at the front
+        box(p, b, light, -h - o, -s, f - .35f, s + 2 * o, fringe, .45f, hair);
+        box(p, b, light, -h - o, -s, h, s + 2 * o, l(3.2f, 4.8f, k), o, hair);
+        for (int side = -1; side <= 1; side += 2) {
+            float x = side < 0 ? -h - o : h;
+            box(p, b, light, x, -s, f + temple, o, sides, h - f - temple + o, hair);
+            box(p, b, light, x, -s + sides - .1f, zh - 1.5f, o, l(.5f, .9f, k), .8f, hair);              // sideburn
         }
     }
 

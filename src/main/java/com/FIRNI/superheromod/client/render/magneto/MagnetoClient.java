@@ -190,7 +190,7 @@ public final class MagnetoClient {
         float time = mc.level.getGameTime() + e.getPartialTick();
         HudStyle.caption(g, font, "MAGNETO", 10, h - 46, crimson, -1);
         int row = h - 124;
-        hint(g, font, mc.options.keyShift, s.flying() ? "Uçuş: açık (Boşluk yüksel, CTRL alçal)" : "Uç (ya da Boşluk x2)", 0, 10, row - 36);
+        hint(g, font, mc.options.keyShift, s.flying() ? "Uçuş: açık (Boşluk yüksel, CTRL alçal)" : "Uç (ya da Boşluk x2)", 0, s.flying(), 10, row - 36);
         String lmb = s.fistUp() ? "Yumruk (" + s.punchesLeft + " kaldı)" : s.holding() ? "Fırlat" : "Metal Kıymık";
         hint(g, font, mc.options.keyAttack, lmb, s.fistUp() || s.holding() ? 0 : s.cooldowns[CD_SHARD], 10, row - 24);
         int x = hint(g, font, AbilityKeyHandler.KEY_ULTIMATE, "Demir Yağmuru", 0, 10, row - 12);
@@ -202,9 +202,9 @@ public final class MagnetoClient {
             g.fill(px, py, px + 7, py + 4, full ? crimson : 0x40FFFFFF);
             if (i == s.charges) g.fill(px, py, px + Math.round(7 * s.recharge), py + 4, HudStyle.alpha(crimson, .55f));
         }
-        hint(g, font, mc.options.keyInventory, s.holding() ? "Bırak" : "Hurda Telekinezisi", s.holding() ? 0 : s.cooldowns[CD_GRAB], 10, row);
-        hint(g, font, AbilityKeyHandler.KEY_RAPID_FIRE, "Dev Demir Yumruk", s.fistUp() ? 0 : s.cooldowns[CD_FIST], 10, row + 12);
-        hint(g, font, AbilityKeyHandler.KEY_SKILL_F, s.shield() ? "Kalkanı Patlat" : "Manyetik Demir Kalkan", s.shield() ? 0 : s.cooldowns[CD_SHIELD], 10, row + 24);
+        hint(g, font, mc.options.keyInventory, s.holding() ? "Savur (fareyle) · Sol: İleri · Sağ: Yukarı" : "Hurda Telekinezisi", s.holding() ? 0 : s.cooldowns[CD_GRAB], s.holding(), 10, row);
+        hint(g, font, AbilityKeyHandler.KEY_RAPID_FIRE, s.shield() ? "Kalkanı Patlat" : s.fistUp() ? "Yumruğu Dağıt" : "Dev Demir Yumruk", s.fistUp() || s.shield() ? 0 : s.cooldowns[CD_FIST], s.fistUp(), 10, row + 12);
+        hint(g, font, AbilityKeyHandler.KEY_SKILL_F, s.shield() ? "Kalkanı Patlat" : "Manyetik Demir Kalkan", s.shield() ? 0 : s.cooldowns[CD_SHIELD], s.shield(), 10, row + 24);
         hint(g, font, AbilityKeyHandler.KEY_XRAY, "Manyetik İnfaz", s.cooldowns[CD_ULT], 10, row + 36);
         float cx = w / 2f, cy = h / 2f;
         // Holding someone: a crimson ring round the crosshair running out.
@@ -242,9 +242,11 @@ public final class MagnetoClient {
         HudStyle.arc(g, cx, cy, r - 1, r + width + 1, end - 7, end, 0xFFFFFFFF);
     }
     private static int hint(GuiGraphics g, Font font, KeyMapping key, String what, int cooldown, int x, int y) {
+        return hint(g, font, key, what, cooldown, false, x, y);
+    }
+    /** One row of the skill list in his colour (HudStyle.skill); active = running right now. */
+    private static int hint(GuiGraphics g, Font font, KeyMapping key, String what, int cooldown, boolean active, int x, int y) {
         String k = key.getTranslatedKeyMessage().getString().toUpperCase(Locale.ROOT);
-        int width = HudStyle.hint(g, font, k, what, x, y);
-        if (cooldown > 0) HudStyle.caption(g, font, String.format(Locale.ROOT, "%.1f", cooldown / 20f), x + width + 6, y + 1, 0xFFFF9A5A, -1);
-        return width;
+        return HudStyle.skill(g, font, k, what, cooldown, active, x, y, 0xFFC04050);
     }
 }

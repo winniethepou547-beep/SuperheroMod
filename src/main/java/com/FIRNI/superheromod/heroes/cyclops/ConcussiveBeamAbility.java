@@ -11,6 +11,7 @@ import com.FIRNI.superheromod.network.packet.BeamSyncPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
@@ -124,6 +125,7 @@ public class ConcussiveBeamAbility extends Ability {
         if (ticksActive % sndInterval == 0) {
             level.playSound(null, player.blockPosition(),
                     SoundEvents.BLAZE_SHOOT, SoundSource.PLAYERS, 0.6f, 1.8f);
+            level.playSound(null, player.blockPosition(), ModSounds.CYCLOPS_OPTIC_BEAM.get(), SoundSource.PLAYERS, (0.6f) * 1.2f, 1.0f);
         }
 
         if (!player.onGround()) {

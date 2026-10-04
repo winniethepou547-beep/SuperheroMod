@@ -9,6 +9,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.resources.sounds.AbstractTickableSoundInstance;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
+import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.phys.Vec3;
@@ -78,41 +79,41 @@ final class MagneticExecutionFilm implements Film {
         add(c, 33, SoundEvents.AMETHYST_BLOCK_CHIME, .25f, .5f);
         add(c, 44, SoundEvents.CHAIN_STEP, .4f, .55f);
         // The raise: the orbits race; the metal sings.
-        add(c, ULT_RAISE, SoundEvents.BEACON_ACTIVATE, .6f, .55f);
+        add(c, ULT_RAISE, SoundEvents.BEACON_ACTIVATE, .6f, .55f); add(c, ULT_RAISE, ModSounds.MAGNETO_MAGNETIC_HUM.get(), (.6f) * 1.3f, 0.8f);
         add(c, ULT_RAISE + 10, SoundEvents.WARDEN_SONIC_CHARGE, .35f, .6f);
         add(c, ULT_RAISE + 24, SoundEvents.ELYTRA_FLYING, .4f, 1.4f);
         // The launch: the metal tearing loose and flying; each clamp biting.
-        add(c, ULT_LAUNCH, SoundEvents.TRIDENT_RIPTIDE_3, .9f, .7f);
+        add(c, ULT_LAUNCH, SoundEvents.TRIDENT_RIPTIDE_3, .9f, .7f); add(c, ULT_LAUNCH, ModSounds.MAGNETO_FLING.get(), (.9f) * 1.0f, 0.8f);
         add(c, ULT_LAUNCH + 1, SoundEvents.TRIDENT_THROW, .8f, .6f);
         for (int j = 0; j < MagneticPath.LAUNCHED; j += 3) {
             add(c, MagneticPath.arrival(j), SoundEvents.ANVIL_PLACE, .45f, 1.2f + .05f * (j % 4));
-            add(c, MagneticPath.arrival(j), SoundEvents.CHAIN_PLACE, .7f, .8f);
+            add(c, MagneticPath.arrival(j), SoundEvents.CHAIN_PLACE, .7f, .8f); add(c, MagneticPath.arrival(j), ModSounds.MAGNETO_METAL_SHING.get(), (.7f) * 0.7f, 1.0f);
         }
         add(c, MagneticPath.arrival(0) + 1, SoundEvents.PLAYER_HURT, .8f, .8f);
         // Torn open into the X and lifted: chains drawn tight, the metal groaning.
-        add(c, ULT_PULL + 2, SoundEvents.IRON_GOLEM_REPAIR, .8f, .6f);
+        add(c, ULT_PULL + 2, SoundEvents.IRON_GOLEM_REPAIR, .8f, .6f); add(c, ULT_PULL + 2, ModSounds.MAGNETO_TELEKINESIS_GRAB.get(), (.8f) * 1.2f, 0.9f);
         add(c, ULT_PULL + 10, SoundEvents.CHAIN_FALL, .7f, .6f);
         add(c, ULT_PULL + 22, SoundEvents.GRINDSTONE_USE, .5f, .5f);
         add(c, ULT_PULL + 30, SoundEvents.PLAYER_HURT, .6f, .7f);
         // The X drawn: two strokes of the hands; the pillars howling down out of the storm.
-        add(c, ULT_XCUT + 2, SoundEvents.PLAYER_ATTACK_SWEEP, .8f, .5f);
-        add(c, ULT_XCUT + 9, SoundEvents.PLAYER_ATTACK_SWEEP, .8f, .45f);
+        add(c, ULT_XCUT + 2, SoundEvents.PLAYER_ATTACK_SWEEP, .8f, .5f); add(c, ULT_XCUT + 2, ModSounds.FX_WHOOSH_HEAVY.get(), (.8f) * 1.0f, 0.8f);
+        add(c, ULT_XCUT + 9, SoundEvents.PLAYER_ATTACK_SWEEP, .8f, .45f); add(c, ULT_XCUT + 9, ModSounds.FX_WHOOSH_HEAVY.get(), (.8f) * 1.0f, 0.8f);
         add(c, ULT_XCUT + 3, SoundEvents.ELYTRA_FLYING, .8f, .6f);
-        add(c, ULT_XCUT + 6, SoundEvents.WITHER_SHOOT, .4f, .5f);
+        add(c, ULT_XCUT + 6, SoundEvents.WITHER_SHOOT, .4f, .5f); add(c, ULT_XCUT + 6, ModSounds.MAGNETO_ROD_WHISTLE.get(), (.4f) * 2.0f, 0.6f);
         // The slam: iron into the ground, a crack of lightning, the earth shaking.
-        add(c, ULT_SLAM, SoundEvents.ANVIL_LAND, 1f, .45f);
-        add(c, ULT_SLAM, SoundEvents.GENERIC_EXPLODE, 1f, .6f);
+        add(c, ULT_SLAM, SoundEvents.ANVIL_LAND, 1f, .45f); add(c, ULT_SLAM, ModSounds.MAGNETO_METAL_CLANG_BIG.get(), (1f) * 0.8f, 1.0f);
+        add(c, ULT_SLAM, SoundEvents.GENERIC_EXPLODE, 1f, .6f); add(c, ULT_SLAM, ModSounds.FX_IMPACT_HEAVY.get(), (1f) * 1.0f, 0.9f);
         add(c, ULT_SLAM, SoundEvents.ZOMBIE_ATTACK_IRON_DOOR, 1f, .5f);
         add(c, ULT_SLAM + 1, SoundEvents.WARDEN_SONIC_BOOM, .6f, .5f);
-        add(c, ULT_SLAM + 2, SoundEvents.GENERIC_EXPLODE, .5f, .45f);
-        add(c, ULT_SLAM + 4, SoundEvents.ANVIL_LAND, .4f, .7f);
+        add(c, ULT_SLAM + 2, SoundEvents.GENERIC_EXPLODE, .5f, .45f); add(c, ULT_SLAM + 2, ModSounds.FX_IMPACT_HEAVY.get(), (.5f) * 1.0f, 0.9f);
+        add(c, ULT_SLAM + 4, SoundEvents.ANVIL_LAND, .4f, .7f); add(c, ULT_SLAM + 4, ModSounds.MAGNETO_METAL_CLANG_BIG.get(), (.4f) * 0.8f, 1.0f);
         for (int i = 0; i < 6; i++) add(c, ULT_SLAM + 10 + i * 4, i % 2 == 0 ? SoundEvents.CHAIN_FALL : SoundEvents.ANVIL_LAND, .3f - i * .03f, 1.3f + .1f * i);
         // Pinned onto the X.
         add(c, ULT_PIN + 2, SoundEvents.ELYTRA_FLYING, .4f, 1.6f);
-        add(c, ULT_PIN + 9, SoundEvents.ANVIL_LAND, .9f, .7f);
+        add(c, ULT_PIN + 9, SoundEvents.ANVIL_LAND, .9f, .7f); add(c, ULT_PIN + 9, ModSounds.MAGNETO_METAL_CLANG_BIG.get(), (.9f) * 0.8f, 1.0f);
         add(c, ULT_PIN + 9, SoundEvents.IRON_DOOR_CLOSE, 1f, .5f);
         add(c, ULT_PIN + 10, SoundEvents.PLAYER_HURT, .8f, .6f);
-        add(c, ULT_PIN + 12, SoundEvents.CHAIN_PLACE, .8f, .6f);
+        add(c, ULT_PIN + 12, SoundEvents.CHAIN_PLACE, .8f, .6f); add(c, ULT_PIN + 12, ModSounds.MAGNETO_METAL_SHING.get(), (.8f) * 0.7f, 1.0f);
         // The turn and the walk: the cape, his steps in the water.
         add(c, ULT_TURN + 2, SoundEvents.ARMOR_EQUIP_LEATHER, .5f, .6f);
         float turn = MagneticPath.yaw(ULT_WALK) * 1.6f;
@@ -130,20 +131,20 @@ final class MagneticExecutionFilm implements Film {
         add(c, ULT_FLICK + 2, SoundEvents.PLAYER_ATTACK_WEAK, .7f, .6f);
         // The crush: the pillars wrenched toward each other, bending, screaming, folding into a ball.
         add(c, ULT_CRUSH, SoundEvents.IRON_GOLEM_HURT, .9f, .4f);
-        add(c, ULT_CRUSH + 2, SoundEvents.ANVIL_USE, 1f, .5f);
+        add(c, ULT_CRUSH + 2, SoundEvents.ANVIL_USE, 1f, .5f); add(c, ULT_CRUSH + 2, ModSounds.MAGNETO_METAL_RISE.get(), (1f) * 1.0f, 0.7f);
         add(c, ULT_CRUSH + 4, SoundEvents.GRINDSTONE_USE, 1f, .6f);
         add(c, ULT_CRUSH + 6, SoundEvents.ZOMBIE_ATTACK_IRON_DOOR, 1f, .45f);
-        add(c, ULT_CRUSH + 9, SoundEvents.ANVIL_USE, .9f, .4f);
+        add(c, ULT_CRUSH + 9, SoundEvents.ANVIL_USE, .9f, .4f); add(c, ULT_CRUSH + 9, ModSounds.MAGNETO_METAL_RISE.get(), (.9f) * 1.0f, 0.7f);
         add(c, ULT_CRUSH + 12, SoundEvents.IRON_GOLEM_HURT, .8f, .35f);
         add(c, ULT_CRUSH + 16, SoundEvents.ZOMBIE_ATTACK_IRON_DOOR, .9f, .4f);
-        add(c, ULT_CRUSH + 20, SoundEvents.ANVIL_DESTROY, 1f, .5f);
-        add(c, ULT_BALL, SoundEvents.ANVIL_LAND, 1f, .4f);
-        add(c, ULT_BALL, SoundEvents.GENERIC_EXPLODE, .5f, 1.2f);
+        add(c, ULT_CRUSH + 20, SoundEvents.ANVIL_DESTROY, 1f, .5f); add(c, ULT_CRUSH + 20, ModSounds.MAGNETO_SHIELD_BURST.get(), (1f) * 0.8f, 0.7f);
+        add(c, ULT_BALL, SoundEvents.ANVIL_LAND, 1f, .4f); add(c, ULT_BALL, ModSounds.MAGNETO_METAL_CLANG_BIG.get(), (1f) * 0.8f, 1.0f);
+        add(c, ULT_BALL, SoundEvents.GENERIC_EXPLODE, .5f, 1.2f); add(c, ULT_BALL, ModSounds.FX_IMPACT_HEAVY.get(), (.5f) * 1.0f, 0.9f);
         // Thrown into the storm; far away, it comes down.
-        add(c, ULT_HURL, SoundEvents.TRIDENT_RIPTIDE_2, 1f, .5f);
+        add(c, ULT_HURL, SoundEvents.TRIDENT_RIPTIDE_2, 1f, .5f); add(c, ULT_HURL, ModSounds.MAGNETO_FLING.get(), (1f) * 1.0f, 0.7f);
         add(c, ULT_HURL, SoundEvents.WARDEN_SONIC_BOOM, .4f, .7f);
         add(c, ULT_HURL + 2, SoundEvents.ELYTRA_FLYING, .6f, 1.2f);
-        add(c, ULT_HURL + MagneticPath.HURL_TIME + 6, SoundEvents.GENERIC_EXPLODE, .5f, .45f);
+        add(c, ULT_HURL + MagneticPath.HURL_TIME + 6, SoundEvents.GENERIC_EXPLODE, .5f, .45f); add(c, ULT_HURL + MagneticPath.HURL_TIME + 6, ModSounds.FX_IMPACT_HEAVY.get(), (.5f) * 1.0f, 0.9f);
         return c.toArray(new Cue[0]);
     }
     /** When he has walked d blocks (inverse of MagneticPath.walked; during the turn, spread through it). */

@@ -83,6 +83,8 @@ public class SuperheroMod
         CREATIVE_MODE_TABS.register(modEventBus);
         // Modun kendi entity turleri (kum askerleri vb.)
         com.FIRNI.superheromod.core.entity.ModEntities.register(modEventBus);
+        // Modun kendi sesleri (tools/sounds/synth.py ile uretildi)
+        com.FIRNI.superheromod.core.sound.ModSounds.register(modEventBus);
 
         // Register ourselves for server and other game events we are interested in
         MinecraftForge.EVENT_BUS.register(this);

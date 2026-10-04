@@ -284,17 +284,28 @@ public final class PantherClient {
         e.setCanceled(true);
         e.setSwingHand(false);
     }
-    /** Rooted while the energy gathers, and while a move carries him; slow and quiet in the crouch. */
+    /**
+     * Rooted while the energy gathers, and while a move carries him; slow and quiet in the crouch. SHIFT is his, never the
+     * vanilla sneak: a tap is the pounce, held it is his run (sprinting whenever he moves forward, the pounce's load
+     * not stopping him on the way in).
+     */
     @SubscribeEvent public static void held(MovementInputUpdateEvent e) {
         State s = get(e.getEntity());
-        if (s == null) return;
+        if (s == null || !(e.getEntity() instanceof LocalPlayer player) || !isHero(player)) return;
         int a = action(s);
+        var keys = e.getInput();
+        boolean shift = Minecraft.getInstance().options.keyShift.isDown();
+        keys.shiftKeyDown = false;
+        if (shift && (a == IDLE || a == POUNCE_LOAD || a == DODGE) && keys.forwardImpulse > 0 && !player.isUsingItem()) {
+            player.setSprinting(true);
+            return;
+        }
         if (a == SNEAK) {
             var input = e.getInput();
             input.forwardImpulse *= .3f; input.leftImpulse *= .3f; input.jumping = false;
             return;
         }
-        if (a != POUNCE_LOAD && a != POUNCE && a != POUNCE_FLIP && a != POUNCE_KICK && a != SPIN_LOAD && a != SPIN && a != RELEASE_CHARGE && a != RELEASE
+        if (a != POUNCE && a != POUNCE_FLIP && a != POUNCE_KICK && a != SPIN_LOAD && a != SPIN && a != RELEASE_CHARGE && a != RELEASE
                 && a != DASH && !(a == POUNCE_LAND && clock(s, 0) < LAND_TICKS * .6f)) return;
         var input = e.getInput();
         input.forwardImpulse = 0; input.leftImpulse = 0; input.jumping = false; input.shiftKeyDown = false;
@@ -317,7 +328,7 @@ public final class PantherClient {
         int action = action(s);
         float t = clock(s, 0) + 1;     // where he must be at the start of the next tick
         switch (action) {
-            case POUNCE_LOAD, SPIN_LOAD, RELEASE_CHARGE, RELEASE -> player.setDeltaMovement(player.getDeltaMovement().multiply(0, 1, 0));
+            case SPIN_LOAD, RELEASE_CHARGE, RELEASE -> player.setDeltaMovement(player.getDeltaMovement().multiply(0, 1, 0));
             case POUNCE -> {
                 // His own path, from where he really launched (the server's is the same line, a moment later).
                 boolean own = s.localFor == POUNCE;
@@ -342,7 +353,7 @@ public final class PantherClient {
                 if (t < 2.5f) player.setDeltaMovement(s.dir.x * s.speed * .45, .34, s.dir.z * s.speed * .45);
             }
             case SPIN -> steer(player, PantherPath.spin(s.from, s.dir, s.reach, s.height, Math.min(t, SPIN_TICKS), SPIN_TICKS));
-            case DASH -> steer(player, PantherPath.dash(s.localFor == DASH ? s.localFrom : s.from, s.to, Math.min(t, DASH_TICKS), DASH_TICKS));
+            case DASH -> { int ticks = dashTicks(s.reach); steer(player, PantherPath.dash(s.localFor == DASH ? s.localFrom : s.from, s.to, Math.min(t, ticks), ticks)); }
             case CROSS -> { if (t < 3) player.setDeltaMovement(player.getDeltaMovement().multiply(.4, 1, .4)); }
             case FRENZY -> {
                 // The flurry drives forward (as Wolverine's does); with someone in front, the feet keep the range:
@@ -471,8 +482,8 @@ public final class PantherClient {
         int row = h - 124;
         hint(g, font, mc.options.keyAttack, "Basılı: Vahşi Pençe", s.cooldowns[CD_FRENZY], 10, row - 48);
         hint(g, font, mc.options.keyUse, "Pençe Atılışı (işaretli hedefe)", s.cooldowns[CD_DASH], 10, row - 36);
-        hint(g, font, mc.options.keyShift, "Panter Atılışı", s.cooldowns[CD_POUNCE], 10, row - 24);
-        hint(g, font, mc.options.keySprint, "Basılı: Eğil / Kamuflaj", s.camoLeft > 0 ? 0 : s.cooldowns[CD_CAMO], 10, row - 12);
+        hint(g, font, mc.options.keyShift, "Dokun: Atılış · Basılı: Koş", s.cooldowns[CD_POUNCE], 10, row - 24);
+        hint(g, font, mc.options.keySprint, "Basılı: Eğil / Kamuflaj", s.camoLeft > 0 ? 0 : s.cooldowns[CD_CAMO], s.camoLeft > 0, 10, row - 12);
         hint(g, font, mc.options.keyJump, "Havada: Çift Zıplama", 0, 10, row);
         hint(g, font, AbilityKeyHandler.KEY_ULTIMATE, "Dönen Üçlü Tekme", s.cooldowns[CD_SPIN], 10, row + 12);
         hint(g, font, mc.options.keyInventory, "Vibranyum Patlaması", s.cooldowns[CD_RELEASE], 10, row + 24);
@@ -544,8 +555,11 @@ public final class PantherClient {
         HudStyle.arc(g, cx, cy, r - 1, r + width + 1, end - 7, end, 0xFFFFFFFF);
     }
     private static void hint(net.minecraft.client.gui.GuiGraphics g, net.minecraft.client.gui.Font font, KeyMapping key, String what, int cooldown, int x, int y) {
+        hint(g, font, key, what, cooldown, false, x, y);
+    }
+    /** One row of the skill list in his colour (HudStyle.skill); active = running right now. */
+    private static void hint(net.minecraft.client.gui.GuiGraphics g, net.minecraft.client.gui.Font font, KeyMapping key, String what, int cooldown, boolean active, int x, int y) {
         String k = key.getTranslatedKeyMessage().getString().toUpperCase(Locale.ROOT);
-        int width = HudStyle.hint(g, font, k, what, x, y);
-        if (cooldown > 0) HudStyle.caption(g, font, String.format(Locale.ROOT, "%.1f", cooldown / 20f), x + width + 6, y + 1, 0xFFFF9A5A, -1);
+        HudStyle.skill(g, font, k, what, cooldown, active, x, y, 0xFFA77BFF);
     }
 }
