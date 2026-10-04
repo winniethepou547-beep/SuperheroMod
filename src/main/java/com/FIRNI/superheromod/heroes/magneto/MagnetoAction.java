@@ -23,8 +23,15 @@ public final class MagnetoAction {
     /** Ticks to go from standing to full hover (the lift) and the slow bob of the hover (ticks per cycle). */
     public static final int LIFT_TICKS = 12, BOB_CYCLE = 64;
 
-    // ------------------------------------------------------------------ left click: a shard of metal
-    public static final int SHARD_TICKS = 7, SHARD_AT = 2;
+    // ------------------------------------------------------------------ left click: the iron spike
+    /**
+     * Small bits of metal fly in and build a spike over his open right hand (SPIKE_FORM ticks), then he flicks it at
+     * what he aims at (SHARD_AT); the action ends SHARD_TICKS after the click. SPIKE_HALF = half its length.
+     */
+    public static final int SPIKE_FORM = 14, SHARD_AT = SPIKE_FORM, SHARD_TICKS = SPIKE_FORM + 7;
+    public static final float SPIKE_HALF = .8f;
+    /** Where the spike forms, from his eyes: forward along the look, out to the right, down. */
+    public static final double SPIKE_FWD = .95, SPIKE_SIDE = .42, SPIKE_DOWN = .12;
 
     // ------------------------------------------------------------------ Q: Iron Barrage
     /** The cast (an arm raised, then driven down: the rods come), when the first rod appears, the gap between rods. */
@@ -73,7 +80,9 @@ public final class MagnetoAction {
     // ------------------------------------------------------------------ effects
     public static final int FX_SHARD = 0, FX_SHARD_HIT = 1, FX_ROD = 2, FX_ROD_HIT = 3, FX_GRAB = 4, FX_SLAM = 5, FX_RELEASE = 6,
             FX_FIST_UP = 7, FX_PUNCH = 8, FX_FIST_BREAK = 9, FX_COLUMNS = 10, FX_BLOCK = 11, FX_BURST = 12, FX_PIECE = 13, FX_PIECE_HIT = 14,
-            FX_LIFT = 15, FX_LAND = 16;
+            FX_LIFT = 15, FX_LAND = 16,
+            /** The spike gathering over his hand; stuck in a body (and its resync); a tug at it; pulled out. */
+            FX_SPIKE_FORM = 17, FX_IMPALE = 18, FX_IMPALE_PULL = 19, FX_IMPALE_OUT = 20;
     /** What his own client tells the server (MagnetoInputPacket). */
     public static final int INPUT_FLIGHT = 0;
 

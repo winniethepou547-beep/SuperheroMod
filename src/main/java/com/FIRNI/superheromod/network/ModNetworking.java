@@ -46,7 +46,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
  */
 public final class ModNetworking {
 
-    private static final String PROTOCOL_VERSION = "22";
+    private static final String PROTOCOL_VERSION = "23";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(SuperheroMod.MODID, "main"),
@@ -246,6 +246,16 @@ public final class ModNetworking {
                 com.FIRNI.superheromod.network.packet.MagnetoInputPacket::encode,
                 com.FIRNI.superheromod.network.packet.MagnetoInputPacket::decode,
                 com.FIRNI.superheromod.network.packet.MagnetoInputPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.SpikeStuckPacket.class,
+                com.FIRNI.superheromod.network.packet.SpikeStuckPacket::encode,
+                com.FIRNI.superheromod.network.packet.SpikeStuckPacket::decode,
+                com.FIRNI.superheromod.network.packet.SpikeStuckPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.SpikePullPacket.class,
+                com.FIRNI.superheromod.network.packet.SpikePullPacket::encode,
+                com.FIRNI.superheromod.network.packet.SpikePullPacket::decode,
+                com.FIRNI.superheromod.network.packet.SpikePullPacket::handle,
                 java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
         CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.ChampionLockPacket.class,
                 com.FIRNI.superheromod.network.packet.ChampionLockPacket::encode,

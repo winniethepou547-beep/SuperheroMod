@@ -49,7 +49,7 @@ public final class MagnetoFx {
     static final float FIST_SCALE = 1.45f;
     private MagnetoFx() {}
 
-    static final int STEEL = 0xd4d8e2, SPARK = 0xffc777, DUST = 0x8a7f72, FIELD = 0xb8c6ff, FLASH = 0xfff2dc;
+    static final int VIOLET = 0xc9a2ff, STEEL = 0xd4d8e2, SPARK = 0xffc777, DUST = 0x8a7f72, FIELD = 0xb8c6ff, FLASH = 0xfff2dc;
     private static final float G_DUST = .03f;
 
     /** A rod, shard or piece of the burst: flying (simulated here as the server does), then stuck where it hit. */
@@ -82,6 +82,17 @@ public final class MagnetoFx {
     private static final int M_GLOW = 0, M_DUST = 1, M_SPARK = 2;
     private record Ring(Vec3 at, float radius, float start, float life, int rgb, boolean light) {}
 
+    /** A spike building over a Magneto's hand (it flies under the same id). */
+    private record Form(int magneto, int id, float start) {}
+    /** A spike stuck in a body: the line it came in on (against their body's turn), how far it has been pulled out, the last tug. */
+    private static final class Impaled {
+        final int entity, id; final float yawRel, pitch, height, start; float progress, shown, prevShown, tug = -100;
+        Impaled(int entity, int id, float yawRel, float pitch, float height, float start) {
+            this.entity = entity; this.id = id; this.yawRel = yawRel; this.pitch = pitch; this.height = height; this.start = start;
+        }
+    }
+    private static final Map<Integer, Form> FORMS = new HashMap<>();
+    private static final Map<Integer, Impaled> IMPALED = new HashMap<>();
     private static final Map<Integer, Bit> BITS = new HashMap<>();
     private static final Map<Integer, Grab> GRABS = new HashMap<>();
     private static final List<Fall> FALLS = new ArrayList<>();
@@ -102,11 +113,63 @@ public final class MagnetoFx {
         float t = now();
         Vec3 at = p.pos(), dir = p.dir();
         switch (p.kind()) {
-            case FX_SHARD -> BITS.put(p.id(), new Bit(p.id(), SHARD_BIT, at, dir, .015f, t));
+            case FX_SHARD -> {
+                FORMS.remove(p.id());
+                BITS.put(p.id(), new Bit(p.id(), SHARD_BIT, at, dir, .01f, t));
+                MOTES.add(new Mote(at, Vec3.ZERO, .6f, 0, VIOLET, 4, t, M_GLOW, .7f));
+                for (int i = 0; i < (int) (8 * amount()); i++)
+                    MOTES.add(new Mote(at, dir.scale(-.05).add((RANDOM.nextDouble() - .5) * .2, (RANDOM.nextDouble() - .5) * .2, (RANDOM.nextDouble() - .5) * .2), .02f, 0, i % 2 == 0 ? 0xffffff : VIOLET, 4 + RANDOM.nextInt(4), t, M_SPARK, 1));
+            }
+            case FX_SPIKE_FORM -> {
+                if (p.power() >= 0) FORMS.put(p.id(), new Form(p.entity(), p.id(), t));
+                else {
+                    // Broken off: the bits that had gathered drop.
+                    FORMS.remove(p.id());
+                    for (int i = 0; i < 8; i++)
+                        FALLS.add(new Fall(at.add((RANDOM.nextDouble() - .5) * .4, (RANDOM.nextDouble() - .5) * .8, (RANDOM.nextDouble() - .5) * .4),
+                                new Vec3((RANDOM.nextDouble() - .5) * .12, .05, (RANDOM.nextDouble() - .5) * .12), p.id() + i * 5, 0, .14f, t, groundY(at)));
+                }
+            }
+            case FX_IMPALE -> {
+                BITS.remove(p.id());
+                Impaled s = IMPALED.get(p.entity());
+                if (s == null) {
+                    Entity target = mc.level.getEntity(p.entity());
+                    if (target == null) break;
+                    float body = target instanceof net.minecraft.world.entity.LivingEntity l ? l.yBodyRot : target.getYRot();
+                    float yaw = (float) Math.toDegrees(Math.atan2(-dir.x, dir.z));
+                    float pitch = (float) Math.toDegrees(-Math.asin(Mth.clamp(dir.y, -1, 1)));
+                    s = new Impaled(p.entity(), p.id(), Mth.wrapDegrees(yaw - body), pitch, (float) (at.y - target.getY()), t);
+                    IMPALED.put(p.entity(), s);
+                    if (p.power() <= 0) {
+                        sparks(at, dir.scale(-1), (int) (10 * amount()), .16f);
+                        MOTES.add(new Mote(at, Vec3.ZERO, .5f, 0, FLASH, 3, t, M_GLOW, .7f));
+                        if (target == mc.player) MagnetoClient.shake(.35f);
+                    }
+                }
+                s.progress = p.power();
+            }
+            case FX_IMPALE_PULL -> {
+                Impaled s = IMPALED.get(p.entity());
+                if (s != null) { s.progress = p.power(); s.tug = t; }
+                sparks(at, dir.scale(-1), (int) (3 * amount()), .1f);
+            }
+            case FX_IMPALE_OUT -> {
+                Impaled s = IMPALED.remove(p.entity());
+                if (s != null && p.power() > 0) {
+                    // Torn out: it flies back the way it came, turning over, and lies on the ground a while.
+                    Vec3 centre = at.subtract(dir.scale(.35 + .55 * s.shown));
+                    FALLS.add(new Fall(centre, dir.scale(-.32).add(0, .28, 0), s.id, 2, 1, t, groundY(centre)));
+                    sparks(at, dir.scale(-1), (int) (12 * amount()), .2f);
+                    MOTES.add(new Mote(at, Vec3.ZERO, .6f, 0, VIOLET, 4, t, M_GLOW, .6f));
+                }
+            }
             case FX_ROD -> BITS.put(p.id(), new Bit(p.id(), ROD, at, dir, p.power(), t));
             case FX_PIECE -> BITS.put(p.id(), new Bit(p.id(), PIECE, at, dir, p.power(), t));
             case FX_SHARD_HIT, FX_PIECE_HIT -> {
                 Bit b = BITS.get(p.id());
+                // A spike that hit someone immune breaks off them and drops (-2: it stuck, FX_IMPALE draws it).
+                if (p.kind() == FX_SHARD_HIT && p.power() == -1) FALLS.add(new Fall(at.subtract(dir.scale(.6)), dir.scale(-.14).add(0, .3, 0), p.id(), 2, 1, t, groundY(at)));
                 if (p.power() < 0) BITS.remove(p.id());
                 else if (b != null) stick(b, at, dir, t);
                 sparks(at, dir.scale(-1), (int) (6 * amount()), .12f);
@@ -231,6 +294,21 @@ public final class MagnetoFx {
             MOTES.add(new Mote(at, v, .02f, 0, SPARK, 5 + RANDOM.nextInt(6), t, M_SPARK, 1));
         }
     }
+    /** Where a Magneto's spike builds (as the server puts it: over his right hand, in front of him). */
+    private static Vec3 spikePoint(Entity owner, float partial) {
+        Vec3 look = owner.getViewVector(partial);
+        Vec3 right = new Vec3(-look.z, 0, look.x);
+        right = right.lengthSqr() < 1e-6 ? new Vec3(1, 0, 0) : right.normalize();
+        return owner.getEyePosition(partial).add(look.scale(SPIKE_FWD)).add(right.scale(SPIKE_SIDE)).add(0, -SPIKE_DOWN, 0);
+    }
+    /** The spike stands upright over the hand while it builds, a little toward the aim, and swings to the aim just before it goes. */
+    private static Vec3 spikeAxis(Entity owner, float partial, float k) {
+        Vec3 look = owner.getViewVector(partial);
+        Vec3 up = new Vec3(0, 1, 0).add(look.scale(.3)).normalize();
+        float a = FilmFx.ease(Mth.clamp((k - .72f) / .28f, 0, 1));
+        Vec3 axis = up.lerp(look, a);
+        return axis.lengthSqr() < 1e-6 ? look : axis.normalize();
+    }
     private static double groundY(Vec3 at) {
         var level = Minecraft.getInstance().level;
         if (level == null) return at.y - 2;
@@ -258,14 +336,14 @@ public final class MagnetoFx {
             }
             if (t - b.spawn > 90) { it.remove(); continue; }
             Vec3 vel = b.vel.add(0, -b.g, 0);
-            float half = b.kind == ROD ? ROD_HALF : b.kind == PIECE ? .35f : .25f;
+            float half = b.kind == ROD ? ROD_HALF : b.kind == PIECE ? .35f : SPIKE_HALF;
             Vec3 tip = b.pos.add(b.axis.scale(half)), next = b.pos.add(vel), nextTip = next.add(vel.normalize().scale(half));
             // Our own world says it struck (the server's word follows): it stops there.
             if (mc.player == null) continue;
             var hit = mc.level.clip(new ClipContext(tip, nextTip, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player));
             if (hit.getType() != HitResult.Type.MISS) {
                 Vec3 d = vel.normalize();
-                stick(b, hit.getLocation().subtract(d.scale(half - (b.kind == ROD ? ROD_DEPTH : .25))), d, t);
+                stick(b, hit.getLocation().subtract(d.scale(half - (b.kind == ROD ? ROD_DEPTH : b.kind == SHARD_BIT ? .45 : .25))), d, t);
                 b.prev = b.pos;
                 continue;
             }
@@ -273,6 +351,19 @@ public final class MagnetoFx {
             if (b.kind == ROD) b.axis = vel.normalize();
             // The rod's own wind: a few streaks of air and grit behind it.
             if (b.kind == ROD && ((int) t + b.id) % 2 == 0) MOTES.add(new Mote(b.pos.subtract(b.axis.scale(ROD_HALF * .95)), b.vel.scale(-.05), .25f * ROD_SCALE, .04f, 0xb0aca6, 8, t, M_DUST, .25f));
+        }
+        for (Impaled s : IMPALED.values()) { s.prevShown = s.shown; s.shown += (s.progress - s.shown) * .5f; }
+        IMPALED.values().removeIf(s -> mc.level.getEntity(s.entity) == null);
+        // A spike building: a spark now and then where the bits arrive, the light growing.
+        for (Iterator<Form> it = FORMS.values().iterator(); it.hasNext(); ) {
+            Form f = it.next();
+            Entity owner = mc.level.getEntity(f.magneto());
+            if (owner == null || t - f.start() > SPIKE_FORM + 10) { it.remove(); continue; }
+            if (RANDOM.nextFloat() < .6f * amount()) {
+                Vec3 at = spikePoint(owner, 1);
+                MOTES.add(new Mote(at.add((RANDOM.nextDouble() - .5) * .3, (RANDOM.nextDouble() - .5) * .9, (RANDOM.nextDouble() - .5) * .3),
+                        new Vec3((RANDOM.nextDouble() - .5) * .1, (RANDOM.nextDouble() - .5) * .1, (RANDOM.nextDouble() - .5) * .1), .015f, 0, RANDOM.nextBoolean() ? 0xffffff : VIOLET, 3 + RANDOM.nextInt(3), t, M_SPARK, 1));
+            }
         }
         for (Iterator<Fall> it = FALLS.iterator(); it.hasNext(); ) {
             Fall f = it.next();
@@ -323,7 +414,7 @@ public final class MagnetoFx {
         if (mc.level == null) return;
         boolean anyState = false;
         for (var entry : MagnetoClient.all()) { var s = entry.getValue(); if (s.fistUp() || s.shield() || s.holding() || s.action == FIST_SUMMON) anyState = true; }
-        if (BITS.isEmpty() && FALLS.isEmpty() && MOTES.isEmpty() && RINGS.isEmpty() && GRABS.isEmpty() && !anyState) return;
+        if (BITS.isEmpty() && FALLS.isEmpty() && MOTES.isEmpty() && RINGS.isEmpty() && GRABS.isEmpty() && FORMS.isEmpty() && IMPALED.isEmpty() && !anyState) return;
         float partial = e.getPartialTick();
         float time = mc.level.getGameTime() + partial;
         PoseStack p = e.getPoseStack();
@@ -352,7 +443,13 @@ public final class MagnetoFx {
                     float fade = b.stuck ? 1 - Mth.clamp((time - b.stuckAt - SHARD_STAY) / SHARD_FADE, 0, 1) : 1;
                     p.scale(fade, fade, fade);
                     MetalMesh.fragment(p, v, light, b.id, .55f);
-                } else MetalMesh.shard(p, v, light, b.id);
+                } else {
+                    // The spike: turning slowly about its length in flight; stuck in the ground it fades away at the end.
+                    float fade = b.stuck ? 1 - Mth.clamp((time - b.stuckAt - SHARD_STAY) / SHARD_FADE, 0, 1) : 1;
+                    p.mulPose(Axis.YP.rotation((b.stuck ? b.stuckAt - b.spawn : time - b.spawn) * .35f + b.id));
+                    p.scale(fade, fade, fade);
+                    MetalMesh.spike(p, v, light, SPIKE_HALF * 2, b.id);
+                }
             }
             p.popPose();
         }
@@ -365,8 +462,64 @@ public final class MagnetoFx {
             p.translate(at.x - cam.x, at.y - cam.y, at.z - cam.z);
             p.mulPose(new Quaternionf().rotationXYZ((float) f.spin.x * turn, (float) f.spin.y * turn, (float) f.spin.z * turn));
             p.scale(fade, fade, fade);
-            if (f.kind == 1) MetalMesh.fragment(p, v, light(at), f.seed, f.size);
+            if (f.kind == 2) MetalMesh.spike(p, v, light(at), SPIKE_HALF * 2, f.seed);
+            else if (f.kind == 1) MetalMesh.fragment(p, v, light(at), f.seed, f.size);
             else MetalMesh.scrap(p, v, light(at), f.seed, f.size);
+            p.popPose();
+        }
+        // Spikes building over a hand: bits of metal flying in from all round, the spike growing out from the middle.
+        for (Form f : FORMS.values()) {
+            Entity owner = mc.level.getEntity(f.magneto());
+            if (owner == null) continue;
+            float k = Mth.clamp((time - f.start()) / SPIKE_FORM, 0, 1);
+            float built = FilmFx.ease(Mth.clamp((k - .08f) / .72f, 0, 1));
+            Vec3 at = spikePoint(owner, partial), axis = spikeAxis(owner, partial, k);
+            Quaternionf turn = new Quaternionf().rotationTo(new Vector3f(0, 1, 0), new Vector3f((float) axis.x, (float) axis.y, (float) axis.z));
+            p.pushPose();
+            p.translate(at.x - cam.x, at.y - cam.y, at.z - cam.z);
+            p.mulPose(turn);
+            p.mulPose(Axis.YP.rotation((time - f.start()) * .3f));
+            MetalMesh.spike(p, v, light(at), SPIKE_HALF * 2 * built, f.id());
+            p.popPose();
+            for (int i = 0; i < 16; i++) {
+                float arrive = .1f + .68f * i / 16f, leave = arrive - .38f;
+                float u = Mth.clamp((k - leave) / (arrive - leave), 0, 1);
+                if (u <= 0 || u >= 1) continue;
+                float h1 = MetalMesh.hash(f.id() * 31 + i), h2 = MetalMesh.hash(f.id() * 31 + i + 7), h3 = MetalMesh.hash(f.id() * 31 + i + 13);
+                double a = h1 * Math.PI * 2, r = 2 + 1.6 * h2;
+                // Some come up off the ground, the rest from the air round him.
+                Vec3 from = at.add(Math.cos(a) * r, i % 3 == 0 ? -1.6 - h3 : (h3 - .4) * 2.2, Math.sin(a) * r);
+                Vec3 to = at.add(axis.scale((MetalMesh.hash(f.id() * 31 + i + 19) - .5) * SPIKE_HALF * 2 * Math.max(.3f, built)));
+                float e2 = u * u;
+                Vec3 side = to.subtract(from).cross(new Vec3(0, 1, 0));
+                side = side.lengthSqr() < 1e-6 ? Vec3.ZERO : side.normalize().scale(Math.sin(u * Math.PI) * .5);
+                Vec3 pos = from.lerp(to, e2).add(side);
+                p.pushPose();
+                p.translate(pos.x - cam.x, pos.y - cam.y, pos.z - cam.z);
+                p.mulPose(new Quaternionf().rotationXYZ(h1 * 6 + time * .4f, h2 * 6 + time * .5f, h3 * 6));
+                MetalMesh.scrap(p, v, light(pos), f.id() + i * 17, .13f + .06f * h3);
+                p.popPose();
+            }
+        }
+        // Spikes stuck in bodies: on the line they came in on, the tip out of the back, pulled out a little more with
+        // every tug (each tug shakes it).
+        for (Impaled s : IMPALED.values()) {
+            Entity target = mc.level.getEntity(s.entity);
+            if (target == null) continue;
+            if (target == mc.player && mc.options.getCameraType().isFirstPerson()) continue;
+            float body = target instanceof net.minecraft.world.entity.LivingEntity l ? Mth.rotLerp(partial, l.yBodyRotO, l.yBodyRot) : target.getViewYRot(partial);
+            Vec3 dir = Vec3.directionFromRotation(s.pitch, s.yawRel + body);
+            Vec3 entry = target.getPosition(partial).add(0, s.height, 0);
+            float out = Mth.lerp(partial, s.prevShown, s.shown), since = time - s.tug;
+            float wobble = (since < 9 ? Mth.sin(since * 2.3f) * (1 - since / 9) * .3f : 0) + .025f * Mth.sin(time * .8f + s.id);
+            p.pushPose();
+            p.translate(entry.x - cam.x, entry.y - cam.y, entry.z - cam.z);
+            p.mulPose(new Quaternionf().rotationTo(new Vector3f(0, 1, 0), new Vector3f((float) dir.x, (float) dir.y, (float) dir.z)));
+            p.mulPose(Axis.XP.rotation(wobble));
+            p.mulPose(Axis.ZP.rotation(wobble * .6f));
+            p.translate(0, -(.35f + .55f * out), 0);
+            p.mulPose(Axis.YP.rotation(s.id));
+            MetalMesh.spike(p, v, light(entry), SPIKE_HALF * 2, s.id);
             p.popPose();
         }
         // The scrap round whoever is held.
@@ -454,6 +607,19 @@ public final class MagnetoFx {
                     MagnetoShield.light(c, owner.getPosition(partial), entry.getKey(), s.shieldAge + partial, (int) col[0], col[1], time);
             }
             MagnetoShield.pops(c, time);
+            // Spikes: a violet light where one is building; a faint streak of air behind one in flight.
+            for (Form f : FORMS.values()) {
+                Entity owner = mc.level.getEntity(f.magneto());
+                if (owner == null) continue;
+                float k = Mth.clamp((time - f.start()) / SPIKE_FORM, 0, 1);
+                FilmFx.glow(c, spikePoint(owner, partial), .35 + .45 * k, VIOLET, .25f + .3f * k + .08f * Mth.sin(time * 1.3f));
+            }
+            for (Bit b : BITS.values()) {
+                if (b.kind != SHARD_BIT || b.stuck) continue;
+                Vec3 at = b.prev.lerp(b.pos, partial), tail = at.subtract(b.axis.scale(SPIKE_HALF));
+                FilmFx.streak(c, tail.subtract(b.vel.scale(2.2)), tail, .07, VIOLET, 0, .35f, true);
+                FilmFx.glow(c, at.add(b.axis.scale(SPIKE_HALF)), .22, 0xffffff, .3f);
+            }
             // Flying rods: a faint glint at the tip.
             for (Bit b : BITS.values()) if (b.kind == ROD && !b.stuck) FilmFx.glow(c, b.prev.lerp(b.pos, partial).add(b.axis.scale(ROD_HALF + .2)), .25 * ROD_SCALE, STEEL, .25f);
             if (MagnetoConfig.FIELD_LINES.get()) fieldLines(c, time, partial);
@@ -512,7 +678,12 @@ public final class MagnetoFx {
             // Where the hand rests (low at the edge), and how far a cast brings it up into view.
             float up = 0, curl = .35f, reach = 0;
             switch (action) {
-                case SHARD -> { if (right) { up = Mth.sin(Mth.clamp(t / SHARD_TICKS, 0, 1) * Mth.PI); reach = up; curl = .05f; } }
+                case SHARD -> { if (right) {
+                    // Up and open while the spike builds over it, a short draw back, the flick, then down.
+                    if (t < SPIKE_FORM - 2) { up = FilmFx.ease(t / 3); reach = .45f * up; curl = 0; }
+                    else if (t < SPIKE_FORM) { up = 1; reach = .45f - .35f * (t - (SPIKE_FORM - 2)) / 2; curl = .25f; }
+                    else { float k = Mth.clamp((t - SPIKE_FORM) / (SHARD_TICKS - SPIKE_FORM), 0, 1); up = 1 - FilmFx.ease(k); reach = 1.2f * (1 - .7f * k); curl = .05f; }
+                } }
                 case BARRAGE -> { if (right) { up = t < BARRAGE_AT ? Mth.clamp(t / 4, 0, 1) * 1.3f : 1 - Mth.clamp((t - BARRAGE_AT) / 6, 0, 1) * .5f; curl = .2f; } }
                 case GRAB, CONTROL -> { if (right) { up = 1; reach = 1; curl = action == CONTROL ? .78f : .3f; } }
                 case THROW -> { if (right) { up = 1 - Mth.clamp(t / THROW_TICKS, 0, 1); reach = 1.2f; curl = 0; } }
@@ -537,7 +708,7 @@ public final class MagnetoFx {
         }
     }
 
-    private static void clear() { BITS.clear(); GRABS.clear(); FALLS.clear(); MOTES.clear(); RINGS.clear(); COLUMNS.clear(); }
+    private static void clear() { FORMS.clear(); IMPALED.clear(); BITS.clear(); GRABS.clear(); FALLS.clear(); MOTES.clear(); RINGS.clear(); COLUMNS.clear(); }
     @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) { clear(); MagnetoLayer.clear(); MagnetoShield.clear(); }
 
     @Mod.EventBusSubscriber(modid = SuperheroMod.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)

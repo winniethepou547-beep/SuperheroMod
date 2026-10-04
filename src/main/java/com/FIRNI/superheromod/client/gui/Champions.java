@@ -77,7 +77,7 @@ public final class Champions {
                     new Skill("X", "Son Kovalamaca", "Sinematik ulti: hedefin sürdüğü arabayı arkadaki SUV'nin tavanından kovalar, kurşunları zırhına emdirir, atlayıp tavanı pençeleriyle söker, biriken enerjiyi tek seferde patlatır; araba takla atıp parçalanır."))),
             new Champion("magneto", "MAGNETO", "Erik Lehnsherr — Manyetizmanın Efendisi", 0xFFE0384A, List.of(
                     new Skill("SHIFT", "Uçuş", "Havalanır ve süzülür (Boşluğa iki kez basmak da olur). Uçarken Boşluk yükseltir, CTRL alçaltır."),
-                    new Skill("SOL", "Metal Kıymık", "Elinden keskin bir metal parçası fırlatır."),
+                    new Skill("SOL", "Demir Çubuk", "Metal parçalarından elinde bir çubuk oluşturup fırlatır; saplanır, iter ve yavaşlatır."),
                     new Skill("Q", "Demir Yağmuru", "Nişan aldığı yerin 8 blok üstünden dev demir çubuklar eğik düşüp toprağa saplanır; patlama ve alan hasarı. 3 kullanım hakkı."),
                     new Skill("E", "Hurda Telekinezisi", "Hedefin arkasından gelen hurda metal onu sarar ve havaya kaldırır; 3 saniye boyunca fareyle sürükler, duvara ya da yere çarpar. Sol tık: fırlat."),
                     new Skill("R", "Dev Demir Yumruk", "Önünde metalden dev bir yumruk belirir, nişanını takip eder; her sol tıkta yere iner (5 yumruk)."),

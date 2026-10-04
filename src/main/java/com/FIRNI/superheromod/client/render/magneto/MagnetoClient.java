@@ -212,7 +212,7 @@ public final class MagnetoClient {
         HudStyle.caption(g, font, "MAGNETO", 10, h - 46, crimson, -1);
         int row = h - 124;
         hint(g, font, mc.options.keyShift, s.flying() ? "Uçuş: açık (Boşluk yüksel, CTRL alçal)" : "Uç (ya da Boşluk x2)", 0, s.flying(), 10, row - 36);
-        String lmb = s.fistUp() ? "Yumruk (" + s.punchesLeft + " kaldı)" : s.holding() ? "Fırlat" : "Metal Kıymık";
+        String lmb = s.fistUp() ? "Yumruk (" + s.punchesLeft + " kaldı)" : s.holding() ? "Fırlat" : "Demir Çubuk";
         hint(g, font, mc.options.keyAttack, lmb, s.fistUp() || s.holding() ? 0 : s.cooldowns[CD_SHARD], 10, row - 24);
         int x = hint(g, font, AbilityKeyHandler.KEY_ULTIMATE, "Demir Yağmuru", 0, 10, row - 12);
         // The barrage's charges: three pips, the next one filling.

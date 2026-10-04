@@ -71,7 +71,7 @@ final class ShadowExecutionFilm implements Film {
         add(c, 66, SoundEvents.ELYTRA_FLYING, .5f, 1.6f);
         // He comes apart; the dark gathers and circles.
         add(c, ULT_FADE, SoundEvents.SOUL_ESCAPE, 1f, .6f); add(c, ULT_FADE, ModSounds.ZED_SHADOW_WHOOSH.get(), (1f) * 1.0f, 0.9f); add(c, 76, SoundEvents.ILLUSIONER_MIRROR_MOVE, .7f, .6f); add(c, ULT_GONE, SoundEvents.ENDERMAN_STARE, .4f, .5f);
-        for (int t = 96; t < 196; t += 20) add(c, t, SoundEvents.SOUL_ESCAPE, .6f, .5f + (t / 20 % 3) * .1f); add(c, t, ModSounds.ZED_SHADOW_WHOOSH.get(), (.6f) * 1.0f, 0.9f);
+        for (int t = 96; t < 196; t += 20) { add(c, t, SoundEvents.SOUL_ESCAPE, .6f, .5f + (t / 20 % 3) * .1f); add(c, t, ModSounds.ZED_SHADOW_WHOOSH.get(), .6f, 0.9f); }
         add(c, 100, SoundEvents.ELYTRA_FLYING, .25f, .6f); add(c, 140, SoundEvents.ELYTRA_FLYING, .3f, .55f);
         add(c, ULT_RISE, SoundEvents.WARDEN_EMERGE, .5f, 1.4f);
         for (float eyes : new float[]{137, 146, 152, 159, 166, 162, 176}) add(c, eyes, SoundEvents.FIRECHARGE_USE, .25f, 1.7f);

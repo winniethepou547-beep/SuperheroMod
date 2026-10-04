@@ -63,6 +63,8 @@ public final class MagnetoController {
         LivingEntity thrown;
         boolean fist; Vec3 fistPos = Vec3.ZERO, fistVel = Vec3.ZERO, punchFrom = Vec3.ZERO, punchAt = Vec3.ZERO; int fistAge, punchAge = -1, punchesLeft;
         boolean shield; int shieldAge;
+        /** The left-click spike building over his hand (ticks since the click; -1 = none) and the id it will fly under. */
+        int spikeAge = -1, spikeId;
     }
     /** A piece of metal in flight or stuck: a rod of the barrage, a shard, a piece of the burst. */
     private static final class Metal {
@@ -150,18 +152,42 @@ public final class MagnetoController {
     private static void click(ServerPlayer p, State s) {
         if (s.fist && s.action == FIST) { punch(p, s); return; }
         if (s.held != null && s.holdAge > SCRAP_FLY) { throwHeld(p, s); return; }
-        if (casting(s) || s.cooldowns[CD_SHARD] > 0) return;
-        s.cooldowns[CD_SHARD] = MagnetoConfig.SHARD_COOLDOWN.get();
+        if (casting(s) || s.spikeAge >= 0 || s.cooldowns[CD_SHARD] > 0) return;
+        s.cooldowns[CD_SHARD] = Math.max(SPIKE_FORM, MagnetoConfig.SHARD_COOLDOWN.get());
         if (s.action == IDLE || s.action == SHARD) set(s, SHARD);
+        // Bits of metal fly in and build the spike over his open hand; it leaves SPIKE_FORM ticks later (spikeTick).
+        s.spikeAge = 0;
+        s.spikeId = nextId++;
+        fx(p, FX_SPIKE_FORM, spikeAt(p), p.getLookAngle(), SPIKE_FORM, p.getId(), s.spikeId);
+        sound(p, ModSounds.MAGNETO_METAL_RISE.get(), .55f, 1.5f);
+        sound(p, SoundEvents.CHAIN_STEP, .6f, 1.4f);
+        sound(p, ModSounds.MAGNETO_MAGNETIC_HUM.get(), .35f, 1.6f);
+    }
+    /** Where the spike forms: over his right hand, in front of him, in sight of his own view too. */
+    private static Vec3 spikeAt(ServerPlayer p) {
         Vec3 look = p.getLookAngle();
-        Vec3 from = hand(p, 0);
-        Vec3 aim = aimPoint(p, 60);
-        Vec3 dir = aim.subtract(from).normalize();
-        Metal m = new Metal(nextId++, SHARD_PIECE, p, from, dir.scale(MagnetoConfig.SHARD_SPEED.get()), dir, .25f, .015f);
+        Vec3 right = new Vec3(-look.z, 0, look.x);
+        right = right.lengthSqr() < 1e-6 ? new Vec3(1, 0, 0) : right.normalize();
+        return p.getEyePosition().add(look.scale(SPIKE_FWD)).add(right.scale(SPIKE_SIDE)).add(0, -SPIKE_DOWN, 0);
+    }
+    /** The spike building; done, he flicks it at what he aims at now. Anything else he starts (or a film) scatters it. */
+    private static void spikeTick(ServerPlayer p, State s) {
+        if (s.spikeAge < 0) return;
+        if (!p.isAlive() || FilmSessions.busy(p.getUUID()) || casting(s) || s.held != null || s.action == FIST) {
+            fx(p, FX_SPIKE_FORM, spikeAt(p), Vec3.ZERO, -1, p.getId(), s.spikeId);
+            s.spikeAge = -1;
+            return;
+        }
+        if (s.spikeAge % 3 == 1) sound(p, SoundEvents.CHAIN_HIT, .25f, 1.6f + s.spikeAge * .03f);
+        if (++s.spikeAge < SPIKE_FORM) return;
+        s.spikeAge = -1;
+        Vec3 from = spikeAt(p);
+        Vec3 dir = aimPoint(p, 60).subtract(from).normalize();
+        Metal m = new Metal(s.spikeId, SHARD_PIECE, p, from, dir.scale(MagnetoConfig.SHARD_SPEED.get()), dir, SPIKE_HALF, .01f);
         METAL.add(m);
         fx(p, FX_SHARD, from, m.vel, 0, p.getId(), m.id);
-        sound(p, SoundEvents.TRIDENT_THROW, .5f, 1.7f);
-        sound(p, SoundEvents.CHAIN_PLACE, .4f, 1.6f);
+        sound(p, SoundEvents.TRIDENT_THROW, .8f, 1.2f);
+        sound(p, ModSounds.MAGNETO_ROD_WHISTLE.get(), .6f, 1.5f);
         sound(p, ModSounds.MAGNETO_METAL_SHING.get(), .7f, .95f + p.getRandom().nextFloat() * .1f);
     }
 
@@ -586,9 +612,15 @@ public final class MagnetoController {
                     m.hit.add(t.getId());
                     hurt(p, t, m.kind == SHARD_PIECE ? f(MagnetoConfig.SHARD_DAMAGE) : f(MagnetoConfig.BURST_DAMAGE));
                     Vec3 push = vel.normalize();
-                    t.push(push.x * .4, .12, push.z * .4);
-                    t.hurtMarked = true;
-                    fx(p, m.kind == SHARD_PIECE ? FX_SHARD_HIT : FX_PIECE_HIT, eh.getLocation(), push, -1, t.getId(), m.id);
+                    // The spike: pushed back, slowed, and it stays in them (or breaks on them while they are immune).
+                    if (m.kind == SHARD_PIECE) {
+                        boolean stuck = MagnetoSpike.hit(t, push, eh.getLocation(), m.id);
+                        fx(p, FX_SHARD_HIT, eh.getLocation(), push, stuck ? -2 : -1, t.getId(), m.id);
+                    } else {
+                        t.push(push.x * .4, .12, push.z * .4);
+                        t.hurtMarked = true;
+                        fx(p, FX_PIECE_HIT, eh.getLocation(), push, -1, t.getId(), m.id);
+                    }
                     p.level().playSound(null, t.getX(), t.getY(), t.getZ(), SoundEvents.TRIDENT_HIT, SoundSource.PLAYERS, .7f, 1.2f);
                     p.level().playSound(null, t.getX(), t.getY(), t.getZ(), ModSounds.FX_IMPACT_METAL.get(), SoundSource.PLAYERS, .5f, 1.4f);
                     it.remove();
@@ -599,7 +631,7 @@ public final class MagnetoController {
             if (bh.getType() != HitResult.Type.MISS) {
                 Vec3 dir = vel.normalize();
                 // Driven in: the tip buried well into the ground (a rod), a little way (a shard or a piece).
-                double sink = m.kind == ROD ? ROD_DEPTH : .25;
+                double sink = m.kind == ROD ? ROD_DEPTH : m.kind == SHARD_PIECE ? .45 : .25;
                 m.pos = bh.getLocation().subtract(dir.scale(m.half - sink));
                 m.axis = dir;
                 m.vel = Vec3.ZERO;
@@ -696,6 +728,7 @@ public final class MagnetoController {
             s.barrageLeft--;
             s.barrageNext = Math.max(1, MagnetoConfig.BARRAGE_GAP.get());
         }
+        spikeTick(p, s);
         holdTick(p, s);
         thrownTick(p, s);
         fistTick(p, s);

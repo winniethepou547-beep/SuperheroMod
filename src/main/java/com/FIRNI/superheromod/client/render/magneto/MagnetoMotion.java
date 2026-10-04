@@ -82,13 +82,22 @@ public final class MagnetoMotion {
         };
     }
 
-    /** A flick of the right hand: from the side up and out toward the aim, the fingers opening, then back. */
+    /**
+     * The spike: the right hand comes up open, palm up, and holds while the bits fly in and build it over the hand
+     * (the fingers stirring a little); a short draw back, then the flick toward the aim, the fingers opening; then back.
+     */
     static Track shard(Pose base) {
-        Pose cock = base.copy().add(CHEST_YAW, .15f);
-        cock.arm(0, ARM_X, -.6f).arm(0, ARM_Z, .5f).arm(0, ELBOW, 1.1f).arm(0, CURL, .8f).arm(0, WRIST_X, -.4f);
+        Pose gather = base.copy().add(CHEST_YAW, .1f).add(HEAD_PITCH, .05f);
+        gather.arm(0, SH_FWD, .6f).arm(0, ARM_X, -1.25f).arm(0, ARM_Z, .25f).arm(0, ELBOW, .55f).arm(0, CURL, 0).arm(0, WRIST_X, -.5f);
+        gather.arm(1, ARM_Z, .3f).arm(1, CURL, .4f);
+        Pose stir = gather.copy();
+        stir.arm(0, ARM_X, -1.32f).arm(0, CURL, .18f).arm(0, WRIST_X, -.42f);
+        Pose cock = gather.copy().add(CHEST_YAW, .12f);
+        cock.arm(0, ARM_X, -1.65f).arm(0, ARM_Z, .45f).arm(0, ELBOW, 1.05f).arm(0, CURL, .3f).arm(0, WRIST_X, -.2f);
         Pose flick = base.copy().add(CHEST_YAW, -.12f);
         flick.arm(0, SH_FWD, 1.2f).arm(0, ARM_X, -1.5f).arm(0, ARM_Z, -.05f).arm(0, ELBOW, .15f).arm(0, CURL, .05f).arm(0, WRIST_X, .25f);
-        return new Track().key(0, base).key(1.2f, cock).key(SHARD_AT, flick).key(4.5f, flick.copy().arm(0, ARM_X, -1.35f)).key(SHARD_TICKS + 2, base);
+        return new Track().key(0, base).key(3, gather).key(SPIKE_FORM * .55f, stir).key(SPIKE_FORM - 3, gather).key(SPIKE_FORM - 1, cock)
+                .key(SHARD_AT + 1, flick).key(SHARD_AT + 3.5f, flick.copy().arm(0, ARM_X, -1.35f)).key(SHARD_TICKS + 2, base);
     }
     /** The barrage: the right hand raised slowly overhead, palm up; then driven down and forward: the rods fall. */
     static Track barrage(Pose base) {

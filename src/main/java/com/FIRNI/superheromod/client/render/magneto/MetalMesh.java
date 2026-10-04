@@ -202,6 +202,30 @@ public final class MetalMesh {
         cbox(p, v, light, s * .25f, .05f, s * .1f, s * .4f, .05f, s * .3f, hash(seed + 3) < .4f ? RUST : IRON);
         cbox(p, v, light, -s * .35f, 0, -s * .2f, s * .2f, .14f, s * .2f, IRON_LIGHT);
     }
+    /**
+     * The left-click spike along +y, len long and centred: a square iron shaft with forged bands, a long ground point
+     * (tapering in three steps) and a rough torn back end. Thick enough to read from across a fight.
+     */
+    public static void spike(PoseStack p, VertexConsumer v, int light, float len, int seed) {
+        if (len < .05f) return;
+        float h = len / 2, w = .13f;
+        float[] body = tint(IRON, seed);
+        float shaft = len * .7f;
+        cbox(p, v, light, 0, -h + shaft / 2, 0, w, shaft, w, body);
+        // Bright edges ground along the shaft.
+        cbox(p, v, light, w / 2, -h + shaft / 2 + .05f, w / 2, .025f, shaft * .8f, .025f, IRON_LIGHT);
+        cbox(p, v, light, -w / 2, -h + shaft / 2 - .05f, -w / 2, .025f, shaft * .7f, .025f, IRON_LIGHT);
+        for (int i = 0; i < 2; i++) cbox(p, v, light, 0, -h + shaft * (.3f + .35f * i), 0, w + .05f, .06f, w + .05f, IRON_DARK);
+        cbox(p, v, light, .03f, -h + shaft * .5f, w / 2 + .002f, .05f, shaft * .3f, .01f, RUST);
+        // The point: three tapering steps to a needle.
+        float tip = len - shaft, y = -h + shaft;
+        cbox(p, v, light, 0, y + tip * .2f, 0, w * .8f, tip * .4f, w * .8f, IRON_LIGHT);
+        cbox(p, v, light, 0, y + tip * .55f, 0, w * .5f, tip * .32f, w * .5f, IRON_LIGHT);
+        cbox(p, v, light, 0, y + tip * .85f, 0, w * .22f, tip * .3f, w * .22f, STEEL);
+        // The back: torn, two jagged stubs.
+        cbox(p, v, light, .03f, -h - .04f, .02f, w * .7f, .1f, w * .6f, IRON_DARK);
+        cbox(p, v, light, -.03f, -h - .07f, -.03f, w * .4f, .08f, w * .5f, RUST_DARK);
+    }
     /** A shard flicked from his hand: a small sharp sliver along +y. */
     public static void shard(PoseStack p, VertexConsumer v, int light, int seed) {
         cbox(p, v, light, 0, 0, 0, .1f, .5f, .04f, tint(IRON_LIGHT, seed));

@@ -13,8 +13,8 @@ public final class MagnetoConfig {
     public static final ForgeConfigSpec.BooleanValue FRIENDLY_FIRE;
     public static final ForgeConfigSpec.DoubleValue FLY_SPEED, FLY_RISE, FLIGHT_REFILL;
     public static final ForgeConfigSpec.IntValue FLIGHT_TIME;
-    public static final ForgeConfigSpec.DoubleValue SHARD_DAMAGE, SHARD_SPEED;
-    public static final ForgeConfigSpec.IntValue SHARD_COOLDOWN;
+    public static final ForgeConfigSpec.DoubleValue SHARD_DAMAGE, SHARD_SPEED, SPIKE_KNOCKBACK, SPIKE_IMMUNITY, SPIKE_MOB_STUCK, SPIKE_MAX_STUCK;
+    public static final ForgeConfigSpec.IntValue SHARD_COOLDOWN, SPIKE_SLOW, SPIKE_CLICKS;
     public static final ForgeConfigSpec.DoubleValue BARRAGE_RANGE, ROD_HEIGHT, ROD_DAMAGE, ROD_RADIUS, ROD_SPREAD;
     public static final ForgeConfigSpec.IntValue BARRAGE_RODS, BARRAGE_CHARGES, BARRAGE_RECHARGE, BARRAGE_GAP;
     public static final ForgeConfigSpec.DoubleValue GRAB_RANGE, SLAM_DAMAGE, SLAM_SPEED, THROW_SPEED, HOLD_MIN, HOLD_MAX, DRAG_SPEED;
@@ -44,10 +44,17 @@ public final class MagnetoConfig {
         FLIGHT_TIME = b.comment("Longest he can fly in one go (ticks; 160 = 8 seconds); then he glides down").defineInRange("flightTime", 160, 20, 12000);
         FLIGHT_REFILL = b.comment("Seconds on the ground to fill the flight back up from empty").defineInRange("flightRefillSeconds", 6.0, .5, 600);
         b.pop();
-        b.comment("Left click: a shard of metal flicked at what he aims at").push("shard");
-        SHARD_DAMAGE = b.defineInRange("damage", 3.0, 0, 100);
-        SHARD_SPEED = b.defineInRange("speed", 2.4, .2, 8);
-        SHARD_COOLDOWN = b.defineInRange("cooldown", 8, 0, 200);
+        b.comment("Left click: an iron spike built from bits of metal over his hand (0.7 s), then thrown. It sticks in the",
+                "one it hits (pushed back, slowed) until they mash left click to pull it out; then they are immune a while").push("ironSpike");
+        SHARD_DAMAGE = b.defineInRange("damage", 4.0, 0, 100);
+        SHARD_SPEED = b.comment("Flying speed (blocks per tick)").defineInRange("speed", 1.7, .2, 8);
+        SHARD_COOLDOWN = b.comment("Ticks from one click to the next (the 14-tick forming included)").defineInRange("cooldown", 30, 14, 400);
+        SPIKE_KNOCKBACK = b.comment("How far the hit pushes them back (about, in blocks)").defineInRange("knockbackBlocks", 3.0, 0, 20);
+        SPIKE_SLOW = b.comment("Slowness level while it is stuck (0 = Slowness I)").defineInRange("slownessLevel", 2, 0, 9);
+        SPIKE_CLICKS = b.comment("Left clicks a player needs to pull it out (it slides back in slowly between clicks)").defineInRange("pullClicks", 12, 1, 100);
+        SPIKE_IMMUNITY = b.comment("Seconds after pulling one out in which spikes no longer stick in them").defineInRange("immunitySeconds", 30.0, 0, 600);
+        SPIKE_MOB_STUCK = b.comment("Seconds a mob (it cannot click) carries it").defineInRange("mobStuckSeconds", 3.0, .5, 60);
+        SPIKE_MAX_STUCK = b.comment("Longest a player carries it whatever happens (seconds)").defineInRange("maxStuckSeconds", 20.0, 1, 600);
         b.pop();
         b.comment("Q: Iron Barrage. Iron rods driven down from the sky onto the spot he aims at").push("ironBarrage");
         BARRAGE_RANGE = b.comment("How far he can aim it").defineInRange("range", 40.0, 4, 120);
