@@ -50,7 +50,7 @@ public final class MagnetoLayer extends RenderLayer<AbstractClientPlayer, Player
         if (BLENDS.size() > 64) BLENDS.clear();
 
         // Floating or standing, eased.
-        boolean flying = shown ? Showcase.aura() > .5f : s != null && s.flying();
+        boolean flying = shown ? Showcase.aura() > .5f : s != null && (s.flying() || s.gliding());
         float dt = blend.at < 0 ? 0 : Mth.clamp(now - blend.at, 0, 3);
         blend.at = now;
         blend.fly = Mth.clamp(blend.fly + (flying ? dt : -dt) / LIFT_TICKS, 0, 1);

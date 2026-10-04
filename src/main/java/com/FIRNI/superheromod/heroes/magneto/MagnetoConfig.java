@@ -11,7 +11,8 @@ public final class MagnetoConfig {
     // ------------------------------------------------------------------ server
     public static final ForgeConfigSpec COMMON;
     public static final ForgeConfigSpec.BooleanValue FRIENDLY_FIRE;
-    public static final ForgeConfigSpec.DoubleValue FLY_SPEED, FLY_RISE;
+    public static final ForgeConfigSpec.DoubleValue FLY_SPEED, FLY_RISE, FLIGHT_REFILL;
+    public static final ForgeConfigSpec.IntValue FLIGHT_TIME;
     public static final ForgeConfigSpec.DoubleValue SHARD_DAMAGE, SHARD_SPEED;
     public static final ForgeConfigSpec.IntValue SHARD_COOLDOWN;
     public static final ForgeConfigSpec.DoubleValue BARRAGE_RANGE, ROD_HEIGHT, ROD_DAMAGE, ROD_RADIUS, ROD_SPREAD;
@@ -40,6 +41,8 @@ public final class MagnetoConfig {
         b.comment("Flight (SHIFT or jump twice): he lifts off and floats").push("flight");
         FLY_SPEED = b.comment("Flying speed (blocks per tick; 0.5 = 10 blocks a second)").defineInRange("speed", .5, .05, 3);
         FLY_RISE = b.comment("How fast he rises and sinks").defineInRange("riseSpeed", .32, .05, 2);
+        FLIGHT_TIME = b.comment("Longest he can fly in one go (ticks; 160 = 8 seconds); then he glides down").defineInRange("flightTime", 160, 20, 12000);
+        FLIGHT_REFILL = b.comment("Seconds on the ground to fill the flight back up from empty").defineInRange("flightRefillSeconds", 6.0, .5, 600);
         b.pop();
         b.comment("Left click: a shard of metal flicked at what he aims at").push("shard");
         SHARD_DAMAGE = b.defineInRange("damage", 3.0, 0, 100);

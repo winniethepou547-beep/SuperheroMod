@@ -31,6 +31,8 @@ public final class MagnetoAction {
     public static final int BARRAGE_TICKS = 12, BARRAGE_AT = 5, ROD_GAP = 2;
     /** How long a rod stays standing in the ground after it struck, and how long it takes to sink and go. */
     public static final int ROD_STAY = 120, ROD_SINK = 20;
+    /** The barrage's rods: drawn this much bigger than MetalMesh builds them; half their length, and how deep they bite in. */
+    public static final float ROD_SCALE = 2, ROD_HALF = 1.7f * ROD_SCALE, ROD_DEPTH = 1.0f * ROD_SCALE;
 
     // ------------------------------------------------------------------ E: Metal Scrap Telekinesis
     /** The reach (the hand toward them), the scrap flying in from behind them to wrap them, then the hold. */

@@ -42,13 +42,16 @@ public final class MagnetoClient {
     public static final class State {
         public int action, age, flags, charges, flightAge, held = -1, holdAge, holdTicks, fistAge, punchAge = -1, punchesLeft, shieldAge;
         public int[] cooldowns = new int[COOLDOWNS];
-        public float recharge, flySpeed = .5f, flyRise = .32f;
+        public float recharge, flySpeed = .5f, flyRise = .32f, fuel = 1;
+        public int fuelTicks = 160;
         /** The fist: where it was last tick, where it is, and the server's latest (taken in at the end of each client tick). */
         public Vec3 fist = Vec3.ZERO, fistPrev = Vec3.ZERO, fistNext = Vec3.ZERO;
         long received;
         /** The local clock: the level time the current action began at. */
         double start;
         public boolean flying() { return (flags & MagnetoStatePacket.FLYING) != 0; }
+        /** Out of flight in the air: sinking slowly to the ground. */
+        public boolean gliding() { return (flags & MagnetoStatePacket.GLIDING) != 0; }
         public boolean shield() { return (flags & MagnetoStatePacket.SHIELD) != 0; }
         public boolean fistUp() { return (flags & MagnetoStatePacket.FIST) != 0; }
         public boolean holding() { return (flags & MagnetoStatePacket.HOLDING) != 0; }
@@ -75,7 +78,7 @@ public final class MagnetoClient {
         s.action = p.action(); s.age = p.age(); s.flags = p.flags(); s.cooldowns = p.cooldowns(); s.charges = p.charges(); s.recharge = p.recharge();
         s.flightAge = p.flightAge(); s.held = p.held(); s.holdAge = p.holdAge(); s.holdTicks = p.holdTicks(); s.fistNext = p.fist(); s.fistAge = p.fistAge();
         if (fresh) { s.fist = s.fistPrev = p.fist(); }
-        s.flySpeed = p.flySpeed(); s.flyRise = p.flyRise();
+        s.flySpeed = p.flySpeed(); s.flyRise = p.flyRise(); s.fuel = p.fuel(); s.fuelTicks = p.fuelTicks();
         s.punchAge = p.punchAge(); s.punchesLeft = p.punchesLeft(); s.shieldAge = p.shieldAge();
         s.received = now;
     }
@@ -118,8 +121,26 @@ public final class MagnetoClient {
         var mc = Minecraft.getInstance();
         if (player != mc.player || !isHero(player) || FilmDirector.playing()) return;
         State s = get(player);
-        if (s == null || !s.flying()) { flyVel = null; return; }
+        if (s == null || !s.flying() && !s.gliding()) { flyVel = null; return; }
         var input = e.getInput();
+        if (s.gliding()) {
+            // Flight spent: he sinks slowly, arms open, still drifting the way he steers, and lands on his feet.
+            float fwd = input.forwardImpulse, lft = input.leftImpulse;
+            input.forwardImpulse = 0; input.leftImpulse = 0; input.jumping = false; input.shiftKeyDown = false;
+            input.up = input.down = input.left = input.right = false;
+            player.getAbilities().flying = false;
+            float gy = player.getYRot() * Mth.DEG_TO_RAD;
+            Vec3 fwdDir = new Vec3(-Mth.sin(gy), 0, Mth.cos(gy)), sideDir = new Vec3(Mth.cos(gy), 0, Mth.sin(gy));
+            Vec3 drift = fwdDir.scale(fwd).add(sideDir.scale(lft));
+            if (drift.lengthSqr() > 1) drift = drift.normalize();
+            Vec3 want = drift.scale(s.flySpeed * .5).add(0, -.16, 0);
+            Vec3 v = flyVel == null ? player.getDeltaMovement() : flyVel;
+            flyVel = v.add(want.subtract(v).scale(.12));
+            if (player.horizontalCollision) flyVel = new Vec3(flyVel.x * .5, flyVel.y, flyVel.z * .5);
+            player.setDeltaMovement(flyVel);
+            player.fallDistance = 0;
+            return;
+        }
         float forward = input.forwardImpulse, left = input.leftImpulse;
         boolean up = input.jumping, down = held(mc, mc.options.keySprint);
         input.forwardImpulse = 0; input.leftImpulse = 0; input.jumping = false; input.shiftKeyDown = false;
@@ -207,6 +228,7 @@ public final class MagnetoClient {
         hint(g, font, AbilityKeyHandler.KEY_SKILL_F, s.shield() ? "Kalkanı Patlat" : "Manyetik Demir Kalkan", s.shield() ? 0 : s.cooldowns[CD_SHIELD], s.shield(), 10, row + 24);
         hint(g, font, AbilityKeyHandler.KEY_XRAY, "Manyetik İnfaz", s.cooldowns[CD_ULT], 10, row + 36);
         float cx = w / 2f, cy = h / 2f;
+        flightBar(g, font, s, w, h, time);
         // Holding someone: a crimson ring round the crosshair running out.
         if (s.holding() && s.holdTicks > 0) {
             float left = 1 - s.holdAge / (float) s.holdTicks;
@@ -231,6 +253,39 @@ public final class MagnetoClient {
                 HudStyle.arc(g, cx, cy, 17, 21, a - 4, a + 4, HudStyle.alpha(steel, .8f));
             }
         }
+    }
+    private static float barShown;
+    /**
+     * His flight on the right of the screen: a tall violet bar that drains while he flies and fills back up on the
+     * ground, seconds left under it; low, it blinks crimson; spent in the air, it says he is gliding down.
+     */
+    private static void flightBar(GuiGraphics g, Font font, State s, int w, int h, float time) {
+        boolean air = s.flying() || s.gliding();
+        barShown = Mth.clamp(barShown + ((air || s.fuel < .995f) ? .08f : -.04f), 0, 1);
+        if (barShown <= .01f) return;
+        int bh = 86, bw = 5, x = w - 22, y = h / 2 - bh / 2;
+        float a = barShown;
+        boolean low = s.fuel < .25f;
+        int violet = 0xFFA77BFF, crimson = 0xFFE0384A;
+        int col = low && (s.flying() ? Mth.sin(time * .6f) > 0 : true) ? crimson : violet;
+        // A soft dark slot, the fill rising from the bottom, a bright tip, a faint glow beside it.
+        g.fill(x - 3, y - 3, x + bw + 3, y + bh + 3, HudStyle.alpha(0xA0060408, a));
+        g.fill(x, y, x + bw, y + bh, HudStyle.alpha(0x30FFFFFF, a));
+        int filled = Math.round(bh * Mth.clamp(s.fuel, 0, 1));
+        if (filled > 0) {
+            g.fill(x, y + bh - filled, x + bw, y + bh, HudStyle.alpha(col, a));
+            g.fill(x - 2, y + bh - filled, x, y + bh, HudStyle.alpha(col, .25f * a));
+            g.fill(x + bw, y + bh - filled, x + bw + 2, y + bh, HudStyle.alpha(col, .25f * a));
+            g.fill(x - 1, y + bh - filled, x + bw + 1, y + bh - filled + 1, HudStyle.alpha(0xFFFFFFFF, .9f * a));
+        }
+        // A tick for every two seconds.
+        for (int i = 1; i < s.fuelTicks / 40; i++) {
+            int ty = y + bh - Math.round(bh * i * 40f / s.fuelTicks);
+            g.fill(x, ty, x + bw, ty + 1, HudStyle.alpha(0x60000000, a));
+        }
+        HudStyle.caption(g, font, "UÇUŞ", x + bw / 2 + 1, y - 13, HudStyle.alpha(violet, a), 0);
+        String under = s.gliding() ? "SÜZÜLÜYOR" : String.format(Locale.ROOT, "%.1f", s.fuel * s.fuelTicks / 20f);
+        HudStyle.caption(g, font, under, s.gliding() ? x + bw + 1 : x + bw / 2 + 1, y + bh + 6, HudStyle.alpha(s.gliding() ? crimson : 0xFFEDE6DD, a), s.gliding() ? 1 : 0);
     }
     private static void ring(GuiGraphics g, float cx, float cy, float r, float width, float progress, int color) {
         progress = Mth.clamp(progress, 0, 1);

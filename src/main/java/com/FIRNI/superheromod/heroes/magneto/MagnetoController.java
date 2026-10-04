@@ -56,7 +56,7 @@ public final class MagnetoController {
     private static final class State {
         int action = IDLE, age;
         final int[] cooldowns = new int[COOLDOWNS];
-        boolean flying, grantedFly; int flightAge, groundTicks;
+        boolean flying, grantedFly, gliding; int flightAge, groundTicks; float fuel = -1;
         int charges = -1, recharge;
         Vec3 barrageAt = Vec3.ZERO; int barrageLeft, barrageNext, barrageSeed;
         LivingEntity held; int holdAge, holdTicks, lastSlam = -100, thrownAge = -1; double holdDist; Vec3 commanded = Vec3.ZERO, lastPos = Vec3.ZERO, prevMoved = Vec3.ZERO, prevWant = null, swing = Vec3.ZERO;
@@ -131,7 +131,9 @@ public final class MagnetoController {
     }
     private static void flight(ServerPlayer p, State s, boolean on) {
         if (on == s.flying) return;
+        if (on && s.fuel >= 0 && s.fuel < MagnetoConfig.FLIGHT_TIME.get() * .15f) { tell(p, "Uçuş: enerji doluyor"); return; }
         s.flying = on;
+        s.gliding = false;
         s.flightAge = 0;
         s.groundTicks = 0;
         // A server that forbids flying would throw him out for floating: let it know he may.
@@ -190,7 +192,7 @@ public final class MagnetoController {
         double vy0 = .55, g = .12;
         double t = (-vy0 + Math.sqrt(vy0 * vy0 + 2 * g * h)) / g;
         Vec3 vel = new Vec3((land.x - start.x) / t, -vy0, (land.z - start.z) / t);
-        Metal m = new Metal(nextId++, ROD, p, start, vel, vel.normalize(), 1.7f, (float) g);
+        Metal m = new Metal(nextId++, ROD, p, start, vel, vel.normalize(), ROD_HALF, (float) g);
         METAL.add(m);
         fx(p, FX_ROD, start, vel, (float) g, p.getId(), m.id);
         p.level().playSound(null, start.x, start.y, start.z, SoundEvents.TRIDENT_RIPTIDE_1, SoundSource.PLAYERS, .5f, .6f + .2f * r.nextFloat());
@@ -597,7 +599,7 @@ public final class MagnetoController {
             if (bh.getType() != HitResult.Type.MISS) {
                 Vec3 dir = vel.normalize();
                 // Driven in: the tip buried well into the ground (a rod), a little way (a shard or a piece).
-                double sink = m.kind == ROD ? 1.0 : .25;
+                double sink = m.kind == ROD ? ROD_DEPTH : .25;
                 m.pos = bh.getLocation().subtract(dir.scale(m.half - sink));
                 m.axis = dir;
                 m.vel = Vec3.ZERO;
@@ -661,13 +663,33 @@ public final class MagnetoController {
             if (s.held != null) release(p, s, false);
             if (s.fist) breakFist(p, s);
         }
+        int maxFuel = MagnetoConfig.FLIGHT_TIME.get();
+        if (s.fuel < 0 || s.fuel > maxFuel) s.fuel = maxFuel;
         if (s.flying) {
             grantFlight(p, s);
             s.flightAge++;
             p.fallDistance = 0;
             s.groundTicks = p.onGround() ? s.groundTicks + 1 : 0;
+            if (!p.onGround()) s.fuel = Math.max(0, s.fuel - 1);
             if (s.groundTicks > 8 && s.flightAge > 20) flight(p, s, false);
-        }
+            // Spent in the air: no crash, he glides down (his client sinks him slowly) and lands on his feet.
+            else if (s.fuel <= 0) {
+                s.flying = false;
+                s.gliding = true;
+                s.flightAge = 0;
+                sound(p, SoundEvents.BEACON_DEACTIVATE, .5f, 1.4f);
+                sound(p, ModSounds.MAGNETO_MAGNETIC_HUM.get(), .4f, .7f);
+            }
+        } else if (s.gliding) {
+            grantFlight(p, s);
+            p.fallDistance = 0;
+            if (p.onGround() || p.isInWater() || p.onClimbable()) {
+                s.gliding = false;
+                takeFlight(p, s);
+                fx(p, FX_LAND, p.position(), Vec3.ZERO, 1, p.getId(), 0);
+                sound(p, SoundEvents.ARMOR_EQUIP_IRON, .4f, .8f);
+            }
+        } else if (p.onGround()) s.fuel = Math.min(maxFuel, s.fuel + maxFuel / (float) (MagnetoConfig.FLIGHT_REFILL.get() * 20));
         // The barrage's rods, one after another.
         if (s.barrageLeft > 0 && --s.barrageNext <= 0) {
             spawnRod(p, s, MagnetoConfig.BARRAGE_RODS.get() - s.barrageLeft);
@@ -724,7 +746,7 @@ public final class MagnetoController {
     @SubscribeEvent public static void respawned(PlayerEvent.Clone e) {
         State s = STATES.get(e.getEntity().getUUID());
         if (s == null) return;
-        s.flying = false; s.grantedFly = false; s.held = null; s.thrown = null; s.fist = false;
+        s.flying = false; s.gliding = false; s.grantedFly = false; s.held = null; s.thrown = null; s.fist = false;
     }
     /** His left click is his own; the vanilla punch would hit twice. */
     @SubscribeEvent public static void plainAttack(AttackEntityEvent e) { if (isHero(e.getEntity())) e.setCanceled(true); }
@@ -797,12 +819,13 @@ public final class MagnetoController {
     // ------------------------------------------------------------------ sync
     private static void send(ServerPlayer p, State s) {
         int flags = (s.flying ? MagnetoStatePacket.FLYING : 0) | (s.shield ? MagnetoStatePacket.SHIELD : 0) | (s.fist ? MagnetoStatePacket.FIST : 0)
-                | (s.held != null ? MagnetoStatePacket.HOLDING : 0);
+                | (s.held != null ? MagnetoStatePacket.HOLDING : 0) | (s.gliding ? MagnetoStatePacket.GLIDING : 0);
         float recharge = s.charges >= MagnetoConfig.BARRAGE_CHARGES.get() ? 0 : s.recharge / (float) MagnetoConfig.BARRAGE_RECHARGE.get();
         ModNetworking.CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> p),
                 new MagnetoStatePacket(p.getId(), s.action, s.age, flags, s.cooldowns.clone(), Math.max(0, s.charges), recharge, s.flightAge,
                         s.held == null ? -1 : s.held.getId(), s.holdAge, s.holdTicks, s.fistPos, s.fistAge, s.punchAge, s.punchesLeft, s.shieldAge,
-                        MagnetoConfig.FLY_SPEED.get().floatValue(), MagnetoConfig.FLY_RISE.get().floatValue()));
+                        MagnetoConfig.FLY_SPEED.get().floatValue(), MagnetoConfig.FLY_RISE.get().floatValue(),
+                        s.fuel < 0 ? 1 : s.fuel / (float) MagnetoConfig.FLIGHT_TIME.get(), MagnetoConfig.FLIGHT_TIME.get()));
     }
     static void fx(ServerPlayer p, int kind, Vec3 pos, Vec3 dir, float power, int entity, int id) {
         ModNetworking.CHANNEL.send(PacketDistributor.TRACKING_ENTITY_AND_SELF.with(() -> p), new MagnetoFxPacket(kind, pos, dir, power, entity, id));

@@ -117,7 +117,7 @@ public final class MagnetoFx {
                 Bit b = BITS.get(p.id());
                 if (b != null) stick(b, at, dir, t);
                 else { b = new Bit(p.id(), ROD, at, dir, 0, t); stick(b, at, dir, t); BITS.put(p.id(), b); }
-                Vec3 ground = at.add(dir.scale(1.7 - 1.0));
+                Vec3 ground = at.add(dir.scale(ROD_HALF - ROD_DEPTH));
                 impact(ground, p.power(), .7f);
                 if (near(ground, 24)) MagnetoClient.shake(near(ground, 8) ? .22f : .08f);
             }
@@ -253,26 +253,26 @@ public final class MagnetoFx {
                 float stay = b.kind == ROD ? ROD_STAY + ROD_SINK : SHARD_STAY + SHARD_FADE;
                 if (t - b.stuckAt > stay) it.remove();
                 // A rod sinks back into the ground before it goes.
-                else if (b.kind == ROD && t - b.stuckAt > ROD_STAY) b.pos = b.pos.add(b.axis.scale(.14));
+                else if (b.kind == ROD && t - b.stuckAt > ROD_STAY) b.pos = b.pos.add(b.axis.scale((2 * ROD_HALF - ROD_DEPTH + .3) / ROD_SINK));
                 continue;
             }
             if (t - b.spawn > 90) { it.remove(); continue; }
             Vec3 vel = b.vel.add(0, -b.g, 0);
-            float half = b.kind == ROD ? 1.7f : b.kind == PIECE ? .35f : .25f;
+            float half = b.kind == ROD ? ROD_HALF : b.kind == PIECE ? .35f : .25f;
             Vec3 tip = b.pos.add(b.axis.scale(half)), next = b.pos.add(vel), nextTip = next.add(vel.normalize().scale(half));
             // Our own world says it struck (the server's word follows): it stops there.
             if (mc.player == null) continue;
             var hit = mc.level.clip(new ClipContext(tip, nextTip, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player));
             if (hit.getType() != HitResult.Type.MISS) {
                 Vec3 d = vel.normalize();
-                stick(b, hit.getLocation().subtract(d.scale(half - (b.kind == ROD ? 1.0 : .25))), d, t);
+                stick(b, hit.getLocation().subtract(d.scale(half - (b.kind == ROD ? ROD_DEPTH : .25))), d, t);
                 b.prev = b.pos;
                 continue;
             }
             b.pos = next; b.vel = vel;
             if (b.kind == ROD) b.axis = vel.normalize();
             // The rod's own wind: a few streaks of air and grit behind it.
-            if (b.kind == ROD && ((int) t + b.id) % 2 == 0) MOTES.add(new Mote(b.pos.subtract(b.axis.scale(1.6)), b.vel.scale(-.05), .25f, .04f, 0xb0aca6, 8, t, M_DUST, .25f));
+            if (b.kind == ROD && ((int) t + b.id) % 2 == 0) MOTES.add(new Mote(b.pos.subtract(b.axis.scale(ROD_HALF * .95)), b.vel.scale(-.05), .25f * ROD_SCALE, .04f, 0xb0aca6, 8, t, M_DUST, .25f));
         }
         for (Iterator<Fall> it = FALLS.iterator(); it.hasNext(); ) {
             Fall f = it.next();
@@ -341,6 +341,7 @@ public final class MagnetoFx {
                 p.mulPose(new Quaternionf().rotationTo(new Vector3f(0, 1, 0), new Vector3f((float) b.axis.x, (float) b.axis.y, (float) b.axis.z)));
                 float spin = b.stuck ? (b.stuckAt - b.spawn) * .5f : (time - b.spawn) * .5f;
                 p.mulPose(Axis.YP.rotation(spin + b.id));
+                p.scale(ROD_SCALE, ROD_SCALE, ROD_SCALE);
                 MetalMesh.rod(p, v, light, 3.4f, b.id);
             } else {
                 p.mulPose(new Quaternionf().rotationTo(new Vector3f(0, 1, 0), new Vector3f((float) b.axis.x, (float) b.axis.y, (float) b.axis.z)));
@@ -454,7 +455,7 @@ public final class MagnetoFx {
             }
             MagnetoShield.pops(c, time);
             // Flying rods: a faint glint at the tip.
-            for (Bit b : BITS.values()) if (b.kind == ROD && !b.stuck) FilmFx.glow(c, b.prev.lerp(b.pos, partial).add(b.axis.scale(1.9)), .25, STEEL, .25f);
+            for (Bit b : BITS.values()) if (b.kind == ROD && !b.stuck) FilmFx.glow(c, b.prev.lerp(b.pos, partial).add(b.axis.scale(ROD_HALF + .2)), .25 * ROD_SCALE, STEEL, .25f);
             if (MagnetoConfig.FIELD_LINES.get()) fieldLines(c, time, partial);
             fx.endBatch();
         } finally {
