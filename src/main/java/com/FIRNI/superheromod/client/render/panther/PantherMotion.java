@@ -66,14 +66,14 @@ public final class PantherMotion {
     // ------------------------------------------------------------------ tracks: key poses on a smooth curve
     private record Key(float t, Pose p) {}
     /** A move: key poses at times; sampled on a cubic curve through them (each key's speed set by its neighbours). */
-    static final class Track {
+    public static final class Track {
         private final List<Key> keys = new ArrayList<>();
         /** Held: a joint that rests between two keys (or turns back at one) stays put there instead of drifting past it. */
         private final boolean held;
-        Track() { this(false); }
-        Track(boolean held) { this.held = held; }
-        Track key(float t, Pose p) { keys.add(new Key(t, p)); return this; }
-        Pose sample(float t) {
+        public Track() { this(false); }
+        public Track(boolean held) { this.held = held; }
+        public Track key(float t, Pose p) { keys.add(new Key(t, p)); return this; }
+        public Pose sample(float t) {
             int n = keys.size();
             if (t <= keys.get(0).t) return keys.get(0).p.copy();
             if (t >= keys.get(n - 1).t) return keys.get(n - 1).p.copy();

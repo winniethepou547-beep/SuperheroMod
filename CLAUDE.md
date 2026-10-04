@@ -1,6 +1,6 @@
 # SuperheroMod — notes for Claude
 
-Forge 1.20.1 mod (Java 17, package `com.FIRNI.superheromod`). Heroes: **Ghost Rider**, **Cyclops**, **Sandman**, **Thor**, **Hulk**, **Zed**, **Black Panther**.
+Forge 1.20.1 mod (Java 17, package `com.FIRNI.superheromod`). Heroes: **Ghost Rider**, **Cyclops**, **Sandman**, **Thor**, **Hulk**, **Zed**, **Black Panther**, **Magneto**.
 Older background and per-feature notes live in `docs/` (Turkish); `docs/PROJE_DEVIR_DOKUMANI.md` is the original handover.
 
 ## Working with the user
@@ -229,6 +229,22 @@ landing spot and the target to the crater.
   torn off → gunman thrown up → charge → BOOM (impact frame) → slow motion vault/flight → three-point landing → whip to the car → crash
   (flash, violet, fireball, smoke) → dust parted by wind → rise, look off, claws in (`PantherBody.clawLength`), energy
   drains chest → arms → legs (`Charge.drain`) → back to the world.
+
+## Magneto (PvP hero, `heroes/magneto/`, `client/render/magneto/`) — look after the user's painting (crimson suit, violet cape)
+- Id `magneto`. `MagnetoAction` = ids + timings (+ film beats); `MagnetoConfig` (`superheromod-magneto.toml`, `-client.toml`):
+  every damage/range/cooldown/duration/count, effects amount, field lines. `MagnetoController` (server) decides and simulates
+  the metal (`Metal`: rods, shards, burst pieces; hits, sticking); `MagnetoStatePacket` (action/clock, flight, charges, held
+  target + hold age, fist position/punch/punches left, shield age) and `MagnetoFxPacket` (each piece has an id so clients follow
+  it; clients simulate the same flight and stop on their own world, the server's hit fixes the spot).
+- Keys: SHIFT or jump twice = flight (his client steers: `MagnetoClient.steer`, own velocity, look direction, jump up, CTRL
+  down, bob; server grants `mayfly` only against the floating kick). LMB shard / fist punch / throw the held. Q Iron Barrage
+  (3 charges, rods 8 blocks over the aim point, slanted, spinning, impale, AoE, no terrain damage). E telekinesis (scrap flies
+  in from behind the target and wraps them; 3 s drag with the aim, slam = commanded speed but stopped). R giant iron fist
+  (spring-follows the aim's ground point, 5 punches). F shield columns round him (projectiles stopped, melee reduced);
+  F again = burst into pieces that hit and stick. X = MAGNETIC EXECUTION film.
+- Look: `MagnetoBody` (same joint chain/pose layout as Panther: `PantherMotion.Pose`, `PantherMotion.Track` made public),
+  `MagnetoMotion` (calm, minimal gestures; flight = arms open like the painting), `MagnetoLayer` (cape on a damped spring),
+  `MetalMesh` (rods/girders, scrap, columns, fist, fragments), `MagnetoFx`. Docs for the user: `docs/MAGNETO.md`.
 
 ## Champion select (P)
 - `client/gui/ChampionSelectScreen` (key P; the dev Pose Studio moved to F8 under a new key id) + roster data

@@ -15,6 +15,7 @@ import com.FIRNI.superheromod.heroes.sandman.SandSoldierEntity;
 import com.FIRNI.superheromod.heroes.thor.ThorAction;
 import com.FIRNI.superheromod.heroes.zed.ZedAction;
 import com.FIRNI.superheromod.heroes.panther.PantherAction;
+import com.FIRNI.superheromod.heroes.magneto.MagnetoAction;
 import com.mojang.authlib.GameProfile;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.platform.Lighting;
@@ -95,6 +96,7 @@ final class ChampionStage {
             case "sandman" -> 84;
             case "hulk", "ghost_rider" -> 50;
             case "black_panther" -> 84;
+            case "magneto" -> 72;
             default -> 40;
         };
     }
@@ -152,6 +154,13 @@ final class ChampionStage {
                 if (n == 51) play(s, SoundEvents.BEACON_ACTIVATE, 1.4f, .6f);
                 if (n == 58) { play(s, SoundEvents.WARDEN_SONIC_BOOM, 1.2f, .7f); play(s, SoundEvents.GENERIC_EXPLODE, .75f, .5f); play(s, SoundEvents.AMETHYST_BLOCK_CHIME, .6f, 1f); }
                 if (n == 64) play(s, SoundEvents.BEACON_DEACTIVATE, 1.4f, .5f);
+            }
+            case "magneto" -> {
+                if (n == 0) { play(s, SoundEvents.BEACON_POWER_SELECT, 1.3f, .5f); play(s, SoundEvents.ELYTRA_FLYING, 1.5f, .3f); }
+                if (n == 22) play(s, SoundEvents.ARMOR_EQUIP_NETHERITE, .7f, .8f);
+                if (n == 26 || n == 29 || n == 32) play(s, SoundEvents.ANVIL_LAND, .55f + n * .01f, .35f);
+                if (n == 40) { play(s, SoundEvents.IRON_GOLEM_STEP, .5f, .7f); play(s, SoundEvents.ANVIL_PLACE, .5f, .5f); }
+                if (n == 50) { play(s, SoundEvents.GENERIC_EXPLODE, .8f, .45f); play(s, SoundEvents.CHAIN_BREAK, .5f, .6f); }
             }
             default -> {}
         }
@@ -250,6 +259,7 @@ final class ChampionStage {
             case "zed" -> new float[]{18, 48};
             case "cyclops" -> new float[]{50, 60};
             case "sandman" -> new float[]{24, 58};
+            case "magneto" -> new float[]{26, 29, 32, 50};
             default -> new float[0];
         };
         for (float hit : hits) if (st > hit) shake += 3 * (float) Math.exp(-(st - hit) / 3.5) * Mth.sin(st * 3.7f);
@@ -287,6 +297,16 @@ final class ChampionStage {
                 else if (st < 66) { Showcase.play(actor, PantherAction.RELEASE, st - 58); Showcase.glow(1, 0); }
                 else if (st < 80) { Showcase.play(actor, PantherAction.RELEASE_RECOVER, st - 66); Showcase.glow(.1f, 0); }
                 else { Showcase.play(actor, PantherAction.IDLE, st); Showcase.glow(.1f, 0); }
+            }
+            case "magneto" -> {
+                // Lifts off, arms opening; drives the rods down; raises the shield and bursts it; sets down again.
+                float fly = st < 58 ? 1 : 0;
+                if (st < 20) Showcase.play(actor, MagnetoAction.IDLE, st);
+                else if (st < 34) Showcase.play(actor, MagnetoAction.BARRAGE, st - 20);
+                else if (st < 48) Showcase.play(actor, MagnetoAction.SHIELD_RAISE, st - 34);
+                else if (st < 58) Showcase.play(actor, MagnetoAction.BURST, st - 48);
+                else Showcase.play(actor, MagnetoAction.IDLE, st);
+                Showcase.glow(0, fly);
             }
             default -> Showcase.stop();
         }
@@ -365,6 +385,7 @@ final class ChampionStage {
             case "zed" -> { light(); glowDisc(g, px, py - s * 1.0f, s * 1.4f, 0xFFB01020, .22f * in * out); normal(); }
             case "cyclops" -> { light(); glowDisc(g, px, py - s * 1.4f, s * 1.3f, 0xFFFF2030, .12f * in * out); normal(); }
             case "black_panther" -> { light(); glowDisc(g, px, py - s * 1.1f, s * 1.5f, 0xFF7A3CFF, (.16f + .3f * span(st, 44, 58) * (1 - span(st, 58, 70))) * in * out); normal(); }
+            case "magneto" -> { light(); glowDisc(g, px, py - s * 1.3f, s * 1.6f, 0xFFB0303A, (.14f + .25f * span(st, 46, 50) * (1 - span(st, 50, 62))) * in * out); normal(); }
             default -> {}
         }
     }
