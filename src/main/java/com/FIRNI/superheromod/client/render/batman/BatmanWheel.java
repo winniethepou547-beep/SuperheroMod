@@ -15,14 +15,15 @@ import static com.FIRNI.superheromod.heroes.batman.BatmanAction.*;
 
 /**
  * Batman's HUD drawings: the gadget wheel (Arkham / Spider-Man 2 style: a dark glass disc, five sectors with their
- * icons, the one under the cursor lit cyan, the picked one marked, its name and cooldown in the middle), the bat
+ * icons (one sector per gadget), the one under the cursor lit cyan, the picked one marked, its name and cooldown in the middle), the bat
  * emblem and the Batarang icon of the belt. Flat vector shapes drawn as triangle fans.
  */
 public final class BatmanWheel {
     private BatmanWheel() {}
     static final int CYAN = 0xFF5FD6FF, GLASS = 0xC0101820, RIM = 0xFF2B4A5A;
     private static final String[] INFO = {"Geniş kara sis: içindekiler göremez, sen termalle görürsün", "Yakındakileri kör eder", "Tak / çıkar: ağır elektrikli boks",
-            "4 sn iki bilekten seri atış, nişangâhı izler", "İki sonik verici yerden çıkar, hedefi sersemletir"};
+            "4 sn iki bilekten seri atış, nişangâhı izler", "İki sonik verici yerden çıkar, hedefi sersemletir",
+            "Çağır: arkandan gelip yanına park eder; tekrar: gönder"};
     /** Degrees each sector spans. */
     static final float SECTOR = 360f / GADGETS;
 
@@ -41,6 +42,8 @@ public final class BatmanWheel {
         g.pose().pushPose();
         // A dim over the world while the wheel is open.
         g.fill(0, 0, (int) (cx * 2), (int) (cy * 2), HudStyle.alpha(0x88000000, k));
+        // Drawn now (fills are batched): under the wheel, never over it.
+        g.flush();
         HudStyle.arc(g, cx, cy, 0, r + 2, 0, 360, HudStyle.alpha(GLASS, k));
         HudStyle.arc(g, cx, cy, r, r + 2, 0, 360, HudStyle.alpha(RIM, k));
         HudStyle.arc(g, cx, cy, r * .42f, r * .42f + 1, 0, 360, HudStyle.alpha(RIM, k));
@@ -60,12 +63,13 @@ public final class BatmanWheel {
         // The middle: the name and what it does.
         int show = hovered >= 0 ? hovered : s.gadget;
         emblem(g, cx, cy - 9, 6, 0, HudStyle.alpha(0xFF2E3A44, k));
-        HudStyle.caption(g, font, GADGET_NAMES[show], (int) cx, (int) cy - 1, HudStyle.alpha(hovered >= 0 ? CYAN : 0xFFE8C547, k), 0);
+        HudStyle.caption(g, font, GADGET_NAMES[Mth.clamp(show, 0, GADGET_NAMES.length - 1)], (int) cx, (int) cy - 1, HudStyle.alpha(hovered >= 0 ? CYAN : 0xFFE8C547, k), 0);
         g.pose().pushPose();
         g.pose().translate(cx, cy + 10, 0);
         g.pose().scale(.6f, .6f, 1);
-        int tw = font.width(INFO[show]);
-        g.drawString(font, INFO[show], -tw / 2, 0, HudStyle.alpha(0xFFB9C6CE, k), false);
+        String info = show < INFO.length ? INFO[show] : "";
+        int tw = font.width(info);
+        g.drawString(font, info, -tw / 2, 0, HudStyle.alpha(0xFFB9C6CE, k), false);
         g.pose().popPose();
         // The cursor: where the mouse points on the wheel.
         float px = cx + curX / 30f * r * .9f, py = cy + curY / 30f * r * .9f;
@@ -103,8 +107,8 @@ public final class BatmanWheel {
             }
             case G_SONIC -> {
                 // The emitter's round chamber on its post, waves going out from it.
-                g.fill((int) (x - s * .12f), (int) (y + s * .1f), (int) (x + s * .12f), (int) (y + s * .85f), col);
-                g.fill((int) (x - s * .45f), (int) (y + s * .75f), (int) (x + s * .45f), (int) (y + s * .9f), col);
+                rect(g, x - s * .12f, y + s * .1f, x + s * .12f, y + s * .85f, col);
+                rect(g, x - s * .45f, y + s * .75f, x + s * .45f, y + s * .9f, col);
                 HudStyle.arc(g, x, y - s * .15f, s * .32f, s * .48f, 0, 360, col);
                 disc(g, x, y - s * .15f, s * .14f, HudStyle.alpha(0xFFDFF4FF, .9f));
                 float w = (time * .08f) % 1;
@@ -125,8 +129,8 @@ public final class BatmanWheel {
             }
             default -> {
                 // A fist (the knuckles a row of squares) and a cyan bolt across it.
-                g.fill((int) (x - s * .55f), (int) (y - s * .2f), (int) (x + s * .45f), (int) (y + s * .7f), col);
-                for (int k = 0; k < 4; k++) g.fill((int) (x - s * .55f + k * s * .25f), (int) (y - s * .5f), (int) (x - s * .35f + k * s * .25f), (int) (y - s * .2f), col);
+                rect(g, x - s * .55f, y - s * .2f, x + s * .45f, y + s * .7f, col);
+                for (int k = 0; k < 4; k++) rect(g, x - s * .55f + k * s * .25f, y - s * .5f, x - s * .35f + k * s * .25f, y - s * .22f, col);
                 int bolt = (int) (time / 3) % 3 == 0 ? 0xFFFFFFFF : 0xFF4FE3E8;
                 fan(g, x + s * .15f, y, new float[]{.5f, -1f, -.05f, -.05f, .25f, -.05f, -.5f, 1f, .05f, .1f, -.2f, .1f}, s * .7f, bolt);
             }
@@ -171,6 +175,11 @@ public final class BatmanWheel {
         fan(g, x + mx * s, y + my * s, pts, s, col);
     }
     static void disc(GuiGraphics g, float x, float y, float r, int col) { HudStyle.arc(g, x, y, 0, r, 0, 360, col); }
+    /** A filled rectangle drawn like the other shapes (straight away, not batched behind the wheel). */
+    static void rect(GuiGraphics g, float x0, float y0, float x1, float y1, int col) {
+        float cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, hx = (x1 - x0) / 2, hy = (y1 - y0) / 2;
+        fan(g, cx, cy, new float[]{-hx, -hy, hx, -hy, hx, hy, -hx, hy}, 1, col);
+    }
 
     /** A filled shape: a fan from (x, y) round the outline (unit points scaled by s). */
     static void fan(GuiGraphics g, float x, float y, float[] pts, float s, int color) {
