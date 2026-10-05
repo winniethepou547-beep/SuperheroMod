@@ -299,7 +299,9 @@ landing spot and the target to the crater.
   direction (not explosions/fall/fire/magic/bypass), any Projectile or attacker beyond `gauntletRange` = BLOCK_CAPE (big cape sweep, `CAPE_TICKS`); close blows
   vary and never repeat back to back (`State.lastBlock`: BLOCK_RIGHT/LEFT/FRONT, BLOCK_EVADE_R/L = Panther-like slip, no sparks;
   a strong side picks that arm); projectiles re-aimed next tick; `FX_BLOCK` → `BatmanReflexFx` (sparks along the deflect, rings, the move via
-  `BatmanMotion.deflect`, cape sweep via `BatmanBody.capeGrab` → `CapeCloth.Frame.grab`)), X = KARA ŞÖVALYE film (below),
+  `BatmanMotion.deflect`, cape sweep via `BatmanBody.capeGrab` → `CapeCloth.Frame.grab`; in first person `BatmanFirstPerson.deflect`
+  moves the gauntlets, `BatmanBody.firstPersonCapeSheet` drags the cloth across the view and `BatmanReflexFx.camera` sways the view on a slip:
+  without that, his own (first-person) view showed no block at all)), X = KARA ŞÖVALYE film (below),
   SHIFT held = run (sprint, 1.3x; vanilla sneak cleared in `BatmanClient.run`), CTRL (raw) = Elden Ring
   dive roll (`DODGE_TICKS` 16, `DODGE_DIVE`, 7 blocks, i-frames, 3 s cooldown `rollCooldown`), SPACE held in the air = cape glide
   (gravity/drag undone in `steer` so it really glides; only a steep dive speeds up; the cape opens into a big wing:

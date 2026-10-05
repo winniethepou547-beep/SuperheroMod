@@ -101,7 +101,7 @@ public final class BatmanAction {
 
     // ------------------------------------------------------------------ Q: the reflex block
     /** The window lasts REFLEX_TICKS; a deflect's own move lasts DEFLECT_TICKS, and a new one may start REFLEX_GAP after the last. */
-    public static final int REFLEX_TICKS = 20, DEFLECT_TICKS = 9, REFLEX_GAP = 5;
+    public static final int REFLEX_TICKS = 20, DEFLECT_TICKS = 13, REFLEX_GAP = 5;
     /** What a deflect was (BatmanFxPacket FX_BLOCK power): the right gauntlet, the left, both crossed (from straight ahead), the cape. */
     public static final int BLOCK_RIGHT = 1, BLOCK_LEFT = 2, BLOCK_FRONT = 3, BLOCK_CAPE = 4;
     /** A blow slipped instead of met: the body sways out of its way to his right / left (Panther-like), no contact. */

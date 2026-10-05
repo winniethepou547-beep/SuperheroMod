@@ -76,6 +76,24 @@ public final class BatmanReflexFx {
         }
     }
 
+    /** His own view through a deflect: a slip sways it out to that side and back; the cape's sweep turns it a little. */
+    @SubscribeEvent public static void camera(net.minecraftforge.client.event.ViewportEvent.ComputeCameraAngles e) {
+        var mc = Minecraft.getInstance();
+        if (mc.player == null) return;
+        float[] d = deflect(mc.player.getId(), now());
+        if (d == null) return;
+        int kind = (int) d[0];
+        float t = d[1], len = BatmanMotion.deflectLength(kind);
+        float bump = Mth.sin(Mth.PI * Mth.clamp(t / (len - 1), 0, 1));
+        float shake = BatmanConfig.SHAKE.get().floatValue();
+        if (kind == BLOCK_EVADE_R || kind == BLOCK_EVADE_L) {
+            float s = kind == BLOCK_EVADE_R ? 1 : -1;
+            e.setRoll(e.getRoll() + s * 7 * bump * shake);
+            e.setYaw(e.getYaw() - s * 5 * bump * shake);
+            e.setPitch(e.getPitch() + 3 * bump * shake);
+        } else if (kind == BLOCK_CAPE) e.setYaw(e.getYaw() + 4 * bump * shake);
+        else e.setYaw(e.getYaw() + (kind == BLOCK_LEFT ? -3 : 3) * bump * shake);
+    }
     /** The deflect move this Batman's body is playing now: {kind, ticks since}, or null. */
     static float[] deflect(int batman, float now) {
         Block b = LAST.get(batman);

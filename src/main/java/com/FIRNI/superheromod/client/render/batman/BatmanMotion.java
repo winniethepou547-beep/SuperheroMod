@@ -416,12 +416,18 @@ public final class BatmanMotion {
                 g.arm(0, SH_FWD, .6f + .4f * sweep).arm(0, ARM_X, Mth.lerp(sweep, -1.45f, -1.15f)).arm(0, ARM_Y, Mth.lerp(sweep, -.55f, .25f))
                         .arm(0, ARM_Z, Mth.lerp(sweep, .35f, 1.35f)).arm(0, ELBOW, Mth.lerp(sweep, 1.75f, 1.05f)).arm(0, WRIST_X, Mth.lerp(sweep, .35f, -.2f)).arm(0, CURL, 1);
                 g.leg(0, LEG_X, .2f).leg(1, LEG_X, -.2f);
+                // The whole body turned to his right into it, leaning that way, the right foot stepped out.
+                g.add(PELVIS_YAW, .38f).add(SPINE_YAW, .12f).add(SPINE_ROLL, -.12f).add(HEAD_ROLL, .06f);
+                g.leg(0, LEG_Z, .28f).leg(0, KNEE, .45f);
             }
             case BLOCK_LEFT -> {
                 g.add(CHEST_YAW, -.18f + .4f * sweep).add(CROUCH, 1.4f).add(SPINE_PITCH, .1f).add(HEAD_YAW, .25f);
                 g.arm(1, SH_FWD, .5f + .3f * sweep).arm(1, ARM_X, Mth.lerp(sweep, -1.3f, -1.05f)).arm(1, ARM_Y, Mth.lerp(sweep, -.95f, .1f))
                         .arm(1, ARM_Z, Mth.lerp(sweep, .15f, 1.25f)).arm(1, ELBOW, Mth.lerp(sweep, 2.15f, 1.2f)).arm(1, WRIST_X, Mth.lerp(sweep, .4f, -.15f)).arm(1, CURL, 1);
                 g.leg(1, LEG_X, -.3f).leg(0, LEG_X, .15f);
+                // The whole body turned to his left into it, leaning that way, the left foot stepped out.
+                g.add(PELVIS_YAW, -.38f).add(SPINE_YAW, -.12f).add(SPINE_ROLL, .12f).add(HEAD_ROLL, -.06f);
+                g.leg(1, LEG_Z, .28f).leg(1, KNEE, .45f);
             }
             case BLOCK_FRONT -> {
                 float lock = 1 - sweep * .6f;
@@ -437,7 +443,7 @@ public final class BatmanMotion {
                 float sway = Mth.sin(Mth.PI * PantherMotion.clamp(t / (len - 1)));
                 Pose gd = guard(p);
                 g = gd;
-                g.add(SHIFT_X, -s * 3.2f * sway).add(ROOT_ROLL, -s * .22f * sway).add(SPINE_ROLL, -s * .18f * sway).add(CHEST_ROLL, -s * .1f * sway)
+                g.add(SHIFT_X, -s * 5.5f * sway).add(ROOT_ROLL, -s * .3f * sway).add(SPINE_ROLL, -s * .18f * sway).add(CHEST_ROLL, -s * .1f * sway)
                         .add(CROUCH, 2.6f * sway).add(SPINE_PITCH, .2f * sway).add(HEAD_ROLL, -s * .2f * sway).add(HEAD_YAW, s * .15f * sway)
                         .add(CHEST_YAW, s * .25f * sway);
                 g.leg(kind == BLOCK_EVADE_R ? 0 : 1, LEG_Z, .3f * sway).leg(kind == BLOCK_EVADE_R ? 1 : 0, LEG_Z, -.05f);

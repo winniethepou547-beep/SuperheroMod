@@ -508,6 +508,26 @@ public final class BatmanBody {
         }
     }
 
+    /**
+     * His own view of the cape pulled across in front of him (the reflex block's cape): a curtain of cloth hanging from
+     * its top edge (the current space: blocks, its top middle at the origin, hanging down -y, facing +z toward him), its
+     * folds running down it, a ripple running out from where the blow struck (ripple 0..1, fading).
+     */
+    public static void firstPersonCapeSheet(PoseStack p, MultiBufferSource b, int light, float width, float height, float ripple, float time) {
+        int cols = 7, rows = 6;
+        float cw = width * 16 / cols, rh = height * 16 / rows;
+        for (int c = 0; c < cols; c++) for (int r = 0; r < rows; r++) {
+            float u = (c + .5f) / cols - .5f, v = (r + .5f) / rows;
+            // The folds: the cloth bunched where the hand holds it (the top), hanging freer below, swaying a little.
+            float fold = 1.6f * Mth.sin(c * 1.9f + .4f) * (.4f + .6f * v) + .5f * Mth.sin(time * .35f + c + r * .7f) * v;
+            float wave = ripple * 2.2f * Mth.sin(Mth.sqrt(u * u * 4 + (v - .35f) * (v - .35f)) * 9 - (1 - ripple) * 14);
+            float[] col = (c % 2 == 0) ? ARMOR : SUIT_DARK;
+            part(p, b, light, u * width * 16, -(r + .5f) * rh, fold + wave, 0, 0, 0, cw * 1.08f, rh * 1.08f, .5f, col);
+        }
+        // The lining showing at the gathered top edge.
+        part(p, b, light, 0, -.4f, .3f, 0, 0, 0, width * 16, .9f, .8f, SUIT);
+    }
+
     // ------------------------------------------------------------------ world points
     private static final Vector4f V4 = new Vector4f();
     private static final Vector3f V3 = new Vector3f();

@@ -127,6 +127,15 @@ public final class BatmanFirstPerson {
             BatmanBody.thermal = 0;
             BatmanGear.thermal = 0;
         }
+        // The cape dragged across in front of him (the reflex block's cape deflect).
+        float[] sheet = capeSheet(now);
+        if (sheet != null) {
+            p.pushPose();
+            p.translate(sheet[0], sheet[1], -.7f);
+            p.mulPose(Axis.YP.rotationDegrees(sheet[2]));
+            BatmanBody.firstPersonCapeSheet(p, b, light, 1.2f, 1.0f, sheet[3], time);
+            p.popPose();
+        }
         // His own rope and Batarangs start from his hands as he sees them.
         if (BatmanBody.handRight != null || BatmanBody.handLeft != null)
             BatmanLayer.store(mc.player.getId(), BatmanBody.handRight, BatmanBody.handLeft, BatmanBody.muzzle);
@@ -206,8 +215,14 @@ public final class BatmanFirstPerson {
                 l.shown = 1 - k(t, STRIKE_JUMP, STRIKE_JUMP + 3);
             }
             case DODGE -> { r.shown = 0; l.shown = 0; }
+            // The reflex window: both forearms up at the edges of the view, the spikes out.
+            case REFLEX -> { guardUp(r, 0); guardUp(l, 1); }
             default -> {}
         }
+        // ---- a reflex deflect plays over whatever the arms are doing (the cape sheet itself is drawn in hand())
+        var mc = Minecraft.getInstance();
+        float[] d = mc.player == null ? null : BatmanReflexFx.deflect(mc.player.getId(), now);
+        if (d != null) deflect((int) d[0], d[1]);
         // ---- the wrist cannon (its own block below)
         if (action == CANNON) cannon(t, s);
         // ---- the electric gauntlets: the boxer's guard, the heavy blows, locking on and coming off (its own block below)
@@ -220,6 +235,68 @@ public final class BatmanFirstPerson {
             r.set(.78f, -.72f, -.55f, -78, -58, -25 + flap, .85f);
             l.set(-.78f, -.72f, -.55f, -78, 58, 25 - flap, .85f);
         }
+    }
+    /** The reflex guard: the forearm up and angled in at that side of the view. */
+    private static Arm guardUp(Arm a, int side) {
+        float sx = side == 0 ? 1 : -1;
+        return a.set(.36f * sx, -.52f, -.6f, -105, 30 * sx, -20 * sx, 1);
+    }
+    private static final Arm[] DA = {new Arm(), new Arm()}, DB = {new Arm(), new Arm()}, DC = {new Arm(), new Arm()};
+    /**
+     * A deflect as he sees it, t ticks in: the right gauntlet swept across into the blow and thrown out to the right
+     * (the left mirrored), both crossed in an X before the face and the right shoving it aside, a slip to one side with
+     * the guard kept up (the view sways with it), or the cape: the right hand reaches back for its edge and drags it
+     * across in front (hand() draws the cloth), holds it, lets it drop.
+     */
+    private static void deflect(int kind, float t) {
+        float len = BatmanMotion.deflectLength(kind);
+        float w = k(t, 0, 1.2f) * (1 - k(t, len - 3, len));
+        if (w <= 0) return;
+        float sweep = k(t, 1, 3.5f);
+        Arm r = NOW[0], l = NOW[1], wr = DC[0], wl = DC[1];
+        guardUp(wr, 0); guardUp(wl, 1);
+        switch (kind) {
+            case BLOCK_RIGHT, BLOCK_LEFT -> {
+                int side = kind == BLOCK_RIGHT ? 0 : 1;
+                float sx = side == 0 ? 1 : -1;
+                Arm in = DA[side].set(.1f * sx, -.4f, -.6f, -100, 75 * sx, -70 * sx, 1), out = DB[side].set(.74f * sx, -.42f, -.55f, -95, -45 * sx, 15 * sx, 1);
+                Arm hit = side == 0 ? wr : wl, other = side == 0 ? wl : wr;
+                hit.lerp(guardUp(DB[1 - side], side), in, k(t, 0, 1.2f));
+                if (sweep > 0) hit.lerp(in, out, sweep);
+                other.y -= .12f; other.shown = .8f;
+            }
+            case BLOCK_FRONT -> {
+                Arm xr = DA[0].set(.07f, -.42f, -.6f, -105, 60, -45, 1), xl = DA[1].set(-.07f, -.4f, -.58f, -105, -60, 45, 1);
+                Arm shove = DB[0].set(.72f, -.45f, -.55f, -90, -40, 10, 1);
+                wr.lerp(guardUp(DB[1], 0), xr, k(t, 0, 1.2f));
+                wl.lerp(guardUp(DC[1], 1), xl, k(t, 0, 1.2f));
+                if (sweep > .3f) wr.lerp(xr, shove, k(t, 2.2f, 4.5f));
+            }
+            case BLOCK_EVADE_R, BLOCK_EVADE_L -> {
+                // The hands stay up; the whole view slips aside (BatmanReflexFx sways the camera).
+                float s = kind == BLOCK_EVADE_R ? 1 : -1, sway = Mth.sin(Mth.PI * PantherMotion.clamp(t / (len - 1)));
+                wr.x -= .1f * s * sway; wl.x -= .1f * s * sway; wr.y -= .06f * sway; wl.y -= .06f * sway;
+            }
+            default -> {
+                // The cape: reaching back to the right for its edge, then dragged high across the face.
+                float across = k(t, 1.2f, 4.5f), drop = k(t, len - 5, len);
+                Arm back = DA[0].set(.78f, -.55f, -.42f, -55, -60, 0, .95f), held = DB[0].set(-.08f, -.2f, -.62f, -122, 62, -30, .95f);
+                wr.lerp(back, held, across);
+                wr.y -= .5f * drop;
+                wl.set(-.4f, -.62f, -.62f, -95, -20, 15, 1);
+            }
+        }
+        r.toward(wr, w);
+        l.toward(wl, w);
+    }
+    /** How the cape sheet stands in his view now (null when no cape deflect): {x, y, yaw, ripple}. */
+    static float[] capeSheet(float now) {
+        var mc = Minecraft.getInstance();
+        float[] d = mc.player == null ? null : BatmanReflexFx.deflect(mc.player.getId(), now);
+        if (d == null || (int) d[0] != BLOCK_CAPE) return null;
+        float t = d[1], len = BatmanMotion.deflectLength(BLOCK_CAPE);
+        float across = k(t, 1.2f, 4.5f), drop = k(t, len - 5, len);
+        return new float[]{Mth.lerp(across, 1.0f, .1f), Mth.lerp(across, -.2f, .02f) - 1.1f * drop, Mth.lerp(across, -65, -6), Math.max(0, 1 - t / 7f)};
     }
     /** Out of sight, or (after a fight) the guard at the edges of the view. */
     private static Arm rest(Arm a, int side, boolean guard) {
