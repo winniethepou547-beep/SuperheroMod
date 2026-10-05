@@ -88,6 +88,14 @@ public final class PantherController {
 
     public static boolean isHero(Entity e) { return e instanceof ServerPlayer && ID.equals(AbilityManager.getCharacterId(e.getUUID())); }
     private static State state(ServerPlayer p) { return STATES.computeIfAbsent(p.getUUID(), id -> new State()); }
+    /** The block test (/blokdene): the reflex on now, whatever its cooldown. False when he is not Black Panther. */
+    public static boolean testBlock(ServerPlayer p) {
+        if (!isHero(p)) return false;
+        State s = state(p);
+        s.cooldowns[CD_REFLEX] = 0;
+        reflex(p, s);
+        return true;
+    }
     private static void set(State s, int action) {
         // Out of the frenzy by any road (a dash, a pounce): its cooldown still applies.
         if (s.action == FRENZY && action != FRENZY) s.cooldowns[CD_FRENZY] = Math.max(s.cooldowns[CD_FRENZY], PantherConfig.FRENZY_COOLDOWN.get());

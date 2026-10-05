@@ -79,6 +79,53 @@ public final class ModSounds {
     // sandman
     public static final RegistryObject<SoundEvent> SANDMAN_SAND_WHOOSH = reg("sandman.sand_whoosh");
     public static final RegistryObject<SoundEvent> SANDMAN_SAND_IMPACT = reg("sandman.sand_impact");
+    // batman
+    public static final RegistryObject<SoundEvent> BATMAN_PUNCH = reg("batman.punch");
+    public static final RegistryObject<SoundEvent> BATMAN_BATARANG = reg("batman.batarang");
+    public static final RegistryObject<SoundEvent> BATMAN_GRAPNEL = reg("batman.grapnel");
+    public static final RegistryObject<SoundEvent> BATMAN_SMOKE = reg("batman.smoke");
+    public static final RegistryObject<SoundEvent> BATMAN_FLASH = reg("batman.flash");
+    public static final RegistryObject<SoundEvent> BATMAN_FLASH_BOUNCE = reg("batman.flash_bounce");
+    public static final RegistryObject<SoundEvent> BATMAN_FLASH_RING = reg("batman.flash_ring");
+    public static final RegistryObject<SoundEvent> BATMAN_TD_SIGNAL = reg("batman.td_signal");
+    public static final RegistryObject<SoundEvent> BATMAN_TD_ABORT = reg("batman.td_abort");
+    public static final RegistryObject<SoundEvent> BATMAN_TD_TRACKER = reg("batman.td_tracker");
+    public static final RegistryObject<SoundEvent> BATMAN_TD_LOCK = reg("batman.td_lock");
+    public static final RegistryObject<SoundEvent> BATMAN_BM_ENGINE = reg("batman.bm_engine");
+    public static final RegistryObject<SoundEvent> BATMAN_BM_DRIFT = reg("batman.bm_drift");
+    public static final RegistryObject<SoundEvent> BATMAN_BM_BOOST = reg("batman.bm_boost");
+    public static final RegistryObject<SoundEvent> BATMAN_BM_GUN = reg("batman.bm_gun");
+    public static final RegistryObject<SoundEvent> BATMAN_MINE = reg("batman.mine");
+    public static final RegistryObject<SoundEvent> BATMAN_CAPE = reg("batman.cape");
+    // batman: the wrist cannon
+    public static final RegistryObject<SoundEvent> BATMAN_CANNON_DEPLOY = reg("batman.cannon_deploy");
+    public static final RegistryObject<SoundEvent> BATMAN_CANNON_CHARGE = reg("batman.cannon_charge");
+    public static final RegistryObject<SoundEvent> BATMAN_CANNON_SHOT = reg("batman.cannon_shot");
+    public static final RegistryObject<SoundEvent> BATMAN_CANNON_HUM = reg("batman.cannon_hum");
+    public static final RegistryObject<SoundEvent> BATMAN_CANNON_FINAL = reg("batman.cannon_final");
+    public static final RegistryObject<SoundEvent> BATMAN_CANNON_STOP = reg("batman.cannon_stop");
+    public static final RegistryObject<SoundEvent> BATMAN_CANNON_RETRACT = reg("batman.cannon_retract");
+    // batman: the sonic trap (BatmanSonic / BatmanSonicFx)
+    public static final RegistryObject<SoundEvent> BATMAN_SONIC_BEEP = reg("batman.sonic_beep");
+    public static final RegistryObject<SoundEvent> BATMAN_SONIC_RUMBLE = reg("batman.sonic_rumble");
+    public static final RegistryObject<SoundEvent> BATMAN_SONIC_RISE = reg("batman.sonic_rise");
+    public static final RegistryObject<SoundEvent> BATMAN_SONIC_LOCK = reg("batman.sonic_lock");
+    public static final RegistryObject<SoundEvent> BATMAN_SONIC_HUM = reg("batman.sonic_hum");
+    public static final RegistryObject<SoundEvent> BATMAN_SONIC_PULSE = reg("batman.sonic_pulse");
+    public static final RegistryObject<SoundEvent> BATMAN_SONIC_HIT = reg("batman.sonic_hit");
+    public static final RegistryObject<SoundEvent> BATMAN_SONIC_RING = reg("batman.sonic_ring");
+    public static final RegistryObject<SoundEvent> BATMAN_SONIC_BREAK = reg("batman.sonic_break");
+    public static final RegistryObject<SoundEvent> BATMAN_SONIC_RETRACT = reg("batman.sonic_retract");
+    // batman: the electric gauntlets (BatmanShock / BatmanShockFx)
+    public static final RegistryObject<SoundEvent> BATMAN_SHOCK_EQUIP = reg("batman.shock_equip");
+    public static final RegistryObject<SoundEvent> BATMAN_SHOCK_CLAP = reg("batman.shock_clap");
+    public static final RegistryObject<SoundEvent> BATMAN_SHOCK_HUM = reg("batman.shock_hum");
+    public static final RegistryObject<SoundEvent> BATMAN_SHOCK_SWING = reg("batman.shock_swing");
+    public static final RegistryObject<SoundEvent> BATMAN_SHOCK_HIT = reg("batman.shock_hit");
+    public static final RegistryObject<SoundEvent> BATMAN_SHOCK_MISS = reg("batman.shock_miss");
+    public static final RegistryObject<SoundEvent> BATMAN_SHOCK_EMPTY = reg("batman.shock_empty");
+    public static final RegistryObject<SoundEvent> BATMAN_SHOCK_READY = reg("batman.shock_ready");
+    public static final RegistryObject<SoundEvent> BATMAN_SHOCK_UNEQUIP = reg("batman.shock_unequip");
 
     public static void register(IEventBus bus) { SOUNDS.register(bus); }
 }

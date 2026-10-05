@@ -57,9 +57,10 @@ final class HellSlam {
         Vec3 hand=GhostChainController.hand(p);
         switch(s.mode) {
             case SLAM_THROW -> {
-                if(s.age==GhostComboMotion.SLAM_WINDUP)
+                if(s.age==GhostComboMotion.SLAM_WINDUP) {
                     level.playSound(null,p.blockPosition(),SoundEvents.PLAYER_ATTACK_SWEEP,SoundSource.PLAYERS,1f,.55f);
                     level.playSound(null, p.blockPosition(), ModSounds.GHOST_CHAIN_WHIP.get(), SoundSource.PLAYERS, (1f) * 1.0f, 0.9f);
+                }
                 if(s.age<GhostComboMotion.SLAM_WINDUP){s.tip=hand;break;}
                 double travel=(s.age-GhostComboMotion.SLAM_WINDUP)*CHAIN_SPEED;
                 if(target==null) {

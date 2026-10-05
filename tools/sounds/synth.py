@@ -549,6 +549,526 @@ def s_sand_impact():
     return mix(d, (thump(d, 100, 45, 0.12), 0, 1), (highpass(noise(d, 144), 1800) * env_ad(d, 0.003, 0.25), 0.01, .6))
 
 
+# Batman
+def s_bat_punch():
+    # A gloved, armoured fist into a body: a short low thud with a leathery slap on top.
+    d = 0.45
+    slap = bandpass(noise(d, 201), 900, 4200) * env_ad(d, 0.0008, 0.018)
+    return mix(d, (thump(d, 120, 55, 0.07), 0, 1.3), (slap, 0, .8), (lowpass(noise(d, 202), 500) * env_ad(d, 0.001, 0.05), 0, .7))
+
+
+def s_bat_batarang():
+    # A spinning blade cutting the air: a whistling whoosh with a fast flutter.
+    d = 0.55
+    t = t_axis(d)
+    air = whoosh(d, 1600, 5200, 3.2, 0.25, seed=203)
+    flutter = (0.55 + 0.45 * np.sin(2 * np.pi * 38 * t)) * env_ad(d, 0.01, 0.25)
+    tone = sine_sweep(d, 2400, 1700) * env_ad(d, 0.01, 0.2) * 0.25
+    return mix(d, (air * flutter, 0, 1), (tone, 0, .5), (crack(0.03, 204, 4000), 0, .4))
+
+
+def s_bat_grapnel():
+    # The grapnel gun: a compressed-air pop, then the line whizzing off the spool.
+    d = 0.8
+    pop = mix(0.2, (thump(0.2, 220, 90, 0.03), 0, 1), (highpass(noise(0.2, 205), 1500) * env_ad(0.2, 0.0005, 0.02), 0, 1))
+    t = t_axis(d)
+    spool = bandpass(noise(d, 206), 2500, 7000) * (0.6 + 0.4 * np.sign(np.sin(2 * np.pi * (90 - 60 * t) * t))) * env_ad(d, 0.03, 0.3)
+    return mix(d, (pop, 0, 1.1), (spool, 0.02, .55), (whoosh(0.5, 900, 3000, 2.5, 0.3, seed=207), 0.01, .5))
+
+
+def s_bat_smoke():
+    # A smoke pellet bursting: a dull pop and a long thick hiss that spreads.
+    d = 2.6
+    hiss = swept(noise(d, 208), 6000, 1800, 1.2, curve=0.6) * env_ad(d, 0.03, 0.8) * np.clip((d - t_axis(d)) / 0.9, 0, 1)
+    return reverb(mix(d, (thump(d, 90, 50, 0.08), 0, 1), (hiss, 0, .9), (lowpass(noise(d, 209), 700) * env_ad(d, 0.05, 0.8), 0, .5)), 0.7, 1.4, 0.2)
+
+
+def s_bat_flash():
+    # A flashbang: a sharp crack, a bright bang and a high ringing tail.
+    d = 2.2
+    t = t_axis(d)
+    ring = np.sin(2 * np.pi * 3600 * t) * env_ad(d, 0.05, 1.1) * 0.18
+    return reverb(mix(d, (crack(0.08, 210, 900), 0, 1.4), (thump(d, 160, 45, 0.18), 0, 1.2), (highpass(noise(d, 211), 3000) * env_ad(d, 0.001, 0.1), 0, .9), (ring, 0.02, 1)), 0.8, 1.5, 0.3)
+
+
+def s_bat_flash_bounce():
+    # The flash grenade's little can hitting the ground: a small hollow metal tink and a short rattle (not loud).
+    d = 0.32
+    tink = modal(d, 2900, [1, 2.31, 3.94], [0.05, 0.03, 0.018], [1, .5, .3], seed=213)
+    rattle = bandpass(noise(d, 214), 2500, 7000) * env_ad(d, 0.001, 0.018)
+    return mix(d, (tink, 0, .8), (rattle, 0, .5), (lowpass(noise(d, 215), 900) * env_ad(d, 0.001, 0.01), 0, .3))
+
+
+def s_bat_flash_ring():
+    # The ringing in the ears after a flashbang (looped; the client sets its loudness as hearing comes back): a pure high
+    # tone beating slowly against a second one, a faint octave and a breath of hiss. Every part repeats whole in 4 s.
+    d = 4.0
+    t = t_axis(d)
+    tone = np.sin(2 * np.pi * 3700 * t) + .35 * np.sin(2 * np.pi * 3712.5 * t) + .08 * np.sin(2 * np.pi * 7400 * t)
+    hiss = np.roll(highpass(noise(d, 216), 6000), int(SR * .5)) * .02
+    return tone * .5 + hiss
+
+
+def _beep(d, f, seed=0):
+    t = t_axis(d)
+    gate = np.clip(t / 0.004, 0, 1) * np.clip((d - t) / 0.01, 0, 1)
+    return (np.sin(2 * np.pi * f * t) + 0.2 * np.sin(2 * np.pi * 2 * f * t)) * gate
+
+
+def s_td_signal():
+    # The earpiece call: BEEP, BEEP, then the confirm chirp (two quick rising tones) - small, clean, a little radio hiss.
+    d = 0.95
+    chirp = np.concatenate([_beep(0.05, 2400), _beep(0.07, 3300)])
+    hiss = bandpass(noise(d, 451), 2500, 7000) * 0.04 * env_ad(d, 0.01, 0.5)
+    return mix(d, (_beep(0.09, 2600), 0.0, .7), (_beep(0.09, 2600), 0.24, .7), (chirp, 0.62, .8), (hiss, 0, 1))
+
+
+def s_td_abort():
+    # Signal cancelled: one beep, then a falling, buzzy error tone.
+    d = 0.75
+    err = signal.square(2 * np.pi * np.cumsum(np.linspace(620, 380, int(0.38 * SR))) / SR) * env_ad(0.38, 0.005, 0.25)
+    return mix(d, (_beep(0.08, 2600), 0, .7), (lowpass(err, 2500), 0.2, .45), (crack(0.02, 452, 2600), 0.18, .3))
+
+
+def s_td_tracker():
+    # The tracker on the back of the head: a hard CLICK and three tiny high blips as its light comes on.
+    d = 0.6
+    layers = [(tick_click(461, 2400), 0, 1.1), (thump(0.08, 600, 300, 0.01), 0, .5)]
+    for i in range(3):
+        layers.append((_beep(0.035, 4200), 0.16 + i * 0.12, .35))
+    return mix(d, *layers)
+
+
+def s_td_lock():
+    # The grip locking: cloth and armour pressed hard, a heavy mechanical clunk of the gauntlets.
+    d = 0.5
+    cloth = bandpass(noise(d, 471), 600, 3500) * env_ad(d, 0.01, 0.08)
+    return mix(d, (cloth, 0, .6), (lock_clunk(472, 360), 0.03, 1.1), (thump(d, 120, 55, 0.06), 0.02, .8))
+
+
+def s_bm_engine():
+    # The Batmobile coming in: a far growl rising fast to a roar (pitch up as it nears), the turbine whine on top.
+    d = 1.5
+    t = t_axis(d)
+    f = 48 * (1 + 0.9 * (t / d) ** 1.6)
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    growl = (signal.sawtooth(ph) + 0.6 * signal.sawtooth(2 * ph + 0.3)) * (0.25 + 0.75 * (t / d) ** 1.4)
+    rumble = lowpass(noise(d, 481), 300) * (t / d) ** 1.2
+    whine = np.sin(2 * np.pi * np.cumsum(1400 + 1600 * (t / d) ** 2) / SR) * 0.12 * (t / d) ** 2
+    return lowpass(soft(growl * 0.6 + rumble * 1.4 + whine, 1.6), 3500) * np.clip((d - t) / 0.12, 0, 1)
+
+
+def s_bm_drift():
+    # Tyres sliding: a wavering squeal (two bands) over road friction and grit.
+    d = 1.4
+    t = t_axis(d)
+    fq = 1250 + 160 * np.sin(2 * np.pi * 5.5 * t) + 90 * np.sin(2 * np.pi * 13 * t)
+    squeal = np.sin(2 * np.pi * np.cumsum(fq) / SR) + 0.5 * np.sin(2 * np.pi * np.cumsum(fq * 1.97) / SR)
+    env = np.clip(t / 0.06, 0, 1) * np.clip((d - t) / 0.35, 0, 1)
+    friction = bandpass(noise(d, 491), 400, 3000) * 0.7
+    grit = debris(d, 18, 492, 1500, 6000, 0.05)
+    return mix(d, (squeal * env * 0.45, 0, 1), (friction * env, 0, .8), (grit, 0, .4))
+
+
+def s_bm_boost():
+    # The afterburner: a deep engine roar and a jet-like burst of rushing air, falling away into the distance.
+    d = 1.9
+    t = t_axis(d)
+    roar_f = 60 * (1 + 0.5 * np.clip(t / 0.3, 0, 1))
+    ph = 2 * np.pi * np.cumsum(roar_f) / SR
+    roar = soft(signal.sawtooth(ph) + 0.5 * signal.sawtooth(1.5 * ph), 2.0) * env_ad(d, 0.02, 0.9)
+    jet = swept(noise(d, 501), 900, 3500, 1.4, curve=0.5) * env_ad(d, 0.03, 0.7)
+    boom = thump(d, 90, 35, 0.12)
+    return mix(d, (lowpass(roar, 1800), 0, .9), (jet, 0, 1.0), (boom, 0, 1.0))
+
+
+def s_bm_gun():
+    # One round of the Batmobile's guns: a heavy, short mechanical bang with a metallic tail (rapid fire = many of these).
+    d = 0.22
+    bang = mix(d, (crack(0.03, 511, 1500), 0, 1.2), (thump(d, 140, 60, 0.03), 0, 1.1), (highpass(noise(d, 512), 3000) * env_ad(d, 0.0005, 0.01), 0, .6))
+    return mix(d, (bang, 0, 1), (clink(1200, 513, 0.2) * env_ad(0.2, 0.001, 0.03), 0.004, .3))
+
+
+def s_bat_mine():
+    # Gadget electronics: two short beeps and a mechanical click.
+    d = 0.45
+    t = t_axis(d)
+    beep = np.sin(2 * np.pi * 2300 * t) * ((t < 0.07) | ((t > 0.14) & (t < 0.21))) * 0.6
+    return mix(d, (bandpass(beep, 1500, 4000), 0, 1), (crack(0.02, 212, 2500), 0.28, .6))
+
+
+def s_bat_cape():
+    # The heavy cape snapping open in the wind.
+    d = 0.6
+    snap = bandpass(noise(d, 213), 300, 2400) * env_ad(d, 0.004, 0.06)
+    flap = whoosh(d, 250, 1400, 1.4, 0.4, seed=214, body=0.4)
+    return mix(d, (snap, 0, 1), (flap, 0.01, .8))
+
+
+# Batman: the WayneTech wrist cannon (energy, not a gun: electric cracks, servos, a hum)
+def servo(d, f0, f1, seed):
+    # A small motor: a buzzy sweep through a narrow band, with a little grit.
+    t = t_axis(d)
+    saw = signal.sawtooth(2 * np.pi * np.cumsum(f0 * (f1 / f0) ** (t / d)) / SR)
+    whine = bandpass(saw, min(f0, f1) * 0.8, max(f0, f1) * 3.5) * np.sin(np.pi * t / d) ** 0.6
+    return whine + bandpass(noise(d, seed), 2000, 6000) * 0.15 * np.sin(np.pi * t / d)
+
+
+def tick_click(seed, base=1800):
+    # A crisp mechanical click: a tiny crack and a short metal ping.
+    return mix(0.12, (crack(0.03, seed, 3000), 0, 1), (clink(base, seed + 1, 0.12) * env_ad(0.12, 0.0005, 0.02), 0, .5))
+
+
+def lock_clunk(seed, base=420):
+    return mix(0.3, (thump(0.3, 300, 140, 0.04), 0, 1), (clink(base, seed, 0.3) * env_ad(0.3, 0.001, 0.06), 0, .55), (crack(0.03, seed + 2, 2200), 0, .6))
+
+
+def s_cannon_deploy():
+    # Both gauntlets transforming: plates sliding, servos, clicks, a lock each (the left a beat later), a power-up chirp.
+    d = 1.0
+    layers = []
+    for off, p, sd in ((0.0, 1.0, 301), (0.15, 1.08, 311)):
+        slide = swept(noise(0.14, sd), 1400 * p, 3600 * p, 2.0) * env_ad(0.14, 0.01, 0.05)
+        layers += [(slide, off, .6), (servo(0.3, 650 * p, 1400 * p, sd + 1), off + 0.05, .45),
+                   (tick_click(sd + 2, 2100 * p), off + 0.12, .7), (tick_click(sd + 4, 2500 * p), off + 0.24, .55),
+                   (lock_clunk(sd + 6, 430 * p), off + 0.4, .9)]
+    chirp = sine_sweep(0.18, 1200, 3200, 0.7) * env_ad(0.18, 0.02, 0.06)
+    layers += [(tick_click(321, 2900), 0.72, .5), (chirp, 0.66, .3)]
+    return mix(d, *layers)
+
+
+def s_cannon_charge():
+    # The emitters charging: a fast rising whine with a shimmer and a few sparks, ending on a point.
+    d = 0.32
+    t = t_axis(d)
+    rise = sine_sweep(d, 380, 2700, 1.6) * np.clip(t / d, 0, 1) ** 1.5
+    shimmer = fm(d, 1800, 1.5, 2.2, 1.6) * np.clip(t / d, 0, 1) ** 2 * 0.35
+    return mix(d, (rise, 0, .8), (shimmer, 0, 1), (crackle(d, 60, 3000, 9000, seed=331) * np.clip(t / d, 0, 1), 0, .35))
+
+
+def s_cannon_shot():
+    # One bolt: a sharp electric crack, a compact mechanical snap, a high snap, a short low push of power.
+    d = 0.24
+    t = t_axis(d)
+    crack_e = highpass(noise(d, 341), 2500) * env_ad(d, 0.0003, 0.006)
+    zap = crackle(0.05, 900, 2500, 10000, seed=342, decay=0.015)
+    snap = clink(950, 343, 0.1) * env_ad(0.1, 0.0005, 0.018)
+    hi = sine_sweep(d, 6800, 3200, 0.5) * env_ad(d, 0.0005, 0.012)
+    body = thump(d, 150, 62, 0.035)
+    tone = fm(d, 820, 2.01, 3.0, 0.7) * env_ad(d, 0.0008, 0.03)
+    return mix(d, (crack_e, 0, 1.1), (zap, 0, .8), (snap, 0.002, .55), (hi, 0, .45), (body, 0, 1.0), (tone, 0, .4))
+
+
+def s_cannon_hum():
+    # The energy hum under the fire: a buzzing low core, a bright AM shimmer, a band of hiss, a slow throb.
+    # Exactly periodic over its length (whole cycles, noise filtered round the loop) so it loops without a seam.
+    d = 1.0
+    n = int(d * SR)
+    t = np.arange(n) / SR
+    core = sum(g * np.sin(2 * np.pi * f * t) for f, g in ((100, 1), (200, .55), (300, .3), (400, .18), (700, .08)))
+    saw = np.fft.rfft(signal.sawtooth(2 * np.pi * 100 * t))
+    fr = np.fft.rfftfreq(n, 1 / SR)
+    saw[fr > 1800] = 0
+    buzz = np.fft.irfft(saw, n)
+    shimmer = np.sin(2 * np.pi * 2400 * t) * (0.6 + 0.4 * np.sin(2 * np.pi * 8 * t)) + 0.5 * np.sin(2 * np.pi * 3600 * t) * (0.5 + 0.5 * np.sin(2 * np.pi * 12 * t + 1))
+    hn = np.fft.rfft(np.random.default_rng(351).standard_normal(n))
+    hn[(fr < 2500) | (fr > 7000)] = 0
+    hiss = np.fft.irfft(hn, n)
+    hiss /= np.max(np.abs(hiss)) + 1e-9
+    throb = 0.8 + 0.2 * np.sin(2 * np.pi * 2 * t)
+    return (core * .5 + buzz * .35 + shimmer * .12 + hiss * .18) * throb
+
+
+def s_cannon_final():
+    # The last heavy discharge: a big crack, a deep push, electricity spitting out after it.
+    d = 1.3
+    zap = crackle(0.5, 220, 1500, 9000, seed=361, decay=0.15)
+    drop = fm(0.6, 900, 1.5, 4.0, 0.3) * env_ad(0.6, 0.002, 0.15)
+    return reverb(mix(d, (crack(0.1, 362, 900), 0, 1.4), (thump(d, 130, 34, 0.25), 0, 1.4), (zap, 0.01, .8), (drop, 0, .5),
+                      (rumble(d, 0.3, 180, 363), 0.01, .6)), 0.6, 1.2, 0.22)
+
+
+def s_cannon_stop():
+    # The fire stops: the power winds down, heat hisses off the emitters, the metal ticks as it cools.
+    d = 1.6
+    t = t_axis(d)
+    wind = sine_sweep(0.7, 1900, 280, 0.6) * env_ad(0.7, 0.005, 0.25)
+    hiss = highpass(noise(d, 371), 3000) * env_ad(d, 0.02, 0.45) * 0.5
+    return mix(d, (wind, 0, .7), (fm(0.6, 600, 0.5, 2, 0.4) * env_ad(0.6, 0.005, 0.2), 0, .3), (hiss, 0.03, .8),
+               (debris(d, 7, 372, 3000, 8000, 0.3), 0, .35))
+
+
+def s_cannon_retract():
+    # The emitters fold away: falling servos, clicks, the plates closing and one lock each.
+    d = 0.9
+    layers = []
+    for off, p, sd in ((0.0, 1.0, 381), (0.12, 1.07, 391)):
+        layers += [(servo(0.28, 1300 * p, 600 * p, sd), off, .45), (tick_click(sd + 2, 2300 * p), off + 0.08, .55),
+                   (swept(noise(0.12, sd + 3), 3200 * p, 1300 * p, 2.0) * env_ad(0.12, 0.01, 0.04), off + 0.22, .5),
+                   (lock_clunk(sd + 5, 400 * p), off + 0.36, .8)]
+    return mix(d, *layers)
+
+
+# Batman: the sonic trap (Batman v Superman WayneTech emitters: heavy hydraulics, a deep hum, pressure-wave blasts)
+def looped_noise(n, lo, hi, seed):
+    # Noise band-limited round the loop (FFT), so it repeats without a seam.
+    fr = np.fft.rfftfreq(n, 1 / SR)
+    x = np.fft.rfft(np.random.default_rng(seed).standard_normal(n))
+    x[(fr < lo) | (fr > hi)] = 0
+    y = np.fft.irfft(x, n)
+    return y / (np.max(np.abs(y)) + 1e-9)
+
+
+def ratchet(d, count, seed, base=900, accel=1.0):
+    # Mechanical clicks along the way, closing up (accel > 1) or spreading out (accel < 1).
+    r = np.random.default_rng(seed)
+    out = np.zeros(int(d * SR))
+    for i in range(count):
+        k = (i / max(1, count - 1)) ** accel
+        at = 0.03 + (d - 0.12) * k
+        c = tick_click(int(r.integers(0, 1e6)), base * r.uniform(0.85, 1.15)) * r.uniform(0.4, 0.8)
+        s = int(at * SR)
+        seg = c[:len(out) - s]
+        out[s:s + len(seg)] += seg
+    return out
+
+
+def s_sonic_beep():
+    # The red button: a firm mechanical click, then one clean military beep (two pure partials, soft edges), a small room.
+    d = 0.5
+    t = t_axis(0.19)
+    gate = np.clip(t / 0.004, 0, 1) * np.clip((0.19 - t) / 0.012, 0, 1)
+    beep = (np.sin(2 * np.pi * 2750 * t) + 0.22 * np.sin(2 * np.pi * 5500 * t) + 0.12 * np.sin(2 * np.pi * 1375 * t)) * gate
+    click = mix(0.06, (crack(0.02, 401, 2500), 0, .8), (thump(0.06, 520, 260, 0.008), 0, .7))
+    return reverb(mix(d, (click, 0, .9), (beep, 0.018, .55)), 0.3, 0.35, 0.12)
+
+
+def s_sonic_rumble():
+    # Under the ground: a deep rumble swelling, a grinding "KRRR" (gritty, chattering), soil and stones trickling, the
+    # ground cracking open at 0.3 s.
+    d = 1.5
+    t = t_axis(d)
+    swell = np.clip(t / 0.25, 0, 1) * np.clip((d - t) / 0.5, 0, 1)
+    low = lowpass(noise(d, 411), 110, 4) * 4 * swell
+    chatter = 0.55 + 0.45 * np.sign(np.sin(2 * np.pi * (17 + 5 * t) * t))
+    grind = bandpass(noise(d, 412), 180, 750) * chatter * swell
+    trickle = debris(d, 22, 413, 500, 2600, 0.2)
+    crack_open = mix(0.5, (thump(0.5, 95, 38, 0.12), 0, 1.2), (bandpass(noise(0.5, 414), 300, 2500) * env_ad(0.5, 0.001, 0.05), 0, .9))
+    return mix(d, (low, 0, 1), (grind, 0, .55), (trickle, 0, .45), (crack_open, 0.3, 1))
+
+
+def s_sonic_rise():
+    # The device coming up: a hydraulic whine climbing, the hiss of the rams, metal scraping on soil and on itself,
+    # ratchet clicks closing up (slow, medium, fast).
+    d = 1.15
+    t = t_axis(d)
+    whine = sine_sweep(d, 140, 430, 1.4)
+    whine = lowpass(whine + 0.4 * np.sign(whine) * 0.3, 1600) * np.clip(t / 0.15, 0, 1) * np.clip((d - t) / 0.1, 0, 1)
+    hiss = swept(noise(d, 421), 2200, 5200, 2.0) * np.clip(t / d, 0, 1) ** 0.8
+    scrape = bandpass(noise(d, 422), 600, 2400) * (0.5 + 0.5 * np.sin(2 * np.pi * 9 * t) ** 2) * np.clip(1 - t / d, 0, 1)
+    groan = modal(d, 95, [1, 2.3, 3.9], [0.6, 0.4, 0.25], [1, .5, .3], seed=423) * (0.5 + 0.5 * np.sin(2 * np.pi * 3 * t))
+    return mix(d, (whine, 0, .6), (hiss, 0, .35), (scrape, 0, .35), (groan, 0, .3), (ratchet(d, 9, 424, 1100, 0.6), 0, .55))
+
+
+def s_sonic_lock():
+    # Locked: a hard CLACK of steel, then the heavy K-CHUNK of the legs and the frame settling, a low ring.
+    d = 0.9
+    clack = mix(0.3, (crack(0.03, 431, 1800), 0, 1.2), (modal(0.3, 260, [1, 2.7, 5.2, 8.1], [0.08, 0.05, 0.03, 0.02], [1, .7, .4, .2], seed=432), 0, .7))
+    chunk = mix(0.6, (thump(0.6, 110, 42, 0.09), 0, 1.4), (modal(0.6, 120, [1, 2.4, 4.1], [0.25, 0.12, 0.06], [1, .5, .3], seed=433) * env_ad(0.6, 0.001, 0.2), 0, .6),
+                (lowpass(noise(0.6, 434), 700) * env_ad(0.6, 0.001, 0.04), 0, .8))
+    return reverb(mix(d, (clack, 0, 1), (chunk, 0.11, 1.1), (debris(d, 6, 435, 600, 2200, 0.2), 0, .25)), 0.5, 0.7, 0.18)
+
+
+def s_sonic_hum():
+    # The active emitter (looped): a deep 55 Hz hum with its harmonics, a resonant ring beating slowly, a faint cold
+    # high whine, air hiss, a 6 Hz throb. Whole cycles over the length so it loops without a seam.
+    d = 2.0
+    n = int(d * SR)
+    t = np.arange(n) / SR
+    hum = sum(g * np.sin(2 * np.pi * f * t) for f, g in ((55, 1), (110, .6), (165, .35), (220, .2), (330, .1)))
+    res = 0.5 * (np.sin(2 * np.pi * 440 * t) + np.sin(2 * np.pi * 440.5 * t)) * 0.18
+    whine = np.sin(2 * np.pi * 3520 * t) * 0.035
+    air = looped_noise(n, 300, 2400, 441) * 0.12
+    throb = 0.82 + 0.18 * np.sin(2 * np.pi * 6 * t)
+    return (hum * .5 + res + whine + air) * throb
+
+
+def s_sonic_pulse():
+    # One pulse leaving the chamber: a short hard thump of pressure, a burst of pushed air, a fast high zip.
+    d = 0.35
+    air = lowpass(noise(d, 451), 900) * env_ad(d, 0.001, 0.03)
+    zip_ = swept(noise(0.08, 452), 7000, 1500, 2.5) * env_ad(0.08, 0.001, 0.025)
+    return mix(d, (thump(d, 240, 70, 0.045), 0, 1.4), (air, 0, .9), (zip_, 0, .5), (fm(0.12, 180, 1.5, 3, 0.5) * env_ad(0.12, 0.001, 0.03), 0, .4))
+
+
+def s_sonic_hit():
+    # A pulse landing: a huge sub-bass WHOOOM, a mid boom under it, the air rushing past and away, a little crunch.
+    d = 1.7
+    sub = thump(d, 78, 30, 0.45)
+    mid = thump(d, 170, 60, 0.12)
+    rush = swept(noise(d, 461), 250, 1400, 1.4, curve=0.4) * env_ad(d, 0.03, 0.35)
+    crunch = soft(bandpass(noise(0.2, 462), 600, 3500) * env_ad(0.2, 0.001, 0.03) * 3, 3)
+    return reverb(mix(d, (sub, 0, 1.6), (mid, 0, 1.0), (rush, 0.01, .55), (crunch, 0, .4)), 0.8, 1.3, 0.25)
+
+
+def s_sonic_ring():
+    # Ringing ears (looped, quiet in game): a pure 4 kHz tone beating slowly against a near neighbour, a faint overtone.
+    d = 2.0
+    n = int(d * SR)
+    t = np.arange(n) / SR
+    return 0.5 * (np.sin(2 * np.pi * 4000 * t) + 0.7 * np.sin(2 * np.pi * 4000.5 * t)) + 0.12 * np.sin(2 * np.pi * 6000 * t)
+
+
+def s_sonic_break():
+    # Failing: sparks and a sputtering short circuit getting worse, a metal crack, then (at 0.7 s) a small blast and
+    # pieces raining down.
+    d = 1.6
+    t = t_axis(0.7)
+    sputter = crackle(0.7, 120, 1500, 9000, seed=471) * np.clip(t / 0.7, 0.2, 1) ** 1.5
+    buzz = lowpass(signal.square(2 * np.pi * 60 * t), 900) * (np.random.default_rng(472).random(len(t)) > 0.35) * 0.25 * np.clip(t / 0.7, 0, 1)
+    creak = clink(240, 473, 0.3) * env_ad(0.3, 0.001, 0.08)
+    blast = mix(0.9, (crack(0.08, 474, 900), 0, 1.3), (thump(0.9, 140, 40, 0.16), 0, 1.4), (highpass(noise(0.9, 475), 1500) * env_ad(0.9, 0.001, 0.09), 0, .8),
+                (crackle(0.4, 300, 1500, 9000, seed=476, decay=0.12), 0.01, .6))
+    return reverb(mix(d, (sputter, 0, .8), (buzz, 0, 1), (creak, 0.35, .6), (blast, 0.7, 1.2), (debris(0.8, 12, 477, 900, 5000, 0.05), 0.75, .5)), 0.6, 1.0, 0.2)
+
+
+def s_sonic_retract():
+    # Shutting down: pressure let out of the rams, the hydraulic whine falling, ratchet clicks spreading out, soil
+    # trickling back, the last thunk underground.
+    d = 1.45
+    t = t_axis(d)
+    vent = highpass(noise(d, 481), 2500) * env_ad(d, 0.01, 0.18)
+    whine = lowpass(sine_sweep(d, 420, 120, 0.8), 1500) * np.clip(t / 0.08, 0, 1) * np.clip((1.25 - t) / 0.2, 0, 1)
+    return mix(d, (vent, 0, .6), (whine, 0.05, .55), (ratchet(1.2, 8, 482, 1000, 1.6), 0.05, .5), (debris(d, 14, 483, 500, 2200, 0.6), 0, .35),
+               (mix(0.3, (thump(0.3, 90, 40, 0.06), 0, 1.1), (lowpass(noise(0.3, 484), 600) * env_ad(0.3, 0.001, 0.03), 0, .6)), 1.22, 1))
+
+
+# Batman: the electric gauntlets (WayneTech power knuckles: locks and servos, stored charge, KRAK-KZZZT discharges)
+def zap_buzz(d, f0, seed, gate=0.55):
+    # A gated electric buzz: a sawtooth chopped by noise, through a bright band.
+    t = t_axis(d)
+    saw = signal.sawtooth(2 * np.pi * f0 * t) * (np.abs(lowpass(noise(d, seed), 400)) > gate * 0.1)
+    return bandpass(saw, 300, 6000)
+
+
+def s_shock_equip():
+    # Locking on: two pairs of mechanical locks and a servo each (the left a beat later), the shutters clicking open,
+    # the first sparks, then the charge spreading: a rising whine and crackle that ends just before the clap.
+    d = 1.3
+    t = t_axis(d)
+    layers = []
+    for off, p, sd in ((0.06, 1.0, 901), (0.2, 1.06, 911)):
+        layers += [(servo(0.22, 520 * p, 1150 * p, sd), off, .4), (lock_clunk(sd + 2, 380 * p), off + 0.12, .9),
+                   (tick_click(sd + 4, 2200 * p), off + 0.22, .6)]
+    layers += [(tick_click(921, 3100), 0.48, .45), (tick_click(923, 3400), 0.53, .4)]
+    k = np.clip((t - 0.55) / 0.7, 0, 1)
+    rise = sine_sweep(d, 300, 2400, 1.4) * k ** 1.6
+    shimmer = fm(d, 1500, 1.41, 2.0, 1.7) * k ** 2 * 0.3
+    sparks = crackle(d, 140, 2500, 10000, seed=925) * (0.15 + 0.85 * k ** 1.3) * (t > 0.55)
+    hum = (np.sin(2 * np.pi * 120 * t) + .5 * np.sin(2 * np.pi * 240 * t)) * k * 0.3
+    layers += [(rise, 0, .55), (shimmer, 0, 1), (sparks, 0, .55), (hum, 0, .8)]
+    out = mix(d, *layers)
+    out *= np.clip((1.28 - t) / 0.03, 0, 1)
+    return out
+
+
+def s_shock_clap():
+    # The fists slam together: a hard metal CLACK, an electric KRAK, a short bass hit, a spitting zap tail.
+    d = 1.1
+    clack = mix(0.5, (modal(0.5, 860, [1, 2.3, 3.9, 5.7], [.12, .08, .05, .03], [1, .7, .5, .3], seed=931), 0, .9), (crack(0.04, 932, 2500), 0, 1.2))
+    krak = highpass(noise(0.06, 933), 1800) * env_ad(0.06, 0.0002, 0.008)
+    zap = crackle(0.6, 700, 1500, 11000, seed=934, decay=0.12)
+    buzz = zap_buzz(0.35, 140, 935) * env_ad(0.35, 0.001, 0.09)
+    bass = thump(d, 105, 38, 0.18)
+    return reverb(mix(d, (clack, 0, 1), (krak, 0.003, 1.3), (zap, 0.004, .9), (buzz, 0.01, .5), (bass, 0, 1.4),
+                      (sine_sweep(0.12, 5200, 2600, 0.5) * env_ad(0.12, 0.0005, 0.02), 0.002, .4)), 0.5, 0.9, 0.18)
+
+
+def s_shock_hum():
+    # The stored charge humming in the gauntlets: a low electrical hum, a gritty buzz, a thin high whine that wavers,
+    # sparse crackle. Exactly periodic over its length (whole cycles, crackle filtered round the loop) so it loops.
+    d = 1.0
+    n = int(d * SR)
+    t = np.arange(n) / SR
+    fr = np.fft.rfftfreq(n, 1 / SR)
+    core = sum(g * np.sin(2 * np.pi * f * t) for f, g in ((60, .6), (120, 1), (180, .4), (240, .25), (360, .1)))
+    saw = np.fft.rfft(signal.sawtooth(2 * np.pi * 120 * t))
+    saw[fr > 2500] = 0
+    buzz = np.fft.irfft(saw, n) * (0.7 + 0.3 * np.sin(2 * np.pi * 3 * t))
+    whine = np.sin(2 * np.pi * 3300 * t + 0.8 * np.sin(2 * np.pi * 7 * t)) * (0.5 + 0.5 * np.sin(2 * np.pi * 5 * t) ** 2)
+    r = np.random.default_rng(941)
+    imp = np.zeros(n)
+    for at in r.integers(0, n, 70):
+        imp[at] = r.uniform(.4, 1) * r.choice([-1, 1])
+    cr = np.fft.rfft(imp)
+    cr[(fr < 2000) | (fr > 10000)] = 0
+    crack_l = np.fft.irfft(cr, n)
+    crack_l /= np.max(np.abs(crack_l)) + 1e-9
+    hiss = looped_noise(n, 3000, 8000, 942)
+    return core * .45 + buzz * .3 + whine * .06 + crack_l * .35 + hiss * .05
+
+
+def s_shock_swing():
+    # A heavy charged swing: the air moved by the fist, an electric buzz sweeping up with it, a crackle off the knuckles.
+    d = 0.42
+    t = t_axis(d)
+    air = whoosh(d, 220, 1500, 1.6, 0.55, seed=951, body=0.5)
+    sweep = bandpass(signal.sawtooth(2 * np.pi * np.cumsum(90 * (2.2 ** (t / d))) / SR), 200, 4000) * np.sin(np.pi * t / d) ** 1.5
+    return mix(d, (air, 0, 1), (sweep, 0, .35), (crackle(d, 45, 2500, 9000, seed=952) * np.sin(np.pi * t / d) ** 2, 0, .14))
+
+
+def s_shock_hit():
+    # A charged blow landing: THUD (a heavy body blow) + KRAK (the discharge's crack) + KZZZT (a dense buzzing
+    # crackle dying away), a bright zap sweep. Variants are pitched copies; the server also varies the pitch.
+    d = 0.9
+    thud = mix(d, (thump(d, 115, 44, 0.12), 0, 1.3), (lowpass(noise(d, 961), 700) * env_ad(d, 0.001, 0.035), 0, .9))
+    krak = mix(0.1, (highpass(noise(0.1, 962), 2000) * env_ad(0.1, 0.0002, 0.01), 0, 1.3), (crack(0.06, 963, 1200), 0, .8))
+    kz = crackle(0.5, 900, 1200, 10000, seed=964, decay=0.14) + zap_buzz(0.5, 150, 965, 0.4) * env_ad(0.5, 0.002, 0.13) * .6
+    sweep = sine_sweep(0.15, 6500, 1800, 0.5) * env_ad(0.15, 0.0005, 0.03)
+    return reverb(mix(d, (thud, 0, 1), (krak, 0.002, 1), (kz, 0.008, .85), (sweep, 0.004, .35)), 0.4, 0.7, 0.14)
+
+
+def s_shock_miss():
+    # A charged miss: a short electric crack in the air before the fist, a little zap, a puff of air.
+    d = 0.4
+    return mix(d, (crackle(0.18, 260, 1800, 10000, seed=971, decay=0.04), 0, .7), (crack(0.04, 972, 2800), 0, .7),
+               (zap_buzz(0.15, 170, 973) * env_ad(0.15, 0.001, 0.04), 0.005, .4), (whoosh(0.3, 600, 2600, 2, 0.3, seed=974), 0, .35))
+
+
+def s_shock_empty():
+    # The charge runs out: the hum's pitch falls away, sputtering crackle with gaps, a dull click.
+    d = 0.9
+    t = t_axis(d)
+    fall = sine_sweep(0.7, 1500, 110, 0.6) * env_ad(0.7, 0.003, 0.25)
+    gate = (np.sin(2 * np.pi * 9 * t) > 0.2) * env_ad(d, 0.002, 0.3)
+    sput = crackle(d, 400, 1500, 9000, seed=981) * gate
+    return mix(d, (fall, 0, .6), (sput, 0, .7), ((np.sin(2 * np.pi * 120 * t) * env_ad(d, 0.002, 0.2)), 0, .35), (tick_click(982, 1400), 0.6, .5))
+
+
+def s_shock_ready():
+    # Charged again: a quick rising chirp, a crackle running over the plates, a small bright ping.
+    d = 0.75
+    t = t_axis(d)
+    rise = sine_sweep(0.35, 400, 2600, 1.3) * np.clip(t[:int(0.35 * SR)] / 0.35, 0, 1) ** 1.5
+    return mix(d, (rise, 0, .6), (crackle(0.4, 300, 2500, 10000, seed=991, decay=0.15), 0.25, .7),
+               (clink(2400, 992, 0.4) * env_ad(0.4, 0.0005, 0.08), 0.33, .4), (thump(0.3, 160, 80, 0.06), 0.32, .5))
+
+
+def s_shock_unequip():
+    # Coming off: the charge winds down, the last arcs, the final KZZZT discharge (0.3 s: tick 6), the locks release
+    # with clicks and servos, a last clunk.
+    d = 1.0
+    t = t_axis(d)
+    wind = sine_sweep(0.32, 1700, 260, 0.6) * env_ad(0.32, 0.003, 0.12)
+    arcs = crackle(0.3, 120, 2500, 9000, seed=1001) * np.linspace(1, .3, int(0.3 * SR))
+    kz = crackle(0.22, 1000, 1200, 10000, seed=1002, decay=0.07) + zap_buzz(0.22, 130, 1003, 0.4) * env_ad(0.22, 0.001, 0.07) * .7
+    layers = [(wind, 0, .5), (arcs, 0, .35), (kz, 0.3, 1.1), (crack(0.04, 1004, 2200), 0.3, .9)]
+    for off, p, sd in ((0.44, 1.0, 1011), (0.54, 1.07, 1021)):
+        layers += [(tick_click(sd, 2100 * p), off, .6), (servo(0.2, 1200 * p, 560 * p, sd + 1), off + 0.03, .35)]
+    layers += [(lock_clunk(1031, 360), 0.72, .8)]
+    return mix(d, *layers)
+
+
 SOUNDS = {
     'fx': {'whoosh_light': s_whoosh_light, 'whoosh_heavy': s_whoosh_heavy, 'impact_heavy': s_impact_heavy, 'impact_metal': s_impact_metal,
            'electric_zap': s_electric_zap, 'electric_crackle': s_electric_crackle, 'energy_swell': s_energy_swell, 'energy_boom': s_energy_boom},
@@ -563,9 +1083,21 @@ SOUNDS = {
     'cyclops': {'optic_beam': s_optic_beam, 'optic_blast': s_optic_blast},
     'ghost': {'chain_whip': s_chain_whip, 'hellfire': s_hellfire},
     'sandman': {'sand_whoosh': s_sand_whoosh, 'sand_impact': s_sand_impact},
+    'batman': {'punch': s_bat_punch, 'batarang': s_bat_batarang, 'grapnel': s_bat_grapnel, 'smoke': s_bat_smoke, 'flash': s_bat_flash, 'flash_bounce': s_bat_flash_bounce, 'flash_ring': s_bat_flash_ring,
+               'td_signal': s_td_signal, 'td_abort': s_td_abort, 'td_tracker': s_td_tracker, 'td_lock': s_td_lock,
+               'bm_engine': s_bm_engine, 'bm_drift': s_bm_drift, 'bm_boost': s_bm_boost, 'bm_gun': s_bm_gun,
+               'mine': s_bat_mine, 'cape': s_bat_cape,
+               'cannon_deploy': s_cannon_deploy, 'cannon_charge': s_cannon_charge, 'cannon_shot': s_cannon_shot, 'cannon_hum': s_cannon_hum,
+               'cannon_final': s_cannon_final, 'cannon_stop': s_cannon_stop, 'cannon_retract': s_cannon_retract,
+               'sonic_beep': s_sonic_beep, 'sonic_rumble': s_sonic_rumble, 'sonic_rise': s_sonic_rise, 'sonic_lock': s_sonic_lock,
+               'sonic_hum': s_sonic_hum, 'sonic_pulse': s_sonic_pulse, 'sonic_hit': s_sonic_hit, 'sonic_ring': s_sonic_ring,
+               'sonic_break': s_sonic_break, 'sonic_retract': s_sonic_retract,
+               'shock_equip': s_shock_equip, 'shock_clap': s_shock_clap, 'shock_hum': s_shock_hum, 'shock_swing': s_shock_swing,
+               'shock_hit': s_shock_hit, 'shock_miss': s_shock_miss, 'shock_empty': s_shock_empty, 'shock_ready': s_shock_ready,
+               'shock_unequip': s_shock_unequip},
 }
 # A few sounds get pitch/time variants so repeats never sound identical.
-VARIANTS = {'claw_slash': 3, 'blade_slash': 3, 'whoosh_light': 2, 'claw_hit': 2, 'hulk_punch': 2, 'shield_hit': 2, 'electric_zap': 2, 'metal_shing': 2}
+VARIANTS = {'bm_gun': 3, 'cannon_shot': 3, 'shock_hit': 3, 'shock_miss': 2, 'shock_swing': 2, 'punch': 3, 'batarang': 2, 'claw_slash': 3, 'blade_slash': 3, 'whoosh_light': 2, 'claw_hit': 2, 'hulk_punch': 2, 'shield_hit': 2, 'electric_zap': 2, 'metal_shing': 2}
 
 
 def resample(x, factor):
@@ -573,8 +1105,12 @@ def resample(x, factor):
     return signal.resample(x, n)
 
 
-def write_ogg(path, x):
-    x = fade(trim(normalise(soft(normalise(x, 0), 1.2))), 0.03)
+# Looping sounds are written whole (no trimming or fades, which would leave a seam at the loop point).
+LOOPS = {'cannon_hum', 'sonic_hum', 'sonic_ring', 'shock_hum', 'flash_ring'}
+
+
+def write_ogg(path, x, loop=False):
+    x = normalise(x, -3) if loop else fade(trim(normalise(soft(normalise(x, 0), 1.2))), 0.03)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
         wav = tmp.name
@@ -599,7 +1135,7 @@ def main():
             base = fn()
             for i in range(n):
                 x = base if i == 0 else resample(base, 1 + (0.06 if i == 1 else -0.05))
-                write_ogg(os.path.join(OUT, group, name + ('' if i == 0 else f'_{i}') + '.ogg'), x)
+                write_ogg(os.path.join(OUT, group, name + ('' if i == 0 else f'_{i}') + '.ogg'), x, name in LOOPS)
             print(group, name, f'{len(base) / SR:.2f}s', 'x' + str(n))
     with open(manifest_path, 'w') as f:
         json.dump(manifest, f, indent=2)

@@ -44,6 +44,8 @@ public class AbilityInputPacket {
             if (slot == AbilitySlot.LMB && msg.pressed && com.FIRNI.superheromod.heroes.magneto.MagnetoSpike.stuck(player)) return;
 
             if (msg.pressed) {
+                // Batman's sonic emitters can be struck down by any hero's left click.
+                if (slot == AbilitySlot.LMB) com.FIRNI.superheromod.heroes.batman.SonicEmitterEntity.struckBy(player);
                 AbilityManager.activateAbility(player, slot);
             } else {
                 AbilityManager.deactivateAbility(player, slot);

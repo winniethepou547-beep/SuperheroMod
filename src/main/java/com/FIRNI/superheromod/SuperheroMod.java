@@ -100,6 +100,8 @@ public class SuperheroMod
         context.registerConfig(ModConfig.Type.CLIENT, com.FIRNI.superheromod.heroes.panther.PantherConfig.CLIENT, "superheromod-black-panther-client.toml");
         context.registerConfig(ModConfig.Type.COMMON, com.FIRNI.superheromod.heroes.magneto.MagnetoConfig.COMMON, "superheromod-magneto.toml");
         context.registerConfig(ModConfig.Type.CLIENT, com.FIRNI.superheromod.heroes.magneto.MagnetoConfig.CLIENT, "superheromod-magneto-client.toml");
+        context.registerConfig(ModConfig.Type.COMMON, com.FIRNI.superheromod.heroes.batman.BatmanConfig.COMMON, "superheromod-batman.toml");
+        context.registerConfig(ModConfig.Type.CLIENT, com.FIRNI.superheromod.heroes.batman.BatmanConfig.CLIENT, "superheromod-batman-client.toml");
     }
 
     private void commonSetup(final FMLCommonSetupEvent event)
@@ -117,6 +119,7 @@ public class SuperheroMod
         CharacterRegistry.register(new com.FIRNI.superheromod.heroes.zed.ZedCharacter());
         CharacterRegistry.register(new com.FIRNI.superheromod.heroes.panther.PantherCharacter());
         CharacterRegistry.register(new com.FIRNI.superheromod.heroes.magneto.MagnetoCharacter());
+        CharacterRegistry.register(new com.FIRNI.superheromod.heroes.batman.BatmanCharacter());
         com.FIRNI.superheromod.heroes.cyclops.MaximumPowerCinematic.register();
         com.FIRNI.superheromod.heroes.sandman.SandArmyPreview.register();
 

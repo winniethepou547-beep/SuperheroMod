@@ -296,5 +296,274 @@
     "sounds": [
       "superheromod:sandman/sand_impact"
     ]
+  },
+  "batman.punch": {
+    "subtitle": "subtitles.superheromod.batman.punch",
+    "sounds": [
+      "superheromod:batman/punch",
+      "superheromod:batman/punch_1",
+      "superheromod:batman/punch_2"
+    ]
+  },
+  "batman.batarang": {
+    "subtitle": "subtitles.superheromod.batman.batarang",
+    "sounds": [
+      "superheromod:batman/batarang",
+      "superheromod:batman/batarang_1"
+    ]
+  },
+  "batman.grapnel": {
+    "subtitle": "subtitles.superheromod.batman.grapnel",
+    "sounds": [
+      "superheromod:batman/grapnel"
+    ]
+  },
+  "batman.smoke": {
+    "subtitle": "subtitles.superheromod.batman.smoke",
+    "sounds": [
+      "superheromod:batman/smoke"
+    ]
+  },
+  "batman.flash": {
+    "subtitle": "subtitles.superheromod.batman.flash",
+    "sounds": [
+      "superheromod:batman/flash"
+    ]
+  },
+  "batman.flash_bounce": {
+    "subtitle": "subtitles.superheromod.batman.flash_bounce",
+    "sounds": [
+      "superheromod:batman/flash_bounce"
+    ]
+  },
+  "batman.flash_ring": {
+    "subtitle": "subtitles.superheromod.batman.flash_ring",
+    "sounds": [
+      "superheromod:batman/flash_ring"
+    ]
+  },
+  "batman.td_signal": {
+    "subtitle": "subtitles.superheromod.batman.td_signal",
+    "sounds": [
+      "superheromod:batman/td_signal"
+    ]
+  },
+  "batman.td_abort": {
+    "subtitle": "subtitles.superheromod.batman.td_abort",
+    "sounds": [
+      "superheromod:batman/td_abort"
+    ]
+  },
+  "batman.td_tracker": {
+    "subtitle": "subtitles.superheromod.batman.td_tracker",
+    "sounds": [
+      "superheromod:batman/td_tracker"
+    ]
+  },
+  "batman.td_lock": {
+    "subtitle": "subtitles.superheromod.batman.td_lock",
+    "sounds": [
+      "superheromod:batman/td_lock"
+    ]
+  },
+  "batman.bm_engine": {
+    "subtitle": "subtitles.superheromod.batman.bm_engine",
+    "sounds": [
+      "superheromod:batman/bm_engine"
+    ]
+  },
+  "batman.bm_drift": {
+    "subtitle": "subtitles.superheromod.batman.bm_drift",
+    "sounds": [
+      "superheromod:batman/bm_drift"
+    ]
+  },
+  "batman.bm_boost": {
+    "subtitle": "subtitles.superheromod.batman.bm_boost",
+    "sounds": [
+      "superheromod:batman/bm_boost"
+    ]
+  },
+  "batman.bm_gun": {
+    "subtitle": "subtitles.superheromod.batman.bm_gun",
+    "sounds": [
+      "superheromod:batman/bm_gun",
+      "superheromod:batman/bm_gun_1",
+      "superheromod:batman/bm_gun_2"
+    ]
+  },
+  "batman.mine": {
+    "subtitle": "subtitles.superheromod.batman.mine",
+    "sounds": [
+      "superheromod:batman/mine"
+    ]
+  },
+  "batman.cape": {
+    "subtitle": "subtitles.superheromod.batman.cape",
+    "sounds": [
+      "superheromod:batman/cape"
+    ]
+  },
+  "batman.cannon_deploy": {
+    "subtitle": "subtitles.superheromod.batman.cannon_deploy",
+    "sounds": [
+      "superheromod:batman/cannon_deploy"
+    ]
+  },
+  "batman.cannon_charge": {
+    "subtitle": "subtitles.superheromod.batman.cannon_charge",
+    "sounds": [
+      "superheromod:batman/cannon_charge"
+    ]
+  },
+  "batman.cannon_shot": {
+    "subtitle": "subtitles.superheromod.batman.cannon_shot",
+    "sounds": [
+      "superheromod:batman/cannon_shot",
+      "superheromod:batman/cannon_shot_1",
+      "superheromod:batman/cannon_shot_2"
+    ]
+  },
+  "batman.cannon_hum": {
+    "subtitle": "subtitles.superheromod.batman.cannon_hum",
+    "sounds": [
+      "superheromod:batman/cannon_hum"
+    ]
+  },
+  "batman.cannon_final": {
+    "subtitle": "subtitles.superheromod.batman.cannon_final",
+    "sounds": [
+      "superheromod:batman/cannon_final"
+    ]
+  },
+  "batman.cannon_stop": {
+    "subtitle": "subtitles.superheromod.batman.cannon_stop",
+    "sounds": [
+      "superheromod:batman/cannon_stop"
+    ]
+  },
+  "batman.cannon_retract": {
+    "subtitle": "subtitles.superheromod.batman.cannon_retract",
+    "sounds": [
+      "superheromod:batman/cannon_retract"
+    ]
+  },
+  "batman.sonic_beep": {
+    "subtitle": "subtitles.superheromod.batman.sonic_beep",
+    "sounds": [
+      "superheromod:batman/sonic_beep"
+    ]
+  },
+  "batman.sonic_rumble": {
+    "subtitle": "subtitles.superheromod.batman.sonic_rumble",
+    "sounds": [
+      "superheromod:batman/sonic_rumble"
+    ]
+  },
+  "batman.sonic_rise": {
+    "subtitle": "subtitles.superheromod.batman.sonic_rise",
+    "sounds": [
+      "superheromod:batman/sonic_rise"
+    ]
+  },
+  "batman.sonic_lock": {
+    "subtitle": "subtitles.superheromod.batman.sonic_lock",
+    "sounds": [
+      "superheromod:batman/sonic_lock"
+    ]
+  },
+  "batman.sonic_hum": {
+    "subtitle": "subtitles.superheromod.batman.sonic_hum",
+    "sounds": [
+      "superheromod:batman/sonic_hum"
+    ]
+  },
+  "batman.sonic_pulse": {
+    "subtitle": "subtitles.superheromod.batman.sonic_pulse",
+    "sounds": [
+      "superheromod:batman/sonic_pulse"
+    ]
+  },
+  "batman.sonic_hit": {
+    "subtitle": "subtitles.superheromod.batman.sonic_hit",
+    "sounds": [
+      "superheromod:batman/sonic_hit"
+    ]
+  },
+  "batman.sonic_ring": {
+    "subtitle": "subtitles.superheromod.batman.sonic_ring",
+    "sounds": [
+      "superheromod:batman/sonic_ring"
+    ]
+  },
+  "batman.sonic_break": {
+    "subtitle": "subtitles.superheromod.batman.sonic_break",
+    "sounds": [
+      "superheromod:batman/sonic_break"
+    ]
+  },
+  "batman.sonic_retract": {
+    "subtitle": "subtitles.superheromod.batman.sonic_retract",
+    "sounds": [
+      "superheromod:batman/sonic_retract"
+    ]
+  },
+  "batman.shock_equip": {
+    "subtitle": "subtitles.superheromod.batman.shock_equip",
+    "sounds": [
+      "superheromod:batman/shock_equip"
+    ]
+  },
+  "batman.shock_clap": {
+    "subtitle": "subtitles.superheromod.batman.shock_clap",
+    "sounds": [
+      "superheromod:batman/shock_clap"
+    ]
+  },
+  "batman.shock_hum": {
+    "subtitle": "subtitles.superheromod.batman.shock_hum",
+    "sounds": [
+      "superheromod:batman/shock_hum"
+    ]
+  },
+  "batman.shock_swing": {
+    "subtitle": "subtitles.superheromod.batman.shock_swing",
+    "sounds": [
+      "superheromod:batman/shock_swing",
+      "superheromod:batman/shock_swing_1"
+    ]
+  },
+  "batman.shock_hit": {
+    "subtitle": "subtitles.superheromod.batman.shock_hit",
+    "sounds": [
+      "superheromod:batman/shock_hit",
+      "superheromod:batman/shock_hit_1",
+      "superheromod:batman/shock_hit_2"
+    ]
+  },
+  "batman.shock_miss": {
+    "subtitle": "subtitles.superheromod.batman.shock_miss",
+    "sounds": [
+      "superheromod:batman/shock_miss",
+      "superheromod:batman/shock_miss_1"
+    ]
+  },
+  "batman.shock_empty": {
+    "subtitle": "subtitles.superheromod.batman.shock_empty",
+    "sounds": [
+      "superheromod:batman/shock_empty"
+    ]
+  },
+  "batman.shock_ready": {
+    "subtitle": "subtitles.superheromod.batman.shock_ready",
+    "sounds": [
+      "superheromod:batman/shock_ready"
+    ]
+  },
+  "batman.shock_unequip": {
+    "subtitle": "subtitles.superheromod.batman.shock_unequip",
+    "sounds": [
+      "superheromod:batman/shock_unequip"
+    ]
   }
 }

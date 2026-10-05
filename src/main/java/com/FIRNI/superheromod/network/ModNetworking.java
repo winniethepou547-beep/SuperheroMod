@@ -46,7 +46,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
  */
 public final class ModNetworking {
 
-    private static final String PROTOCOL_VERSION = "23";
+    private static final String PROTOCOL_VERSION = "26";
 
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(SuperheroMod.MODID, "main"),
@@ -256,6 +256,21 @@ public final class ModNetworking {
                 com.FIRNI.superheromod.network.packet.SpikePullPacket::encode,
                 com.FIRNI.superheromod.network.packet.SpikePullPacket::decode,
                 com.FIRNI.superheromod.network.packet.SpikePullPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.BatmanStatePacket.class,
+                com.FIRNI.superheromod.network.packet.BatmanStatePacket::encode,
+                com.FIRNI.superheromod.network.packet.BatmanStatePacket::decode,
+                com.FIRNI.superheromod.network.packet.BatmanStatePacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.BatmanFxPacket.class,
+                com.FIRNI.superheromod.network.packet.BatmanFxPacket::encode,
+                com.FIRNI.superheromod.network.packet.BatmanFxPacket::decode,
+                com.FIRNI.superheromod.network.packet.BatmanFxPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.BatmanInputPacket.class,
+                com.FIRNI.superheromod.network.packet.BatmanInputPacket::encode,
+                com.FIRNI.superheromod.network.packet.BatmanInputPacket::decode,
+                com.FIRNI.superheromod.network.packet.BatmanInputPacket::handle,
                 java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
         CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.ChampionLockPacket.class,
                 com.FIRNI.superheromod.network.packet.ChampionLockPacket::encode,

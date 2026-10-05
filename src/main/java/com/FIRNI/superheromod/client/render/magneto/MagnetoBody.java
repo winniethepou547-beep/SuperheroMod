@@ -1,5 +1,6 @@
 package com.FIRNI.superheromod.client.render.magneto;
 
+import com.FIRNI.superheromod.client.render.cloth.CapeCloth;
 import com.FIRNI.superheromod.client.render.ghost.GhostMaterials;
 import com.FIRNI.superheromod.client.render.panther.PantherMotion.Pose;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -40,6 +41,12 @@ public final class MagnetoBody {
     public static float glowTime;
     /** How lifted the cape is (speed, falling), how fast it is moving, which way it is pushed sideways, and the flight (0..1). */
     public record Cloth(float lift, float speed, float side, float flying) {}
+    /**
+     * The simulated cape (MagnetoLayer, in the world and in menus): when set, a draw leaves the cloth out (only the
+     * mantle) and records where it hangs from and the body it drapes over; the layer then draws it with CapeCloth.
+     * Null (the film): the cape is drawn from the Cloth record as before.
+     */
+    public static CapeCloth.Frame sim;
 
     private static void px(PoseStack p, double x, double y, double z) { p.translate(x / 16, y / 16, z / 16); }
     private static void rot(PoseStack p, float x, float y, float z) { p.mulPose(new Quaternionf().rotationZYX(z, y, x)); }
@@ -91,6 +98,7 @@ public final class MagnetoBody {
             p.popPose();
         }
         hips(p, b, light);
+        if (sim != null) { sim.reset(); sim.mark(0, p, -2.1f, -1.0f, .4f); sim.mark(1, p, 2.1f, -1.0f, .4f); }
         p.mulPose(Axis.YP.rotation(v[SPINE_YAW])); p.mulPose(Axis.XP.rotation(v[SPINE_PITCH])); p.mulPose(Axis.ZP.rotation(v[SPINE_ROLL]));
         abdomen(p, b, light);
         px(p, 0, -5.6f, 0);
@@ -112,6 +120,7 @@ public final class MagnetoBody {
         p.mulPose(Axis.XP.rotation(Mth.clamp(lookPitch + v[HEAD_PITCH], -1.4f, 1.3f)));
         p.mulPose(Axis.ZP.rotation(v[HEAD_ROLL]));
         head(p, b, light);
+        if (sim != null) sim.capsule(p, 0, -4.2f, .4f, 0, -4.2f, .4f, 4.8f, false);
         p.popPose();
         p.popPose();
         p.popPose();
@@ -119,12 +128,14 @@ public final class MagnetoBody {
 
     // ------------------------------------------------------------------ legs: red thighs with violet outer panels, knee plates, tall boots
     private static void leg(PoseStack p, MultiBufferSource b, int light, int s, float knee, float ankle) {
+        if (sim != null) sim.capsule(p, 0, 0, 0, 0, 6, 0, 2.4f, false);
         part(p, b, light, 0, 3.1f, 0, 4.3f, 6.4f, 4.3f, RED);
         part(p, b, light, s * 2.0f, 3.2f, .2f, .5f, 6.0f, 3.2f, VIOLET);
         part(p, b, light, s * -.3f, 2.8f, -2.1f, 2.6f, 4.6f, .3f, RED_LIGHT);
         part(p, b, light, s * .9f, 2.8f, -2.14f, .25f, 4.8f, .2f, RED_SEAM);
         px(p, 0, 6, 0);
         p.mulPose(Axis.XP.rotation(knee));
+        if (sim != null) sim.capsule(p, 0, 0, 0, 0, 4.8f, 0, 2.3f, false);
         // The knee plate, then the boot from just below the knee to the foot.
         part(p, b, light, 0, -.2f, -2.05f, 3.2f, 2.4f, .7f, RED_LIGHT);
         part(p, b, light, 0, .6f, 0, 4.1f, 1.6f, 4.1f, RED);
@@ -173,11 +184,13 @@ public final class MagnetoBody {
     }
     /** The arm: the red upper arm, the long violet gauntlet flaring at the cuff, the gloved hand. */
     private static void arm(PoseStack p, MultiBufferSource b, int light, int s, float elbow, float wristX, float wristZ, float curl) {
+        if (sim != null) sim.capsule(p, 0, 0, 0, s * .3f, 5.0f, 0, 2.1f, false);
         part(p, b, light, s * .3f, 1.6f, 0, 3.6f, 5.6f, 3.6f, RED);
         part(p, b, light, s * .3f, -.6f, 0, 4.0f, 1.6f, 4.2f, RED_LIGHT);
         part(p, b, light, s * 1.95f, 2.0f, 0, .3f, 4.0f, 2.2f, RED_SEAM);
         px(p, s * .3f, 5.0f, 0);
         p.mulPose(Axis.XP.rotation(-elbow));
+        if (sim != null) sim.capsule(p, 0, 0, 0, 0, 4.8f, 0, 2.0f, false);
         part(p, b, light, 0, 2.4f, 0, 3.3f, 4.8f, 3.3f, VIOLET);
         // The flared cuff, edged.
         part(p, b, light, 0, .5f, 0, 3.9f, 1.4f, 3.9f, VIOLET_LIGHT);
@@ -292,6 +305,17 @@ public final class MagnetoBody {
         // The mantle draped over both shoulders and round the back of the neck.
         part(p, b, light, 0, -6.85f, 1.2f, 10.6f, 1.0f, 3.4f, VIOLET);
         for (int s = -1; s <= 1; s += 2) part(p, b, light, s * 4.8f, -6.1f, .4f, 0, 0, s * .5f, 2.6f, 1.0f, 4.6f, VIOLET);
+        if (sim != null) {
+            // Simulated: where it hangs from (the back of the mantle), the way he faces, the torso it falls over.
+            for (int col = 0; col < CapeCloth.COLS; col++) {
+                float u = (col - 3) / 3f, a = Math.abs(u);
+                sim.pin(p, col, 5.3f * u, -6.5f - .3f * a, 3.0f - 1.0f * a * a);
+            }
+            sim.facing(p);
+            sim.capsule(0, p, -2.1f, -4.5f, .4f, 2.6f, true);
+            sim.capsule(1, p, 2.1f, -4.5f, .4f, 2.6f, true);
+            return;
+        }
         p.pushPose();
         px(p, 0, -6.4f, 2.55f);
         float fly = c.flying();

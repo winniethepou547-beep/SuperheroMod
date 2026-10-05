@@ -224,7 +224,7 @@ public final class GhostRiderLayer extends RenderLayer<AbstractClientPlayer, Pla
         p.pushPose();p.translate(hand.x,hand.y,hand.z);draw(glove,p,b,light,.03f,.028f,.028f);p.popPose();
     }
     // ------------------------------------------------------------------ smooth transitions
-    private record Drawn(GhostRidingArms.Arm arm,float time) {}
+    private record Drawn(GhostRidingArms.Arm arm,GhostRidingArms.Arm target,float time) {}
     private record Blend(GhostRidingArms.Arm from,float start) {}
     private final Map<String,Drawn> drawn=new HashMap<>();
     private final Map<String,Blend> blends=new HashMap<>();
@@ -245,8 +245,10 @@ public final class GhostRiderLayer extends RenderLayer<AbstractClientPlayer, Pla
         Drawn last=drawn.get(key);
         if(last!=null) {
             float dt=Math.max(0,time-last.time);
-            // A move faster than any authored motion means the pose source changed: blend from here.
-            if(dt<2 && last.arm.hand().distanceTo(target.hand())>.12+.5*dt)blends.put(key,new Blend(last.arm,time));
+            // The TARGET jumping faster than any authored motion means the pose source changed: blend from where the arm
+            // is drawn now. (Comparing against the drawn arm instead restarted the blend every frame while it caught up,
+            // so in quick moves the arm hardly moved at all.)
+            if(dt<2 && last.target.hand().distanceTo(target.hand())>.12+.5*dt)blends.put(key,new Blend(last.arm,time));
         }
         Blend blend=blends.get(key);
         GhostRidingArms.Arm shown=target;
@@ -260,7 +262,7 @@ public final class GhostRiderLayer extends RenderLayer<AbstractClientPlayer, Pla
             }
         }
         if(drawn.size()>256){drawn.clear();blends.clear();}
-        drawn.put(key,new Drawn(shown,time));
+        drawn.put(key,new Drawn(shown,target,time));
         return shown;
     }
     private float mountBlend(UUID id,boolean mounting,float time) {

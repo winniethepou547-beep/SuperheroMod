@@ -147,9 +147,10 @@ public final class GhostChainController {
                 s.heat=Math.max(s.heat,Math.min(10,s.age/4));s.idleTicks=0;
                 if(s.age==GhostComboMotion.CHARGE_FULL)p.level().playSound(null,p.blockPosition(),SoundEvents.CHAIN_BREAK,SoundSource.PLAYERS,.9f,.6f);
                 if(s.age==GhostComboMotion.CHARGE_FULL)p.level().playSound(null, p.blockPosition(), ModSounds.FX_IMPACT_METAL.get(), SoundSource.PLAYERS, (.9f) * 0.7f, 1.1f);
-                if(s.age==GhostComboMotion.CHARGE_FULL+GhostComboMotion.CHARGE_COIL)
+                if(s.age==GhostComboMotion.CHARGE_FULL+GhostComboMotion.CHARGE_COIL) {
                     p.level().playSound(null,p.blockPosition(),SoundEvents.PLAYER_ATTACK_SWEEP,SoundSource.PLAYERS,1f,.5f);
                     p.level().playSound(null, p.blockPosition(), ModSounds.GHOST_CHAIN_WHIP.get(), SoundSource.PLAYERS, (1f) * 1.0f, 0.95f);
+                }
                 if(s.age>=GhostComboMotion.chargeRelease()) {
                     s.mode=Mode.FLY;s.age=0;s.held=false;s.struck.clear();
                     s.tip=p.getEyePosition().add(p.getLookAngle());s.direction=p.getLookAngle();
