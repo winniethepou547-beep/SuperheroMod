@@ -283,10 +283,11 @@ landing spot and the target to the crater.
   roll and the glide. `BatmanStatePacket` / `BatmanFxPacket` / `BatmanInputPacket` (glide, roll + direction, wheel, gadget pick/use, grapnel).
 - Keys: LMB punch chain (clicks buffered; RAPID flurry), RMB Batarang (tap 1 / hold +1 per `BATARANG_STEP`, max 5, narrow 2.4° fan,
   ribbon trail `BatmanFx.rangTrail`; the count on the HUD is `textures/gui/batman/bat.png` from `tools/icons/batman_bat.py`), R hold = gadget wheel (5 sectors, `BatmanWheel.SECTOR`; mouse moves a cursor:
-  `ViewportEvent.ComputeCameraAngles` locks the view; LMB or release picks), R tap = use gadget (smoke, flash, electric gauntlets
+  `ViewportEvent.ComputeCameraAngles` locks the view; LMB or release picks), R tap = use gadget (smoke, flash grenade (below), electric gauntlets
   toggle `BatmanShock`/`BatmanShockFx` (worn: LMB = heavy electric boxing, `State.shock/energy` synced, energy bar), wrist cannon
   `BatmanCannon`/`BatmanCannonFx` (deploy/fire/retract on the CANNON clock, fake light splashes on block faces, `cannon_*` sounds),
-  sonic trap `BatmanSonic`/`BatmanSonicFx` (two `SonicEmitterEntity` (ModEntities `sonic_emitter`, 8 HP, `SonicEmitterRenderer`) rise,
+  sonic trap `BatmanSonic`/`BatmanSonicFx` (two `SonicEmitterEntity` (ModEntities `sonic_emitter`, 8 HP, `SonicEmitterRenderer`; any hero's LMB strikes the one in front via
+  `SonicEmitterEntity.struckBy` from `AbilityInputPacket`, since hero attacks only look for living bodies) rise,
   track and pulse the target: 0 damage, speed modifier, the target's own client shakes, `batman_sonic` post shader, muffled
   sounds; sounds played per role; the wave is drawn as one continuous stream per emitter while it pulses, `BatmanSonicFx.stream`),
   Batmobile (`G_BATMOBILE` 5: `BatmanBatmobile` call/send away, `BatmobileEntity` (ModEntities `batmobile`, server-driven path: run-up from
@@ -297,8 +298,9 @@ landing spot and the target to the crater.
   DOWNED on its back and dragged `DRAG_DIST` 4.4, then BOUND (`BatmanBind` server / `BatmanBound` client: coils drawn, a bound
   player's movement held and LMB = `IN_BREAK_FREE` tugs, `bindClicks`; mobs free after `bindMobTicks`); E while pulled = let go
   with a hop (`letGo`)), Q = reflex block (`BatmanReflex` server: `State.reflexUntil`, front 180° only, blocks only damage with a
-  direction (not explosions/fall/fire/magic/bypass), gauntlet within `gauntletRange` (side by angle: BLOCK_RIGHT/LEFT/FRONT) else
-  BLOCK_CAPE; projectiles re-aimed next tick; `FX_BLOCK` → `BatmanReflexFx` (sparks along the deflect, rings, the move via
+  direction (not explosions/fall/fire/magic/bypass), any Projectile or attacker beyond `gauntletRange` = BLOCK_CAPE (big cape sweep, `CAPE_TICKS`); close blows
+  vary and never repeat back to back (`State.lastBlock`: BLOCK_RIGHT/LEFT/FRONT, BLOCK_EVADE_R/L = Panther-like slip, no sparks;
+  a strong side picks that arm); projectiles re-aimed next tick; `FX_BLOCK` → `BatmanReflexFx` (sparks along the deflect, rings, the move via
   `BatmanMotion.deflect`, cape sweep via `BatmanBody.capeGrab` → `CapeCloth.Frame.grab`)), X = KARA ŞÖVALYE film (below),
   SHIFT held = run (sprint, 1.3x; vanilla sneak cleared in `BatmanClient.run`), CTRL (raw) = Elden Ring
   dive roll (`DODGE_TICKS` 16, `DODGE_DIVE`, 7 blocks, i-frames, 3 s cooldown `rollCooldown`), SPACE held in the air = cape glide
@@ -321,7 +323,17 @@ landing spot and the target to the crater.
   `BatmanVision` = flash white-out (blinded) / glimpse (not), near-black smoke screen for others; the outline mixins are inert.
 - Stagger `BatmanStagger` (server: -60 % move/attack speed, next Batman blow ×`STAGGER_CRIT`, from the yank and the sticky
   bomb's airtime) + `BatmanStatus` (client: render transform for DOWNED (on the back, arms up via `downedArms` in `HeroArmPose`)
-  and stagger wobble, red spike daze mark (stays `DAZE_LINGER` ticks after the stagger, free movement), local camera shake).
+  and stagger wobble, the shared `DazeStars` over the head (stay `DAZE_LINGER` ticks after the stagger, free movement), local camera shake).
+- Flash grenade (`G_FLASH`): `BatmanFlash.step` = the bounce/skid/roll physics shared by the server and the clients' copy
+  (`FX_PELLET_BOUNCE` corrects it at each real bounce, `flash_bounce` tink); `flashFuseSeconds` after it first touches the floor it
+  goes off: no damage. A) `FX_FLASH` to everyone → `BatmanFlashFx.burst`: rays find faces round it (white `BatmanCannonFx.splash`),
+  the light map is lifted toward white at `AFTER_SKY` by reflection (fields found by type, marked dirty so it never piles up),
+  core/glow/pressure ring. B) server: players within `flashBlindRadius` 4 with line of sight (`sees`) get `FX_FLASHED`
+  (power by distance and facing, ticks from `flashRecoverSeconds`): `BatmanFlashFx.screen` at `RenderGuiEvent.Pre` = third-size
+  frame copy (blit) laid back as blur + additive bloom, pale wash, additive lift, white on top, eased per the spec's recovery;
+  `Ring` loop `flash_ring` + `PlaySoundEvent` muffle follow it. Behind a wall: a dim glare only; the thrower: a soft ring only.
+  Mobs get blindness/slow/`DAZED`. `FX_DAZE` → `client/render/DazeStars` (3-5 gold stars per body, one set per body,
+  extended not doubled; wear off slowing, shrinking, fading, drifting up) - the one daze effect, also used by the stagger.
 - HUD: `HudStyle.skill` rows, Batarang count over the rows (5 thin plain bat symbols `BatmanWheel.bat`, filling back), grapnel reticle,
   `BatmanWheel` (Arkham/Spider-Man 2 style wheel). Effects: `BatmanFx` (Batarangs, pellets, smoke puffs, flash, thermal ping,
   mines, the slack-then-taut line). Look/animation: `BatmanBody`, `BatmanMotion`, `BatmanLayer`, `BatmanGear`, `BatmanFirstPerson`,
@@ -337,7 +349,9 @@ landing spot and the target to the crater.
   circling glide, forearm call, dive, landing, the throw back over the shoulder without looking, turn, grapnel exit; Batwing
   (lights far off, a flyover straight over the target and the camera into an orbit ABOVE them, pivoting to keep the nose on
   them, a round every tick `fires()`/`ROUND_SPEED` during SCAN..SCANNED (no scan beam any more), a last burst and pass);
-  Batarang path; flashes; camera `view`/`kick`). `KnightTarget` = the target (rises to an apex at 240 and falls from there:
+  Batarang path (`batarangAlong`, ridden by a chase camera THROW..HIT, then a side shot along the wall to WALL+12; sparks at
+  HIT and WALL in `KnightStage.sparks`); Batman lit by moonlight in the sky with a cold haze behind him and close glide shots
+  (`glideShot`); flashes; camera `view`/`kick`). `KnightTarget` = the target (rises to an apex at 240 and falls from there:
   speed keys `FALL` integrated by `fallen()`, the apex height derived so the fall ends at the Batarang hit; faster under the
   guns; yaw, tumble about the middle, `FilmCast.Track` poses + look keys, tint by lamp/moon/gunfire). `KnightStage` draws it: vertex-lit
   wet asphalt and brick (lamp cone falloff `lamp()`, `wallLamp()`), buildings, fire escape, spire, water tower, junk, lamp cone
@@ -365,7 +379,8 @@ landing spot and the target to the crater.
 - Ghost Rider gameplay: chain combos with real chain physics, R hellfire breath (damage every second), Hell Cycle
   bike, F hell-pit slam. Keep the physics checks passing. `GhostChainRenderer.pose` sets the model arms only from the same fresh
   pose the layer draws (`motion()`, 20-tick staleness) — a stale sample used to freeze the arms up; the vanilla click swing is off
-  for him (`GhostClientEvents.noSwing`). Watch brace-less ifs when layering sounds (two whips once played every tick).
+  for him (`GhostClientEvents.noSwing`). `GhostRiderLayer` eases the arms per hit: a new blend starts only when the TARGET
+  arm jumps (target vs target, `Drawn.target`), never target vs the lagging drawn arm (that restarted it every frame and froze them). Watch brace-less ifs when layering sounds (two whips once played every tick).
 - Sandman: Colossus ultimate is parked ("later"). `ColossusPose.couple` keeps torso and dune one body: the dune leans about its
   foot and squashes/widens to follow the waist (min 55%, then it lifts the torso); the slam and the forming crouch bend at the waist. Cyclops: sounds still unfinished.
 - Large local-only folders are gitignored: `tmp/`, `references/` (reference videos), `logs/`.

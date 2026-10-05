@@ -330,6 +330,18 @@
       "superheromod:batman/flash"
     ]
   },
+  "batman.flash_bounce": {
+    "subtitle": "subtitles.superheromod.batman.flash_bounce",
+    "sounds": [
+      "superheromod:batman/flash_bounce"
+    ]
+  },
+  "batman.flash_ring": {
+    "subtitle": "subtitles.superheromod.batman.flash_ring",
+    "sounds": [
+      "superheromod:batman/flash_ring"
+    ]
+  },
   "batman.mine": {
     "subtitle": "subtitles.superheromod.batman.mine",
     "sounds": [

@@ -92,6 +92,8 @@ public final class BatmanController {
     /** A gadget pellet in flight (smoke, flash or thermal). */
     private static final class Pellet {
         final int id, gadget; final ServerPlayer owner; Vec3 pos, vel; int age;
+        /** The flash grenade: ticks left on its fuse once it has touched the floor (-1 before), lying still. */
+        int fuse = -1, bodyAt = -100; boolean resting;
         Pellet(int id, int gadget, ServerPlayer owner, Vec3 pos, Vec3 vel) { this.id = id; this.gadget = gadget; this.owner = owner; this.pos = pos; this.vel = vel; }
     }
     /** A smoke cloud on the ground. */
@@ -322,24 +324,41 @@ public final class BatmanController {
                 level.playSound(null, at.x, at.y, at.z, SoundEvents.FIRE_EXTINGUISH, SoundSource.PLAYERS, 1.2f, .5f);
             }
             case G_FLASH -> {
-                double r = BatmanConfig.FLASH_RADIUS.get();
-                int blind = (int) (BatmanConfig.FLASH_SECONDS.get() * 20);
+                // No damage, no push: a small pop, an enormous pulse of light, and the white-out for those near who see it.
+                double r = BatmanConfig.FLASH_BLIND_RADIUS.get();
+                float recover = (float) (BatmanConfig.FLASH_RECOVER_SECONDS.get() * 20);
                 fxAt(at, FX_FLASH, at, Vec3.ZERO, (float) r, -1, pl.id, p);
-                level.playSound(null, at.x, at.y, at.z, ModSounds.BATMAN_FLASH.get(), SoundSource.PLAYERS, 1.6f, 1f);
-                level.playSound(null, at.x, at.y, at.z, SoundEvents.FIREWORK_ROCKET_BLAST, SoundSource.PLAYERS, 1.4f, 1.6f);
-                for (LivingEntity t : level.getEntitiesOfClass(LivingEntity.class, new AABB(at, at).inflate(r), t -> targetable(p, t))) {
-                    double d = t.getEyePosition().distanceTo(at);
+                level.playSound(null, at.x, at.y, at.z, ModSounds.BATMAN_FLASH.get(), SoundSource.PLAYERS, 1.4f, 1f);
+                level.playSound(null, at.x, at.y, at.z, SoundEvents.FIREWORK_ROCKET_BLAST, SoundSource.PLAYERS, .6f, 1.9f);
+                for (LivingEntity t : level.getEntitiesOfClass(LivingEntity.class, new AABB(at, at).inflate(r + 2), t -> targetable(p, t))) {
+                    Vec3 eye = t.getEyePosition();
+                    double d = Math.min(eye.distanceTo(at), t.getBoundingBox().getCenter().distanceTo(at));
                     if (d > r) continue;
-                    // Only those who can see it: a wall in between saves them.
-                    if (level.clip(new ClipContext(at, t.getEyePosition(), ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, t)).getType() != HitResult.Type.MISS) continue;
-                    float k = (float) (1 - d / r * .5);
-                    int ticks = (int) (blind * k);
-                    t.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, ticks, 0, false, false, true));
-                    t.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, ticks, 1, false, false, true));
+                    boolean seen = sees(level, at, t);
+                    if (!seen) {
+                        // Behind a wall: never the full white-out, only a dim glare and a little ringing.
+                        if (t instanceof ServerPlayer victim)
+                            ModNetworking.CHANNEL.send(PacketDistributor.PLAYER.with(() -> victim), new BatmanFxPacket(FX_FLASHED, at, new Vec3(14, 0, 1), .2f, victim.getId(), pl.id));
+                        continue;
+                    }
+                    // Harder the nearer it is and the more they were looking at it.
+                    Vec3 to = at.subtract(eye);
+                    double facing = to.lengthSqr() < 1e-6 ? 1 : t.getViewVector(1).dot(to.normalize());
+                    float k = Mth.clamp((float) ((1 - .35 * d / r) * (facing > .3 ? 1 : facing > -.3 ? .82 : .6)), .3f, 1);
+                    int ticks = Math.round(recover * (.55f + .45f * k));
                     if (t instanceof ServerPlayer victim)
-                        ModNetworking.CHANNEL.send(PacketDistributor.PLAYER.with(() -> victim), new BatmanFxPacket(FX_FLASH, at, Vec3.ZERO, k, victim.getId(), pl.id));
-                    if (t instanceof Mob mob) { mob.setTarget(null); mob.getNavigation().stop(); DAZED.put(mob.getId(), level.getGameTime() + ticks); }
+                        ModNetworking.CHANNEL.send(PacketDistributor.PLAYER.with(() -> victim), new BatmanFxPacket(FX_FLASHED, at, new Vec3(ticks, 0, 0), k, victim.getId(), pl.id));
+                    else {
+                        t.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, ticks, 0, false, false, true));
+                        t.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, ticks, 1, false, false, true));
+                        if (t instanceof Mob mob) { mob.setTarget(null); mob.getNavigation().stop(); DAZED.put(mob.getId(), level.getGameTime() + ticks); }
+                    }
+                    // The stars over their head, for everyone to see (a little longer than the white-out).
+                    fxAt(t.position(), FX_DAZE, t.position(), new Vec3(k, 0, 0), ticks + 16, t.getId(), pl.id, p);
                 }
+                // The thrower is never blinded: at most a light ringing if it went off near him.
+                if (p.getEyePosition().distanceTo(at) < r * 1.6)
+                    ModNetworking.CHANNEL.send(PacketDistributor.PLAYER.with(() -> p), new BatmanFxPacket(FX_FLASHED, at, new Vec3(24, 1, 0), .15f, p.getId(), pl.id));
             }
             default -> {}
         }
@@ -636,6 +655,11 @@ public final class BatmanController {
         for (Iterator<Pellet> it = PELLETS.iterator(); it.hasNext(); ) {
             Pellet pl = it.next();
             ServerPlayer p = pl.owner;
+            if (pl.gadget == G_FLASH) {
+                if (p.isRemoved()) { it.remove(); continue; }
+                if (tickFlash(pl)) it.remove();
+                continue;
+            }
             if (p.isRemoved() || ++pl.age > 80) { it.remove(); continue; }
             Vec3 next = pl.pos.add(pl.vel);
             EntityHitResult eh = ProjectileUtil.getEntityHitResult(p.level(), p, pl.pos, next, new AABB(pl.pos, next).inflate(.3),
@@ -646,6 +670,45 @@ public final class BatmanController {
             pl.pos = next;
             pl.vel = pl.vel.add(0, -.05, 0).scale(.99);
         }
+    }
+    /**
+     * The flash grenade: it bounces off bodies and blocks (a small tink at each real bounce, the clients corrected),
+     * rolls to a stop, and goes off FLASH_FUSE_SECONDS after it first touched the floor. True once it has gone off.
+     */
+    private static boolean tickFlash(Pellet pl) {
+        ServerPlayer p = pl.owner;
+        ServerLevel level = p.serverLevel();
+        pl.age++;
+        if (pl.fuse >= 0 && --pl.fuse < 0) { detonate(pl, pl.pos.add(0, .12, 0)); return true; }
+        if (pl.fuse < 0 && pl.age > BatmanFlash.MAX_AGE) { detonate(pl, pl.pos); return true; }
+        if (pl.resting) return false;
+        Vec3 next = pl.pos.add(pl.vel);
+        EntityHitResult eh = pl.age < 3 || pl.age - pl.bodyAt < 5 ? null : ProjectileUtil.getEntityHitResult(level, p, pl.pos, next, new AABB(pl.pos, next).inflate(.25),
+                e -> e instanceof LivingEntity l && l != p && l.isAlive());
+        if (eh != null) {
+            // Off a body: it knocks back off them and drops.
+            pl.vel = new Vec3(-pl.vel.x * .22, Math.min(pl.vel.y, 0) * .3, -pl.vel.z * .22);
+            pl.pos = eh.getLocation().subtract(next.subtract(pl.pos).normalize().scale(.2));
+            pl.bodyAt = pl.age;
+            flashBounce(pl, level, .25);
+            return false;
+        }
+        BatmanFlash.Step st = BatmanFlash.step(level, p, pl.pos, pl.vel);
+        pl.pos = st.pos(); pl.vel = st.vel(); pl.resting = st.rest();
+        if (st.floor() && pl.fuse < 0) pl.fuse = (int) Math.round(BatmanConfig.FLASH_FUSE_SECONDS.get() * 20);
+        if (st.impact() > 0) flashBounce(pl, level, st.impact());
+        return false;
+    }
+    private static void flashBounce(Pellet pl, ServerLevel level, double impact) {
+        fxAt(pl.pos, FX_PELLET_BOUNCE, pl.pos, pl.vel, (float) impact, -1, pl.id, pl.owner);
+        if (impact > .1) level.playSound(null, pl.pos.x, pl.pos.y, pl.pos.z, ModSounds.BATMAN_FLASH_BOUNCE.get(), SoundSource.PLAYERS,
+                (float) Math.min(.55, .15 + impact), 1.1f + .3f * level.random.nextFloat());
+    }
+    /** Whether the burst at `at` can be seen from t's eyes (or reaches their body round the edge of something). */
+    private static boolean sees(ServerLevel level, Vec3 at, LivingEntity t) {
+        for (Vec3 to : new Vec3[]{t.getEyePosition(), t.getBoundingBox().getCenter()})
+            if (level.clip(new ClipContext(at, to, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, t)).getType() == HitResult.Type.MISS) return true;
+        return false;
     }
     private static void tickClouds() {
         for (Iterator<Cloud> it = CLOUDS.iterator(); it.hasNext(); ) {

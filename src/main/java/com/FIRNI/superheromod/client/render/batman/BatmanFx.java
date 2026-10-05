@@ -3,7 +3,9 @@ package com.FIRNI.superheromod.client.render.batman;
 import com.FIRNI.superheromod.SuperheroMod;
 import com.FIRNI.superheromod.client.render.film.FilmContext;
 import com.FIRNI.superheromod.client.render.film.FilmFx;
+import com.FIRNI.superheromod.client.render.DazeStars;
 import com.FIRNI.superheromod.heroes.batman.BatmanConfig;
+import com.FIRNI.superheromod.heroes.batman.BatmanFlash;
 import com.FIRNI.superheromod.network.packet.BatmanFxPacket;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -51,6 +53,8 @@ public final class BatmanFx {
     private static final class Pellet {
         final int id, gadget; Vec3 pos, prev, vel; final float spawn;
         Pellet(int id, int gadget, Vec3 pos, Vec3 vel, float spawn) { this.id = id; this.gadget = gadget; this.pos = pos; this.prev = pos; this.vel = vel; this.spawn = spawn; }
+        /** The flash grenade lying still; how far it has rolled over (radians, drawn). */
+        boolean rest; float roll, rollO;
     }
     /** A smoke cloud: its puffs are placed from its id, so every client sees the same cloud. */
     record Cloud(int owner, int id, Vec3 at, float radius, float start, float life) {
@@ -145,21 +149,21 @@ public final class BatmanFx {
                 if (p.entity() == me()) BatmanThermal.smoke(t + (float) dir.x);
             }
             case FX_FLASH -> {
-                if (p.entity() >= 0 && p.entity() == me()) { BatmanVision.flashed(p.power()); break; }
+                // The light itself (faces round it, the light map, the core and glow) is BatmanFlashFx; here the bits.
                 PELLETS.remove(p.id());
-                // For the ones it does not blind: a small, sharp pop of light with a bloom, lighting the ground round it for an instant.
-                MOTES.add(new Mote(at, Vec3.ZERO, 1.1f, 0, 0xffffff, 3, t, M_GLOW, 1f));
-                MOTES.add(new Mote(at, Vec3.ZERO, 3.2f, 0, FLASH, 5, t, M_GLOW, .75f));
-                MOTES.add(new Mote(at, Vec3.ZERO, 6.5f, 0, 0xdfe8ff, 4, t, M_GLOW, .25f));
-                RINGS.add(new Ring(at.add(0, .05, 0), 5.5f, t, 6, 0xfff8e8, true));
-                RINGS.add(new Ring(at.add(0, .05, 0), 2.6f, t, 5, 0xffffff, true));
-                sparks(at, new Vec3(0, 1, 0), (int) (16 * amount()), .26f);
-                var cam = mc.gameRenderer.getMainCamera().getPosition();
-                double d = cam.distanceTo(at);
-                boolean seen = d < p.power() * 2 && mc.level.clip(new ClipContext(cam, at, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player)).getType() == HitResult.Type.MISS;
-                if (seen) BatmanVision.glimpse((float) (1 - d / (p.power() * 2)));
-                if (near(at, p.power() * 1.6)) BatmanClient.shake(.12f);
+                BatmanFlashFx.burst(at);
+                MOTES.add(new Mote(at, Vec3.ZERO, .6f, 0, 0xffffff, 2, t, M_GLOW, 1f));
+                sparks(at, new Vec3(0, 1, 0), (int) (7 * amount()), .2f);
+                for (int i = 0; i < (int) (8 * amount()); i++)
+                    MOTES.add(new Mote(at, new Vec3(rnd(.12), .02 + RANDOM.nextDouble() * .05, rnd(.12)), .25f + RANDOM.nextFloat() * .2f, .04f, 0xb8b4ac, 14 + RANDOM.nextInt(8), t, M_DUST, .3f));
+                if (near(at, 7)) BatmanClient.shake(.07f);
             }
+            case FX_FLASHED -> BatmanFlashFx.flashed(p.power(), (float) dir.x, dir.y > .5, dir.z > .5);
+            case FX_PELLET_BOUNCE -> {
+                Pellet pl = PELLETS.get(p.id());
+                if (pl != null) { pl.pos = at; pl.vel = dir; pl.rest = false; }
+            }
+            case FX_DAZE -> DazeStars.daze(p.entity(), p.power(), (float) dir.x);
             case FX_STICKY -> {
                 STICKIES.put(p.id(), new Sticky(p.id(), p.entity(), t));
                 sparks(at, new Vec3(0, 1, 0), (int) (4 * amount()), .08f);
@@ -273,6 +277,17 @@ public final class BatmanFx {
         for (Iterator<Pellet> it = PELLETS.values().iterator(); it.hasNext(); ) {
             Pellet pl = it.next();
             pl.prev = pl.pos;
+            if (pl.gadget == G_FLASH) {
+                // The flash grenade: the same bounces and roll as the server's (corrected at each real bounce).
+                pl.rollO = pl.roll;
+                if (t - pl.spawn > BatmanFlash.MAX_AGE + 60) { it.remove(); continue; }
+                if (pl.rest) continue;
+                BatmanFlash.Step st = BatmanFlash.step(mc.level, mc.player, pl.pos, pl.vel);
+                pl.roll += (float) st.pos().subtract(pl.pos).length() * 4.5f;
+                pl.pos = st.pos(); pl.vel = st.vel(); pl.rest = st.rest();
+                if (!st.floor() && ((int) t + pl.id) % 2 == 0) MOTES.add(new Mote(pl.pos, Vec3.ZERO, .1f, .02f, 0xdddddd, 6, t, M_DUST, .25f));
+                continue;
+            }
             if (t - pl.spawn > 80) { it.remove(); continue; }
             Vec3 next = pl.pos.add(pl.vel);
             var hit = mc.level.clip(new ClipContext(pl.pos, next, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player));
@@ -339,7 +354,7 @@ public final class BatmanFx {
             Vec3 at = pl.prev.lerp(pl.pos, partial);
             p.pushPose();
             p.translate(at.x - cam.x, at.y - cam.y, at.z - cam.z);
-            p.mulPose(Axis.XP.rotation((time - pl.spawn) * .5f));
+            p.mulPose(Axis.XP.rotation(pl.gadget == G_FLASH ? Mth.lerp(partial, pl.rollO, pl.roll) : (time - pl.spawn) * .5f));
             BatmanGear.pellet(p, v, light(at), pl.gadget);
             p.popPose();
         }
@@ -526,5 +541,5 @@ public final class BatmanFx {
         return level == null ? 15728880 : LevelRenderer.getLightColor(level, BlockPos.containing(at));
     }
     private static void clear() { RANGS.clear(); PELLETS.clear(); CLOUDS.clear(); STICKIES.clear(); LINES.clear(); MOTES.clear(); RINGS.clear(); }
-    @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) { clear(); BatmanVision.clear(); }
+    @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) { clear(); BatmanFlashFx.clear(); }
 }

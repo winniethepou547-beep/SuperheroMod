@@ -121,7 +121,16 @@ public final class BatmanAction {
     public static final int CAPE_OPEN = 6;
 
     // ------------------------------------------------------------------ effects (BatmanFxPacket)
-    public static final int FX_PUNCH = 0, FX_BATARANG = 1, FX_BATARANG_HIT = 2, FX_GADGET = 3, FX_SMOKE = 4, FX_FLASH = 5,
+    public static final int FX_PUNCH = 0, FX_BATARANG = 1, FX_BATARANG_HIT = 2, FX_GADGET = 3, FX_SMOKE = 4,
+            /** The flash grenade going off, for everyone near (pos = the burst, power = its blind radius, id = the grenade). */
+            FX_FLASH = 5,
+            /**
+             * To one player only: the flash got them (power = 0..1 how hard, dir.x = ticks to recover, dir.y = 1 for the
+             * thrower himself (a light ringing at most), dir.z = 1 when a wall was in the way (a dim glare only)).
+             */
+            FX_FLASHED = 6,
+            /** A gadget pellet bouncing (pos, dir = its new velocity, id = the pellet): corrects the clients' copy. */
+            FX_PELLET_BOUNCE = 8,
             /** The sticky bomb: stuck on someone (entity = them, id = the bomb), gone off (power = blast radius; 0 = fizzled). */
             FX_STICKY = 7, FX_STICKY_BOOM = 9,
             FX_HOOK = 10, FX_HOOK_HIT = 11, FX_HOOK_END = 12,
@@ -136,6 +145,8 @@ public final class BatmanAction {
     public static final int FX_SHOCK_FIRST = 40, FX_SHOCK_LAST = 49, FX_ULT_FIRST = 50, FX_ULT_LAST = 59;
     /** A deflect (entity = Batman, pos = the contact point, dir = the way the attack came in, power = BLOCK_*). */
     public static final int FX_BLOCK = 60;
+    /** Dazed (entity, power = ticks, dir.x = 0..1 how hard): the stars round the head (DazeStars), seen by everyone. */
+    public static final int FX_DAZE = 61;
     /** What his own client tells the server (BatmanInputPacket). */
     public static final int IN_GLIDE_ON = 0, IN_GLIDE_OFF = 1, IN_DODGE = 2, IN_GADGET_SELECT = 3, IN_GADGET_USE = 4,
             IN_GRAPNEL_TOGGLE = 5, IN_GRAPNEL_FIRE = 6, IN_WHEEL_OPEN = 7, IN_WHEEL_CLOSE = 8,

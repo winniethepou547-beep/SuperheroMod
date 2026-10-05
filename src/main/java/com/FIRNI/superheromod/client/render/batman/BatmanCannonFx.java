@@ -622,7 +622,7 @@ public final class BatmanCannonFx {
         FilmFx.glow(c, head, .15 * big * w, WARM, .45f);
     }
     /** A disc of light lying on a surface (normal n), bright in the middle, fading out to its rim. */
-    private static void splash(FilmContext c, Vec3 at, Vec3 n, double radius, int rgb, float alpha) {
+    static void splash(FilmContext c, Vec3 at, Vec3 n, double radius, int rgb, float alpha) {
         if (alpha <= .004f || radius <= 0) return;
         VertexConsumer v = c.buffers().getBuffer(FilmFx.ADD);
         Matrix4f m = c.pose().last().pose();

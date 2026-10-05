@@ -591,6 +591,24 @@ def s_bat_flash():
     return reverb(mix(d, (crack(0.08, 210, 900), 0, 1.4), (thump(d, 160, 45, 0.18), 0, 1.2), (highpass(noise(d, 211), 3000) * env_ad(d, 0.001, 0.1), 0, .9), (ring, 0.02, 1)), 0.8, 1.5, 0.3)
 
 
+def s_bat_flash_bounce():
+    # The flash grenade's little can hitting the ground: a small hollow metal tink and a short rattle (not loud).
+    d = 0.32
+    tink = modal(d, 2900, [1, 2.31, 3.94], [0.05, 0.03, 0.018], [1, .5, .3], seed=213)
+    rattle = bandpass(noise(d, 214), 2500, 7000) * env_ad(d, 0.001, 0.018)
+    return mix(d, (tink, 0, .8), (rattle, 0, .5), (lowpass(noise(d, 215), 900) * env_ad(d, 0.001, 0.01), 0, .3))
+
+
+def s_bat_flash_ring():
+    # The ringing in the ears after a flashbang (looped; the client sets its loudness as hearing comes back): a pure high
+    # tone beating slowly against a second one, a faint octave and a breath of hiss. Every part repeats whole in 4 s.
+    d = 4.0
+    t = t_axis(d)
+    tone = np.sin(2 * np.pi * 3700 * t) + .35 * np.sin(2 * np.pi * 3712.5 * t) + .08 * np.sin(2 * np.pi * 7400 * t)
+    hiss = np.roll(highpass(noise(d, 216), 6000), int(SR * .5)) * .02
+    return tone * .5 + hiss
+
+
 def s_bat_mine():
     # Gadget electronics: two short beeps and a mechanical click.
     d = 0.45
@@ -985,7 +1003,7 @@ SOUNDS = {
     'cyclops': {'optic_beam': s_optic_beam, 'optic_blast': s_optic_blast},
     'ghost': {'chain_whip': s_chain_whip, 'hellfire': s_hellfire},
     'sandman': {'sand_whoosh': s_sand_whoosh, 'sand_impact': s_sand_impact},
-    'batman': {'punch': s_bat_punch, 'batarang': s_bat_batarang, 'grapnel': s_bat_grapnel, 'smoke': s_bat_smoke, 'flash': s_bat_flash,
+    'batman': {'punch': s_bat_punch, 'batarang': s_bat_batarang, 'grapnel': s_bat_grapnel, 'smoke': s_bat_smoke, 'flash': s_bat_flash, 'flash_bounce': s_bat_flash_bounce, 'flash_ring': s_bat_flash_ring,
                'mine': s_bat_mine, 'cape': s_bat_cape,
                'cannon_deploy': s_cannon_deploy, 'cannon_charge': s_cannon_charge, 'cannon_shot': s_cannon_shot, 'cannon_hum': s_cannon_hum,
                'cannon_final': s_cannon_final, 'cannon_stop': s_cannon_stop, 'cannon_retract': s_cannon_retract,
@@ -1006,7 +1024,7 @@ def resample(x, factor):
 
 
 # Looping sounds are written whole (no trimming or fades, which would leave a seam at the loop point).
-LOOPS = {'cannon_hum', 'sonic_hum', 'sonic_ring', 'shock_hum'}
+LOOPS = {'cannon_hum', 'sonic_hum', 'sonic_ring', 'shock_hum', 'flash_ring'}
 
 
 def write_ogg(path, x, loop=False):

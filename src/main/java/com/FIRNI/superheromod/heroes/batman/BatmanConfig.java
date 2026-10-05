@@ -14,7 +14,7 @@ public final class BatmanConfig {
     public static final ForgeConfigSpec.DoubleValue PUNCH_DAMAGE, PUNCH_RAPID_DAMAGE, PUNCH_REACH, PUNCH_KNOCK;
     public static final ForgeConfigSpec.DoubleValue BATARANG_DAMAGE, BATARANG_SPEED, BATARANG_REFILL_SECONDS;
     public static final ForgeConfigSpec.DoubleValue SMOKE_RADIUS, SMOKE_SECONDS, SMOKE_DAMAGE;
-    public static final ForgeConfigSpec.DoubleValue FLASH_RADIUS, FLASH_SECONDS;
+    public static final ForgeConfigSpec.DoubleValue FLASH_BLIND_RADIUS, FLASH_RECOVER_SECONDS, FLASH_FUSE_SECONDS;
     public static final ForgeConfigSpec.DoubleValue STICKY_DAMAGE, STICKY_LAUNCH, STICKY_RADIUS;
     public static final ForgeConfigSpec.DoubleValue SHOCK_DAMAGE, SHOCK_ENERGY_PER_HIT, SHOCK_DRAIN_SECONDS, SHOCK_EMPTY_COOLDOWN;
     public static final ForgeConfigSpec.DoubleValue REFLEX_SECONDS, REFLEX_GAUNTLET_RANGE;
@@ -52,8 +52,12 @@ public final class BatmanConfig {
         SMOKE_RADIUS = b.comment("Smoke cloud radius").defineInRange("smokeCloudRadius", 16.0, 1, 40);
         SMOKE_SECONDS = b.comment("How long the smoke stays").defineInRange("smokeSeconds", 10.0, 1, 60);
         SMOKE_DAMAGE = b.comment("Damage every second to those inside the smoke").defineInRange("smokeDamage", 1.0, 0, 20);
-        FLASH_RADIUS = b.comment("Flash bomb radius (those who can see it)").defineInRange("flashRadius", 10.0, 1, 30);
-        FLASH_SECONDS = b.comment("How long the flash blinds").defineInRange("flashSeconds", 4.0, .5, 20);
+        FLASH_BLIND_RADIUS = b.comment("Flash grenade: players within this many blocks who can see the burst go white (no damage)")
+                .defineInRange("flashBlindRadius", 4.0, 1, 30);
+        FLASH_RECOVER_SECONDS = b.comment("Flash grenade: how long a full flash takes to wear off (sight and hearing)")
+                .defineInRange("flashRecoverSeconds", 2.0, .5, 10);
+        FLASH_FUSE_SECONDS = b.comment("Flash grenade: how long it lies on the ground before it goes off")
+                .defineInRange("flashFuseSeconds", 1.0, 0, 5);
         CD_SMOKE = b.comment("Smoke bomb cooldown (ticks)").defineInRange("smokeCooldown", 300, 0, 6000);
         CD_FLASH = b.comment("Flash bomb cooldown (ticks)").defineInRange("flashCooldown", 240, 0, 6000);
         b.pop();

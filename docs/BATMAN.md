@@ -13,7 +13,7 @@ siyah yarasa, siyah başlık ve kulaklar, zırhlı eldivenler ve botlar, yere ka
 | R (basılı) | Alet çarkı | Ekranın ortasında çark açılır; fareyle aleti seç, sol tıkla ya da R'yi bırakınca seçilir. Çark açıkken kamera dönmez. |
 | R (dokun) | Aleti kullan | Seçili aleti fırlatır / bırakır. |
 | E | Kancalı tabanca | Kancayı eline alır (nişangah değişir: mavi = blok, kırmızı = düşman, gri = menzil dışı); nereye atacağını sen seçersin. Sol tık: fırlat (bloğa çekilirsin, düşmana uçup kombo yaparsın; havada birbirinizden sekerken kafasının arkasına yapışkan bomba yapışır, 2,5 sn sonra patlar). Sağ tık: düşmanın bacaklarına dolar, sol elinle ipi çekip onu sırt üstü düşürür ve ~4,4 blok sürüklersin; sonra ip onu sarar (aşağıda). E tekrar: geri koyar. Bloğa çekilirken E: ipi bırakır, hızınla birlikte havaya sıçrarsın. |
-| Q | Refleks Blok | 1 saniyelik pencere açar (bekleme 6 sn). Önündeki 180 derecelik alandan gelen saldırıları savuşturur; arkadan gelene işlemez. 5 blok içinden gelene eldiven dikenleri (sağdan gelene sağ el, soldan gelene sol el, tam önden gelene iki eldiven çapraz, sonra yana itme; kıvılcım, metal sesi), uzaktan gelene sağ eliyle pelerinini önüne çeker (pelerin gerçekten öne savrulur, darbe dalgası, yumuşak ses). Oklar ve mermiler yana sekip gider. Patlama, düşme, ateş, büyü gibi yönü olmayan hasarı engellemez. Bu sırada yarım hızla hareket edebilirsin. |
+| Q | Refleks Blok | 1 saniyelik pencere açar (bekleme 6 sn). Önündeki 180 derecelik alandan gelen saldırıları savuşturur; arkadan gelene işlemez. 5 blok içinden gelen yakın vuruşlarda her seferinde başka bir hareket yapar, aynısını art arda iki kez yapmaz: gövde sağa dönük sadece sağ kol, sola dönük sadece sol kol, iki eldiven çapraz ya da Panther gibi hafifçe yana kayıp kaçma (kıvılcım, metal sesi; kaçarken kıvılcım yok, hava sesi). Ok, mermi gibi fırlatılan her şeyde ve uzaktan gelen saldırıda ise hep pelerinini önüne çeker (gövde döner, sağ kol pelerini yüzünün önüne kaldırır, darbe dalgası, yumuşak ses). Oklar ve mermiler yana sekip gider. Patlama, düşme, ateş, büyü gibi yönü olmayan hasarı engellemez. Bu sırada yarım hızla hareket edebilirsin. |
 | X | Kara Şövalye | Birine bakarak bas: 29 saniyelik sinematik (aşağıda). |
 | SHIFT (basılı) | Koşu | Yürüyüşün 1,3 katı hızla koşar; öne eğilir, yumruklar sıkılı, kollar dirsekten bükülü güçlü sallanır. (Eğilme yok.) |
 | CTRL | Takla | Elden Ring tarzı: ön ayağından ileri dalar, kollarıyla yere uzanır, omzunun üstünden uzun bir takla atıp kalkar (~7 blok, 0,8 sn). Ortasında hasar almazsın. 3 saniyede bir. |
@@ -22,7 +22,12 @@ siyah yarasa, siyah başlık ve kulaklar, zırhlı eldivenler ve botlar, yere ka
 ## Aletler (R çarkı)
 - **Sis Bombası:** çarptığı yerde çok geniş, yoğun, neredeyse siyah bir sis bulutu (16 blok yarıçap, 10 saniye); kenarlarından gaz sızar. İçindeki oyuncular
   zor görür (körlük, kapkara ekran, hafif sarsıntı) ve her saniye hasar alır, yaratıklar seni hedef alamaz. Sis atınca termal görüşün kendiliğinden açılır, içindekileri görürsün; senin için sis ince bir tül gibidir.
-- **Flaş Bombası:** patladığı yeri gören herkes (sen hariç) kör olur, ekranı bembeyaz olur, yavaşlar; yaratıklar şaşırır. Kör olmayanlar (sen dahil) küçük, parlak bir patlama ve çevrenin bir anlık aydınlandığını görür.
+- **Flaş Bombası (CS flaşı gibi):** yere atılır, küçük bir tıkırtıyla seker ve yuvarlanıp durur; yere ilk değdiği andan tam 1 saniye sonra patlar. Hasar ve itme yok, büyük patlama yok: küçük beyaz bir çekirdek, çok güçlü bir ışık atımı (0 → göz alıcı → 0, yarım saniye), kısa bir hava dalgası ve ses.
+  - Işık herkes içindir: duvarlar, zemin, tavan, vücutlar ve eşyalar bir an bembeyaz aydınlanır (4 bloktan daha geniş görünür). Sen de görürsün.
+  - Ekran ise sadece patlamanın 4 blok içindeki ve onu görebilen oyuncular için (sunucu karar verir; duvar arkasındakiler sadece hafif bir parlama görür): ekran anında bembeyaz, sonra yavaş açılır (0,2 sn hâlâ beyaz, 0,5 sn soluk siluetler, 1 sn daha net, 1,5 sn neredeyse normal, 2 sn normal). Düz beyaz değil: beyaz pus → soluk, yıkanmış görüntü → hafif aşırı parlak → normal; hafif bulanıklık ve parıltı giderek kaybolur. Patlamaya ne kadar yakın ve ne kadar ona bakıyorsa o kadar uzun sürer.
+  - Kulak: güçlü, tiz bir çınlama (yüksek → orta → düşük → biter) ve dünyanın sesleri boğuk gelir (sessiz değil); görüşle birlikte geri gelir.
+  - Etkilenenlerin başının üstünde 3-5 küçük altın yıldız döner (herkes görür); iyileşirken yavaşlar, küçülür, solar, yukarı süzülüp kaybolur. Yaratıklar da şaşırır, seni hedef alamaz.
+  - Sen (atan) asla kör olmazsın, ekranın beyazlamaz; en fazla kulağında hafif bir çınlama olur.
 - **Mayın kaldırıldı.** Yerine kancanın düşmana vuruşuna yapışkan bomba eklendi (aşağıda "Kanca").
 - **Elektrikli Muşta:** R ile takılır / çıkarılır. Takılıyken sol tık ağır elektrikli boks kombosu olur; ekranın sağında enerji çubuğu (ayrıntılar aşağıda).
 - **Bilek Topu:** iki bilekten 4 saniye seri sarı enerji atışı; nişangâhı izler (ayrıntılar aşağıda).
@@ -42,8 +47,8 @@ siyah yarasa, siyah başlık ve kulaklar, zırhlı eldivenler ve botlar, yere ka
 
 ## Sersemleme
 - Kanca ile bacaktan çekilen (yere düşer, ~4,4 blok sürüklenir, toprak saçılır) ve yapışkan bombanın patlamasıyla havaya uçan (havada kaldığı süre boyunca) kişi sersemler.
-- Başının üstünde kırmızı sersemleme işareti çıkar, karakter yalpalar, ekranı sarsılır, hareketleri ve vuruşları %60 yavaşlar.
-- Sersemleme bitince işaret 1,5 saniye daha başının üstünde kalır; bu sürede normal hareket eder.
+- Başının üstünde küçük altın yıldızlar döner (flaş bombasındakiyle aynı yıldızlar; ikisi aynı anda olursa tek takım), karakter yalpalar, ekranı sarsılır, hareketleri ve vuruşları %60 yavaşlar.
+- Sersemleme bitince yıldızlar 1,5 saniye daha döner, sonra yavaşlayıp solarak kaybolur; bu sürede normal hareket eder.
 - Sersemlemiş birine Batman'in vurduğu bir sonraki darbe kritik olur (1,5 kat hasar) ve sersemlemeyi bitirir.
 
 ## Kanca
@@ -70,19 +75,20 @@ siyah yarasa, siyah başlık ve kulaklar, zırhlı eldivenler ve botlar, yere ka
 ## Sonik Tuzak (Batman v Superman)
 - Alet seçiliyken sol elinde siyah, kırmızı düğmeli küçük bir kumanda görünür (yumruk, atış, kanca, takla sırasında saklanır).
 - R: kumandayı göğsüne kaldırır, başparmağıyla kırmızı düğmeye basar (düğme gerçekten iner), "bip".
-- Hedef: nişangâhtaki kişi, yoksa en yakın düşman. Hedefin iki yanında, sana doğru, iki sonik verici yerden çıkar: önce toprak kıpırdar, çatlar, toprak parçaları kenara savrulur; gövde, pistonlar ve ayaklar adım adım yükselir, "KLAK" diye kilitlenir.
+- Hedef: nişangâhtaki kişi, yoksa en yakın düşman. Hedefin iki yanında, sana doğru, hedeften biraz uzakta iki sonik verici yerden çıkar: önce toprak kıpırdar, çatlar, toprak parçaları kenara savrulur; gövde, pistonlar ve ayaklar adım adım yükselir, "KLAK" diye kilitlenir.
 - 4 saniye boyunca iki cihazın başı hedefe yumuşakça döner ve hedefe kesintisiz akan bir ses dalgası gönderir (hasar yok): hedef %75 yavaşlar, ekranı güçlü titrer ve dalgalanır, sesler boğuklaşır, kulağında çınlama olur. Sesler hedefe çok yüksek, sana kısık gelir.
-- Her cihazın 4 kalbi (8 can) var; vurulup kırılırsa kıvılcım, kısa devre ve küçük bir patlamayla dağılır. Kırılmazsa süre bitince soğur, katlanır ve toprağın içine geri çekilir.
+- Her cihazın 4 kalbi (8 can) var; herkes vurabilir (normal yumruk da, kahramanların sol tık saldırıları da: önündeki cihaza vurur). Kırılırsa kıvılcım, kısa devre ve küçük bir patlamayla dağılır. Kırılmazsa süre bitince soğur, katlanır ve toprağın içine geri çekilir.
 
 ## X: Kara Şövalye (sinematik, 29 sn)
 - Gece, yağmurlu, terk edilmiş bir avlu; sadece hedef bir sokak lambasının altında aydınlık.
 - Hedef sağa, yukarı, sola, arkaya, öne bakar: her seferinde Batman bir an görünür (yangın merdiveninde çömelmiş, çatıların üstünden süzülen bir gölge, alçak çatının kenarında, arka binanın tepesinde, ışığın sınırında gözleri yanarak) ve kaybolur, her seferinde başka türlü: yangın merdiveninde karanlığa karışır (üstüne gölge akar, en son gözleri söner), çatı kenarında kara bir duman patlamasında yok olur, arka binada ekran göz kırpar gibi kararıp açılır ve o artık orada değildir, ışığın sınırında yine dumanla kaybolur. Hedef geri geri kaçar.
 - Karanlıktan kanca gelir, sırtına saplanır ve hedefi havaya söker; kamera onlarla yükselir, Batman üstüne atlar.
 - Göğsüne yapışkan bomba, altına geçip ters dönerek çift ayakla tekme; bomba soğuk mavi bir şok dalgasıyla patlar, ikisini de şehrin çok üstüne fırlatır.
-- Yukarıda: aşağıda şehrin ışıkları; hedef tepeye ulaşınca dönerek düşmeye başlar, Batman yanında süzülür.
+- Yukarıda: aşağıda şehrin ışıkları; hedef tepeye ulaşınca dönerek düşmeye başlar. Batman ay ışığıyla aydınlanır, arkasında soğuk bir parıltı olur; kamera yakından onu izler: önce arkasından (açılmış pelerin, ötede dönen hedef), sonra yanından.
 - Bilekteki cihaza basar; uzakta iki ışık belirir, büyür, Batwing hedefin ve kameranın hemen üstünden kükreyerek geçer, sonra hedefin yukarısında havada dönerek burnunu ona çevirir ve mermi yağmuruna tutar (izli mermiler, namlu alevleri, isabette kıvılcım ve duman). Hedef mermilerin altında aşağı doğru gittikçe hızlanır; Batwing son bir atışla yanından geçip gider, hedef dumanlar içinde düşer.
+- Batwing ateş ederken de bir an Batman'e döner: yanında süzülür, ötede hedef mermi yağmurunda.
 - Batman avluya iner; sırtı kameraya dönük, hedef tepesinden geçip arkasına düşerken bakmadan elini kaldırır, Batarang belirir, omzunun üstünden tek atış.
-- Kamera önünde: Batarang hedefi havada yakalar ve depo duvarına çiviler (ceketinden), metal sesi, duvarda çatlaklar ve toz; Batarang duvarda saplı kalır.
+- Kamera Batarang'ın hemen arkasından onunla birlikte uçar (dönerek parlar, ıslık sesi) ve hedefe çarpışını gösterir: kıvılcım patlaması, beyaz bir an. Sonra duvarın yanından: Batarang hedefi taşıyarak duvara götürür (arkasında kıvılcımlar), duvara çakılırken büyük bir kıvılcım yağmuru, beyaz an, metal sesi, çatlaklar ve toz; Batarang duvarda saplı kalır.
 - Batman döner, kancayı yukarı ateşler, çekilip kadrajdan çıkar. Boş avlu, duvarda asılı hedef, uzakta bir halat sesi, sonra sessizlik ve "KARA ŞÖVALYE".
 - Hasar duvara çivilendiği anda (ayarlardaki `film` bölümü); film bitince hedef sırt üstü yere düşmüş ve sersemlemiş olur. Film boyunca Batman'e vurulamaz.
 
