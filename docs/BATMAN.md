@@ -57,7 +57,7 @@ siyah yarasa, siyah başlık ve kulaklar, zırhlı eldivenler ve botlar, yere ka
 - Kanca ile bacaktan çekilen (yere düşer, ~4,4 blok sürüklenir, toprak saçılır) ve yapışkan bombanın patlamasıyla havaya uçan (havada kaldığı süre boyunca) kişi sersemler.
 - Başının üstünde küçük altın yıldızlar döner (flaş bombasındakiyle aynı yıldızlar; ikisi aynı anda olursa tek takım), karakter yalpalar, ekranı sarsılır, hareketleri ve vuruşları %60 yavaşlar.
 - Sersemleme bitince yıldızlar 1,5 saniye daha döner, sonra yavaşlayıp solarak kaybolur; bu sürede normal hareket eder.
-- Sersemlemiş birine Batman'in vurduğu bir sonraki darbe kritik olur (1,5 kat hasar) ve sersemlemeyi bitirir.
+- Sersemlemiş birine (başında yıldız dönen; flaş yemiş olan da) Batman'in vurduğu bir sonraki darbe kritik olur (1,5 kat hasar) ve sersemlemeyi bitirir; yanında küçük turuncu bir çizgi roman patlama işareti belirir.
 
 ## Kanca
 - **Bloğa:** ip gevşek ve dalgalı uçar, kanca tutunduğu an gerilir ve seni oraya hızla çeker; varınca hafifçe yukarı sıçrarsın.

@@ -164,7 +164,7 @@ public final class BatmanFx {
                 Pellet pl = PELLETS.get(p.id());
                 if (pl != null) { pl.pos = at; pl.vel = dir; pl.rest = false; }
             }
-            case FX_DAZE -> DazeStars.daze(p.entity(), p.power(), (float) dir.x);
+            case FX_DAZE -> { if (p.power() <= 0) DazeStars.release(p.entity(), 10); else DazeStars.daze(p.entity(), p.power(), (float) dir.x); }
             case FX_STICKY -> {
                 STICKIES.put(p.id(), new Sticky(p.id(), p.entity(), t));
                 sparks(at, new Vec3(0, 1, 0), (int) (4 * amount()), .08f);
@@ -212,6 +212,8 @@ public final class BatmanFx {
             case FX_DOWNED -> BatmanStatus.downed(p.entity(), dir, p.power(), p.id());
             case FX_CRIT -> {
                 BatmanStatus.crit(p.entity());
+                // The comic-book burst beside them: a critical.
+                com.FIRNI.superheromod.client.render.CritMark.show(at);
                 MOTES.add(new Mote(at, Vec3.ZERO, 1f, 0, 0xffe27a, 4, t, M_GLOW, .8f));
                 for (int i = 0; i < (int) (14 * amount()); i++)
                     MOTES.add(new Mote(at, new Vec3(rnd(.25), RANDOM.nextDouble() * .25, rnd(.25)), .02f, 0, i % 2 == 0 ? 0xffffff : 0xffd34a, 6 + RANDOM.nextInt(5), t, M_SPARK, 1));

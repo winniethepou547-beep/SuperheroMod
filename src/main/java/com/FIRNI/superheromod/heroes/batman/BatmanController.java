@@ -119,6 +119,8 @@ public final class BatmanController {
     private static final List<Cloud> CLOUDS = new ArrayList<>();
     /** Mobs dazed by a flash (until this game time they target nobody). */
     private static final Map<Integer, Long> DAZED = new HashMap<>();
+    /** Anyone dazed by a flash (seeing stars) until this game time: Batman's next blow on them is a critical. */
+    private static final Map<Integer, Long> FLASH_DAZED = new HashMap<>();
     private static int nextId = 1;
 
     /** True while the X film's client side exists and is registered in FilmSessionClient (DarkKnightFilm). */
@@ -144,8 +146,9 @@ public final class BatmanController {
     /** A flash grenade rolled to a stop at the feet of the player (a little ahead), as if someone else threw it at them. */
     public static void testFlash(ServerPlayer v) {
         Vec3 ahead = flat(v.getLookAngle());
-        Vec3 from = v.getEyePosition().add(ahead.scale(1.2)).add(0, .3, 0);
-        Pellet pl = new Pellet(nextId++, G_FLASH, v, from, ahead.scale(.35).add(0, .12, 0));
+        // Dropped just ahead of their feet (well inside the blind radius, however it rolls).
+        Vec3 from = v.getEyePosition().add(ahead.scale(.7)).add(0, -.2, 0);
+        Pellet pl = new Pellet(nextId++, G_FLASH, v, from, ahead.scale(.06).add(0, .05, 0));
         pl.test = true;
         PELLETS.add(pl);
         fx(v, FX_GADGET, from, pl.vel, G_FLASH, -1, pl.id);
@@ -391,6 +394,7 @@ public final class BatmanController {
                     }
                     // The stars over their head, for everyone to see (a little longer than the white-out).
                     fxAt(t.position(), FX_DAZE, t.position(), new Vec3(k, 0, 0), ticks + 16, t.getId(), pl.id, p);
+                    FLASH_DAZED.put(t.getId(), level.getGameTime() + ticks + 16);
                 }
                 // The thrower is never blinded: at most a light ringing if it went off near him.
                 if (!pl.test && p.getEyePosition().distanceTo(at) < r * 1.6)
@@ -655,6 +659,7 @@ public final class BatmanController {
         if (!DAZED.isEmpty() && e.getServer().getTickCount() % 20 == 0) {
             long now = e.getServer().overworld().getGameTime();
             DAZED.values().removeIf(t -> t < now);
+            FLASH_DAZED.values().removeIf(t -> t < now);
         }
     }
     private static void tickRangs() {
@@ -808,8 +813,11 @@ public final class BatmanController {
     }
     static void hurt(ServerPlayer p, LivingEntity t, float damage) {
         if (damage <= 0) return;
-        // A staggered one takes a critical, and the stagger ends.
-        if (BatmanStagger.consume(t)) {
+        // A staggered one (or one seeing stars from a flash) takes a critical, and the daze ends.
+        Long flashed = FLASH_DAZED.remove(t.getId());
+        boolean dazed = flashed != null && flashed > t.level().getGameTime();
+        if (dazed) fxAt(t.position(), FX_DAZE, t.position(), Vec3.ZERO, 0, t.getId(), 0, p);
+        if (BatmanStagger.consume(t) || dazed) {
             damage *= STAGGER_CRIT;
             fx(p, FX_CRIT, t.getBoundingBox().getCenter(), Vec3.ZERO, damage, t.getId(), p.getId());
             at(p, t.position(), SoundEvents.PLAYER_ATTACK_CRIT, 1f, .9f);

@@ -338,6 +338,8 @@ landing spot and the target to the crater.
   `Ring` loop `flash_ring` + `PlaySoundEvent` muffle follow it. Behind a wall: a dim glare only; the thrower: a soft ring only.
   Mobs get blindness/slow/`DAZED`. `FX_DAZE` → `client/render/DazeStars` (3-5 gold stars per body, one set per body,
   extended not doubled; wear off slowing, shrinking, fading, drifting up) - the one daze effect, also used by the stagger.
+  A flash daze (`FLASH_DAZED`) also gives Batman's next blow a critical; every critical (`FX_CRIT`) pops `client/render/CritMark`
+  (small comic burst, black outline + shadow) beside them. `/etkidene flas` drops the grenade at the player's feet (it rolled out of the 4-block radius).
 - Batmobile remote takedown (`heroes/batman/BatmanTakedown` server, `TakedownPath` shared pure paths, `BatmobileEntity` the car,
   client `TakedownMotion` poses, `BatmanTakedownFx` effects/target render turn/his camera, timings `BatmanAction.TD_*`, `FX_TD`):
   TD_SIGNAL (hand to the ear, 3/4 signal ring, `td_signal`) → TD_DASH (arms wide, then `TD_SPEED` along the look fixed at the
