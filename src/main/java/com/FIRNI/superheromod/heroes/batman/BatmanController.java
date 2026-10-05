@@ -152,7 +152,15 @@ public final class BatmanController {
             case IN_GLIDE_ON -> { if (!p.onGround() && s.action != GRAPNEL_PULL && s.action != GRAPNEL_STRIKE && !s.gliding) { s.gliding = true; sound(p, ModSounds.BATMAN_CAPE.get(), .7f, 1f); } }
             case IN_GLIDE_OFF -> s.gliding = false;
             case IN_DODGE -> dodge(p, s, amount);
-            case IN_GADGET_SELECT -> { s.gadget = Mth.clamp(value, 0, GADGETS - 1); sound(p, SoundEvents.UI_BUTTON_CLICK.get(), .3f, 1.6f); }
+            case IN_GADGET_SELECT -> {
+                s.gadget = Mth.clamp(value, 0, GADGETS - 1);
+                sound(p, SoundEvents.UI_BUTTON_CLICK.get(), .3f, 1.6f);
+                // Picking another gadget takes the electric gauntlets off.
+                if (s.gadget != G_SHOCK && s.shock) {
+                    if (s.action == SHOCK_EQUIP) set(s, IDLE);
+                    if (!BatmanShock.toggle(p, s)) { s.shock = false; s.combo = -1; }
+                }
+            }
             case IN_GADGET_USE -> useGadget(p, s);
             case IN_GRAPNEL_TOGGLE -> {
                 // Pulled along the line: let go early, carried on by the pull with a hop up (his client throws him).
@@ -577,7 +585,7 @@ public final class BatmanController {
             ServerPlayer p = r.owner;
             if (p.isRemoved() || ++r.age > 45) { it.remove(); continue; }
             Vec3 next = r.pos.add(r.vel);
-            EntityHitResult eh = ProjectileUtil.getEntityHitResult(p.level(), p, r.pos, next, new AABB(r.pos, next).inflate(.35),
+            EntityHitResult eh = ProjectileUtil.getEntityHitResult(p.level(), p, r.pos, next, new AABB(r.pos, next).inflate(.55),
                     e -> e instanceof LivingEntity l && targetable(p, l));
             if (eh != null && eh.getEntity() instanceof LivingEntity t) {
                 hurt(p, t, f(BatmanConfig.BATARANG_DAMAGE));

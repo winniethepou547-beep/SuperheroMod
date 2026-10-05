@@ -45,7 +45,7 @@ public final class BatmanConfig {
         b.pop();
         b.comment("Right click: Batarangs (tap: one; held: up to five)").push("batarangs");
         BATARANG_DAMAGE = b.defineInRange("damage", 3.5, 0, 100);
-        BATARANG_SPEED = b.comment("Flying speed").defineInRange("speed", 1.9, .3, 6);
+        BATARANG_SPEED = b.comment("Flying speed").defineInRange("flightSpeed", 2.4, .3, 6);
         BATARANG_REFILL_SECONDS = b.comment("Seconds for one Batarang to come back").defineInRange("refillSeconds", 2.0, .1, 60);
         b.pop();
         b.comment("R: gadgets (hold R for the wheel, tap R to use the one picked)").push("gadgets");
@@ -67,11 +67,11 @@ public final class BatmanConfig {
         CD_SHOCK = b.comment("Cooldown between putting them on and taking them off (ticks)").defineInRange("cooldown", 20, 0, 1200);
         b.pop();
         b.comment("Gadget: the dual wrist cannon (4 seconds of aimed rapid fire from both gauntlets)").push("wristCannon");
-        CANNON_DAMAGE = b.comment("Damage of each shot that hits").defineInRange("shotDamage", .7, 0, 50);
+        CANNON_DAMAGE = b.comment("Damage of each shot that hits").defineInRange("shotDamageHp", 1.4, 0, 50);
         CANNON_SHOTS_PER_SECOND = b.comment("Shots per second (both hands together)").defineInRange("shotsPerSecond", 24, 2, 60);
         CANNON_RANGE = b.comment("How far the shots reach").defineInRange("range", 40.0, 4, 120);
         CANNON_KNOCK = b.comment("Push of each hit (it adds up)").defineInRange("knockback", .09, 0, 2);
-        CANNON_MAX_DAMAGE = b.comment("Most damage one target can take from one volley (it is meant to put them down, not kill)").defineInRange("maxDamagePerTarget", 12.0, 0, 200);
+        CANNON_MAX_DAMAGE = b.comment("Most damage one target can take from one volley (it is meant to put them down, not kill)").defineInRange("maxDamagePerVolley", 30.0, 0, 200);
         CANNON_SPREAD = b.comment("Scatter of the shots round the crosshair (degrees)").defineInRange("spreadDegrees", .7, 0, 10);
         CD_CANNON = b.comment("Cooldown (ticks)").defineInRange("cooldown", 400, 0, 12000);
         b.pop();

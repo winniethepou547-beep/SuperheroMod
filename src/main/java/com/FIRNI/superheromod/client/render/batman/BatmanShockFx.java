@@ -916,14 +916,15 @@ public final class BatmanShockFx {
         Pose load = g.copy(), hit = g.copy(), through;
         switch (b) {
             case BatmanShock.S_CROSS -> {
-                load.set(CHEST_YAW, -.12f).set(PELVIS_YAW, .12f).set(SHIFT_Z, .7f).set(CROUCH, 3.2f).set(SPINE_PITCH, .24f).set(HEAD_YAW, -.1f);
-                arm(load, 1, .3f, .5f, -1.49f, -.23f, .45f, 2.12f);
-                hit.set(CHEST_YAW, .72f).set(SPINE_YAW, .16f).set(PELVIS_YAW, .52f).set(SHIFT_Z, -2.3f).set(CROUCH, 2.9f).set(SPINE_PITCH, .24f).set(HEAD_YAW, -1f);
-                arm(hit, 1, 2.4f, .5f, -2.21f, 1.89f, .2f, .06f).arm(1, WRIST_X, 0);
+                // From out on his left across to his right: the fist sweeps left to right through the target (solved).
+                load.set(CHEST_YAW, -.3f).set(PELVIS_YAW, 0).set(SHIFT_Z, .7f).set(CROUCH, 3.2f).set(SPINE_PITCH, .24f).set(HEAD_YAW, -.1f);
+                arm(load, 1, .3f, .5f, -1.34f, -.05f, .17f, 2.11f);
+                hit.set(CHEST_YAW, .9f).set(SPINE_YAW, .2f).set(PELVIS_YAW, .58f).set(SHIFT_Z, -2.3f).set(CROUCH, 2.9f).set(SPINE_PITCH, .24f).set(HEAD_YAW, -1f);
+                arm(hit, 1, 2.4f, .5f, -2.13f, 2.08f, .2f, .2f).arm(1, WRIST_X, 0);
                 arm(hit, 0, .6f, .5f, -2.45f, -1.07f, 1.23f, 1.72f);
                 feet(hit, 1, false);
-                through = hit.copy().add(CHEST_YAW, .08f).add(SHIFT_Z, -.2f);
-                through.arm(1, ARM_X, -2.15f).arm(1, ELBOW, .14f);
+                through = hit.copy().set(CHEST_YAW, 1.04f).set(SPINE_YAW, .24f).set(PELVIS_YAW, .62f).add(SHIFT_Z, -.2f);
+                arm(through, 1, 2.4f, .5f, -2.13f, 2.03f, .24f, .35f);
             }
             case BatmanShock.S_UPPER -> {
                 load.set(CROUCH, 4.8f).set(SPINE_PITCH, .36f).set(CHEST_YAW, .4f).set(PELVIS_YAW, .42f).set(SPINE_ROLL, -.14f).set(SHIFT_Z, .3f).set(HEAD_YAW, -.6f);
@@ -990,15 +991,16 @@ public final class BatmanShockFx {
             }
             default -> {
                 // The heavy right straight.
-                load.set(CHEST_YAW, .34f).set(PELVIS_YAW, .36f).set(SHIFT_Z, .9f).set(CROUCH, 3.3f).set(SPINE_PITCH, .24f).set(HEAD_YAW, -.52f);
-                arm(load, 0, -.2f, .6f, -1.59f, -1.04f, .51f, 1.94f);
-                hit.set(CHEST_YAW, -.62f).set(SPINE_YAW, -.16f).set(PELVIS_YAW, -.18f).set(SHIFT_Z, -2.4f).set(CROUCH, 2.8f).set(SPINE_PITCH, .24f).set(HEAD_YAW, .6f);
-                arm(hit, 0, 2.4f, .5f, -2.81f, .4f, -.29f, .06f).arm(0, WRIST_X, 0);
+                // From out on his right across to his left: the fist sweeps right to left through the target (solved).
+                load.set(CHEST_YAW, .5f).set(PELVIS_YAW, .42f).set(SHIFT_Z, .9f).set(CROUCH, 3.3f).set(SPINE_PITCH, .24f).set(HEAD_YAW, -.52f);
+                arm(load, 0, -.2f, .6f, -1.5f, -.71f, .26f, 1.68f);
+                hit.set(CHEST_YAW, -.78f).set(SPINE_YAW, -.2f).set(PELVIS_YAW, -.24f).set(SHIFT_Z, -2.4f).set(CROUCH, 2.8f).set(SPINE_PITCH, .24f).set(HEAD_YAW, .6f);
+                arm(hit, 0, 2.4f, .5f, -2.85f, .42f, -.36f, .2f).arm(0, WRIST_X, 0);
                 arm(hit, 1, .9f, .4f, -2.08f, -1.11f, .9f, 1.98f);
                 feet(hit, 0, false);
                 hit.leg(1, LEG_X, -.42f);
-                through = hit.copy().add(CHEST_YAW, -.08f).add(SHIFT_Z, -.2f);
-                through.arm(0, ARM_X, -2.75f).arm(0, ELBOW, .12f);
+                through = hit.copy().set(CHEST_YAW, -.92f).set(SPINE_YAW, -.24f).set(PELVIS_YAW, -.3f).add(SHIFT_Z, -.2f);
+                arm(through, 0, 2.4f, .5f, -2.72f, .38f, -.23f, .35f);
             }
         }
         // The deeper wind before the release, and the way back (still turned, the hand coming home).

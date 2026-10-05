@@ -11,6 +11,7 @@ import com.FIRNI.superheromod.network.ModNetworking;
 import com.FIRNI.superheromod.network.packet.BatmanInputPacket;
 import com.FIRNI.superheromod.network.packet.BatmanStatePacket;
 import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -370,26 +371,41 @@ public final class BatmanClient {
         hint(g, font, mc.options.keyJump, "Pelerinle Süzül (havada basılı)", 0, s.gliding(), 10, row + 36);
         hint(g, font, mc.options.keyShift, "Koş (basılı)", 0, mc.player.isSprinting(), 10, row + 48);
         hint(g, font, AbilityKeyHandler.KEY_ULTIMATE, "Refleks Blok", s.cooldowns[CD_REFLEX], s.reflex, 10, row + 60);
-        belt(g, s, 14, row - 46, time);
+        belt(g, s, 12, row - 46, time);
         if (s.aiming()) reticle(g, font, mc, w, h, time);
         wheelShown = Mth.clamp(wheelShown + (wheelOpen ? .25f : -.25f), 0, 1);
         if (wheelShown > 0) BatmanWheel.draw(g, font, s, w / 2f, h / 2f, wheelShown, hovered, wheelX, wheelY, time);
     }
+    /** The plain bat symbol (tools/icons/batman_bat.py), 64x32. */
+    private static final net.minecraft.resources.ResourceLocation BAT_ICON = new net.minecraft.resources.ResourceLocation(SuperheroMod.MODID, "textures/gui/batman/bat.png");
     /**
-     * The Batarang count over the skill list: five thin plain bat symbols, white for each one he has, the next one
-     * filling back in from below; while a throw is held, the ones counted up glow gold.
+     * The Batarang count over the skill list: five bat symbols, white for each one he has, the next one filling back
+     * in from below (a dim one behind it); while a throw is held, the ones counted up glow gold.
      */
     private static void belt(GuiGraphics g, State s, int x, int y, float time) {
-        float size = 7.5f, step = 19;
+        int w = 22, h = 11, step = 25;
         for (int i = 0; i < BATARANG_MAX; i++) {
-            float cx = x + size + i * step, cy = y;
+            int bx = x + i * step, by = y - h / 2;
             boolean has = i < s.batarangs, counted = s.charge > 0 && i < s.charge;
-            int col = counted ? HudStyle.alpha(GOLD, .8f + .2f * Mth.sin(time * 1.4f + i)) : 0xFFF2F0EA;
             float fill = has ? 1 : i == s.batarangs ? s.refill : 0;
-            BatmanWheel.bat(g, cx + .6f, cy + .8f, size, 0x90000000, 1);
-            BatmanWheel.bat(g, cx, cy, size, 0x38FFFFFF, 1);
-            if (fill > 0) BatmanWheel.bat(g, cx, cy, size, has ? col : HudStyle.alpha(col, .7f), fill);
+            // The shadow and the empty slot.
+            icon(g, bx + 1, by + 1, w, h, 0, 1, 0, 0, 0, .55f);
+            icon(g, bx, by, w, h, 0, 1, 1, 1, 1, .18f);
+            if (fill <= 0) continue;
+            float r = 1, gr = 1, b = 1, a = has ? 1 : .75f;
+            if (counted) { r = 1; gr = .82f; b = .32f; a = .8f + .2f * Mth.sin(time * 1.4f + i); }
+            icon(g, bx, by, w, h, 1 - fill, 1, r, gr, b, a);
         }
+        RenderSystem.setShaderColor(1, 1, 1, 1);
+    }
+    /** Part of the bat symbol (rows from v0 to v1 of it, 0 = top), stretched to w x h at (x, y), tinted. */
+    private static void icon(GuiGraphics g, int x, int y, int w, int h, float v0, float v1, float r, float gr, float b, float a) {
+        RenderSystem.enableBlend();
+        RenderSystem.setShaderColor(r, gr, b, a);
+        int top = Math.round(h * v0), rows = Math.round(h * (v1 - v0));
+        if (rows <= 0) return;
+        int texTop = Math.round(32 * v0), texRows = Math.max(1, Math.round(32 * (v1 - v0)));
+        g.blit(BAT_ICON, x, y + top, w, rows, 0, texTop, 64, texRows, 64, 32);
     }
     /** The grapnel reticle: cyan on a block in reach, red on a body (the strike), grey and crossed when out of reach. */
     private static void reticle(GuiGraphics g, Font font, Minecraft mc, int w, int h, float time) {

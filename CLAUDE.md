@@ -282,7 +282,7 @@ landing spot and the target to the crater.
   (`BatmanClient`) steers his body through the pull, the strike (jump at `STRIKE_JUMP`, backflip at `STRIKE_FLIP`), the
   roll and the glide. `BatmanStatePacket` / `BatmanFxPacket` / `BatmanInputPacket` (glide, roll + direction, wheel, gadget pick/use, grapnel).
 - Keys: LMB punch chain (clicks buffered; RAPID flurry), RMB Batarang (tap 1 / hold +1 per `BATARANG_STEP`, max 5, narrow 2.4° fan,
-  ribbon trail `BatmanFx.rangTrail`), R hold = gadget wheel (5 sectors, `BatmanWheel.SECTOR`; mouse moves a cursor:
+  ribbon trail `BatmanFx.rangTrail`; the count on the HUD is `textures/gui/batman/bat.png` from `tools/icons/batman_bat.py`), R hold = gadget wheel (5 sectors, `BatmanWheel.SECTOR`; mouse moves a cursor:
   `ViewportEvent.ComputeCameraAngles` locks the view; LMB or release picks), R tap = use gadget (smoke, flash, electric gauntlets
   toggle `BatmanShock`/`BatmanShockFx` (worn: LMB = heavy electric boxing, `State.shock/energy` synced, energy bar), wrist cannon
   `BatmanCannon`/`BatmanCannonFx` (deploy/fire/retract on the CANNON clock, fake light splashes on block faces, `cannon_*` sounds),
@@ -303,15 +303,13 @@ landing spot and the target to the crater.
   dive roll (`DODGE_TICKS` 16, `DODGE_DIVE`, 7 blocks, i-frames, 3 s cooldown `rollCooldown`), SPACE held in the air = cape glide
   (gravity/drag undone in `steer` so it really glides; only a steep dive speeds up; the cape opens into a big wing:
   `CapeCloth.Style.wingReach`). No time slow on the wheel (multiplayer). Gadget cooldown slot = gadget number.
-- Thermal vision `BatmanThermal` (own client; only automatic, while his own smoke is out): own `PostChain`
-  `shaders/post/batman_thermal.json` processed at `AFTER_LEVEL` (before the hands); living bodies in range are re-rendered
-  through `HeatBuffers` (every model vertex becomes heat by body height/axis distance; render types are filtered by their
-  NAME only — the state string contains "texture[...]", which once matched "text" and dropped every body) into the chain's
-  `heat` target (bound by the heat render types' own output shard)
-  (through-walls pass dim, depth-tested pass bright), plus the ground scan wave and hot weapons; `batman_thermal.fsh`
-  = cold world + iron palette + bloom + world hot spots + switch glitch/vignette. Uniforms set via the passes list found by
-  reflection by type. Corner marks + crosshair scan brackets in its HUD. `BatmanVision` = flash white-out (blinded) /
-  glimpse (not), near-black smoke screen for others; the outline mixins are now inert.
+- Thermal vision `BatmanThermal` (own client; only automatic, while his own smoke is out). NO post chain any more (the
+  PostChain version never showed in game): at `AFTER_LEVEL` a full-screen multiply quad turns the picture into the cold
+  world (`coldWorld`), then living bodies in range are redrawn through `HeatBuffers` (every model vertex coloured from the
+  iron palette `iron()` by body height/axis distance; render types filtered by their NAME only — the state string
+  contains "texture[...]") as a translucent through-walls pass and a depth-tested pass, additive halos, the ground scan
+  wave and hot weapons; the lens vignette, switch glitch, corner marks and crosshair brackets are on its HUD.
+  `BatmanVision` = flash white-out (blinded) / glimpse (not), near-black smoke screen for others; the outline mixins are inert.
 - Stagger `BatmanStagger` (server: -60 % move/attack speed, next Batman blow ×`STAGGER_CRIT`, from the yank and the sticky
   bomb's airtime) + `BatmanStatus` (client: render transform for DOWNED (on the back, arms up via `downedArms` in `HeroArmPose`)
   and stagger wobble, red spike daze mark (stays `DAZE_LINGER` ticks after the stagger, free movement), local camera shake).

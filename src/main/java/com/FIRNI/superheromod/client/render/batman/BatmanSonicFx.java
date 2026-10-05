@@ -82,7 +82,10 @@ public final class BatmanSonicFx {
     static final int COLD = 0xcfeeff, RING = 0xdff6ff, HAZE = 0xdfe6ea, EARTH = 0x120d09, DUST = 0x8a7f72, SPARK = 0xffe2a8,
             ARC = 0xbfe4ff, SMOKE = 0x3a3c40, IRON = 0x2a2c30;
     /** How fast a pulse closes the distance (blocks per tick), its shortest and longest flight (ticks). */
-    private static final float PULSE_SPEED = 9, PULSE_MIN = 1.2f, PULSE_MAX = 3;
+    private static final float PULSE_SPEED = 4.5f, PULSE_MIN = 2f, PULSE_MAX = 6;
+    /** A pulse is a train of wave fronts: how many, how far apart (blocks), and how fast each front widens with distance. */
+    private static final int FRONTS = 6;
+    private static final double FRONT_GAP = .55, FRONT_SPREAD = .1;
     /** Volume by role: the target, Batman, anyone else (times each sound's own level); the target's sounds are moved this much of the way to their ears. */
     private static final float VOL_TARGET = 1f, VOL_OWNER = .32f, VOL_OTHER = .65f, CLOSER = .7f;
 
@@ -773,8 +776,9 @@ public final class BatmanSonicFx {
         }
     }
     /**
-     * A pulse in flight: one pressure wave closing the distance in a tick or two: a thin leading ring, a fainter one
-     * just behind it, a short trail, a haze of compressed air and a little light. Not a beam.
+     * A pulse in flight: a train of sound-wave fronts rolling out from the emitter, ring after ring (not a beam): each
+     * front a thin ring about the line that widens the further it has come (a sound cone), wobbling a little, the
+     * leading one brightest and the ones behind it fading; a faint haze of pushed air between them.
      */
     private static void pulse(FilmContext c, Pulse p, float time) {
         float u = (time - p.start) / p.travel;
@@ -783,13 +787,18 @@ public final class BatmanSonicFx {
         double len = dir.length();
         if (len < 1e-3) return;
         dir = dir.scale(1 / len);
-        Vec3 at = p.from.lerp(p.to, u);
-        double behind = Math.min(2.4, len * u);
-        ring(c, at, dir, .3 + .18 * u, .05, RING, .75f, true);
-        ring(c, at.subtract(dir.scale(Math.min(.55, behind))), dir, .42, .07, COLD, .35f, true);
-        FilmFx.streak(c, at.subtract(dir.scale(behind)), at, .1, COLD, 0, .4f, true);
-        FilmFx.puff(c, at.subtract(dir.scale(.2)), .5, HAZE, .07f);
-        FilmFx.glow(c, at, .45, 0xe8f8ff, .35f);
+        double head = len * u;
+        for (int k = 0; k < FRONTS; k++) {
+            double d = head - k * FRONT_GAP;
+            if (d < .2) break;
+            Vec3 at = p.from.add(dir.scale(d));
+            float fade = 1 - k / (float) FRONTS;
+            double wobble = 1 + .08 * Math.sin(time * 1.7 + k * 1.9);
+            double radius = (.22 + FRONT_SPREAD * d) * wobble;
+            ring(c, at, dir, radius, .04 + .015 * k, k == 0 ? RING : COLD, (k == 0 ? .8f : .45f) * fade, true);
+            if (k % 2 == 1) FilmFx.puff(c, at, radius * 1.1, HAZE, .05f * fade);
+        }
+        FilmFx.glow(c, p.from.add(dir.scale(head)), .4, 0xe8f8ff, .3f);
     }
 
     // ------------------------------------------------------------------ Batman: the remote and the move

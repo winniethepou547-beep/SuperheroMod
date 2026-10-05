@@ -10,8 +10,6 @@ import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.PostChain;
-import net.minecraft.client.renderer.PostPass;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
@@ -47,17 +45,17 @@ import java.util.*;
  * heat layer with a body-heat gradient (chest hottest, then head, limbs and hands cooler; the undead cold, blazes white
  * hot), bright where in sight and dimmer through walls; a thin scan wave runs out along the ground from him now and then
  * and bodies flare as it passes; the one in the crosshair is a little brighter with scan marks round it; a weapon that
- * has just fired is hot and cools down; fire, lava and torches read hot off the image itself. Switching off (~0.4 s):
- * a pulse, the colours come back, the vignette and the corners go.
+ * has just fired is hot and cools down. Switching off (~0.4 s): a pulse, the colours come back, the vignette and the
+ * corners go. Drawn straight onto the picture (no post effect to load): a full-screen multiply into the cold world, the
+ * bodies redrawn in heat colours over it, the lens and the glitch on the HUD.
  *
  * It comes on by itself while his own smoke is out (to see the ones lost in it): every living thing in range, players
- * and mobs alike, glows through the smoke and through walls. Cost: nothing at all while off; while on, one extra pass of
- * the bodies in range (at most 40) into a heat buffer and one full-screen post pass.
+ * and mobs alike, glows through the smoke and through walls. Cost: nothing at all while off; while on, two extra
+ * passes of the bodies in range (at most 40) and two full-screen quads.
  */
 @Mod.EventBusSubscriber(modid = SuperheroMod.MODID, value = Dist.CLIENT)
 public final class BatmanThermal {
     private static final Logger LOG = LogUtils.getLogger();
-    private static final ResourceLocation EFFECT = new ResourceLocation(SuperheroMod.MODID, "shaders/post/batman_thermal.json");
     /** Seen through walls within this range. */
     private static final double RANGE = 40;
     private static final int MAX_BODIES = 40, ON_TICKS = 12, OFF_TICKS = 8, PULSE_EVERY = 70;
@@ -70,10 +68,7 @@ public final class BatmanThermal {
     private static float lastYaw, lastPitch, motion;
     private static final Map<Integer, Float> SHOTS = new HashMap<>();
 
-    private static PostChain chain;
-    private static List<PostPass> passes = List.of();
     private static boolean failed;
-    private static int chainW, chainH;
     private static MultiBufferSource.BufferSource heatSource;
     private static final Matrix4f VIEW = new Matrix4f(), PROJ = new Matrix4f();
     private static boolean matricesValid;
@@ -143,7 +138,6 @@ public final class BatmanThermal {
     }
     @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) {
         on = false; autoUntil = -1;
-        if (chain != null) { chain.close(); chain = null; }
     }
 
     // ------------------------------------------------------------------ the picture
@@ -152,76 +146,92 @@ public final class BatmanThermal {
         var mc = Minecraft.getInstance();
         float amount = amount();
         matricesValid = false;
-        if (amount <= .002f || mc.level == null || mc.player == null || failed) return;
-        RenderTarget main = mc.getMainRenderTarget();
-        if (!ensureChain(mc, main)) return;
+        if (amount <= .002f || mc.level == null || mc.player == null) return;
         VIEW.set(e.getPoseStack().last().pose());
         PROJ.set(e.getProjectionMatrix());
         matricesValid = true;
         float partial = e.getPartialTick(), time = now();
-        Vec3 cam = e.getCamera().getPosition();
-        RenderTarget heat = chain.getTempTarget("heat");
-        heatTarget = heat;
-        heat.setClearColor(0, 0, 0, 0);
-        heat.clear(Minecraft.ON_OSX);
-        heat.copyDepthFrom(main);
-        heat.bindWrite(false);
+        var camera = e.getCamera();
+        Vec3 cam = camera.getPosition();
+        try {
+            // 1. The cold world: everything already drawn is multiplied down into dark navy and slate.
+            coldWorld(amount);
+            // 2. The heat: bodies, the scan wave and hot weapons drawn straight over it, glowing.
+            PoseStack mv = RenderSystem.getModelViewStack();
+            mv.pushPose();
+            mv.last().pose().set(VIEW);
+            RenderSystem.applyModelViewMatrix();
+            try {
+                drawHeat(mc, cam, partial, time, amount, new Vec3(camera.getLeftVector()), new Vec3(camera.getUpVector()));
+            } finally {
+                mv.popPose();
+                RenderSystem.applyModelViewMatrix();
+            }
+        } catch (Exception ex) {
+            if (!failed) LOG.warn("Batman thermal vision failed to draw", ex);
+            failed = true;
+        }
+    }
 
-        // Everything in the heat layer is drawn world-aligned round the camera; the view's turn goes in the model-view.
+    /**
+     * Turns what is on the screen into the cold thermal world: a full-screen multiply into dark navy (bright things
+     * keep a little of their light, so fire and lava still read hot), then a faint cold lift so nothing is pure black.
+     */
+    private static void coldWorld(float amount) {
+        RenderSystem.backupProjectionMatrix();
+        RenderSystem.setProjectionMatrix(new Matrix4f(), com.mojang.blaze3d.vertex.VertexSorting.ORTHOGRAPHIC_Z);
         PoseStack mv = RenderSystem.getModelViewStack();
         mv.pushPose();
-        mv.last().pose().set(VIEW);
+        mv.setIdentity();
         RenderSystem.applyModelViewMatrix();
+        RenderSystem.disableDepthTest();
+        RenderSystem.depthMask(false);
+        RenderSystem.disableCull();
+        RenderSystem.enableBlend();
+        RenderSystem.setShader(net.minecraft.client.renderer.GameRenderer::getPositionColorShader);
         try {
-            drawHeat(mc, cam, partial, time);
-        } catch (Exception ex) {
-            LOG.warn("Batman thermal heat pass failed", ex);
+            RenderSystem.blendFunc(com.mojang.blaze3d.platform.GlStateManager.SourceFactor.DST_COLOR, com.mojang.blaze3d.platform.GlStateManager.DestFactor.ZERO);
+            fullScreen(Mth.lerp(amount, 1, .2f), Mth.lerp(amount, 1, .3f), Mth.lerp(amount, 1, .52f), 1);
+            RenderSystem.blendFunc(com.mojang.blaze3d.platform.GlStateManager.SourceFactor.ONE, com.mojang.blaze3d.platform.GlStateManager.DestFactor.ONE);
+            float pulse = pulse();
+            fullScreen((.012f + .2f * pulse) * amount, (.022f + .26f * pulse) * amount, (.05f + .32f * pulse) * amount, 1);
         } finally {
+            RenderSystem.defaultBlendFunc();
+            RenderSystem.disableBlend();
+            RenderSystem.enableCull();
+            RenderSystem.depthMask(true);
+            RenderSystem.enableDepthTest();
             mv.popPose();
             RenderSystem.applyModelViewMatrix();
-            heatTarget = null;
+            RenderSystem.restoreProjectionMatrix();
         }
-        main.bindWrite(false);
-        uniform("Amount", amount); uniform("Edge", edge()); uniform("Distort", distort()); uniform("Pulse", pulse());
-        uniform("Time", (time % 2000) / 20f); uniform("Motion", motion);
-        chain.process(partial);
-        main.bindWrite(false);
+    }
+    private static void fullScreen(float r, float g, float b, float a) {
+        BufferBuilder buf = Tesselator.getInstance().getBuilder();
+        buf.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+        buf.vertex(-1, -1, 0).color(r, g, b, a).endVertex();
+        buf.vertex(1, -1, 0).color(r, g, b, a).endVertex();
+        buf.vertex(1, 1, 0).color(r, g, b, a).endVertex();
+        buf.vertex(-1, 1, 0).color(r, g, b, a).endVertex();
+        BufferUploader.drawWithShader(buf.end());
+    }
+    /** The iron thermal palette: cold violet through red and orange to a yellow-white core (t 0..1). */
+    static float[] iron(float t) {
+        t = Mth.clamp(t, 0, 1);
+        float[][] c = {{.06f, .02f, .16f}, {.36f, .03f, .52f}, {.86f, .10f, .24f}, {1f, .44f, .02f}, {1f, .82f, .22f}, {1f, .98f, .88f}};
+        float[] at = {0, .2f, .45f, .65f, .85f, 1};
+        for (int i = 0; i < 5; i++) if (t <= at[i + 1]) {
+            float k = (t - at[i]) / (at[i + 1] - at[i]);
+            return new float[]{Mth.lerp(k, c[i][0], c[i + 1][0]), Mth.lerp(k, c[i][1], c[i + 1][1]), Mth.lerp(k, c[i][2], c[i + 1][2])};
+        }
+        return c[5];
     }
 
-    private static boolean ensureChain(Minecraft mc, RenderTarget main) {
-        try {
-            if (chain == null) {
-                chain = new PostChain(mc.getTextureManager(), mc.getResourceManager(), main, EFFECT);
-                chainW = chainH = -1;
-                passes = findPasses(chain);
-            }
-            if (chainW != main.width || chainH != main.height) { chain.resize(main.width, main.height); chainW = main.width; chainH = main.height; }
-            return true;
-        } catch (Exception ex) {
-            failed = true;
-            LOG.warn("Batman thermal vision could not load its post effect; the vision stays off", ex);
-            return false;
-        }
-    }
-    /** The chain's passes (found by type, whatever the field is called in this mapping). */
-    @SuppressWarnings("unchecked")
-    private static List<PostPass> findPasses(PostChain c) {
-        for (Field f : PostChain.class.getDeclaredFields()) {
-            if (!List.class.isAssignableFrom(f.getType())) continue;
-            try {
-                f.setAccessible(true);
-                List<?> list = (List<?>) f.get(c);
-                if (list != null && !list.isEmpty() && list.get(0) instanceof PostPass) return (List<PostPass>) list;
-            } catch (Exception ignored) {}
-        }
-        return List.of();
-    }
-    private static void uniform(String name, float v) {
-        for (PostPass p : passes) p.getEffect().safeGetUniform(name).set(v);
-    }
-
-    /** The bodies, the scan wave and the hot weapons into the heat layer. */
-    private static void drawHeat(Minecraft mc, Vec3 cam, float partial, float time) {
+    /**
+     * The bodies (each model redrawn with every vertex turned to heat colour, through walls dimmer, in sight bright),
+     * a soft glow round each, the scan wave along the ground and hot weapons, all added onto the cold picture.
+     */
+    private static void drawHeat(Minecraft mc, Vec3 cam, float partial, float time, float amount, Vec3 left, Vec3 up) {
         if (heatSource == null) heatSource = MultiBufferSource.immediate(new BufferBuilder(1 << 18));
         var player = mc.player;
         Vec3 me = player.getPosition(partial);
@@ -247,7 +257,7 @@ public final class BatmanThermal {
                 double dist = Math.sqrt(b.distanceToSqr(me));
                 float flare = pulseFade * Math.max(0, 1 - Math.abs((float) dist - pulseR) / 2.5f);
                 float base = baseHeat(b) * (1 + .55f * flare) * (b == aimed ? 1.22f : 1);
-                HEAT.begin(b, cam, partial, base * (pass == 0 ? .62f : 1));
+                HEAT.begin(b, cam, partial, base, (pass == 0 ? .45f : .8f) * amount);
                 Vec3 at = b.getPosition(partial);
                 float yaw = Mth.lerp(partial, b.yRotO, b.getYRot());
                 try { dispatcher.render(b, at.x - cam.x, at.y - cam.y, at.z - cam.z, yaw, partial, q, HEAT, 15728880); }
@@ -255,6 +265,16 @@ public final class BatmanThermal {
             }
             heatSource.endBatch();
         }
+        // A soft glow round every warm body (brighter for the one in the crosshair), seen through walls.
+        VertexConsumer gv = heatSource.getBuffer(HeatTypes.glow());
+        for (LivingEntity b : bodies) {
+            float heat = baseHeat(b) * (b == aimed ? 1.25f : 1);
+            float[] c = iron(.25f + .5f * heat);
+            Vec3 mid = b.getPosition(partial).add(0, b.getBbHeight() * .55, 0).subtract(cam);
+            double r = Math.max(.5, b.getBbHeight() * .75);
+            halo(gv, mid, left.scale(r), up.scale(r), c, .28f * amount);
+        }
+        heatSource.endBatch();
         // The scan wave: a thin band running out along the ground from him.
         VertexConsumer v = heatSource.getBuffer(HeatTypes.visible());
         if (pulseFade > 0 && pulseR > .5f) {
@@ -265,8 +285,8 @@ public final class BatmanThermal {
                 double a0 = Math.PI * 2 * i / n, a1 = Math.PI * 2 * (i + 1) / n;
                 double x0 = me.x - cam.x + Math.cos(a0) * pulseR, z0 = me.z - cam.z + Math.sin(a0) * pulseR;
                 double x1 = me.x - cam.x + Math.cos(a1) * pulseR, z1 = me.z - cam.z + Math.sin(a1) * pulseR;
-                v.vertex(x0, y0, z0).color(a, 0, 0, 1).endVertex(); v.vertex(x1, y0, z1).color(a, 0, 0, 1).endVertex();
-                v.vertex(x1, y1, z1).color(0, 0, 0, 1).endVertex(); v.vertex(x0, y1, z0).color(0, 0, 0, 1).endVertex();
+                v.vertex(x0, y0, z0).color(1f, .55f, .15f, a).endVertex(); v.vertex(x1, y0, z1).color(1f, .55f, .15f, a).endVertex();
+                v.vertex(x1, y1, z1).color(1f, .3f, .1f, 0).endVertex(); v.vertex(x0, y1, z0).color(1f, .3f, .1f, 0).endVertex();
             }
         }
         // Weapons: a held bow is warm metal; one that has just fired is hot at the hand, cooling over a few seconds.
@@ -280,15 +300,26 @@ public final class BatmanThermal {
         }
         heatSource.endBatch();
     }
+    /** A glow facing the camera: bright in the middle, nothing at the rim (four quads round the centre). */
+    private static void halo(VertexConsumer v, Vec3 c, Vec3 l, Vec3 u, float[] rgb, float a) {
+        Vec3[] rim = {l, u, l.scale(-1), u.scale(-1)};
+        for (int i = 0; i < 4; i++) {
+            Vec3 p0 = c.add(rim[i]), p1 = c.add(rim[i].add(rim[(i + 1) % 4]).scale(.7)), p2 = c.add(rim[(i + 1) % 4]);
+            v.vertex(c.x, c.y, c.z).color(rgb[0] * a, rgb[1] * a, rgb[2] * a, 1).endVertex();
+            v.vertex(p0.x, p0.y, p0.z).color(0, 0, 0, 1).endVertex();
+            v.vertex(p1.x, p1.y, p1.z).color(0, 0, 0, 1).endVertex();
+            v.vertex(p2.x, p2.y, p2.z).color(0, 0, 0, 1).endVertex();
+        }
+    }
     /** A small hot square facing nowhere in particular (seen from any side as a spot): three crossed quads. */
     private static void blob(VertexConsumer v, Vec3 c, float r, float h) {
         float[][] axes = {{1, 0, 0, 0, 1, 0}, {0, 0, 1, 0, 1, 0}, {1, 0, 0, 0, 0, 1}};
         for (float[] a : axes) {
             double ux = a[0] * r, uy = a[1] * r, uz = a[2] * r, wx = a[3] * r, wy = a[4] * r, wz = a[5] * r;
-            v.vertex(c.x - ux - wx, c.y - uy - wy, c.z - uz - wz).color(h, 0, 0, 1).endVertex();
-            v.vertex(c.x + ux - wx, c.y + uy - wy, c.z + uz - wz).color(h, 0, 0, 1).endVertex();
-            v.vertex(c.x + ux + wx, c.y + uy + wy, c.z + uz + wz).color(h, 0, 0, 1).endVertex();
-            v.vertex(c.x - ux + wx, c.y - uy + wy, c.z - uz + wz).color(h, 0, 0, 1).endVertex();
+            v.vertex(c.x - ux - wx, c.y - uy - wy, c.z - uz - wz).color(1f, .5f + .45f * Math.min(1, h - .3f), .1f + .6f * Math.max(0, h - .9f), Math.min(1, h)).endVertex();
+            v.vertex(c.x + ux - wx, c.y + uy - wy, c.z + uz - wz).color(1f, .5f + .45f * Math.min(1, h - .3f), .1f + .6f * Math.max(0, h - .9f), Math.min(1, h)).endVertex();
+            v.vertex(c.x + ux + wx, c.y + uy + wy, c.z + uz + wz).color(1f, .5f + .45f * Math.min(1, h - .3f), .1f + .6f * Math.max(0, h - .9f), Math.min(1, h)).endVertex();
+            v.vertex(c.x - ux + wx, c.y - uy + wy, c.z - uz + wz).color(1f, .5f + .45f * Math.min(1, h - .3f), .1f + .6f * Math.max(0, h - .9f), Math.min(1, h)).endVertex();
         }
     }
     /** How warm a body is: the living warm, the undead cold, the fiery white hot. */
@@ -311,26 +342,29 @@ public final class BatmanThermal {
     }
 
     // ------------------------------------------------------------------ heat render types and the vertex rewriter
-    /** The chain's heat target, while the heat pass draws (the render types bind it themselves). */
-    private static RenderTarget heatTarget;
     private static final class HeatTypes extends RenderType {
         private HeatTypes() { super("unused", DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS, 256, false, false, () -> {}, () -> {}); }
-        /** Draws into the heat target (never the screen), whatever was bound before. */
-        private static final OutputStateShard HEAT_TARGET = new OutputStateShard("batman_heat_target",
-                () -> { if (heatTarget != null) heatTarget.bindWrite(false); },
-                () -> Minecraft.getInstance().getMainRenderTarget().bindWrite(false));
-        private static RenderType visible, through;
+        private static RenderType visible, through, glow;
+        /** In sight: depth-tested against the world, laid over the cold picture. */
         static RenderType visible() {
             if (visible == null) visible = create("batman_heat", DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS, 1 << 18, false, false,
-                    CompositeState.builder().setShaderState(POSITION_COLOR_SHADER).setTransparencyState(ADDITIVE_TRANSPARENCY).setOutputState(HEAT_TARGET)
+                    CompositeState.builder().setShaderState(POSITION_COLOR_SHADER).setTransparencyState(TRANSLUCENT_TRANSPARENCY)
                             .setCullState(NO_CULL).setWriteMaskState(COLOR_WRITE).setDepthTestState(LEQUAL_DEPTH_TEST).createCompositeState(false));
             return visible;
         }
+        /** Through walls: no depth test, fainter. */
         static RenderType through() {
             if (through == null) through = create("batman_heat_through", DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS, 1 << 18, false, false,
-                    CompositeState.builder().setShaderState(POSITION_COLOR_SHADER).setTransparencyState(ADDITIVE_TRANSPARENCY).setOutputState(HEAT_TARGET)
+                    CompositeState.builder().setShaderState(POSITION_COLOR_SHADER).setTransparencyState(TRANSLUCENT_TRANSPARENCY)
                             .setCullState(NO_CULL).setWriteMaskState(COLOR_WRITE).setDepthTestState(NO_DEPTH_TEST).createCompositeState(false));
             return through;
+        }
+        /** The soft glow round a warm body (added light, seen through everything). */
+        static RenderType glow() {
+            if (glow == null) glow = create("batman_heat_glow", DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS, 1 << 16, false, false,
+                    CompositeState.builder().setShaderState(POSITION_COLOR_SHADER).setTransparencyState(ADDITIVE_TRANSPARENCY)
+                            .setCullState(NO_CULL).setWriteMaskState(COLOR_WRITE).setDepthTestState(NO_DEPTH_TEST).createCompositeState(false));
+            return glow;
         }
     }
     private static final HeatBuffers HEAT = new HeatBuffers();
@@ -344,10 +378,11 @@ public final class BatmanThermal {
         RenderType type;
         private VertexConsumer out;
         private double x, y, z, y0 = 0, y1 = 1, cx, cz, half = .3;
-        private float base;
+        private float base, alpha;
         private final IdentityHashMap<RenderType, Boolean> skip = new IdentityHashMap<>();
 
-        void begin(LivingEntity b, Vec3 cam, float partial, float heat) {
+        void begin(LivingEntity b, Vec3 cam, float partial, float heat, float alpha) {
+            this.alpha = alpha;
             AABB box = b.getBoundingBox();
             Vec3 at = b.getPosition(partial);
             y0 = at.y - cam.y; y1 = y0 + Math.max(.3, box.getYsize()); cx = at.x - cam.x; cz = at.z - cam.z;
@@ -386,7 +421,8 @@ public final class BatmanThermal {
             float core = hf > .8f ? .86f : hf > .46f ? 1f : .5f + .32f * hf / .46f;
             float limb = Mth.clamp(1 - (r - .6f) * .55f, .62f, 1f);
             float h = Mth.clamp(base * core * limb, 0, 1);
-            out.vertex(x, y, z).color(h, 0, 0, 1).endVertex();
+            float[] c = iron(.3f + .62f * h);
+            out.vertex(x, y, z).color(c[0], c[1], c[2], alpha).endVertex();
         }
         @Override public void defaultColor(int r, int g, int b, int a) {}
         @Override public void unsetDefaultColor() {}
@@ -415,6 +451,24 @@ public final class BatmanThermal {
         GuiGraphics g = e.getGuiGraphics();
         int w = e.getWindow().getGuiScaledWidth(), h = e.getWindow().getGuiScaledHeight();
         float t = now(), k = a * Math.min(1, edge());
+        // The lens: the edges sink into dark violet; while switching, bands of the picture slip and a little noise.
+        int steps = 10;
+        for (int i = 0; i < steps; i++) {
+            float f = 1 - i / (float) steps, al = .5f * k * f * f;
+            int c = HudStyle.alpha(0xFF08010E, al), dx = (int) (w * .22f * i / steps), dy = (int) (h * .22f * i / steps);
+            g.fill(0, dy, w, dy + Math.max(1, (int) (h * .022f)), c);
+            g.fill(0, h - dy - Math.max(1, (int) (h * .022f)), w, h - dy, c);
+            g.fill(dx, 0, dx + Math.max(1, (int) (w * .022f)), h, c);
+            g.fill(w - dx - Math.max(1, (int) (w * .022f)), 0, w - dx, h, c);
+        }
+        float glitch = distort();
+        if (glitch > .02f) {
+            var rnd = new Random((long) (t * 3));
+            for (int i = 0; i < 6; i++) {
+                int y = rnd.nextInt(Math.max(1, h)), bh = 1 + rnd.nextInt(4), off = (int) ((rnd.nextFloat() - .5f) * 24 * glitch);
+                g.fill(Math.max(0, off), y, Math.min(w, w + off), y + bh, HudStyle.alpha(rnd.nextBoolean() ? 0xFF7FE0FF : 0xFFFF6A9A, .18f * glitch));
+            }
+        }
         int line = HudStyle.alpha(0xFFBFE8FF, .32f * k), warm = HudStyle.alpha(0xFFFFA45A, .38f * k), faint = HudStyle.alpha(0xFF9FC7DD, .16f * k);
         int m = 10, len = 34;
         // Corner brackets.

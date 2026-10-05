@@ -325,7 +325,7 @@ public final class BatmanFx {
             p.mulPose(Axis.XP.rotation((float) -Math.asin(Mth.clamp(d.y, -1, 1))));
             if (r.stuck) p.mulPose(Axis.ZP.rotation(.5f + (r.id % 5) * .15f));
             else p.mulPose(Axis.YP.rotation((time - r.spawn) * 1.7f));
-            BatmanGear.batarang(p, v, light(at), r.stuck ? 1 : 1.4f);
+            BatmanGear.batarang(p, v, light(at), r.stuck ? 1.3f : 2f);
             p.popPose();
         }
         for (Pellet pl : PELLETS.values()) {
