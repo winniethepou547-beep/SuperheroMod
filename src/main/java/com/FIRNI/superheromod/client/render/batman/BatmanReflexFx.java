@@ -56,16 +56,16 @@ public final class BatmanReflexFx {
         if (p.power() > 0) LAST.put(p.entity(), new Block(kind, t));
         Vec3 at = p.pos(), in = p.dir().lengthSqr() < 1e-6 ? new Vec3(0, 0, 1) : p.dir().normalize();
         HITS.add(new Hit(at, in, kind, t));
-        boolean cape = kind == BLOCK_CAPE;
+        boolean cape = kind == BLOCK_CAPE, evade = kind == BLOCK_EVADE_R || kind == BLOCK_EVADE_L;
         // The way the attack is sent: back out and to the side (sparks follow it).
         Vec3 aside = new Vec3(-in.z, 0, in.x).scale(kind == BLOCK_LEFT ? -1 : 1);
         Vec3 away = in.scale(.6).add(aside.scale(.8)).add(0, cape ? .35 : .2, 0).normalize();
-        int n = (int) ((cape ? 6 : 16) * Math.max(.3f, amount()));
+        int n = evade ? 0 : (int) ((cape ? 6 : 16) * Math.max(.3f, amount()));
         for (int i = 0; i < n; i++) {
             Vec3 v = away.scale(.18 + RANDOM.nextDouble() * .3).add((RANDOM.nextDouble() - .5) * .16, RANDOM.nextDouble() * .12, (RANDOM.nextDouble() - .5) * .16);
             SPARKS.add(new Spark(at, v, t, 6 + RANDOM.nextInt(8), cape ? 0xd8e6ff : (i % 3 == 0 ? 0xffffff : 0xffd27a), false));
         }
-        if (!cape) for (int i = 0; i < (int) (3 * amount()); i++)
+        if (!cape && !evade) for (int i = 0; i < (int) (3 * amount()); i++)
             SPARKS.add(new Spark(at, away.scale(.12).add((RANDOM.nextDouble() - .5) * .1, .08 + RANDOM.nextDouble() * .08, (RANDOM.nextDouble() - .5) * .1), t, 14 + RANDOM.nextInt(8), 0x9aa0a8, true));
         var me = mc.player;
         if (me != null && me.getId() == p.entity()) BatmanClient.shake(cape ? .1f : .16f);
@@ -124,7 +124,11 @@ public final class BatmanReflexFx {
                 float age = time - h.time(), k = Mth.clamp(age / 8f, 0, 1);
                 Vec3 aside = new Vec3(-h.dir().z, 0, h.dir().x).scale(h.kind() == BLOCK_LEFT ? -1 : 1);
                 Vec3 away = h.dir().scale(.6).add(aside.scale(.8)).normalize();
-                if (h.kind() == BLOCK_CAPE) {
+                if (h.kind() == BLOCK_EVADE_R || h.kind() == BLOCK_EVADE_L) {
+                    // The blow's air going by where his head was: a pale smear, nothing hit.
+                    if (age < 5) FilmFx.streak(c, h.at().subtract(h.dir().scale(.9)), h.at().add(h.dir().scale(-.1)), .05, 0xdfe6ee, 0, .35f * (1 - k), true);
+                    continue;
+                } else if (h.kind() == BLOCK_CAPE) {
                     // The cloth ripples: dark rings spreading from the point, a soft cold flash, the attack sent off.
                     FilmFx.ring(c, h.at(), .15 + .9 * k, .08, 0x1a1c20, .55f * (1 - k), false);
                     FilmFx.ring(c, h.at(), .1 + .6 * k, .05, 0xcfe0ff, .35f * (1 - k), true);

@@ -392,10 +392,10 @@ public final class BatmanMotion {
         return g;
     }
     /** How long a deflect's own move lasts (the cape sweep is longer than a gauntlet's). */
-    public static final int CAPE_TICKS = 14;
+    public static final int CAPE_TICKS = 18;
     public static float deflectLength(int kind) { return kind == BLOCK_CAPE ? CAPE_TICKS : DEFLECT_TICKS; }
     /** How firmly the right hand holds the cape's edge t ticks into a cape deflect (0..1). */
-    public static float capeGrab(float t) { return k(t, 1.4f, 2.4f) * (1 - k(t, CAPE_TICKS - 4, CAPE_TICKS - 1)); }
+    public static float capeGrab(float t) { return k(t, 1.2f, 2.6f) * (1 - k(t, CAPE_TICKS - 4, CAPE_TICKS - 1)); }
     /**
      * A deflect, over whatever the body is doing, t ticks after the block (fast in, a controlled contact, fast away):
      * the right gauntlet (the right shoulder draws back, the forearm crosses into the attack, the wrist turns the spikes
@@ -429,12 +429,29 @@ public final class BatmanMotion {
                     g.arm(side, SH_FWD, .9f).arm(side, ARM_X, -1.5f).arm(side, ARM_Y, -1.05f * lock).arm(side, ARM_Z, .1f).arm(side, ELBOW, 1.95f).arm(side, CURL, 1).arm(side, WRIST_X, .2f);
                 g.arm(0, ARM_Z, Mth.lerp(sweep, .1f, 1.2f)).arm(0, ARM_Y, Mth.lerp(sweep, -1.05f, .2f)).arm(0, ELBOW, Mth.lerp(sweep, 1.95f, 1.15f));
             }
+            case BLOCK_EVADE_R, BLOCK_EVADE_L -> {
+                // Slipping the blow like a panther: the weight dropped onto one leg, the whole body swaying out and down
+                // to that side, the head pulled away, the hands staying up in the guard; then back.
+                float s = kind == BLOCK_EVADE_R ? 1 : -1;
+                float sway = Mth.sin(Mth.PI * PantherMotion.clamp(t / (len - 1)));
+                Pose gd = guard(p);
+                g = gd;
+                g.add(SHIFT_X, -s * 3.2f * sway).add(ROOT_ROLL, -s * .22f * sway).add(SPINE_ROLL, -s * .18f * sway).add(CHEST_ROLL, -s * .1f * sway)
+                        .add(CROUCH, 2.6f * sway).add(SPINE_PITCH, .2f * sway).add(HEAD_ROLL, -s * .2f * sway).add(HEAD_YAW, s * .15f * sway)
+                        .add(CHEST_YAW, s * .25f * sway);
+                g.leg(kind == BLOCK_EVADE_R ? 0 : 1, LEG_Z, .3f * sway).leg(kind == BLOCK_EVADE_R ? 1 : 0, LEG_Z, -.05f);
+            }
             default -> {
-                float across = k(t, 2f, 5f);
-                g.add(CHEST_YAW, .3f * (1 - across) - .55f * across).add(CROUCH, 1.3f).add(SPINE_PITCH, .1f + .1f * across).add(HEAD_YAW, -.2f * across);
-                g.arm(0, SH_FWD, Mth.lerp(across, -.5f, 1.1f)).arm(0, ARM_X, Mth.lerp(across, .35f, -1.35f)).arm(0, ARM_Y, Mth.lerp(across, .2f, -1.15f))
-                        .arm(0, ARM_Z, Mth.lerp(across, .55f, .35f)).arm(0, ELBOW, Mth.lerp(across, .35f, .6f)).arm(0, CURL, .9f);
-                g.arm(1, ARM_X, -1.2f).arm(1, ARM_Y, -.8f).arm(1, ELBOW, 1.9f).arm(1, CURL, 1);
+                // The cape: the whole body turns, the right hand reaches back for the edge and sweeps it up and round in
+                // front (high, across the face), holds it there as the blow strikes the cloth, then lets it fall.
+                float across = k(t, 1.6f, 4.5f);
+                g.add(PELVIS_YAW, -.25f * across).add(CHEST_YAW, .35f * (1 - across) - .75f * across).add(CROUCH, 1.8f)
+                        .add(SPINE_PITCH, .12f + .12f * across).add(HEAD_YAW, -.3f * across).add(HEAD_PITCH, .15f * across);
+                g.arm(0, SH_FWD, Mth.lerp(across, -.6f, 1.3f)).arm(0, SH_UP, 1.2f * across).arm(0, ARM_X, Mth.lerp(across, .5f, -1.95f))
+                        .arm(0, ARM_Y, Mth.lerp(across, .25f, -1.3f)).arm(0, ARM_Z, Mth.lerp(across, .6f, .3f)).arm(0, ELBOW, Mth.lerp(across, .3f, .75f))
+                        .arm(0, WRIST_X, -.3f * across).arm(0, CURL, .95f);
+                g.arm(1, SH_FWD, .9f).arm(1, ARM_X, -1.25f).arm(1, ARM_Y, -.75f).arm(1, ELBOW, 1.95f).arm(1, CURL, 1);
+                g.leg(1, LEG_X, -.25f * across).leg(0, LEG_X, .2f * across);
             }
         }
         p.toward(g, w);

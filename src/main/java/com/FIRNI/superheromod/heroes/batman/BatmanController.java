@@ -75,6 +75,8 @@ public final class BatmanController {
         boolean shock; float energy = 1;
         /** Q: the reflex window is open until this game time (BatmanReflex). */
         long reflexUntil = -1, lastDeflect = -100;
+        /** The last close-range block move (the next one is always a different one). */
+        int lastBlock = -1;
     }
     /** Someone pulled off their feet and dragged toward him. */
     private static final class Drag {

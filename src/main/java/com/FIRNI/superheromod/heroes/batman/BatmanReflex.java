@@ -73,12 +73,22 @@ public final class BatmanReflex {
         if (look.dot(in) < 0) return false;
         double dist = attacker != null ? attacker.distanceTo(p) : from.distanceTo(eye);
         int kind;
-        if (dist > BatmanConfig.REFLEX_GAUNTLET_RANGE.get()) kind = BLOCK_CAPE;
+        // Anything thrown or shot, and anything from beyond arm's reach: the cape, swept round in front.
+        if (direct instanceof Projectile || dist > BatmanConfig.REFLEX_GAUNTLET_RANGE.get()) kind = BLOCK_CAPE;
         else {
-            // Which side: his right is (-cos yaw, 0, -sin yaw) for Minecraft's yaw; straight ahead takes both gauntlets.
+            // Close: never the same move twice in a row. A blow from well to one side is met by that side's gauntlet
+            // (or slipped away from) when that is not what he just did; otherwise the next one in turn.
             Vec3 right = new Vec3(-look.z, 0, look.x);
             double side = right.dot(in);
-            kind = side > .38 ? BLOCK_RIGHT : side < -.38 ? BLOCK_LEFT : BLOCK_FRONT;
+            int pick = -1;
+            if (side > .45) pick = s.lastBlock == BLOCK_RIGHT ? BLOCK_EVADE_L : BLOCK_RIGHT;
+            else if (side < -.45) pick = s.lastBlock == BLOCK_LEFT ? BLOCK_EVADE_R : BLOCK_LEFT;
+            if (pick < 0 || pick == s.lastBlock) {
+                int at = 0;
+                for (int i = 0; i < BLOCK_MELEE.length; i++) if (BLOCK_MELEE[i] == s.lastBlock) at = i;
+                pick = BLOCK_MELEE[(at + 1 + p.getRandom().nextInt(BLOCK_MELEE.length - 1)) % BLOCK_MELEE.length];
+            }
+            kind = pick;
         }
         deflect(p, s, kind, in, direct, attacker, dist);
         return true;
@@ -88,12 +98,18 @@ public final class BatmanReflex {
         long now = p.level().getGameTime();
         // A new move at most every REFLEX_GAP ticks (a hail of arrows does not set off twenty moves); the deflects still count.
         boolean move = now - s.lastDeflect >= REFLEX_GAP;
-        if (move) s.lastDeflect = now;
+        if (move) { s.lastDeflect = now; if (kind != BLOCK_CAPE) s.lastBlock = kind; }
+        boolean evade = kind == BLOCK_EVADE_R || kind == BLOCK_EVADE_L;
         Vec3 contact = kind == BLOCK_CAPE ? p.position().add(0, 1.1, 0).add(in.scale(.65))
+                : evade ? p.getEyePosition().add(0, -.2, 0).add(in.scale(.45))
                 : kind == BLOCK_FRONT ? p.getEyePosition().add(0, -.25, 0).add(in.scale(.55))
                 : BatmanController.hand(p, kind == BLOCK_RIGHT ? 0 : 1).add(in.scale(.25));
         BatmanController.fx(p, FX_BLOCK, contact, in, move ? kind : -kind, p.getId(), 0);
-        if (kind == BLOCK_CAPE) {
+        if (evade) {
+            // Slipped: only the air of the blow going past.
+            BatmanController.at(p, contact, ModSounds.FX_WHOOSH_LIGHT.get(), .8f, 1.2f);
+            BatmanController.at(p, contact, ModSounds.BATMAN_CAPE.get(), .5f, 1.4f);
+        } else if (kind == BLOCK_CAPE) {
             BatmanController.at(p, contact, SoundEvents.PLAYER_ATTACK_KNOCKBACK, .9f, .55f);
             BatmanController.at(p, contact, ModSounds.BATMAN_CAPE.get(), .9f, .8f);
             BatmanController.at(p, contact, SoundEvents.ARMOR_EQUIP_LEATHER, 1f, .6f);
@@ -112,7 +128,7 @@ public final class BatmanReflex {
             out = out.normalize().add(aside.scale(kind == BLOCK_CAPE ? .35 : .7)).add(0, kind == BLOCK_CAPE ? .45 : .15, 0);
             DEFLECTS.add(new Deflect(pr, out.normalize().scale(speed)));
             pr.setOwner(p);
-        } else if (attacker instanceof LivingEntity l && dist <= BatmanConfig.REFLEX_GAUNTLET_RANGE.get() + 1) {
+        } else if (!evade && attacker instanceof LivingEntity l && dist <= BatmanConfig.REFLEX_GAUNTLET_RANGE.get() + 1) {
             // A blow knocked aside: the attacker is pushed off balance a little.
             Vec3 push = l.position().subtract(p.position());
             push = new Vec3(push.x, 0, push.z);

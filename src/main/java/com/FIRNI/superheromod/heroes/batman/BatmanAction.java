@@ -81,6 +81,10 @@ public final class BatmanAction {
     public static final int REFLEX_TICKS = 20, DEFLECT_TICKS = 9, REFLEX_GAP = 5;
     /** What a deflect was (BatmanFxPacket FX_BLOCK power): the right gauntlet, the left, both crossed (from straight ahead), the cape. */
     public static final int BLOCK_RIGHT = 1, BLOCK_LEFT = 2, BLOCK_FRONT = 3, BLOCK_CAPE = 4;
+    /** A blow slipped instead of met: the body sways out of its way to his right / left (Panther-like), no contact. */
+    public static final int BLOCK_EVADE_R = 5, BLOCK_EVADE_L = 6;
+    /** The close-range moves a blow is met with, taken in turn so two blows in a row never get the same one. */
+    public static final int[] BLOCK_MELEE = {BLOCK_RIGHT, BLOCK_LEFT, BLOCK_FRONT, BLOCK_EVADE_R, BLOCK_EVADE_L};
 
     // ------------------------------------------------------------------ E: the grapnel
     /** The hook flies HOOK_SPEED blocks a tick; the slack line snaps taut over TAUT ticks; he is pulled at PULL_SPEED (accelerating from PULL_START). */
