@@ -109,8 +109,8 @@ public final class BatmanController {
     private static final Map<Integer, Long> DAZED = new HashMap<>();
     private static int nextId = 1;
 
-    /** Set true once the X film's client side exists and is registered in FilmSessionClient. */
-    static final boolean FILM_READY = false;
+    /** True while the X film's client side exists and is registered in FilmSessionClient (DarkKnightFilm). */
+    static final boolean FILM_READY = true;
 
     private BatmanController() {}
 
@@ -132,8 +132,8 @@ public final class BatmanController {
         State s = state(p);
         if (FilmSessions.busy(p.getUUID())) return;
         if (slot == AbilitySlot.ULTIMATE && down) { BatmanReflex.start(p, s); return; }
-        // X: the film's server side is ready (BatmanUltSession) but its picture is not built yet: until it is, X only says so
-        // (starting the session would hold both players for half a minute with nothing on screen).
+        // X: KARA ŞÖVALYE (BatmanUltSession holds both, DarkKnightFilm plays it). FILM_READY stays as a switch: off, X only
+        // says so (starting the session with no film registered would hold both players with nothing on screen).
         if (slot == AbilitySlot.SKILL_X && down) { if (FILM_READY) BatmanUltSession.start(p, s); else tell(p, "Batman sinematiği henüz hazır değil"); return; }
         if (slot == AbilitySlot.LMB && down) { if (s.aiming) fireGrapnel(p, s, false); else click(p, s); }
         if (slot == AbilitySlot.RMB) {

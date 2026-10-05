@@ -14,7 +14,7 @@ siyah yarasa, siyah başlık ve kulaklar, zırhlı eldivenler ve botlar, yere ka
 | R (dokun) | Aleti kullan | Seçili aleti fırlatır / bırakır. |
 | E | Kancalı tabanca | Kancayı eline alır (nişangah değişir: mavi = blok, kırmızı = düşman, gri = menzil dışı); nereye atacağını sen seçersin. Sol tık: fırlat (bloğa çekilirsin, düşmana uçup kombo yaparsın; havada birbirinizden sekerken kafasının arkasına yapışkan bomba yapışır, 2,5 sn sonra patlar). Sağ tık: düşmanın bacaklarına dolar, sol elinle ipi çekip onu sırt üstü düşürür ve ~4,4 blok sürüklersin; sonra ip onu sarar (aşağıda). E tekrar: geri koyar. Bloğa çekilirken E: ipi bırakır, hızınla birlikte havaya sıçrarsın. |
 | Q | Refleks Blok | 1 saniyelik pencere açar (bekleme 6 sn). Önündeki 180 derecelik alandan gelen saldırıları savuşturur; arkadan gelene işlemez. 5 blok içinden gelene eldiven dikenleri (sağdan gelene sağ el, soldan gelene sol el, tam önden gelene iki eldiven çapraz, sonra yana itme; kıvılcım, metal sesi), uzaktan gelene sağ eliyle pelerinini önüne çeker (pelerin gerçekten öne savrulur, darbe dalgası, yumuşak ses). Oklar ve mermiler yana sekip gider. Patlama, düşme, ateş, büyü gibi yönü olmayan hasarı engellemez. Bu sırada yarım hızla hareket edebilirsin. |
-| X | Sinematik | Henüz hazır değil (sunucu tarafı ve gece Gotham arka planı yapıldı, görüntüsü yapılmadı); X şimdilik sadece bunu söyler. |
+| X | Kara Şövalye | Birine bakarak bas: 29 saniyelik sinematik (aşağıda). |
 | SHIFT (basılı) | Koşu | Yürüyüşün 1,3 katı hızla koşar; öne eğilir, yumruklar sıkılı, kollar dirsekten bükülü güçlü sallanır. (Eğilme yok.) |
 | CTRL | Takla | Elden Ring tarzı: ön ayağından ileri dalar, kollarıyla yere uzanır, omzunun üstünden uzun bir takla atıp kalkar (~7 blok, 0,8 sn). Ortasında hasar almazsın. 3 saniyede bir. |
 | Boşluk (havada basılı) | Pelerinle süzülme | Pelerin büyük bir yarasa kanadı gibi açılır (ellerinin ötesine, ayaklarının çok dışına uzanır), baktığın yöne uzun süzülürsün; yavaş alçalırsın. Sadece dik aşağı bakarsan dalışa geçip hızlanırsın. Düşme hasarı yok. |
@@ -72,6 +72,18 @@ siyah yarasa, siyah başlık ve kulaklar, zırhlı eldivenler ve botlar, yere ka
 - Hedef: nişangâhtaki kişi, yoksa en yakın düşman. Hedefin iki yanında, sana doğru, iki sonik verici yerden çıkar: önce toprak kıpırdar, çatlar, toprak parçaları kenara savrulur; gövde, pistonlar ve ayaklar adım adım yükselir, "KLAK" diye kilitlenir.
 - 4 saniye boyunca iki cihazın başı hedefe yumuşakça döner ve çok hızlı sonik dalgalar atar (hasar yok): hedef %75 yavaşlar, ekranı güçlü titrer ve dalgalanır, sesler boğuklaşır, kulağında çınlama olur. Sesler hedefe çok yüksek, sana kısık gelir.
 - Her cihazın 4 kalbi (8 can) var; vurulup kırılırsa kıvılcım, kısa devre ve küçük bir patlamayla dağılır. Kırılmazsa süre bitince soğur, katlanır ve toprağın içine geri çekilir.
+
+## X: Kara Şövalye (sinematik, 29 sn)
+- Gece, yağmurlu, terk edilmiş bir avlu; sadece hedef bir sokak lambasının altında aydınlık.
+- Hedef sağa, yukarı, sola, arkaya, öne bakar: her seferinde Batman bir an görünür (yangın merdiveninde çömelmiş, çatıların üstünden süzülen bir gölge, alçak çatının kenarında, arka binanın tepesinde, ışığın sınırında gözleri yanarak) ve göz açıp kapayıncaya kadar kaybolur. Hedef geri geri kaçar.
+- Karanlıktan kanca gelir, sırtına saplanır ve hedefi havaya söker; kamera onlarla yükselir, Batman üstüne atlar.
+- Göğsüne yapışkan bomba, altına geçip ters dönerek çift ayakla tekme; bomba soğuk mavi bir şok dalgasıyla patlar, ikisini de şehrin çok üstüne fırlatır.
+- Yukarıda: aşağıda şehrin ışıkları, hedef yavaşça dönüyor, Batman etrafında süzülüyor.
+- Bilekteki cihaza basar; uzakta iki ışık belirir, Batwing çok hızlı gelir, hedefin etrafında döner ve mavi ışınlarla tarar (bitince halka kırmızıya döner), yanından geçerken bir darbe; hedef dumanlar ve kıvılcımlarla düşer.
+- Batman avluya iner; sırtı kameraya dönük, hedef tepesinden geçip arkasına düşerken bakmadan elini kaldırır, Batarang belirir, omzunun üstünden tek atış.
+- Kamera önünde: Batarang hedefi havada yakalar ve depo duvarına çiviler (ceketinden), metal sesi, duvarda çatlaklar ve toz; Batarang duvarda saplı kalır.
+- Batman döner, kancayı yukarı ateşler, çekilip kadrajdan çıkar. Boş avlu, duvarda asılı hedef, uzakta bir halat sesi, sonra sessizlik ve "KARA ŞÖVALYE".
+- Hasar duvara çivilendiği anda (ayarlardaki `film` bölümü); film bitince hedef sırt üstü yere düşmüş ve sersemlemiş olur. Film boyunca Batman'e vurulamaz.
 
 ## Ayarlar
 `config/superheromod-batman.toml`: her hasar, menzil, süre, bekleme süresi ve sayı.

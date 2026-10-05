@@ -296,9 +296,7 @@ landing spot and the target to the crater.
   with a hop (`letGo`)), Q = reflex block (`BatmanReflex` server: `State.reflexUntil`, front 180° only, blocks only damage with a
   direction (not explosions/fall/fire/magic/bypass), gauntlet within `gauntletRange` (side by angle: BLOCK_RIGHT/LEFT/FRONT) else
   BLOCK_CAPE; projectiles re-aimed next tick; `FX_BLOCK` → `BatmanReflexFx` (sparks along the deflect, rings, the move via
-  `BatmanMotion.deflect`, cape sweep via `BatmanBody.capeGrab` → `CapeCloth.Frame.grab`)), X = film: server side only so far (`BatmanUltBeats`, `BatmanUltSession`,
-  `film` config, backdrop scene 11 GOTHAM); the client film (timeline/stage/Batwing/`FilmSessionClient.FILMS` entry) is NOT
-  written, so `BatmanController.FILM_READY` is false and X just says so,
+  `BatmanMotion.deflect`, cape sweep via `BatmanBody.capeGrab` → `CapeCloth.Frame.grab`)), X = KARA ŞÖVALYE film (below),
   SHIFT held = run (sprint, 1.3x; vanilla sneak cleared in `BatmanClient.run`), CTRL (raw) = Elden Ring
   dive roll (`DODGE_TICKS` 16, `DODGE_DIVE`, 7 blocks, i-frames, 3 s cooldown `rollCooldown`), SPACE held in the air = cape glide
   (gravity/drag undone in `steer` so it really glides; only a steep dive speeds up; the cape opens into a big wing:
@@ -319,6 +317,18 @@ landing spot and the target to the crater.
   cape on `client/render/cloth/CapeCloth` (shared verlet cloth, also Magneto's cape; glide pins it to the hands as wings; a belt
   capsule keeps it off the back pouches; a move made mid-glide tips the body upright, `Blend.glideBody`).
   Sounds group `batman`. Docs for the user: `docs/BATMAN.md`.
+- **KARA ŞÖVALYE (X), `client/render/film/DarkKnightFilm.java`, 29 s**, own stage (backdrop scene 11 GOTHAM). Beats in
+  `BatmanUltBeats` (shared with the server `BatmanUltSession`: target held, damage at `WALL`, downed + staggered at the end).
+  `client/render/batman/KnightPath` = master timeline (yard layout: lamp at the origin, warehouse wall +z where the target is
+  pinned, tall block -z with the grapnel spot, fire escape -x, low roofs +x; Batman `Act` per moment: glimpses that vanish in
+  a blink, the shape over the roofs, grapnel from the roof edge, leap, bomb, kick from below upside down, thrown up, circling
+  glide, forearm call, dive, landing, the throw back over the shoulder without looking, turn, grapnel exit; Batwing path
+  (lights far off, circle + scan, pass); Batarang path; flashes; camera `view`/`kick`). `KnightTarget` = the target (centre,
+  yaw, tumble about the middle, `FilmCast.Track` poses + look keys, tint by lamp/moon/scan). `KnightStage` draws it: vertex-lit
+  wet asphalt and brick (lamp cone falloff `lamp()`, `wallLamp()`), buildings, fire escape, spire, water tower, junk, lamp cone
+  and pool, fog, rain round the camera, Batman via `BatmanBody` + `CapeCloth` on a dummy ArmorStand at y -4000 (model-space
+  cape), the puppet turned about its middle, Batwing box mesh + lights + scan, bomb blast (cold shock), smoke trail, Batarang
+  (`BatmanGear.batarang`), cracks and dust on the wall. `BatmanController.FILM_READY` is true.
 
 ## Champion select (P)
 - `client/gui/ChampionSelectScreen` (key P; the dev Pose Studio moved to F8 under a new key id) + roster data

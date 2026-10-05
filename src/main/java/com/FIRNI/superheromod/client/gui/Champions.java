@@ -91,7 +91,8 @@ public final class Champions {
                     new Skill("Q", "Refleks Blok", "1 saniyelik pencere: önünden gelen saldırıları savuşturur. Yakından gelene eldiven dikenleri, uzaktan gelene pelerinini önüne çeker. Arkadan gelene işlemez."),
                     new Skill("SHIFT", "Koşu", "Basılı tut: normal yürüyüşün 1,3 katı hızla koşar."),
                     new Skill("CTRL", "Takla", "İleri dalıp omzunun üstünden uzun bir takla; ortasında hasar almaz. 3 saniyede bir."),
-                    new Skill("BOŞLUK", "Pelerinle Süzülme", "Havadayken basılı tut: pelerin kanat gibi açılır, baktığın yöne süzülürsün; aşağı bakınca hızlanır."))));
+                    new Skill("BOŞLUK", "Pelerinle Süzülme", "Havadayken basılı tut: pelerin kanat gibi açılır, baktığın yöne süzülürsün; aşağı bakınca hızlanır."),
+                    new Skill("X", "Kara Şövalye", "Sinematik: karanlık avluda lambanın altında kalan hedefin etrafında bir görünüp bir kaybolur, kancayla havaya çeker, yapışkan bomba ve çift ayak tekmesiyle şehrin üstüne fırlatır, Batwing tarar, son Batarang onu duvara çiviler."))));
 
     /** How many card slots the grid always shows (the rest are "?" for the heroes to come). */
     public static final int MIN_SLOTS = 18;

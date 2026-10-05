@@ -360,7 +360,7 @@ public final class BatmanClient {
         int h = e.getWindow().getGuiScaledHeight(), w = e.getWindow().getGuiScaledWidth();
         float time = mc.level.getGameTime() + e.getPartialTick();
         HudStyle.caption(g, font, "BATMAN", 10, h - 46, GOLD, -1);
-        int row = h - 124;
+        int row = h - 136;
         String punch = s.shock ? "Elektrikli Boks" : s.action == PUNCH && s.combo > 0 ? (s.combo >= RAPID ? "Seri Yumruk x" + (s.combo + 1) : "Kombo x" + (s.combo + 1)) : "Yumruk";
         hint(g, font, mc.options.keyAttack, s.aiming() ? "Kanca: çekil / vuruş + yapışkan bomba" : punch, 0, s.action == PUNCH && s.combo >= RAPID || s.aiming(), 10, row - 24);
         hint(g, font, mc.options.keyUse, s.aiming() ? "Kanca: düşmanı bacağından çek" : s.charge > 0 ? "Batarang x" + s.charge + " (bırak)" : "Batarang (basılı: çoklu)", 0, s.charge > 0 || s.aiming(), 10, row - 12);
@@ -371,6 +371,7 @@ public final class BatmanClient {
         hint(g, font, mc.options.keyJump, "Pelerinle Süzül (havada basılı)", 0, s.gliding(), 10, row + 36);
         hint(g, font, mc.options.keyShift, "Koş (basılı)", 0, mc.player.isSprinting(), 10, row + 48);
         hint(g, font, AbilityKeyHandler.KEY_ULTIMATE, "Refleks Blok", s.cooldowns[CD_REFLEX], s.reflex, 10, row + 60);
+        hint(g, font, AbilityKeyHandler.KEY_XRAY, "Kara Şövalye (birine bakarak)", 0, false, 10, row + 72);
         belt(g, s, 12, row - 46, time);
         if (s.aiming()) reticle(g, font, mc, w, h, time);
         wheelShown = Mth.clamp(wheelShown + (wheelOpen ? .25f : -.25f), 0, 1);
