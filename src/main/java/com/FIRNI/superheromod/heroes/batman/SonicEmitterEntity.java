@@ -64,6 +64,8 @@ public final class SonicEmitterEntity extends Entity {
     // server
     private ServerPlayer owner;
     private LivingEntity target;
+    /** Set up by the effect test (/etkidene sonik): its owner is its own target and need not be Batman. */
+    boolean test;
     // client: the chamber's aim (world yaw in degrees as entity yaw, elevation in radians, up positive), smoothed
     public float aimYaw, aimYawO, aimPitch, aimPitchO;
     private float yawSpeed, pitchSpeed;
@@ -196,10 +198,10 @@ public final class SonicEmitterEntity extends Entity {
         }
         if (age >= gone()) { discard(); return; }
         // Batman gone (logged out, died, not Batman any more): it stops and sinks back.
-        if (owner == null || owner.isRemoved() || !owner.isAlive() || owner.level() != level() || !BatmanController.isHero(owner)) { stop(age); return; }
+        if (owner == null || owner.isRemoved() || !owner.isAlive() || owner.level() != level() || !test && !BatmanController.isHero(owner)) { stop(age); return; }
         if (age < ACTIVE_FROM || age >= activeEnd()) return;
         if (target == null || !target.isAlive() || target.isRemoved() || target.level() != level()
-                || target.distanceTo(this) > BatmanConfig.SONIC_RANGE.get() * 1.5 || !BatmanController.targetable(owner, target)) { stop(age); return; }
+                || target.distanceTo(this) > BatmanConfig.SONIC_RANGE.get() * 1.5 || !test && !BatmanController.targetable(owner, target)) { stop(age); return; }
         // Pulses: the two emitters take turns, half a period apart.
         int phase = (age - ACTIVE_FROM + (side() > 0 ? 0 : PULSE_EVERY / 2)) % PULSE_EVERY;
         if (phase == 0) pulse();

@@ -95,11 +95,15 @@ public final class BatmanController {
         /** The flash grenade: ticks left on its fuse once it has touched the floor (-1 before), lying still. */
         int fuse = -1, bodyAt = -100; boolean resting;
         Pellet(int id, int gadget, ServerPlayer owner, Vec3 pos, Vec3 vel) { this.id = id; this.gadget = gadget; this.owner = owner; this.pos = pos; this.vel = vel; }
+        /** Thrown by the effect test (/etkidene): its "owner" is the one it is meant for, and gets it like anyone else. */
+        boolean test;
     }
     /** A smoke cloud on the ground. */
     private static final class Cloud {
         final ServerPlayer owner; final Vec3 at; final double radius; final int life; int age;
         Cloud(ServerPlayer owner, Vec3 at, double radius, int life) { this.owner = owner; this.at = at; this.radius = radius; this.life = life; }
+        /** Laid by the effect test: it works on its owner too. */
+        boolean test;
         boolean inside(Entity e) {
             Vec3 c = e.getBoundingBox().getCenter();
             double dx = c.x - at.x, dz = c.z - at.z, dy = (c.y - at.y) / .75;
@@ -133,6 +137,29 @@ public final class BatmanController {
         return true;
     }
     static void set(State s, int action) { s.action = action; s.age = 0; }
+
+    // ------------------------------------------------------------------ the effect test (/etkidene): being on the receiving end
+    /** A flash grenade rolled to a stop at the feet of the player (a little ahead), as if someone else threw it at them. */
+    public static void testFlash(ServerPlayer v) {
+        Vec3 ahead = flat(v.getLookAngle());
+        Vec3 from = v.getEyePosition().add(ahead.scale(1.2)).add(0, .3, 0);
+        Pellet pl = new Pellet(nextId++, G_FLASH, v, from, ahead.scale(.35).add(0, .12, 0));
+        pl.test = true;
+        PELLETS.add(pl);
+        fx(v, FX_GADGET, from, pl.vel, G_FLASH, -1, pl.id);
+    }
+    /** A smoke cloud round the player, as if someone else's (they are blinded in it like anyone). */
+    public static void testSmoke(ServerPlayer v) {
+        double r = BatmanConfig.SMOKE_RADIUS.get();
+        int life = (int) (BatmanConfig.SMOKE_SECONDS.get() * 20);
+        Vec3 at = v.position();
+        Cloud c = new Cloud(v, at, r, life);
+        c.test = true;
+        CLOUDS.add(c);
+        fxAt(at, FX_SMOKE, at, new Vec3(life, 0, 0), (float) r, -1, nextId++, v);
+        v.serverLevel().playSound(null, at.x, at.y, at.z, ModSounds.BATMAN_SMOKE.get(), SoundSource.PLAYERS, 1.4f, 1f);
+        v.serverLevel().playSound(null, at.x, at.y, at.z, SoundEvents.FIRE_EXTINGUISH, SoundSource.PLAYERS, 1.2f, .5f);
+    }
     static void tell(ServerPlayer p, String text) { p.displayClientMessage(Component.literal("§7" + text), true); }
     /** In the middle of something nothing else may start over it. */
     static boolean busy(State s) {
@@ -330,7 +357,7 @@ public final class BatmanController {
                 fxAt(at, FX_FLASH, at, Vec3.ZERO, (float) r, -1, pl.id, p);
                 level.playSound(null, at.x, at.y, at.z, ModSounds.BATMAN_FLASH.get(), SoundSource.PLAYERS, 1.4f, 1f);
                 level.playSound(null, at.x, at.y, at.z, SoundEvents.FIREWORK_ROCKET_BLAST, SoundSource.PLAYERS, .6f, 1.9f);
-                for (LivingEntity t : level.getEntitiesOfClass(LivingEntity.class, new AABB(at, at).inflate(r + 2), t -> targetable(p, t))) {
+                for (LivingEntity t : level.getEntitiesOfClass(LivingEntity.class, new AABB(at, at).inflate(r + 2), t -> targetable(p, t) || pl.test && t == p)) {
                     Vec3 eye = t.getEyePosition();
                     double d = Math.min(eye.distanceTo(at), t.getBoundingBox().getCenter().distanceTo(at));
                     if (d > r) continue;
@@ -357,7 +384,7 @@ public final class BatmanController {
                     fxAt(t.position(), FX_DAZE, t.position(), new Vec3(k, 0, 0), ticks + 16, t.getId(), pl.id, p);
                 }
                 // The thrower is never blinded: at most a light ringing if it went off near him.
-                if (p.getEyePosition().distanceTo(at) < r * 1.6)
+                if (!pl.test && p.getEyePosition().distanceTo(at) < r * 1.6)
                     ModNetworking.CHANNEL.send(PacketDistributor.PLAYER.with(() -> p), new BatmanFxPacket(FX_FLASHED, at, new Vec3(24, 1, 0), .15f, p.getId(), pl.id));
             }
             default -> {}
@@ -716,7 +743,7 @@ public final class BatmanController {
             if (c.owner.isRemoved() || ++c.age > c.life) { it.remove(); continue; }
             if (c.age % 5 != 0) continue;
             double r = c.radius;
-            for (LivingEntity t : c.owner.level().getEntitiesOfClass(LivingEntity.class, new AABB(c.at, c.at).inflate(r, Math.min(r, 8), r), t -> t != c.owner && t.isAlive())) {
+            for (LivingEntity t : c.owner.level().getEntitiesOfClass(LivingEntity.class, new AABB(c.at, c.at).inflate(r, Math.min(r, 8), r), t -> (c.test || t != c.owner) && t.isAlive())) {
                 if (!c.inside(t)) continue;
                 // Inside the smoke: blind, coughing, lost; he is not.
                 if (t instanceof Player) t.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, 30, 0, false, false, true));

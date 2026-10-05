@@ -104,6 +104,27 @@ public final class BatmanSonic {
         spawn(p, t, plan.right(), 1, active, health);
         spawn(p, t, plan.left(), -1, active, health);
     }
+    /**
+     * The effect test (/etkidene sonik): a trap on the player themselves, as if a Batman stood 8 blocks in front of
+     * them, so they see and hear what its target does. The emitters take nobody's orders but carry it out.
+     */
+    public static boolean test(ServerPlayer v) {
+        Vec3 ahead = BatmanController.flat(v.getLookAngle());
+        Plan plan = plan(v, v.position().add(ahead.scale(8)), v);
+        if (plan == null) return false;
+        int active = Math.max(1, Math.round(BatmanConfig.f(BatmanConfig.SONIC_SECONDS) * 20));
+        float health = BatmanConfig.f(BatmanConfig.SONIC_HEALTH);
+        for (int i = 0; i < 2; i++) {
+            SonicEmitterEntity e = ModEntities.SONIC_EMITTER.get().create(v.level());
+            if (e == null) return false;
+            Vec3 at = i == 0 ? plan.right() : plan.left(), d = v.position().subtract(at);
+            e.moveTo(at.x, at.y, at.z, (float) Math.toDegrees(Math.atan2(-d.x, d.z)), 0);
+            e.setup(v, v, i == 0 ? 1 : -1, active, health);
+            e.test = true;
+            v.serverLevel().addFreshEntity(e);
+        }
+        return true;
+    }
     private static void spawn(ServerPlayer p, LivingEntity t, Vec3 at, int side, int active, float health) {
         SonicEmitterEntity e = ModEntities.SONIC_EMITTER.get().create(p.level());
         if (e == null) return;
@@ -144,9 +165,10 @@ public final class BatmanSonic {
 
     // ------------------------------------------------------------------ the spots
     /** The two spots flanking the target (his right, his left), or null when there is no ground for one of them. */
-    private static Plan plan(ServerPlayer p, LivingEntity t) {
+    private static Plan plan(ServerPlayer p, LivingEntity t) { return plan(p, p.position(), t); }
+    private static Plan plan(ServerPlayer p, Vec3 from, LivingEntity t) {
         ServerLevel level = p.serverLevel();
-        Vec3 from = p.position(), to = t.position();
+        Vec3 to = t.position();
         Vec3 dir = BatmanController.flat(to.subtract(from));
         double dist = Math.sqrt((to.x - from.x) * (to.x - from.x) + (to.z - from.z) * (to.z - from.z));
         double spread = BatmanConfig.SONIC_DISTANCE.get();
