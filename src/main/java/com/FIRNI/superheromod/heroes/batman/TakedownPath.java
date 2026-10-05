@@ -41,7 +41,7 @@ public final class TakedownPath {
 
     // ------------------------------------------------------------------ the Batmobile
     public static final double RADIUS = 7.5, RUN_IN = 36;
-    public static final int IN = 16, ARC = 30, OUT = 22, GONE = IN + ARC + OUT, FIRE_FROM = IN + 4, FIRE_TO = IN + ARC - 4;
+    public static final int IN = 16, ARC = 30, OUT = 22, GONE = IN + ARC + OUT, FIRE_FROM = IN - 2, FIRE_TO = IN + 19;
     /** Rounds a tick (the two guns each fire every tick, half a tick apart), and all of them. */
     public static final int PER_TICK = 2, ROUNDS = (FIRE_TO - FIRE_FROM) * PER_TICK;
     /** When round n leaves its gun (its clock), and which gun fires it (0 its right, 1 its left). */

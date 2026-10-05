@@ -31,7 +31,13 @@ import static com.FIRNI.superheromod.heroes.batman.BatmanAction.*;
  */
 @Mod.EventBusSubscriber(modid = SuperheroMod.MODID, value = Dist.CLIENT)
 public final class BatmanReflexFx {
-    private record Block(int kind, float time) {}
+    /** A deflect move playing: what, since when, and (the cape) until when it is held across him. */
+    private static final class Block {
+        final int kind; final float time; float holdEnd;
+        Block(int kind, float time, float holdEnd) { this.kind = kind; this.time = time; this.holdEnd = holdEnd; }
+        /** Ticks the cape is held in front (after it has been drawn across). */
+        float hold() { return Math.max(BatmanMotion.CAPE_HOLD_MIN, holdEnd - time - BatmanMotion.CAPE_ACROSS); }
+    }
     private static final Map<Integer, Block> LAST = new HashMap<>();
     private static final class Spark {
         Vec3 pos, vel; final float start, life; final int rgb; final boolean metal;
@@ -53,17 +59,27 @@ public final class BatmanReflexFx {
         float t = now();
         int kind = Math.abs((int) p.power());
         // A positive kind starts the move; a negative one only draws the contact (a hail of hits plays one move).
-        if (p.power() > 0) LAST.put(p.entity(), new Block(kind, t));
+        // The cape: one move for the whole hail. Already drawn across (or being drawn): every hit only keeps it there
+        // a little longer; it goes back once nothing more comes.
+        Block was = LAST.get(p.entity());
+        boolean capeUp = kind == BLOCK_CAPE && was != null && was.kind == BLOCK_CAPE && t - was.time < BatmanMotion.CAPE_ACROSS + was.hold();
+        if (capeUp) was.holdEnd = Math.max(was.holdEnd, t + BatmanMotion.CAPE_KEEP);
+        else if (p.power() > 0) LAST.put(p.entity(), new Block(kind, t, t + BatmanMotion.CAPE_KEEP));
+        // A blow on the cloth: it jolts where it was struck (it is cloth, not a wall).
+        if (kind == BLOCK_CAPE && (capeUp || p.power() > 0)) {
+            Vec3 dir0 = p.dir().lengthSqr() < 1e-6 ? new Vec3(0, 0, 1) : p.dir().normalize();
+            com.FIRNI.superheromod.client.render.cloth.CapeCloth.poke(p.entity(), p.pos().x, p.pos().y, p.pos().z, -dir0.x, -dir0.y, -dir0.z, .18);
+        }
         Vec3 at = p.pos(), in = p.dir().lengthSqr() < 1e-6 ? new Vec3(0, 0, 1) : p.dir().normalize();
         HITS.add(new Hit(at, in, kind, t));
         boolean cape = kind == BLOCK_CAPE, evade = kind == BLOCK_EVADE_R || kind == BLOCK_EVADE_L;
         // The way the attack is sent: back out and to the side (sparks follow it).
         Vec3 aside = new Vec3(-in.z, 0, in.x).scale(kind == BLOCK_LEFT ? -1 : 1);
         Vec3 away = in.scale(.6).add(aside.scale(.8)).add(0, cape ? .35 : .2, 0).normalize();
-        int n = evade ? 0 : (int) ((cape ? 6 : 16) * Math.max(.3f, amount()));
+        int n = evade ? 0 : (int) ((cape ? 10 : 16) * Math.max(.3f, amount()));
         for (int i = 0; i < n; i++) {
             Vec3 v = away.scale(.18 + RANDOM.nextDouble() * .3).add((RANDOM.nextDouble() - .5) * .16, RANDOM.nextDouble() * .12, (RANDOM.nextDouble() - .5) * .16);
-            SPARKS.add(new Spark(at, v, t, 6 + RANDOM.nextInt(8), cape ? 0xd8e6ff : (i % 3 == 0 ? 0xffffff : 0xffd27a), false));
+            SPARKS.add(new Spark(at, v, t, 6 + RANDOM.nextInt(8), cape ? (i % 2 == 0 ? 0xffe6b0 : 0xd8e6ff) : (i % 3 == 0 ? 0xffffff : 0xffd27a), false));
         }
         if (!cape && !evade) for (int i = 0; i < (int) (3 * amount()); i++)
             SPARKS.add(new Spark(at, away.scale(.12).add((RANDOM.nextDouble() - .5) * .1, .08 + RANDOM.nextDouble() * .08, (RANDOM.nextDouble() - .5) * .1), t, 14 + RANDOM.nextInt(8), 0x9aa0a8, true));
@@ -83,7 +99,7 @@ public final class BatmanReflexFx {
         float[] d = deflect(mc.player.getId(), now());
         if (d == null) return;
         int kind = (int) d[0];
-        float t = d[1], len = BatmanMotion.deflectLength(kind);
+        float t = d[1], len = BatmanMotion.deflectLength(kind, d[2]);
         float bump = Mth.sin(Mth.PI * Mth.clamp(t / (len - 1), 0, 1));
         float shake = BatmanConfig.SHAKE.get().floatValue();
         if (kind == BLOCK_EVADE_R || kind == BLOCK_EVADE_L) {
@@ -94,27 +110,19 @@ public final class BatmanReflexFx {
         } else if (kind == BLOCK_CAPE) e.setYaw(e.getYaw() + 4 * bump * shake);
         else e.setYaw(e.getYaw() + (kind == BLOCK_LEFT ? -3 : 3) * bump * shake);
     }
-    /** The deflect move this Batman's body is playing now: {kind, ticks since}, or null. */
+    /** The deflect move this Batman's body is playing now: {kind, ticks since, (the cape) ticks held in front}, or null. */
     static float[] deflect(int batman, float now) {
         Block b = LAST.get(batman);
         if (b == null) return null;
-        float t = now - b.time();
-        if (t < 0 || t > BatmanMotion.deflectLength(b.kind())) return null;
-        return new float[]{b.kind(), t};
-    }
-    /** The cape drawn round in front of him now: {how far round (0..1), the blow's ripple (0..1)}, or null. */
-    static float[] capeShield(int batman, float now) {
-        float[] d = deflect(batman, now);
-        if (d == null || (int) d[0] != BLOCK_CAPE) return null;
-        float t = d[1], len = BatmanMotion.deflectLength(BLOCK_CAPE);
-        float round = com.FIRNI.superheromod.client.render.panther.PantherMotion.k(t, .8f, 4f) * (1 - com.FIRNI.superheromod.client.render.panther.PantherMotion.k(t, len - 4.5f, len));
-        float ripple = t > 3 && t < 10 ? 1 - (t - 3) / 7 : 0;
-        return new float[]{round, ripple};
+        float t = now - b.time;
+        float hold = b.kind == BLOCK_CAPE ? b.hold() : 0;
+        if (t < 0 || t > BatmanMotion.deflectLength(b.kind, hold)) return null;
+        return new float[]{b.kind, t, hold};
     }
     /** How firmly his right hand holds the cape's edge now (0..1). */
     static float capeGrab(int batman, float now) {
         float[] d = deflect(batman, now);
-        return d == null || (int) d[0] != BLOCK_CAPE ? 0 : BatmanMotion.capeGrab(d[1]);
+        return d == null || (int) d[0] != BLOCK_CAPE ? 0 : BatmanMotion.capeGrab(d[1], d[2]);
     }
 
     @SubscribeEvent public static void tick(TickEvent.ClientTickEvent e) {

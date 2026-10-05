@@ -77,6 +77,8 @@ public final class BatmanController {
         long reflexUntil = -1, lastDeflect = -100;
         /** The last close-range block move (the next one is always a different one). */
         int lastBlock = -1;
+        /** When the cape was last called up against something on its way in (BatmanReflex.anticipate). */
+        long capeSent = -100;
     }
     /** Someone pulled off their feet and dragged toward him. */
     private static final class Drag {

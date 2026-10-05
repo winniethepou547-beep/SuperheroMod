@@ -94,7 +94,7 @@ public final class BatmanAction {
      * TD_PUSH and drives their head down, they fall face first from TD_FALL and hit the ground at TD_IMPACT; he is done
      * by TD_HOLD_TICKS, they lie until TD_DOWN and get up.
      */
-    public static final int TD_FLIP = 10, TD_TRACK = 12, TD_LOCK = 16, TD_CAR = 3, TD_PUSH = 52, TD_FALL = 56, TD_IMPACT = 61,
+    public static final int TD_FLIP = 14, TD_TRACK = 16, TD_LOCK = 20, TD_CAR = 3, TD_PUSH = 52, TD_FALL = 56, TD_IMPACT = 61,
             TD_HOLD_TICKS = 72, TD_DOWN = 80;
     /** The miss: carried on and slowing (TD_SLIDE), caught off balance, the hand to the ear at TD_MISS_EAR, cancelled (red X) at TD_ABORT; open to attack throughout. */
     public static final int TD_SLIDE = 6, TD_MISS_EAR = 12, TD_ABORT = 16, TD_MISS_TICKS = 32;

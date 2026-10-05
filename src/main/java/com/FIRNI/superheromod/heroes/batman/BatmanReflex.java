@@ -140,8 +140,45 @@ public final class BatmanReflex {
         }
     }
 
+    /**
+     * Shots and throws on their way in while the window is open: the cape is drawn across in time, before they arrive
+     * (drawing it only when one strikes would show it striking his body first). Called up again every few ticks while
+     * more keep coming, which keeps it held across him.
+     */
+    private static void anticipate(ServerPlayer p, BatmanController.State s) {
+        long now = p.level().getGameTime();
+        if (now > s.reflexUntil || now - s.capeSent < 4) return;
+        Vec3 centre = p.getBoundingBox().getCenter(), eye = p.getEyePosition();
+        Vec3 look = new Vec3(p.getLookAngle().x, 0, p.getLookAngle().z);
+        look = look.lengthSqr() < 1e-6 ? new Vec3(0, 0, 1) : look.normalize();
+        for (Projectile pr : p.level().getEntitiesOfClass(Projectile.class, p.getBoundingBox().inflate(18), x -> x.isAlive() && x.getOwner() != p)) {
+            Vec3 v = pr.getDeltaMovement();
+            double speed = v.length();
+            if (speed < .2) continue;
+            Vec3 to = centre.subtract(pr.position());
+            double dist = to.length();
+            if (dist < .5 || dist / speed > 11 || v.scale(1 / speed).dot(to.scale(1 / dist)) < .9) continue;
+            Vec3 in = new Vec3(pr.getX() - eye.x, 0, pr.getZ() - eye.z);
+            if (in.lengthSqr() < 1e-6 || look.dot(in.normalize()) < 0) continue;
+            in = in.normalize();
+            if (now - s.capeSent > 20) {
+                BatmanController.sound(p, ModSounds.BATMAN_CAPE.get(), .9f, .75f);
+                BatmanController.sound(p, SoundEvents.ARMOR_EQUIP_LEATHER, .8f, .6f);
+            }
+            s.capeSent = now;
+            BatmanController.fx(p, FX_BLOCK, p.position().add(0, 1.1, 0).add(in.scale(.65)), in, BLOCK_CAPE, p.getId(), 0);
+            return;
+        }
+    }
+
     @SubscribeEvent public static void tick(TickEvent.ServerTickEvent e) {
-        if (e.phase != TickEvent.Phase.END || DEFLECTS.isEmpty()) return;
+        if (e.phase != TickEvent.Phase.END) return;
+        for (ServerPlayer p : e.getServer().getPlayerList().getPlayers()) {
+            if (!BatmanController.isHero(p)) continue;
+            BatmanController.State s = BatmanController.peek(p);
+            if (s != null) anticipate(p, s);
+        }
+        if (DEFLECTS.isEmpty()) return;
         for (Deflect d : DEFLECTS) {
             if (d.p().isRemoved()) continue;
             d.p().setDeltaMovement(d.vel());

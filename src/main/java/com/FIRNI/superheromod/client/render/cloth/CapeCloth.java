@@ -150,6 +150,11 @@ public final class CapeCloth {
 
     /** Drop every cape (logout, world change). */
     public static void clear() { CAPES.clear(); }
+    /** A blow on a body's cape (world point, direction, strength in blocks of the model): the cloth there jolts. */
+    public static void poke(int entityId, double x, double y, double z, double dx, double dy, double dz, double strength) {
+        CapeCloth c = CAPES.get(entityId);
+        if (c != null) c.sim.poke(x, y, z, dx, dy, dz, strength);
+    }
     /** Drop one body's capes (it changed hero, died...). */
     public static void forget(int entityId) { CAPES.remove(entityId); CAPES.remove(-1 - entityId); }
 
@@ -645,11 +650,29 @@ public final class CapeCloth {
             return mid + (in[FOOT + side * 3 + k] - mid) * feetApart;
         }
         private double reach = 1, feetApart = 1;
-        /** A hand holds the cape's right edge a little below the middle and sweeps it round in front: that point follows the hand. */
+        /**
+         * A hand holds the cape's right edge a little below the middle and draws it round in front: the held point
+         * follows the hand, the edge above and below it is gathered into the fist (less firmly further away); the rest of
+         * the cloth follows through its own links, round his right side and across his front.
+         */
         private void grabbed() {
             double k = Math.min(1, in[GRAB_K]);
-            pull(6 * COLS, in[GRAB], in[GRAB + 1], in[GRAB + 2], .6 * k);
-            pull(7 * COLS, in[GRAB], in[GRAB + 1] - .15 * scale, in[GRAB + 2], .25 * k);
+            double[] firm = {.18, .4, .75, .4, .18};
+            for (int j = 0; j < firm.length; j++) {
+                int row = 4 + j;
+                pull(row * COLS, in[GRAB], in[GRAB + 1] - (row - 6) * .07 * scale, in[GRAB + 2], firm[j] * k);
+            }
+        }
+        /** A blow on the cloth near a point (world space): the points round it shoved along dir, less further off. */
+        void poke(double px, double py, double pz, double dx, double dy, double dz, double strength) {
+            double radius = .7 * scale;
+            for (int p = COLS; p < N; p++) {
+                int i = p * 3;
+                double d = Math.sqrt(sq(x[i] - px, x[i + 1] - py, x[i + 2] - pz));
+                if (d > radius) continue;
+                double f = strength * (1 - d / radius) * scale;
+                x[i] += dx * f; x[i + 1] += dy * f; x[i + 2] += dz * f;
+            }
         }
         private void pull(int p, double tx, double ty, double tz, double k) {
             int i = p * 3;
@@ -660,6 +683,8 @@ public final class CapeCloth {
             double px = 0, py = 0, pz = 0;
             for (int c = 0; c < COLS; c++) { px += x[c * 3] / COLS; py += x[c * 3 + 1] / COLS; pz += x[c * 3 + 2] / COLS; }
             double margin = (.02 + .5 * spread) * scale;
+            // Held and drawn round in front by his hand, it may come forward over his right shoulder.
+            if (in[GRAB_K] > .05) margin += 3 * scale * Math.min(1, in[GRAB_K]);
             for (int r = 1; r < 6; r++)
                 for (int c = 0; c < COLS; c++) {
                     int i = (r * COLS + c) * 3;
@@ -690,7 +715,7 @@ public final class CapeCloth {
                     double d = Math.sqrt(d2);
                     if (d < 1e-6) { dx = -fx; dy = -fy; dz = -fz; d = 1; }
                     dx /= d; dy /= d; dz /= d;
-                    if (back[k]) {
+                    if (back[k] && in[GRAB_K] < .2) {
                         // Never out the front of the torso: a point that got in front is sent round to the back.
                         double ahead = dx * fx + dy * fy + dz * fz;
                         if (ahead > 0) { dx -= 2 * ahead * fx; dy -= 2 * ahead * fy; dz -= 2 * ahead * fz; }

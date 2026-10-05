@@ -392,11 +392,21 @@ public final class BatmanMotion {
         g.add(HEAD_YAW, .08f * Mth.sin(time * .35f)).add(CHEST_YAW, .04f * Mth.sin(time * .35f + 1));
         return g;
     }
-    /** How long a deflect's own move lasts (the cape sweep is longer than a gauntlet's). */
-    public static final int CAPE_TICKS = 18;
-    public static float deflectLength(int kind) { return kind == BLOCK_CAPE ? CAPE_TICKS : DEFLECT_TICKS; }
-    /** How firmly the right hand holds the cape's edge t ticks into a cape deflect (0..1). */
-    public static float capeGrab(float t) { return k(t, 1.2f, 2.6f) * (1 - k(t, CAPE_TICKS - 4, CAPE_TICKS - 1)); }
+    /**
+     * The cape block's beats: the right hand reaches back to the cape's edge behind his right side and closes on it
+     * (CAPE_GRIP), draws it round his right side and across his front to his left (by CAPE_ACROSS); it is held there
+     * (at least CAPE_HOLD_MIN, and CAPE_KEEP after the last blow on it); then the hand draws it back from his left front
+     * to his right and flings it back over his right side (let go at CAPE_LET_GO of that), back in the stance by CAPE_BACK.
+     */
+    public static final float CAPE_GRIP = 2.5f, CAPE_ACROSS = 6.5f, CAPE_HOLD_MIN = 6, CAPE_KEEP = 10, CAPE_LET_GO = 6.5f, CAPE_BACK = 11;
+    /** How long a deflect's own move lasts (the cape: drawn across, held as long as given, thrown back). */
+    public static float deflectLength(int kind, float hold) { return kind == BLOCK_CAPE ? CAPE_ACROSS + Math.max(CAPE_HOLD_MIN, hold) + CAPE_BACK : DEFLECT_TICKS; }
+    public static float deflectLength(int kind) { return deflectLength(kind, CAPE_HOLD_MIN); }
+    /** How firmly the right hand holds the cape's edge t ticks into a cape block held for hold ticks (0..1). */
+    public static float capeGrab(float t, float hold) {
+        float back = CAPE_ACROSS + Math.max(CAPE_HOLD_MIN, hold);
+        return k(t, CAPE_GRIP - .5f, CAPE_GRIP + 1) * (1 - k(t, back + CAPE_LET_GO - .5f, back + CAPE_LET_GO + .8f));
+    }
     /**
      * A deflect, over whatever the body is doing, t ticks after the block (fast in, a controlled contact, fast away):
      * the right gauntlet (the right shoulder draws back, the forearm crosses into the attack, the wrist turns the spikes
@@ -404,7 +414,9 @@ public final class BatmanMotion {
      * coming in, then out); both crossed for an instant before the face, then the right arm shoves it aside; or the cape
      * (the right hand reaches back for its edge and sweeps it round in front, holds, lets it go).
      */
-    static void deflect(Pose p, int kind, float t) {
+    static void deflect(Pose p, int kind, float t) { deflect(p, kind, t, CAPE_HOLD_MIN); }
+    static void deflect(Pose p, int kind, float t, float hold) {
+        if (kind == BLOCK_CAPE) { cape(p, t, Math.max(CAPE_HOLD_MIN, hold)); return; }
         float len = deflectLength(kind);
         if (t < 0 || t > len) return;
         float w = k(t, 0, 1.5f) * (1 - k(t, len - 3.5f, len));
@@ -448,20 +460,37 @@ public final class BatmanMotion {
                         .add(CHEST_YAW, s * .25f * sway);
                 g.leg(kind == BLOCK_EVADE_R ? 0 : 1, LEG_Z, .3f * sway).leg(kind == BLOCK_EVADE_R ? 1 : 0, LEG_Z, -.05f);
             }
-            default -> {
-                // The cape: the whole body turns, the right hand reaches back for the edge and sweeps it up and round in
-                // front (high, across the face), holds it there as the blow strikes the cloth, then lets it fall.
-                float across = k(t, 1.6f, 4.5f);
-                g.add(PELVIS_YAW, -.25f * across).add(CHEST_YAW, .35f * (1 - across) - .75f * across).add(CROUCH, 1.8f)
-                        .add(SPINE_PITCH, .12f + .12f * across).add(HEAD_YAW, -.3f * across).add(HEAD_PITCH, .15f * across);
-                g.arm(0, SH_FWD, Mth.lerp(across, -.6f, 1.3f)).arm(0, SH_UP, 1.2f * across).arm(0, ARM_X, Mth.lerp(across, .5f, -1.95f))
-                        .arm(0, ARM_Y, Mth.lerp(across, .25f, -1.3f)).arm(0, ARM_Z, Mth.lerp(across, .6f, .3f)).arm(0, ELBOW, Mth.lerp(across, .3f, .75f))
-                        .arm(0, WRIST_X, -.3f * across).arm(0, CURL, .95f);
-                g.arm(1, SH_FWD, .9f).arm(1, ARM_X, -1.25f).arm(1, ARM_Y, -.75f).arm(1, ELBOW, 1.95f).arm(1, CURL, 1);
-                g.leg(1, LEG_X, -.25f * across).leg(0, LEG_X, .2f * across);
-            }
+            default -> {}
         }
         p.toward(g, w);
+    }
+
+    /**
+     * The cape block, over whatever the body is doing (the cloth itself follows his right hand: BatmanBody.capeGrab):
+     * the right hand goes back to the edge of the cape behind his right hip and closes on it, then pulls it hard round
+     * his right side and across his front to his left, the body turning left behind it, the head down behind the cloth,
+     * the left forearm braced low across him; held; then the hand draws it back from his left front to his right and
+     * flings it back over his right side, the body turning back; into the stance.
+     */
+    static void cape(Pose p, float t, float hold) {
+        float back = CAPE_ACROSS + hold, len = back + CAPE_BACK;
+        if (t < 0 || t > len) return;
+        Pose start = p.copy();
+        Pose reach = p.copy().add(CHEST_YAW, .35f).add(PELVIS_YAW, .12f).add(HEAD_YAW, .3f).add(CROUCH, .8f);
+        reach.arm(0, SH_FWD, -.9f).arm(0, SH_UP, 0).arm(0, ARM_X, .65f).arm(0, ARM_Y, .2f).arm(0, ARM_Z, .45f).arm(0, ELBOW, .45f).arm(0, WRIST_X, .3f).arm(0, CURL, .15f);
+        Pose grip = reach.copy();
+        grip.arm(0, CURL, 1).arm(0, WRIST_X, .15f);
+        Pose across = p.copy().add(CHEST_YAW, -.5f).add(PELVIS_YAW, -.22f).add(SPINE_PITCH, .12f).add(HEAD_PITCH, .14f).add(HEAD_YAW, -.1f).add(CROUCH, 1.6f);
+        across.arm(0, SH_FWD, 1.4f).arm(0, SH_UP, .4f).arm(0, ARM_X, -1.55f).arm(0, ARM_Y, -1.25f).arm(0, ARM_Z, .1f).arm(0, ELBOW, .75f).arm(0, WRIST_X, -.1f).arm(0, CURL, 1);
+        across.arm(1, SH_FWD, .6f).arm(1, ARM_X, -.75f).arm(1, ARM_Y, -.5f).arm(1, ARM_Z, .25f).arm(1, ELBOW, 1.45f).arm(1, CURL, 1);
+        Pose held = across.copy().add(CROUCH, .3f);
+        Pose drawBack = p.copy().add(CHEST_YAW, .1f).add(CROUCH, 1.0f);
+        drawBack.arm(0, SH_FWD, .6f).arm(0, ARM_X, -1.2f).arm(0, ARM_Y, .2f).arm(0, ARM_Z, .75f).arm(0, ELBOW, .5f).arm(0, CURL, 1);
+        Pose fling = p.copy().add(CHEST_YAW, .4f).add(PELVIS_YAW, .12f).add(HEAD_YAW, .15f);
+        fling.arm(0, SH_FWD, -.8f).arm(0, ARM_X, .75f).arm(0, ARM_Y, .3f).arm(0, ARM_Z, .6f).arm(0, ELBOW, .3f).arm(0, WRIST_X, .4f).arm(0, CURL, .3f);
+        Pose sample = new Track().key(0, start).key(CAPE_GRIP, reach).key(CAPE_GRIP + .8f, grip).key(CAPE_ACROSS, across).key(back, held)
+                .key(back + 4.5f, drawBack).key(back + CAPE_LET_GO + .5f, fling).key(len, start).sample(t);
+        p.toward(sample, 1);
     }
 
     // ------------------------------------------------------------------ the air, the glide

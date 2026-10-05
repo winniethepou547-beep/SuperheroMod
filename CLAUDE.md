@@ -299,8 +299,11 @@ landing spot and the target to the crater.
   direction (not explosions/fall/fire/magic/bypass), any Projectile or attacker beyond `gauntletRange` = BLOCK_CAPE (big cape sweep, `CAPE_TICKS`); close blows
   vary and never repeat back to back (`State.lastBlock`: BLOCK_RIGHT/LEFT/FRONT, BLOCK_EVADE_R/L = Panther-like slip, no sparks;
   a strong side picks that arm); projectiles re-aimed next tick; `FX_BLOCK` → `BatmanReflexFx` (sparks along the deflect, rings, the move via
-  `BatmanMotion.deflect`, the cape block draws the cape itself as a curtain swung round his front from behind his right shoulder (`BatmanBody.capeShield`,
-  set per draw from `BatmanReflexFx.capeShield`; pinning one cloth point to the hand read as a plain arm block, the user saw only spikes); in first person `BatmanFirstPerson.deflect`
+  `BatmanMotion.deflect`, the cape block uses the REAL cloth (the user rejected a drawn curtain): `BatmanMotion.cape` = right hand back to the cape's
+  edge at his right rear, grip (`CAPE_GRIP`), drawn round his right side and across to his left front (`CAPE_ACROSS`), held while hits
+  keep coming (`BatmanReflexFx.Block.holdEnd`, one move per hail), drawn back left→right and flung back (`CAPE_LET_GO`); the cloth
+  follows the hand through `CapeCloth.grabbed` (edge gathered), with `behind()`/the torso's back rule relaxed while held;
+  hits `CapeCloth.poke` the cloth; the server calls the cape up as shots approach (`BatmanReflex.anticipate`) so it is across in time; in first person `BatmanFirstPerson.deflect`
   moves the gauntlets, `BatmanBody.firstPersonCapeSheet` drags the cloth across the view and `BatmanReflexFx.camera` sways the view on a slip:
   without that, his own (first-person) view showed no block at all)), X = KARA ŞÖVALYE film (below),
   SHIFT held = run (sprint, 1.3x; vanilla sneak cleared in `BatmanClient.run`), CTRL (raw) = Elden Ring

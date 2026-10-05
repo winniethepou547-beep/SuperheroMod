@@ -155,11 +155,15 @@ public final class BatmanTakedownFx {
         Vec3 right = new Vec3(rr.x, rr.y, rr.z), up = new Vec3(uu.x, uu.y, uu.z);
         FilmContext c = new FilmContext(p, fx, cam, right, up, t, 0, partial);
         try {
+            // The call's signal: for every Batman calling (no takedown of his is known here before his dash).
+            for (int batman : BatmanClient.states().keySet()) {
+                Entity b = mc.level.getEntity(batman);
+                if (b != null) signal(c, b, partial, right, up);
+            }
             for (var en : RECS.entrySet()) {
                 int batman = en.getKey();
                 Rec r = en.getValue();
                 Entity b = mc.level.getEntity(batman);
-                if (b != null) signal(c, b, partial, right, up);
                 if (b != null) dash(c, b, r, t, partial);
                 if (r.feet == null || r.hitAt < -999) continue;
                 float h = t - r.hitAt;
@@ -427,6 +431,21 @@ public final class BatmanTakedownFx {
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void pre(RenderLivingEvent.Pre<?, ?> e) {
         LivingEntity en = e.getEntity();
+        // Someone else's Batman in the flip: drawn on the flip's own smooth path (his position only arrives a few
+        // times a second's worth of steps from the network; his own client moves him on it exactly).
+        Rec mine = RECS.get(en.getId());
+        if (mine != null && en != Minecraft.getInstance().player && mine.from != null && mine.feet != null) {
+            float fh = now() - mine.hitAt;
+            if (fh >= 0 && fh < TD_FLIP + 1) {
+                Vec3 off = flipAt(mine, fh).subtract(en.getPosition(e.getPartialTick()));
+                if (off.lengthSqr() < 9) {
+                    e.getPoseStack().pushPose();
+                    PUSHED.add(en.getId());
+                    e.getPoseStack().translate(off.x, off.y, off.z);
+                }
+                return;
+            }
+        }
         Rec r = holding(en.getId());
         if (r == null) return;
         float h = now() - r.hitAt;

@@ -228,7 +228,7 @@ public final class BatmanLayer extends RenderLayer<AbstractClientPlayer, PlayerM
         } else if (action == CANNON && !shown) BatmanCannonFx.arms(pose, s, t, model.head.yRot, model.head.xRot);
         // A reflex deflect plays over whatever the body is doing.
         float[] deflect = shown ? null : BatmanReflexFx.deflect(e.getId(), now);
-        if (deflect != null) BatmanMotion.deflect(pose, (int) deflect[0], deflect[1]);
+        if (deflect != null) BatmanMotion.deflect(pose, (int) deflect[0], deflect[1], deflect[2]);
         // The pose the next move fades from (without this frame's look, which is added again every frame).
         blend.last = pose.copy();
         blend.last.add(PELVIS_YAW, -addPelvis).add(SPINE_YAW, -addSpine).add(CHEST_YAW, -addChest).add(CHEST_PITCH, -addPitch);
@@ -250,11 +250,8 @@ public final class BatmanLayer extends RenderLayer<AbstractClientPlayer, PlayerM
         BatmanBody.CANNON[0] = BatmanBody.CANNON[1] = shown || s == null ? 0 : BatmanCannonFx.deployed(s, action, t);
         BatmanBody.SHOCK[0] = BatmanBody.SHOCK[1] = shown || s == null ? 0 : BatmanShockFx.worn(s, action, t);
         BatmanBody.shockEnergy = s == null ? 1 : s.energy;
-        // The cape block: the cape itself drawn round in front of him (the cloth behind stays still meanwhile).
-        float[] shield = shown ? null : BatmanReflexFx.capeShield(e.getId(), now);
-        BatmanBody.capeShield = shield == null ? 0 : shield[0];
-        BatmanBody.capeRipple = shield == null ? 0 : shield[1];
-        BatmanBody.capeGrab = 0;
+        // The cape block: his right hand holds the cape's edge and the cloth itself follows it round in front.
+        BatmanBody.capeGrab = shown ? 0 : BatmanReflexFx.capeGrab(e.getId(), now);
 
         // ---- draw: the body (reporting the cape's frame and the hands), then the cape
         BatmanBody.capture = true;
@@ -267,7 +264,6 @@ public final class BatmanLayer extends RenderLayer<AbstractClientPlayer, PlayerM
             BatmanBody.CANNON[0] = BatmanBody.CANNON[1] = 0;
             BatmanBody.SHOCK[0] = BatmanBody.SHOCK[1] = 0;
             BatmanBody.capeGrab = 0;
-            BatmanBody.capeShield = BatmanBody.capeRipple = 0;
         }
         FRAME.spread = glide * (action == IDLE ? 1 : .35f) * (1 - .6f * dive);
         CapeCloth.draw(p, b, light, e, partial, e.getId(), FRAME, CAPE);

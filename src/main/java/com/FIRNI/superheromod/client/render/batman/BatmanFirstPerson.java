@@ -222,7 +222,7 @@ public final class BatmanFirstPerson {
         // ---- a reflex deflect plays over whatever the arms are doing (the cape sheet itself is drawn in hand())
         var mc = Minecraft.getInstance();
         float[] d = mc.player == null ? null : BatmanReflexFx.deflect(mc.player.getId(), now);
-        if (d != null) deflect((int) d[0], d[1]);
+        if (d != null) deflect((int) d[0], d[1], d[2]);
         // ---- the wrist cannon (its own block below)
         if (action == CANNON) cannon(t, s);
         // ---- the electric gauntlets: the boxer's guard, the heavy blows, locking on and coming off (its own block below)
@@ -248,8 +248,8 @@ public final class BatmanFirstPerson {
      * the guard kept up (the view sways with it), or the cape: the right hand reaches back for its edge and drags it
      * across in front (hand() draws the cloth), holds it, lets it drop.
      */
-    private static void deflect(int kind, float t) {
-        float len = BatmanMotion.deflectLength(kind);
+    private static void deflect(int kind, float t, float hold) {
+        float len = BatmanMotion.deflectLength(kind, hold);
         float w = k(t, 0, 1.2f) * (1 - k(t, len - 3, len));
         if (w <= 0) return;
         float sweep = k(t, 1, 3.5f);
@@ -278,12 +278,13 @@ public final class BatmanFirstPerson {
                 wr.x -= .1f * s * sway; wl.x -= .1f * s * sway; wr.y -= .06f * sway; wl.y -= .06f * sway;
             }
             default -> {
-                // The cape: reaching back to the right for its edge, then dragged high across the face.
-                float across = k(t, 1.2f, 4.5f), drop = k(t, len - 5, len);
-                Arm back = DA[0].set(.78f, -.55f, -.42f, -55, -60, 0, .95f), held = DB[0].set(-.08f, -.2f, -.62f, -122, 62, -30, .95f);
-                wr.lerp(back, held, across);
-                wr.y -= .5f * drop;
-                wl.set(-.4f, -.62f, -.62f, -95, -20, 15, 1);
+                // The cape: the right hand goes back to its edge at his right, then draws it across to his left front;
+                // held; drawn back to the right and out of sight.
+                float back = BatmanMotion.CAPE_ACROSS + Math.max(BatmanMotion.CAPE_HOLD_MIN, hold);
+                float across = k(t, BatmanMotion.CAPE_GRIP, BatmanMotion.CAPE_ACROSS) * (1 - k(t, back, back + BatmanMotion.CAPE_LET_GO));
+                Arm side = DA[0].set(.82f, -.62f, -.38f, -50, -65, 0, 1), held = DB[0].set(-.12f, -.32f, -.6f, -100, 70, -25, 1);
+                wr.lerp(side, held, across);
+                wl.set(-.34f, -.66f, -.6f, -95, -25, 15, 1);
             }
         }
         r.toward(wr, w);
@@ -294,9 +295,11 @@ public final class BatmanFirstPerson {
         var mc = Minecraft.getInstance();
         float[] d = mc.player == null ? null : BatmanReflexFx.deflect(mc.player.getId(), now);
         if (d == null || (int) d[0] != BLOCK_CAPE) return null;
-        float t = d[1], len = BatmanMotion.deflectLength(BLOCK_CAPE);
-        float across = k(t, 1.2f, 4.5f), drop = k(t, len - 5, len);
-        return new float[]{Mth.lerp(across, 1.0f, .1f), Mth.lerp(across, -.2f, .02f) - 1.1f * drop, Mth.lerp(across, -65, -6), Math.max(0, 1 - t / 7f)};
+        float t = d[1], back = BatmanMotion.CAPE_ACROSS + Math.max(BatmanMotion.CAPE_HOLD_MIN, d[2]);
+        // Drawn in from his right, held across, drawn back out to his right (never dropped in front of him).
+        float across = k(t, BatmanMotion.CAPE_GRIP, BatmanMotion.CAPE_ACROSS) * (1 - k(t, back, back + BatmanMotion.CAPE_LET_GO));
+        if (across <= .01f) return null;
+        return new float[]{Mth.lerp(across, 1.25f, .1f), Mth.lerp(across, -.3f, .02f), Mth.lerp(across, -75, -6), Math.max(0, 1 - Math.abs(t - back + 4) / 6f) * .6f};
     }
     /** Out of sight, or (after a fight) the guard at the edges of the view. */
     private static Arm rest(Arm a, int side, boolean guard) {
