@@ -102,6 +102,15 @@ public final class BatmanReflexFx {
         if (t < 0 || t > BatmanMotion.deflectLength(b.kind())) return null;
         return new float[]{b.kind(), t};
     }
+    /** The cape drawn round in front of him now: {how far round (0..1), the blow's ripple (0..1)}, or null. */
+    static float[] capeShield(int batman, float now) {
+        float[] d = deflect(batman, now);
+        if (d == null || (int) d[0] != BLOCK_CAPE) return null;
+        float t = d[1], len = BatmanMotion.deflectLength(BLOCK_CAPE);
+        float round = com.FIRNI.superheromod.client.render.panther.PantherMotion.k(t, .8f, 4f) * (1 - com.FIRNI.superheromod.client.render.panther.PantherMotion.k(t, len - 4.5f, len));
+        float ripple = t > 3 && t < 10 ? 1 - (t - 3) / 7 : 0;
+        return new float[]{round, ripple};
+    }
     /** How firmly his right hand holds the cape's edge now (0..1). */
     static float capeGrab(int batman, float now) {
         float[] d = deflect(batman, now);

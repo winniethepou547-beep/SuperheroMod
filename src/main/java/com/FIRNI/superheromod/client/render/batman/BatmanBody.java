@@ -52,6 +52,11 @@ public final class BatmanBody {
     public static float shockEnergy = 1;
     /** The right hand holds the cape's edge (0..1: the reflex block's cape sweep), set by the layer per draw. */
     public static float capeGrab;
+    /**
+     * The reflex block's cape pulled round in front of him (set by the layer per draw): how far round it has come
+     * (0 hanging behind his right side .. 1 wrapped across his front), and the ripple of the blow on it (0..1).
+     */
+    public static float capeShield, capeRipple;
     public static final int[] HOLD = {HOLD_NONE, HOLD_NONE};
     /** The held thing's number: the fan's count, the pellet's gadget, the gun's hook out (0..1), the mine's blink. */
     public static final float[] HOLD_ARG = {0, 0};
@@ -157,6 +162,7 @@ public final class BatmanBody {
         p.mulPose(Axis.YP.rotation(v[CHEST_YAW])); p.mulPose(Axis.XP.rotation(v[CHEST_PITCH])); p.mulPose(Axis.ZP.rotation(v[CHEST_ROLL]));
         chest(p, b, light);
         if (cape != null) capeTop(p);
+        if (capeShield > .01f) capeShield(p, b, light, capeShield, capeRipple, time);
         for (int side = 0; side < 2; side++) {
             int s = side == 0 ? -1 : 1;
             int o = side == 0 ? R : L;
@@ -177,6 +183,35 @@ public final class BatmanBody {
         p.popPose();
         p.popPose();
         cape = null;
+    }
+
+    // ------------------------------------------------------------------ the cape pulled round in front (the reflex block)
+    /**
+     * In the chest's frame: the cape swept round from behind his right shoulder and drawn across his whole front like a
+     * curtain, from above his head (where his right hand holds the edge) down to his knees, bellying out in front; the
+     * folds run down it and the blow's ripple spreads from the middle. round 0..1 swings it from behind to the front.
+     */
+    private static void capeShield(PoseStack p, MultiBufferSource b, int light, float round, float ripple, float time) {
+        int cols = 9, rows = 8;
+        float centre = Mth.lerp(round, -2.0f, 0f);       // radians round his body (0 = straight ahead)
+        float span = Mth.lerp(round, .7f, 2.5f);          // how far round the front it spreads
+        for (int c = 0; c < cols; c++) {
+            float u = (c + .5f) / cols - .5f;             // -0.5 his right .. 0.5 his left
+            float th = centre + u * span;
+            for (int r = 0; r < rows; r++) {
+                float v = (r + .5f) / rows;               // 0 top .. 1 bottom
+                // It bellies out further down, and folds in and out across it.
+                float radius = 6.2f + 2.4f * v + .9f * Mth.sin(c * 1.7f + .5f) * (.3f + .7f * v);
+                float wave = ripple * 1.8f * Mth.sin(Mth.sqrt(u * u * 6 + (v - .4f) * (v - .4f)) * 10 - (1 - ripple) * 16);
+                radius += wave + .25f * Mth.sin(time * .3f + c + r) * v;
+                // The top edge rises toward his right hand (held high across his face).
+                float top = -11.5f + 2.2f * (u + .5f);
+                float y = top + v * (24f - (top + 11.5f) * .5f);
+                float x = radius * Mth.sin(th), z = -radius * Mth.cos(th);
+                float w = span * radius / cols * 1.15f, h = 24f / rows * 1.12f;
+                part(p, b, light, x, y, z, 0, -th, 0, w, h, .55f, (c + r) % 2 == 0 ? ARMOR : SUIT_DARK);
+            }
+        }
     }
 
     // ------------------------------------------------------------------ the cape's frame

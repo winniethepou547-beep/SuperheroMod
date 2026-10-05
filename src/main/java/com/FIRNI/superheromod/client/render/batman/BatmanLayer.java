@@ -250,7 +250,11 @@ public final class BatmanLayer extends RenderLayer<AbstractClientPlayer, PlayerM
         BatmanBody.CANNON[0] = BatmanBody.CANNON[1] = shown || s == null ? 0 : BatmanCannonFx.deployed(s, action, t);
         BatmanBody.SHOCK[0] = BatmanBody.SHOCK[1] = shown || s == null ? 0 : BatmanShockFx.worn(s, action, t);
         BatmanBody.shockEnergy = s == null ? 1 : s.energy;
-        BatmanBody.capeGrab = shown ? 0 : BatmanReflexFx.capeGrab(e.getId(), now);
+        // The cape block: the cape itself drawn round in front of him (the cloth behind stays still meanwhile).
+        float[] shield = shown ? null : BatmanReflexFx.capeShield(e.getId(), now);
+        BatmanBody.capeShield = shield == null ? 0 : shield[0];
+        BatmanBody.capeRipple = shield == null ? 0 : shield[1];
+        BatmanBody.capeGrab = 0;
 
         // ---- draw: the body (reporting the cape's frame and the hands), then the cape
         BatmanBody.capture = true;
@@ -263,6 +267,7 @@ public final class BatmanLayer extends RenderLayer<AbstractClientPlayer, PlayerM
             BatmanBody.CANNON[0] = BatmanBody.CANNON[1] = 0;
             BatmanBody.SHOCK[0] = BatmanBody.SHOCK[1] = 0;
             BatmanBody.capeGrab = 0;
+            BatmanBody.capeShield = BatmanBody.capeRipple = 0;
         }
         FRAME.spread = glide * (action == IDLE ? 1 : .35f) * (1 - .6f * dive);
         CapeCloth.draw(p, b, light, e, partial, e.getId(), FRAME, CAPE);
