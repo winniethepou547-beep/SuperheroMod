@@ -288,7 +288,10 @@ landing spot and the target to the crater.
   `BatmanCannon`/`BatmanCannonFx` (deploy/fire/retract on the CANNON clock, fake light splashes on block faces, `cannon_*` sounds),
   sonic trap `BatmanSonic`/`BatmanSonicFx` (two `SonicEmitterEntity` (ModEntities `sonic_emitter`, 8 HP, `SonicEmitterRenderer`) rise,
   track and pulse the target: 0 damage, speed modifier, the target's own client shakes, `batman_sonic` post shader, muffled
-  sounds; sounds played per role); the thermal sensor and the mine were removed), E = grapnel gun out
+  sounds; sounds played per role; the wave is drawn as one continuous stream per emitter while it pulses, `BatmanSonicFx.stream`),
+  Batmobile (`G_BATMOBILE` 5: `BatmanBatmobile` call/send away, `BatmobileEntity` (ModEntities `batmobile`, server-driven path: run-up from
+  behind, brake, drift park beside him, leave; noSave) + `BatmobileRenderer` (Arkham Knight box model, turning wheels, turbine, lights);
+  its other features are undecided); the thermal sensor and the mine were removed), E = grapnel gun out
   (LMB fires; block = pull, body = GRAPNEL_STRIKE combo, which at `STRIKE_KICK` sticks a bomb on the back of their head
   (`BatmanSticky`, `STICKY_FUSE` 2.5 s, blast + airtime stagger; drawn by `BatmanFx` via `stickyAt`); RMB on a body = GRAPNEL_YANK: line round the legs, left hand hauls, target
   DOWNED on its back and dragged `DRAG_DIST` 4.4, then BOUND (`BatmanBind` server / `BatmanBound` client: coils drawn, a bound
@@ -300,14 +303,19 @@ landing spot and the target to the crater.
   SHIFT held = run (sprint, 1.3x; vanilla sneak cleared in `BatmanClient.run`), CTRL (raw) = Elden Ring
   dive roll (`DODGE_TICKS` 16, `DODGE_DIVE`, 7 blocks, i-frames, 3 s cooldown `rollCooldown`), SPACE held in the air = cape glide
   (gravity/drag undone in `steer` so it really glides; only a steep dive speeds up; the cape opens into a big wing:
-  `CapeCloth.Style.wingReach`). No time slow on the wheel (multiplayer). Gadget cooldown slot = gadget number.
+  `CapeCloth.Style.wingReach`). No time slow on the wheel (multiplayer). Gadget cooldown slot = gadget number (CD_BATMOBILE 5, then grapnel 6, roll 7, reflex 8).
+  RMB Batarang charge survives the CTRL roll (`throwAfterRoll`: let go mid-roll, thrown when the roll ends). Electric gauntlets never
+  recharge while worn: empty, they come off by themselves after the blow in hand and the gadget waits `emptyCooldownSeconds`; put on
+  again, full. SHIFT run reads `keyShift` directly (`HeroSneakSuppressor` may clear the input's flag first). `/blokdene bos|yakin|uzak`
+  (`core/command/BlockTestCommands`, `testBlock` hooks in Batman/Panther controllers) plays the block moves on demand.
 - Thermal vision `BatmanThermal` (own client; only automatic: while his own smoke is out — `BatmanFx.smokeOut` reads the
   clouds themselves — or while he stands in any smoke; an action-bar "Termal görüş" and a log line when it comes on). NO
   post chain (the PostChain version never showed in game) and NOT at `AFTER_LEVEL` either (that never showed in game
   too): the view/projection are captured at `AFTER_TRANSLUCENT_BLOCKS`, and at `RenderGuiEvent.Pre` a full-screen multiply
   quad turns the finished picture into the cold world (`coldWorld`), then living bodies in range are redrawn with those
   matrices through `HeatBuffers` (every model vertex coloured from the iron palette `iron()` by body height/axis distance;
-  render types filtered by their NAME only — the state string contains "texture[...]") in one no-depth translucent pass,
+  render types filtered by their NAME only — the state string contains "texture[...]") in one no-depth translucent pass (never
+  his own body),
   additive halos, the ground scan wave and hot weapons; the lens vignette, switch glitch, corner marks and crosshair
   brackets are on its HUD (Post). Someone else's smoke screen (`BatmanVision`) is skipped while his thermal is on.
   `BatmanVision` = flash white-out (blinded) / glimpse (not), near-black smoke screen for others; the outline mixins are inert.
@@ -324,10 +332,14 @@ landing spot and the target to the crater.
   `BatmanUltBeats` (shared with the server `BatmanUltSession`: target held, damage at `WALL`, downed + staggered at the end).
   `client/render/batman/KnightPath` = master timeline (yard layout: lamp at the origin, warehouse wall +z where the target is
   pinned, tall block -z with the grapnel spot, fire escape -x, low roofs +x; Batman `Act` per moment: glimpses that vanish in
-  a blink, the shape over the roofs, grapnel from the roof edge, leap, bomb, kick from below upside down, thrown up, circling
-  glide, forearm call, dive, landing, the throw back over the shoulder without looking, turn, grapnel exit; Batwing path
-  (lights far off, circle + scan, pass); Batarang path; flashes; camera `view`/`kick`). `KnightTarget` = the target (centre,
-  yaw, tumble about the middle, `FilmCast.Track` poses + look keys, tint by lamp/moon/scan). `KnightStage` draws it: vertex-lit
+  three ways (`vanish()`: G1 melts into the dark with the eyes last, G2/G4 a smoke burst, G3 an eyelid blink drawn in the
+  film's overlay), the shape over the roofs, grapnel from the roof edge, leap, bomb, kick from below upside down, thrown up,
+  circling glide, forearm call, dive, landing, the throw back over the shoulder without looking, turn, grapnel exit; Batwing
+  (lights far off, a flyover straight over the target and the camera into an orbit ABOVE them, pivoting to keep the nose on
+  them, a round every tick `fires()`/`ROUND_SPEED` during SCAN..SCANNED (no scan beam any more), a last burst and pass);
+  Batarang path; flashes; camera `view`/`kick`). `KnightTarget` = the target (rises to an apex at 240 and falls from there:
+  speed keys `FALL` integrated by `fallen()`, the apex height derived so the fall ends at the Batarang hit; faster under the
+  guns; yaw, tumble about the middle, `FilmCast.Track` poses + look keys, tint by lamp/moon/gunfire). `KnightStage` draws it: vertex-lit
   wet asphalt and brick (lamp cone falloff `lamp()`, `wallLamp()`), buildings, fire escape, spire, water tower, junk, lamp cone
   and pool, fog, rain round the camera, Batman via `BatmanBody` + `CapeCloth` on a dummy ArmorStand at y -4000 (model-space
   cape), the puppet turned about its middle, Batwing box mesh + lights + scan, bomb blast (cold shock), smoke trail, Batarang
@@ -351,7 +363,9 @@ landing spot and the target to the crater.
 
 ## Other state
 - Ghost Rider gameplay: chain combos with real chain physics, R hellfire breath (damage every second), Hell Cycle
-  bike, F hell-pit slam. Keep the physics checks passing.
+  bike, F hell-pit slam. Keep the physics checks passing. `GhostChainRenderer.pose` sets the model arms only from the same fresh
+  pose the layer draws (`motion()`, 20-tick staleness) — a stale sample used to freeze the arms up; the vanilla click swing is off
+  for him (`GhostClientEvents.noSwing`). Watch brace-less ifs when layering sounds (two whips once played every tick).
 - Sandman: Colossus ultimate is parked ("later"). `ColossusPose.couple` keeps torso and dune one body: the dune leans about its
   foot and squashes/widens to follow the waist (min 55%, then it lifts the torso); the slam and the forming crouch bend at the waist. Cyclops: sounds still unfinished.
 - Large local-only folders are gitignored: `tmp/`, `references/` (reference videos), `logs/`.
