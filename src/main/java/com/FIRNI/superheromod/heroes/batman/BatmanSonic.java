@@ -58,7 +58,7 @@ public final class BatmanSonic {
     public static final int FX_DAMAGED = FX_SONIC_FIRST + 2;
 
     /** How far out from the line to the target (× SONIC_DISTANCE), how far short of the target, a little scatter (blocks). */
-    private static final double SIDE_OUT = .55, SHORT_OF = .35, SCATTER = .6;
+    private static final double SIDE_OUT = .825, SHORT_OF = .525, SCATTER = .6;
     /** How far round the wanted spot to look for ground (blocks across, up, down). */
     private static final int SEARCH = 3, SEARCH_UP = 3, SEARCH_DOWN = 6;
 

@@ -160,6 +160,22 @@ public final class SonicEmitterEntity extends Entity {
         if (hp <= 0) entityData.set(BROKEN, (int) level().getGameTime());
         return true;
     }
+    /**
+     * A left click of anyone's (the heroes' own attacks only look for living bodies, so an emitter in front of them is
+     * struck here): the nearest emitter within reach in front of them takes a blow.
+     */
+    public static void struckBy(net.minecraft.server.level.ServerPlayer p) {
+        Vec3 eye = p.getEyePosition(), look = p.getLookAngle();
+        SonicEmitterEntity best = null;
+        double bestD = 4.2;
+        for (SonicEmitterEntity e : p.level().getEntitiesOfClass(SonicEmitterEntity.class, p.getBoundingBox().inflate(4.5))) {
+            if (!e.isPickable()) continue;
+            Vec3 to = e.head().subtract(eye);
+            double d = to.length();
+            if (d < bestD && (d < 1.4 || to.normalize().dot(look) > .55)) { best = e; bestD = d; }
+        }
+        if (best != null) best.hurt(p.damageSources().playerAttack(p), 2f);
+    }
     /** Batman's own hits never count, nor (without friendly fire) his allies'. */
     private boolean friendly(Entity by) {
         if (by.getId() == ownerId()) return true;
