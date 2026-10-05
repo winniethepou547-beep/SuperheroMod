@@ -36,9 +36,9 @@ public final class BatmanUltBeats {
     // ---- the Batwing (SCAN..SCANNED: its guns firing as it circles)
     public static final int CALL = 296, SIGNAL = 302, LIGHTS = 312, ARRIVE = 328, SCAN = 336, SCANNED = 392, PASS_BY = 398, DROP = 401;
     // ---- the Batarang
-    public static final int ROOF = 414, RAISE = 422, THROW = 434, HIT = 444, WALL = 450;
+    public static final int ROOF = 414, RAISE = 421, THROW = 429, HIT = 444, WALL = 454;
     // ---- gone
-    public static final int TURN = 462, GUN = 470, FIRE2 = 478, BITE2 = 482, HAUL = 484, CABLE = 494;
+    public static final int TURN = 468, GUN = 476, FIRE2 = 484, BITE2 = 488, HAUL = 490, CABLE = 500;
     /** The stage ends (fading to black before it), then a moment of the world to hand back gently. */
     public static final int STAGE_END = 560, TOTAL = 580;
 }

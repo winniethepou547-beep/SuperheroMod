@@ -74,6 +74,7 @@ public final class KnightStage {
         smoke(fx, t);
         batarangTrail(fx, t);
         wallHit(fx, t);
+        sparks(fx, t);
         eyesAndSignal(fx, t);
         rain(fx, t);
         fxBuffers.endBatch();
@@ -537,16 +538,55 @@ public final class KnightStage {
             p.translate(0, 0, .08);
         }
         p.scale(2.4f, 2.4f, 2.4f);
-        float l = Math.max(.25f, wallLamp(at.x, at.y, at.z));
+        float l = Math.max(t < WALL ? .7f : .25f, wallLamp(at.x, at.y, at.z));
         BatmanGear.batarang(p, BatmanGear.buffer(c.buffers()), LightTexture.pack(Math.round(l * 15), 0), 1);
         p.popPose();
     }
     private static void batarangTrail(FilmContext c, float t) {
         if (t < THROW || t > WALL + 2) return;
-        Vec3 head = batarang(Math.min(t, WALL)), tail = batarang(Math.max(THROW, Math.min(t, WALL) - 2.5f));
+        Vec3 head = batarang(Math.min(t, WALL)), tail = batarang(Math.max(THROW, Math.min(t, WALL) - 4f));
         if (head == null || tail == null) return;
-        FilmFx.streak(c, tail, head, .06, 0xdfeaff, 0, .55f, true);
-        FilmFx.glow(c, head, .3, 0xe6f0ff, t < HIT ? .35f : .15f);
+        FilmFx.streak(c, tail, head, .09, 0xdfeaff, 0, .6f, true);
+        // A cold glint on its blades as it spins: it is the one bright thing in the air.
+        float glint = .45f + .35f * Math.abs(Mth.sin((t - THROW) * 1.9f));
+        FilmFx.glow(c, head, .45, 0xe6f0ff, t < HIT ? glint : .2f);
+        FilmFx.glow(c, head, 1.1, 0x9fb8ff, t < HIT ? .18f : .08f);
+    }
+    /**
+     * Sparks: a burst of metal on the body where the Batarang strikes (HIT), the rest dragged along with it into the
+     * wall, and a big spray off the brick when it pins them (WALL), falling and dying out.
+     */
+    private static void sparks(FilmContext c, float t) {
+        burst(c, t - HIT, batarang(HIT), 16, 1, 7);
+        burst(c, t - WALL, stuck(), 30, 2, 13);
+        // Dragged along the carry: a few sparks shed behind it as it rides the body in.
+        if (t >= HIT && t < WALL) for (int i = 0; i < 4; i++) {
+            Vec3 a = batarang(t - .3f * i), b = batarang(t - .3f * i - .5f);
+            if (a == null || b == null) continue;
+            Vec3 off = new Vec3(FilmFx.hash(i * 3.1 + Math.floor(t)) - .5, FilmFx.hash(i * 5.3 + Math.floor(t)) - .7, FilmFx.hash(i * 7.7 + Math.floor(t)) - .5).scale(.4);
+            FilmFx.streak(c, b.add(off), a.add(off.scale(.5)), .02, 0xffcf7a, 0, .8f, true);
+        }
+    }
+    /** One spray of sparks d ticks after it began at the point (kind 1: off a body, all round; 2: off the wall, out of it). */
+    private static void burst(FilmContext c, float d, Vec3 at, int count, int kind, float life) {
+        if (at == null || d < 0 || d > life) return;
+        if (d < 3) {
+            FilmFx.glow(c, at, (kind == 2 ? 1.6 : 1.0) * (1 - d / 3), 0xfff2d0, .9f * (1 - d / 3));
+            FilmFx.ring(c, at, .2 + (kind == 2 ? 1.6 : 1.0) * d / 3, .06, 0xffe0a0, .6f * (1 - d / 3), true);
+        }
+        for (int i = 0; i < count; i++) {
+            double a = FilmFx.hash(i * 3.7 + kind) * Math.PI * 2, e = (FilmFx.hash(i * 5.9 + kind) - .35) * 1.6;
+            double sp = .25 + .35 * FilmFx.hash(i * 8.3 + kind);
+            Vec3 v = new Vec3(Math.cos(a) * Math.cos(e), Math.sin(e), Math.sin(a) * Math.cos(e)).scale(sp);
+            // Off the wall they fly out of it (toward -z), spread flat along the brick.
+            if (kind == 2) v = new Vec3(v.x * 1.3, v.y + .08, -Math.abs(v.z) * .8 - .12);
+            float my = life * (.55f + .45f * (float) FilmFx.hash(i * 1.3 + kind));
+            if (d > my) continue;
+            Vec3 head = at.add(v.scale(d)).add(0, -.018 * d * d, 0);
+            Vec3 tail = at.add(v.scale(Math.max(0, d - .9))).add(0, -.018 * Math.max(0, d - .9) * Math.max(0, d - .9), 0);
+            float fade = 1 - d / my;
+            FilmFx.streak(c, tail, head, .028, fade > .5f ? 0xfff0c0 : 0xffa040, 0, .95f * fade, true);
+        }
     }
     private static void wallHit(FilmContext c, float t) {
         float d = t - WALL;
@@ -685,6 +725,13 @@ public final class KnightStage {
     private static void eyesAndSignal(FilmContext c, float t) {
         KnightPath.Act a = KnightPath.batman(t, c.time());
         if (!a.shown) return;
+        // High in the sky: a cold haze of moonlight in the cloud right behind him, so his black shape stands out.
+        float sky = window(t, BLAST + 6, DROP + 4, 6);
+        if (sky > 0) {
+            Vec3 m = a.middle(), away = m.subtract(c.camera()).normalize();
+            FilmFx.glow(c, m.add(away.scale(1.4)), 2.6 + 1.2 * a.spread, 0x5a72a8, .24f * sky);
+            FilmFx.glow(c, m.add(away.scale(.8)), 1.3, 0x9fb4e0, .14f * sky);
+        }
         // In the dark his eyes are what you see.
         if (eyes != null) FilmFx.glow(c, eyes, .32, 0xdcecff, (.3f + .25f * (1 - a.light)) * (1 - .5f * a.dark));
         if (a.signal > 0 && handLeft != null) {

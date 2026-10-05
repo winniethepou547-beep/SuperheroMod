@@ -158,6 +158,8 @@ final class DarkKnightFilm implements Film {
         add(c, RAISE + 5, SoundEvents.ARMOR_EQUIP_IRON, .4f, 1.7f);
         add(c, THROW, ModSounds.BATMAN_BATARANG.get(), 1f, .9f);
         add(c, THROW, SoundEvents.PLAYER_ATTACK_SWEEP, .5f, 1.4f);
+        add(c, THROW + 6, ModSounds.BATMAN_BATARANG.get(), .7f, 1.15f);
+        add(c, THROW + 10, ModSounds.FX_WHOOSH_LIGHT.get(), .6f, 1.3f);
         add(c, HIT, ModSounds.FX_IMPACT_METAL.get(), .9f, 1f);
         add(c, HIT, SoundEvents.PLAYER_HURT, .6f, .8f);
         add(c, WALL, SoundEvents.ANVIL_LAND, .7f, 1.3f);

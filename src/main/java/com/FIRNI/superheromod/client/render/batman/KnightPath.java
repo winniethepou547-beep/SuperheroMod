@@ -167,7 +167,8 @@ public final class KnightPath {
         }
         // ---- thrown up after them by the blast, turning upright, opening into the glide round them
         if (t >= BLAST && t < DROP) {
-            a.shown = true; a.light = .1f + .1f * k(t, 228, 252);
+            // Moonlit up here (and lit by the guns' flicker) so his shape reads against the sky.
+            a.shown = true; a.light = Math.min(1, .22f + .2f * k(t, 222, 250) + .35f * gunLight(t));
             Vec3 target = KnightTarget.centre(t);
             float lag = clamp((t - BLAST) / 14f);
             Vec3 follow = target.add(1.6 * ease(lag), -1.2 - 2.6 * ease(lag), 1.0 * ease(lag));
@@ -356,13 +357,15 @@ public final class KnightPath {
     /** The Batarang (null when not out): thrown back over his shoulder, it curves out and meets them; then it carries them onto the wall and stays in it. */
     public static Vec3 batarang(float t) {
         if (t < THROW) return null;
-        if (t < HIT) {
-            Vec3 from = LAND.add(.42, 2.45, -.05), to = KnightTarget.point(HIT, .3, .55, .1);
-            Vec3 ctrl = from.lerp(to, .5).add(2.4, 1.6, -.8);
-            return bezier(from, ctrl, to, clamp((t - THROW) / (HIT - THROW)));
-        }
+        if (t < HIT) return batarangAlong((t - THROW) / (HIT - THROW));
         if (t < WALL) return KnightTarget.point(t, .3, .55, .1);
         return stuck();
+    }
+    /** Its curve from his hand (0) to them (1); a little past either end carries on along it (the chase camera rides it). */
+    public static Vec3 batarangAlong(float u) {
+        Vec3 from = LAND.add(.42, 2.45, -.05), to = KnightTarget.point(HIT, .3, .55, .1);
+        Vec3 ctrl = from.lerp(to, .5).add(2.4, 1.6, -.8);
+        return bezier(from, ctrl, to, u);
     }
     /** Where the Batarang sits in the wall: through their jacket at the shoulder. */
     public static Vec3 stuck() { return new Vec3(KnightTarget.PINNED.x - .3, KnightTarget.PINNED.y + .55, WALL_Z - .03); }
@@ -439,6 +442,11 @@ public final class KnightPath {
         if (b >= 0 && b < 8) f = Math.max(f, (float) Math.exp(-b / 2.2));
         float p = t - PASS_BY;
         if (p >= 0 && p < 6) f = Math.max(f, .35f * (float) Math.exp(-p / 1.8));
+        // The Batarang striking them, and the wall taking them: a short white bite each.
+        float h = t - HIT;
+        if (h >= 0 && h < 4) f = Math.max(f, .3f * (float) Math.exp(-h / 1.2));
+        float w = t - WALL;
+        if (w >= 0 && w < 5) f = Math.max(f, .5f * (float) Math.exp(-w / 1.4));
         return f;
     }
     /** Distant lightning in the cloud (the backdrop's flash). */
@@ -499,13 +507,12 @@ public final class KnightPath {
             // From high above: both rising toward us, the city's grid far below.
             float u = (t - 228) / (HIGH - 228);
             Vec3 top = KnightTarget.centre(Math.min(t, KnightTarget.APEX_T));
-            return new Film.View(new Vec3(1.2 + 2 * u, top.y + 22, -15.5), tc.add(0, -2, 0), 52, 0);
+            Vec3 bat = batman(t, t).middle();
+            return new Film.View(new Vec3(tc.x + 1.2 + 2 * u, top.y + 11, tc.z - 7.5), tc.lerp(bat, .45).add(0, -1, 0), 50, 0);
         }
-        if (t < CALL) {
-            // The wide: the dark sky, the cloud, the city, the body turning over and the glider round it.
-            float a = .6f + .5f * (t - HIGH) / (CALL - HIGH);
-            return new Film.View(tc.add(26 * Mth.cos(a), 3.5, 26 * Mth.sin(a)), tc.add(0, -1.2, 0), 40, 0);
-        }
+        // Close on him gliding: first from behind (his back, the wings, the body turning over beyond him), then abreast.
+        if (t < 274) return glideShot(t, false);
+        if (t < CALL) return glideShot(t, true);
         if (t < LIGHTS) {
             // Close on his forearm.
             Act b = batman(t, t);
@@ -519,32 +526,57 @@ public final class KnightPath {
             return new Film.View(tc.subtract(dir.scale(8)).add(side.scale(2.2)).add(0, 1.6, 0), aim, 46 + 8 * k(t, ARRIVE - 8, ARRIVE), 0);
         }
         if (t < 352) return new Film.View(tc.add(13, -4, -9), tc.add(0, 1, 0), 58, 0);
-        if (t < SCANNED) {
+        if (t < 376) {
             float a = .7f + (t - 352) * .011f;
             return new Film.View(tc.add(5.5 * Mth.cos(a), .7, 5.5 * Mth.sin(a)), tc.add(0, .3, 0), 48, 0);
         }
+        // Him, gliding wide of the guns, the rain of rounds on the body beyond him.
+        if (t < SCANNED) return glideShot(t, true);
         if (t < DROP) return new Film.View(tc.add(3.2, -.8, -2.6), tc, 54, 0);
         if (t < ROOF - 2) {
             // Above the falling body, looking down past it: the smoke streams up at us, the yard comes up below.
             return new Film.View(tc.add(1.0, 7, -3.2), tc.add(0, -6, 1.1), 58, 0);
         }
         if (t < RAISE) return new Film.View(new Vec3(2.7, .45, -6.6), new Vec3(0, 1, -2.2), 46, 0);
-        if (t < THROW + 2) {
+        if (t < THROW + 1) {
             // Behind him, low: his back, the hand rising with the Batarang; the falling body sweeps over him.
             float w = .55f * k(t, RAISE + 2, THROW);
             Vec3 head = LAND.add(0, 2.1, 0);
             return new Film.View(new Vec3(1.3, .55, 3.8), head.lerp(tc, w), 58, 0);
         }
+        if (t < HIT - 1) {
+            // Riding just behind the Batarang as it spins up its curve at them.
+            float u = (t - THROW) / (HIT - THROW);
+            Vec3 behind = batarangAlong(u - .2f), ahead = batarangAlong(u + .15f);
+            Vec3 along = ahead.subtract(behind).normalize(), side = along.cross(new Vec3(0, 1, 0)).normalize();
+            return new Film.View(behind.add(side.scale(.45)).add(0, .3, 0), ahead.lerp(tc, .3), 62, 0);
+        }
+        if (t < WALL + 12) {
+            // Side on along the wall: the body carried in on the Batarang, slammed into the brick, the sparks.
+            Vec3 pin = KnightTarget.PINNED;
+            float u = k(t, HIT, WALL);
+            return new Film.View(new Vec3(pin.x + 7.2, 3.4, WALL_Z - 4.2), tc.lerp(pin, .5 + .5 * u).add(0, .2, 0), 50 - 4 * u, 0);
+        }
         // In front of him; the yard, the light, the wall behind. It holds on after he is gone.
         float u = k(t, 500, STAGE_END);
-        Vec3 aim = new Vec3(.3, 5.5, 6).lerp(new Vec3(.3, 3.7, 6), k(t, THROW + 2, WALL));
+        Vec3 aim = new Vec3(.3, 3.7, 6);
         return new Film.View(new Vec3(.3, 1.45, -9.2).lerp(new Vec3(.3, 1.6, -8.2), u), aim, 50 - 2 * u, 0);
+    }
+
+    /** Close on him gliding high up: behind him and outside the circle, or abreast of him looking in at the target. */
+    private static Film.View glideShot(float t, boolean abreast) {
+        Act b = batman(t, t);
+        Vec3 m = b.middle(), tc = KnightTarget.centre(t), f = forward(b.yaw);
+        Vec3 out = new Vec3(m.x - tc.x, 0, m.z - tc.z);
+        out = out.lengthSqr() < 1e-6 ? new Vec3(1, 0, 0) : out.normalize();
+        if (!abreast) return new Film.View(m.subtract(f.scale(4.2)).add(out.scale(1.6)).add(0, 1.3, 0), m.lerp(tc, .28).add(0, .2, 0), 52, 0);
+        return new Film.View(m.add(out.scale(3.4)).add(f.scale(1.6)).add(0, .4, 0), m.lerp(tc, .12), 46, 0);
     }
 
     /** Kicks: yaw, pitch, roll, field of view (degrees). */
     public static float[] kick(float t) {
         float yaw = 0, pitch = 0, roll = 0, fov = 0;
-        float[][] hits = {{BITE, .8f}, {YANK, 1.6f}, {KICK, 1.4f}, {BLAST, 3.0f}, {ARRIVE - 3, 2.4f}, {PASS_BY, 2.2f}, {ROOF, .9f}, {HIT, .6f}, {WALL, 1.6f}};
+        float[][] hits = {{BITE, .8f}, {YANK, 1.6f}, {KICK, 1.4f}, {BLAST, 3.0f}, {ARRIVE - 3, 2.4f}, {PASS_BY, 2.2f}, {ROOF, .9f}, {HIT, 1.2f}, {WALL, 2.4f}};
         for (float[] h : hits) {
             float d = t - h[0];
             if (d < 0 || d > 20) continue;
