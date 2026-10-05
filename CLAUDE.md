@@ -301,12 +301,15 @@ landing spot and the target to the crater.
   dive roll (`DODGE_TICKS` 16, `DODGE_DIVE`, 7 blocks, i-frames, 3 s cooldown `rollCooldown`), SPACE held in the air = cape glide
   (gravity/drag undone in `steer` so it really glides; only a steep dive speeds up; the cape opens into a big wing:
   `CapeCloth.Style.wingReach`). No time slow on the wheel (multiplayer). Gadget cooldown slot = gadget number.
-- Thermal vision `BatmanThermal` (own client; only automatic, while his own smoke is out). NO post chain any more (the
-  PostChain version never showed in game): at `AFTER_LEVEL` a full-screen multiply quad turns the picture into the cold
-  world (`coldWorld`), then living bodies in range are redrawn through `HeatBuffers` (every model vertex coloured from the
-  iron palette `iron()` by body height/axis distance; render types filtered by their NAME only — the state string
-  contains "texture[...]") as a translucent through-walls pass and a depth-tested pass, additive halos, the ground scan
-  wave and hot weapons; the lens vignette, switch glitch, corner marks and crosshair brackets are on its HUD.
+- Thermal vision `BatmanThermal` (own client; only automatic: while his own smoke is out — `BatmanFx.smokeOut` reads the
+  clouds themselves — or while he stands in any smoke; an action-bar "Termal görüş" and a log line when it comes on). NO
+  post chain (the PostChain version never showed in game) and NOT at `AFTER_LEVEL` either (that never showed in game
+  too): the view/projection are captured at `AFTER_TRANSLUCENT_BLOCKS`, and at `RenderGuiEvent.Pre` a full-screen multiply
+  quad turns the finished picture into the cold world (`coldWorld`), then living bodies in range are redrawn with those
+  matrices through `HeatBuffers` (every model vertex coloured from the iron palette `iron()` by body height/axis distance;
+  render types filtered by their NAME only — the state string contains "texture[...]") in one no-depth translucent pass,
+  additive halos, the ground scan wave and hot weapons; the lens vignette, switch glitch, corner marks and crosshair
+  brackets are on its HUD (Post). Someone else's smoke screen (`BatmanVision`) is skipped while his thermal is on.
   `BatmanVision` = flash white-out (blinded) / glimpse (not), near-black smoke screen for others; the outline mixins are inert.
 - Stagger `BatmanStagger` (server: -60 % move/attack speed, next Batman blow ×`STAGGER_CRIT`, from the yank and the sticky
   bomb's airtime) + `BatmanStatus` (client: render transform for DOWNED (on the back, arms up via `downedArms` in `HeroArmPose`)

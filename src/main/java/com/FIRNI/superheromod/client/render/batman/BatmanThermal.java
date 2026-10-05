@@ -46,12 +46,13 @@ import java.util.*;
  * hot), bright where in sight and dimmer through walls; a thin scan wave runs out along the ground from him now and then
  * and bodies flare as it passes; the one in the crosshair is a little brighter with scan marks round it; a weapon that
  * has just fired is hot and cools down. Switching off (~0.4 s): a pulse, the colours come back, the vignette and the
- * corners go. Drawn straight onto the picture (no post effect to load): a full-screen multiply into the cold world, the
- * bodies redrawn in heat colours over it, the lens and the glitch on the HUD.
+ * corners go. Drawn straight onto the finished picture at the start of the GUI pass (no post effect to load): a
+ * full-screen multiply into the cold world, the bodies redrawn in heat colours over it with this frame's world matrices
+ * (taken while the level is drawn), the lens and the glitch on the HUD.
  *
- * It comes on by itself while his own smoke is out (to see the ones lost in it): every living thing in range, players
- * and mobs alike, glows through the smoke and through walls. Cost: nothing at all while off; while on, two extra
- * passes of the bodies in range (at most 40) and two full-screen quads.
+ * It comes on by itself while his own smoke is out, or while he stands in any smoke (to see the ones lost in it): every
+ * living thing in range, players and mobs alike, glows through the smoke and through walls. Cost: nothing at all while
+ * off; while on, one extra pass of the bodies in range (at most 40) and two full-screen quads.
  */
 @Mod.EventBusSubscriber(modid = SuperheroMod.MODID, value = Dist.CLIENT)
 public final class BatmanThermal {
@@ -85,7 +86,8 @@ public final class BatmanThermal {
         var mc = Minecraft.getInstance();
         if (mc.player == null || !BatmanClient.isHero(mc.player) || FilmDirector.playing()) return false;
         float t = now();
-        return t < autoUntil;
+        // His own smoke still out (read from the clouds themselves, not only the moment it burst), or he stands in any smoke.
+        return t < autoUntil || BatmanFx.smokeOut(mc.player.getId()) || BatmanFx.cloudAt(mc.gameRenderer.getMainCamera().getPosition()) != null;
     }
     @SubscribeEvent public static void tick(TickEvent.ClientTickEvent e) {
         if (e.phase != TickEvent.Phase.END) return;
@@ -97,7 +99,11 @@ public final class BatmanThermal {
             on = want; switchAt = now();
             mc.player.playSound(on ? net.minecraft.sounds.SoundEvents.BEACON_POWER_SELECT : net.minecraft.sounds.SoundEvents.BEACON_DEACTIVATE, .35f, on ? 1.9f : 2f);
             mc.player.playSound(com.FIRNI.superheromod.core.sound.ModSounds.BATMAN_MINE.get(), .25f, on ? 1.4f : 1.1f);
-            if (on) lastPulse = now() - PULSE_EVERY + 10;
+            if (on) {
+                lastPulse = now() - PULSE_EVERY + 10;
+                mc.player.displayClientMessage(net.minecraft.network.chat.Component.literal("§6Termal görüş"), true);
+                LOG.info("Batman thermal vision on");
+            }
         }
         float t = mc.level.getGameTime();
         SHOTS.values().removeIf(s -> t - s > 60);
@@ -141,31 +147,45 @@ public final class BatmanThermal {
     }
 
     // ------------------------------------------------------------------ the picture
+    /** This frame's view and projection, taken while the level is drawn (the GUI pass uses them). */
     @SubscribeEvent public static void render(RenderLevelStageEvent e) {
-        if (e.getStage() != RenderLevelStageEvent.Stage.AFTER_LEVEL) return;
-        var mc = Minecraft.getInstance();
-        float amount = amount();
-        matricesValid = false;
-        if (amount <= .002f || mc.level == null || mc.player == null) return;
+        if (e.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) return;
         VIEW.set(e.getPoseStack().last().pose());
         PROJ.set(e.getProjectionMatrix());
         matricesValid = true;
+    }
+
+    /**
+     * Drawn first thing in the GUI pass, over the finished picture (nothing of the world can be drawn over it after):
+     * the cold world, then the heat bodies with this frame's world matrices. (Drawn at the level's last stage it never
+     * showed in game.)
+     */
+    @SubscribeEvent public static void picture(RenderGuiEvent.Pre e) {
+        var mc = Minecraft.getInstance();
+        float amount = amount();
+        if (amount <= .002f || mc.level == null || mc.player == null || !matricesValid) return;
         float partial = e.getPartialTick(), time = now();
-        var camera = e.getCamera();
+        var camera = mc.gameRenderer.getMainCamera();
         Vec3 cam = camera.getPosition();
         try {
             // 1. The cold world: everything already drawn is multiplied down into dark navy and slate.
             coldWorld(amount);
-            // 2. The heat: bodies, the scan wave and hot weapons drawn straight over it, glowing.
+            // 2. The heat: bodies, the scan wave and hot weapons, with the world's matrices, glowing over it.
+            RenderSystem.backupProjectionMatrix();
+            RenderSystem.setProjectionMatrix(new Matrix4f(PROJ), com.mojang.blaze3d.vertex.VertexSorting.DISTANCE_TO_ORIGIN);
             PoseStack mv = RenderSystem.getModelViewStack();
             mv.pushPose();
             mv.last().pose().set(VIEW);
+            mv.last().normal().identity();
             RenderSystem.applyModelViewMatrix();
             try {
                 drawHeat(mc, cam, partial, time, amount, new Vec3(camera.getLeftVector()), new Vec3(camera.getUpVector()));
             } finally {
                 mv.popPose();
                 RenderSystem.applyModelViewMatrix();
+                RenderSystem.restoreProjectionMatrix();
+                RenderSystem.enableDepthTest();
+                RenderSystem.defaultBlendFunc();
             }
         } catch (Exception ex) {
             if (!failed) LOG.warn("Batman thermal vision failed to draw", ex);
@@ -250,21 +270,19 @@ public final class BatmanThermal {
         if (bodies.size() > MAX_BODIES) bodies = bodies.subList(0, MAX_BODIES);
         var dispatcher = mc.getEntityRenderDispatcher();
         PoseStack q = new PoseStack();
-        // Through walls first (dim), then what is in sight (bright, depth-tested against the world).
-        for (int pass = 0; pass < 2; pass++) {
-            HEAT.type = pass == 0 ? HeatTypes.through() : HeatTypes.visible();
-            for (LivingEntity b : bodies) {
-                double dist = Math.sqrt(b.distanceToSqr(me));
-                float flare = pulseFade * Math.max(0, 1 - Math.abs((float) dist - pulseR) / 2.5f);
-                float base = baseHeat(b) * (1 + .55f * flare) * (b == aimed ? 1.22f : 1);
-                HEAT.begin(b, cam, partial, base, (pass == 0 ? .45f : .8f) * amount);
-                Vec3 at = b.getPosition(partial);
-                float yaw = Mth.lerp(partial, b.yRotO, b.getYRot());
-                try { dispatcher.render(b, at.x - cam.x, at.y - cam.y, at.z - cam.z, yaw, partial, q, HEAT, 15728880); }
-                catch (Exception ignored) {}
-            }
-            heatSource.endBatch();
+        // Every body in range, through walls and smoke alike (the GUI pass has no world depth left to test against).
+        HEAT.type = HeatTypes.through();
+        for (LivingEntity b : bodies) {
+            double dist = Math.sqrt(b.distanceToSqr(me));
+            float flare = pulseFade * Math.max(0, 1 - Math.abs((float) dist - pulseR) / 2.5f);
+            float base = baseHeat(b) * (1 + .55f * flare) * (b == aimed ? 1.22f : 1);
+            HEAT.begin(b, cam, partial, base, .85f * amount);
+            Vec3 at = b.getPosition(partial);
+            float yaw = Mth.lerp(partial, b.yRotO, b.getYRot());
+            try { dispatcher.render(b, at.x - cam.x, at.y - cam.y, at.z - cam.z, yaw, partial, q, HEAT, 15728880); }
+            catch (Exception ignored) {}
         }
+        heatSource.endBatch();
         // A soft glow round every warm body (brighter for the one in the crosshair), seen through walls.
         VertexConsumer gv = heatSource.getBuffer(HeatTypes.glow());
         for (LivingEntity b : bodies) {
@@ -276,7 +294,7 @@ public final class BatmanThermal {
         }
         heatSource.endBatch();
         // The scan wave: a thin band running out along the ground from him.
-        VertexConsumer v = heatSource.getBuffer(HeatTypes.visible());
+        VertexConsumer v = heatSource.getBuffer(HeatTypes.through());
         if (pulseFade > 0 && pulseR > .5f) {
             int n = 72;
             double y0 = me.y - cam.y - .05, y1 = y0 + .45;
@@ -344,15 +362,8 @@ public final class BatmanThermal {
     // ------------------------------------------------------------------ heat render types and the vertex rewriter
     private static final class HeatTypes extends RenderType {
         private HeatTypes() { super("unused", DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS, 256, false, false, () -> {}, () -> {}); }
-        private static RenderType visible, through, glow;
-        /** In sight: depth-tested against the world, laid over the cold picture. */
-        static RenderType visible() {
-            if (visible == null) visible = create("batman_heat", DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS, 1 << 18, false, false,
-                    CompositeState.builder().setShaderState(POSITION_COLOR_SHADER).setTransparencyState(TRANSLUCENT_TRANSPARENCY)
-                            .setCullState(NO_CULL).setWriteMaskState(COLOR_WRITE).setDepthTestState(LEQUAL_DEPTH_TEST).createCompositeState(false));
-            return visible;
-        }
-        /** Through walls: no depth test, fainter. */
+        private static RenderType through, glow;
+        /** Every body: no depth test (seen through walls and smoke). */
         static RenderType through() {
             if (through == null) through = create("batman_heat_through", DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS, 1 << 18, false, false,
                     CompositeState.builder().setShaderState(POSITION_COLOR_SHADER).setTransparencyState(TRANSLUCENT_TRANSPARENCY)

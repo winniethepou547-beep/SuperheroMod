@@ -49,7 +49,8 @@ public final class BatmanVision {
         float t = now();
         // Someone else's smoke round the camera: nearly black, thick.
         BatmanFx.Cloud c = BatmanFx.cloudAt(mc.gameRenderer.getMainCamera().getPosition());
-        if (c != null && c.owner() != mc.player.getId()) {
+        // (A Batman with his thermal vision on sees through it: no black screen for him.)
+        if (c != null && c.owner() != mc.player.getId() && BatmanThermal.amount() < .5f) {
             float age = t - c.start(), k = Math.min(1, age / 10f) * (1 - Mth.clamp((age - c.life()) / 30f, 0, 1));
             g.fill(0, 0, w, h, HudStyle.alpha(0xFF141518, .86f * k));
             for (int i = 0; i < 5; i++) {

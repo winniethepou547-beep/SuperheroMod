@@ -245,6 +245,13 @@ public final class BatmanFx {
         return null;
     }
 
+    /** True while a smoke cloud of this owner is still out (his thermal vision stays on for as long). */
+    static boolean smokeOut(int owner) {
+        float t = now();
+        for (Cloud c : CLOUDS) if (c.owner() == owner && t - c.start() < c.life()) return true;
+        return false;
+    }
+
     // ------------------------------------------------------------------ every tick
     @SubscribeEvent public static void tick(TickEvent.ClientTickEvent e) {
         if (e.phase != TickEvent.Phase.END) return;
