@@ -57,7 +57,7 @@ public final class BatmanConfig {
         FLASH_BLIND_RADIUS = b.comment("Flash grenade: players within this many blocks who can see the burst go white (no damage)")
                 .defineInRange("flashBlindRadius", 4.0, 1, 30);
         FLASH_RECOVER_SECONDS = b.comment("Flash grenade: how long a full flash takes to wear off (sight and hearing)")
-                .defineInRange("flashRecoverSeconds", 2.0, .5, 10);
+                .defineInRange("flashBlindSeconds", 3.5, .5, 10);
         FLASH_FUSE_SECONDS = b.comment("Flash grenade: how long it lies on the ground before it goes off")
                 .defineInRange("flashFuseSeconds", 1.0, 0, 5);
         CD_SMOKE = b.comment("Smoke bomb cooldown (ticks)").defineInRange("smokeCooldown", 300, 0, 6000);

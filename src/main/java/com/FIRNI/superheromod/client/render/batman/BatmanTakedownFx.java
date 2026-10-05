@@ -57,6 +57,9 @@ public final class BatmanTakedownFx {
         float dashAt = -1000, hitAt = -1000, missAt = -1000;
         float startYaw;
         boolean dazedDust;
+        /** The game tick of the touch (his own steering counts whole ticks from it), and the car once found (-1 until then). */
+        long hitTick;
+        int car = -1, carLook;
     }
     private static final Map<Integer, Rec> RECS = new HashMap<>();
     private static final Set<Integer> PUSHED = new HashSet<>();
@@ -81,7 +84,7 @@ public final class BatmanTakedownFx {
         switch ((int) p.power()) {
             case 0 -> { r.dashAt = t; r.hitAt = r.missAt = -1000; r.target = -1; r.feet = r.from = null; if (p.id() == me()) BatmanClient.kickFov(.6f); }
             case 1 -> {
-                r.hitAt = t; r.target = p.entity(); r.feet = p.pos(); r.dazedDust = false;
+                r.hitAt = t; r.hitTick = mc.level.getGameTime(); r.target = p.entity(); r.feet = p.pos(); r.dazedDust = false; r.car = -1;
                 Entity b = mc.level.getEntity(p.id());
                 r.from = b == null ? p.pos().subtract(r.dir) : b.position();
                 r.startYaw = b == null ? 0 : b.getYRot();
@@ -115,14 +118,13 @@ public final class BatmanTakedownFx {
     /** The run and its clock: the car itself when it is here, else worked out from the touch. */
     private static TakedownPath.Run run(Rec r) { return new TakedownPath.Run(r.feet, front(r), TakedownPath.side(idOf(r), r.target)); }
     private static int idOf(Rec r) { for (var en : RECS.entrySet()) if (en.getValue() == r) return en.getKey(); return -1; }
-    private static BatmobileEntity car(int batman) {
-        var mc = Minecraft.getInstance();
-        if (mc.level == null || mc.player == null) return null;
-        for (BatmobileEntity e : mc.level.getEntitiesOfClass(BatmobileEntity.class, mc.player.getBoundingBox().inflate(160), e -> e.ownerId() == batman)) return e;
-        return null;
+    /** The car of this takedown (found once by the client tick, then looked up by id: no search every frame). */
+    private static BatmobileEntity car(Rec r) {
+        var level = Minecraft.getInstance().level;
+        return level == null || r.car < 0 || !(level.getEntity(r.car) instanceof BatmobileEntity b) ? null : b;
     }
     private static float carClock(int batman, Rec r, float partial) {
-        BatmobileEntity e = car(batman);
+        BatmobileEntity e = car(r);
         return e != null && e.run() != null ? e.clock(partial) : holdTime(r) - TD_CAR;
     }
     /** A muzzle of the car at its clock c (its pose on the run there). */
@@ -196,22 +198,26 @@ public final class BatmanTakedownFx {
         boolean cancelled = miss && t >= TD_ABORT;
         int col = cancelled ? RED : CYAN;
         float confirm = miss ? 0 : Math.max(0, 1 - Math.abs(t - TD_CONFIRM) / 2.5f);
-        arc(c, at, right, up, .13, cancelled || confirm > .5f ? 360 : 270, .014, col, .9f * k);
-        FilmFx.glow(c, at, .1 + .15 * confirm, cancelled ? RED : 0xdff8ff, (.5f + .5f * confirm) * k);
-        // The waves going out, a small one every five ticks.
+        // A dark edge under the light so it reads against snow and sky alike, then the glowing ring itself.
+        arc(c, at, right, up, .19, cancelled || confirm > .5f ? 360 : 270, .04, 0x061018, .55f * k, false);
+        arc(c, at, right, up, .19, cancelled || confirm > .5f ? 360 : 270, .022, col, k, true);
+        FilmFx.glow(c, at, .16 + .2 * confirm, cancelled ? RED : 0xdff8ff, (.6f + .4f * confirm) * k);
+        // The waves going out, one every five ticks.
         if (!cancelled) for (int i = 0; i < 2; i++) {
             float ph = ((t * .2f) + i * .5f) % 1;
-            arc(c, at, right, up, .15 + .26 * ph, 270, .01, col, .6f * (1 - ph) * k);
+            arc(c, at, right, up, .21 + .38 * ph, 270, .016, col, .75f * (1 - ph) * k, true);
         }
         if (cancelled) {
-            float x = TakedownPath.ease((t - TD_ABORT) / 3f) * .11f;
+            float x = TakedownPath.ease((t - TD_ABORT) / 3f) * .16f;
             Vec3 a = right.add(up).normalize().scale(x), d = right.subtract(up).normalize().scale(x);
-            FilmFx.streak(c, at.subtract(a), at.add(a), .02, RED, .95f * k, .95f * k, true);
-            FilmFx.streak(c, at.subtract(d), at.add(d), .02, RED, .95f * k, .95f * k, true);
+            FilmFx.streak(c, at.subtract(a), at.add(a), .045, 0x200404, .6f * k, .6f * k, false);
+            FilmFx.streak(c, at.subtract(d), at.add(d), .045, 0x200404, .6f * k, .6f * k, false);
+            FilmFx.streak(c, at.subtract(a), at.add(a), .028, RED, k, k, true);
+            FilmFx.streak(c, at.subtract(d), at.add(d), .028, RED, k, k, true);
         }
     }
     /** An arc of a ring facing the camera (a three-quarter ring opens at its lower left). */
-    private static void arc(FilmContext c, Vec3 at, Vec3 right, Vec3 up, double radius, float degrees, double width, int rgb, float alpha) {
+    private static void arc(FilmContext c, Vec3 at, Vec3 right, Vec3 up, double radius, float degrees, double width, int rgb, float alpha, boolean light) {
         if (alpha <= .01f) return;
         int n = 22;
         double start = Math.toRadians(225 - degrees), span = Math.toRadians(degrees);
@@ -219,7 +225,7 @@ public final class BatmanTakedownFx {
         for (int i = 0; i <= n; i++) {
             double a = start + span * i / n;
             Vec3 pt = at.add(right.scale(Math.cos(a) * radius)).add(up.scale(Math.sin(a) * radius));
-            if (prev != null) FilmFx.streak(c, prev, pt, width, rgb, alpha, alpha, true);
+            if (prev != null) FilmFx.streak(c, prev, pt, width, rgb, alpha, alpha, light);
             prev = pt;
         }
     }
@@ -239,7 +245,7 @@ public final class BatmanTakedownFx {
     }
     /** The tracker: a small gunmetal puck on the back of their head, its red light blinking. */
     private static void tracker(FilmContext c, Rec r, Vec3 feet, float h, LivingEntity target) {
-        if (h < TD_TRACK || h > TD_DOWN + 60) return;
+        if (h < TD_TRACK || h > TD_DOWN + 4) return;
         double height = target == null ? 1.8 : target.getBbHeight();
         Vec3 at = onBody(r, feet, h, height * .86, -.27, 0);
         Vec3 out = onBody(r, feet, h, height * .86, -.33, 0).subtract(at).normalize();
@@ -248,6 +254,13 @@ public final class BatmanTakedownFx {
         FilmFx.cube(c, m, (float) at.x - s, (float) at.y - s, (float) at.z - s, (float) at.x + s, (float) at.y + s * .6f, (float) at.z + s, 0x2a2d33);
         boolean on = ((int) (h - TD_TRACK)) % 6 < 2;
         Vec3 led = at.add(out.scale(.07));
+        // As they get up it lets go of them: a last red blink and a puff, and it is gone.
+        if (h > TD_DOWN) {
+            float g = (h - TD_DOWN) / 4;
+            FilmFx.glow(c, led, .3 * (1 - g) + .05, RED, 1 - g);
+            FilmFx.puff(c, led.add(0, .1 * g, 0), .12 + .2 * g, 0x777777, .4f * (1 - g));
+            return;
+        }
         FilmFx.glow(c, led, on ? .1 : .05, RED, on ? 1f : .35f);
         if (on) FilmFx.glow(c, led, .32, RED, .3f);
         // The click: a small red ring as it sets.
@@ -326,19 +339,22 @@ public final class BatmanTakedownFx {
     /** The rounds: muzzle flash, a short fast tracer, and where it lands a flash, sparks and a puff of smoke. */
     private static void rounds(FilmContext c, TakedownPath.Run run, Rec r, Vec3 feet, float cc, float h) {
         if (cc < TakedownPath.FIRE_FROM - 1 || cc > TakedownPath.FIRE_TO + 8) return;
-        for (int round = TakedownPath.FIRE_FROM; round < TakedownPath.FIRE_TO; round++) {
-            float age = cc - round;
+        float flash = 0;
+        for (int round = 0; round < TakedownPath.ROUNDS; round++) {
+            float fired = TakedownPath.roundAt(round), age = cc - fired;
             if (age < 0 || age > TakedownPath.ROUND_TICKS + 5) continue;
-            int gun = TakedownPath.gun(round);
-            Vec3 mz = muzzle(run, round, gun);
+            int gun = TakedownPath.roundGun(round);
+            Vec3 mz = muzzle(run, fired, gun);
+            if (age < 1.2f) flash = Math.max(flash, 1 - age / 1.2f);
             Vec3 hit = onBody(r, feet, h, .7 + .9 * TakedownPath.hash(round * 1.7), .22, (TakedownPath.hash(round * 2.9) - .5) * .6);
             Vec3 way = hit.subtract(mz);
             double len = way.length();
             Vec3 dir = len < 1e-4 ? new Vec3(0, 0, 1) : way.scale(1 / len);
             if (age < 1.2f) {
                 float k = 1 - age / 1.2f;
-                FilmFx.glow(c, mz, .45 * k + .1, 0xfff4c8, k);
-                FilmFx.glow(c, mz, 1.0, 0xffa040, .45f * k);
+                FilmFx.glow(c, mz, .6 * k + .15, 0xfff4c8, k);
+                FilmFx.glow(c, mz, 1.6, 0xffa040, .55f * k);
+                FilmFx.glow(c, mz, 3.2, 0xff9030, .18f * k);
                 FilmFx.streak(c, mz, mz.add(dir.scale(.7 * k)), .12, 0xfff0b0, .9f * k, 0, true);
             }
             if (age < TakedownPath.ROUND_TICKS) {
@@ -357,6 +373,17 @@ public final class BatmanTakedownFx {
                 }
                 FilmFx.puff(c, hit.add(dir.scale(-.15)).add(0, d * .04, 0), .2 + d * .07, 0x6a6a6a, .35f * k);
             }
+        }
+        // The guns' fire lights the ground under the car and the one it is firing at (a flicker, as in the film).
+        if (flash > 0) {
+            float flick = flash * (.7f + .3f * Mth.sin(cc * 9.1f));
+            Vec3 car = run.pos(cc), nose = run.nose(cc);
+            Vec3 ground = new Vec3(car.x, r.feet.y + .04, car.z).add(nose.scale(3.2));
+            BatmanCannonFx.splash(c, ground, new Vec3(0, 1, 0), 4.5, 0xffb060, .55f * flick);
+            Vec3 under = new Vec3(feet.x, r.feet.y + .04, feet.z).add(nose.scale(-.2));
+            BatmanCannonFx.splash(c, under, new Vec3(0, 1, 0), 2.6, 0xffc070, .4f * flick);
+            Vec3 chest = onBody(r, feet, h, 1.2, .3, 0);
+            FilmFx.glow(c, chest, 1.4, 0xffb060, .3f * flick);
         }
     }
     /** Smoke curling up off where the rounds struck (shoulders, back, chest, arms) for a few seconds; nothing burns. */
@@ -443,7 +470,16 @@ public final class BatmanTakedownFx {
         for (var en : RECS.entrySet()) {
             Rec r = en.getValue();
             if (r.feet == null || r.hitAt < -999) continue;
-            float h = t - r.hitAt, cc = carClock(en.getKey(), r, 0);
+            float h = t - r.hitAt;
+            // The car: found near them once it is there (a search every few ticks until then, never every frame).
+            if (car(r) == null && h > TD_CAR && h < TD_CAR + TakedownPath.GONE && ++r.carLook % 4 == 1) {
+                int batman = en.getKey();
+                for (BatmobileEntity car : mc.level.getEntitiesOfClass(BatmobileEntity.class, new net.minecraft.world.phys.AABB(r.feet, r.feet).inflate(60), e2 -> e2.ownerId() == batman)) { r.car = car.getId(); break; }
+            }
+            // His cape went round with the flip's half twist: laid straight again as he lands behind them, and at the end.
+            int ht = (int) (mc.level.getGameTime() - r.hitTick);
+            if (ht == TD_FLIP + 1 || ht == TD_HOLD_TICKS + 1) com.FIRNI.superheromod.client.render.cloth.CapeCloth.forget(en.getKey());
+            float cc = carClock(en.getKey(), r, 0);
             TakedownPath.Run run = run(r);
             // Grit and dust thrown up by the back wheels through the slide.
             if (TakedownPath.slide(cc) > .3f) for (int side = -1; side <= 1; side += 2) {
@@ -491,8 +527,43 @@ public final class BatmanTakedownFx {
         pitch += 4 * push;
         if (pitch != 0 || yaw != 0) { e.setPitch(e.getPitch() + pitch); e.setYaw(e.getYaw() + yaw); }
     }
+    /** In his own first-person view (he cannot see his head): the same signal on the screen, by the right edge. */
+    @SubscribeEvent public static void hud(net.minecraftforge.client.event.RenderGuiEvent.Post e) {
+        var mc = Minecraft.getInstance();
+        if (mc.player == null || !mc.options.getCameraType().isFirstPerson() || mc.options.hideGui) return;
+        BatmanClient.State s = BatmanClient.get(mc.player);
+        if (s == null || (s.action != TD_SIGNAL && s.action != TD_MISS)) return;
+        float t = BatmanClient.clock(s, e.getPartialTick());
+        boolean miss = s.action == TD_MISS;
+        float from = miss ? TD_MISS_EAR + 1 : 1, to = miss ? TD_MISS_TICKS - 2 : TD_SIGNAL_TICKS + 2;
+        float k = Math.min(TakedownPath.k(t, from, from + 2), 1 - TakedownPath.k(t, to - 3, to));
+        if (k <= .01f) return;
+        var g = e.getGuiGraphics();
+        float cx = g.guiWidth() * .66f, cy = g.guiHeight() * .4f, r = 11;
+        boolean cancelled = miss && t >= TD_ABORT;
+        int col = com.FIRNI.superheromod.client.hud.HudStyle.alpha(cancelled ? 0xFFFF3B30 : 0xFF8FE6FF, k);
+        float confirm = miss ? 0 : Math.max(0, 1 - Math.abs(t - TD_CONFIRM) / 2.5f);
+        com.FIRNI.superheromod.client.hud.HudStyle.arc(g, cx, cy, r - 2.2f, r, cancelled || confirm > .5f ? 0 : 135, 360, col);
+        if (!cancelled) for (int i = 0; i < 2; i++) {
+            float ph = ((t * .2f) + i * .5f) % 1;
+            float rr = r + 3 + 12 * ph;
+            com.FIRNI.superheromod.client.hud.HudStyle.arc(g, cx, cy, rr - 1.2f, rr, 135, 360, com.FIRNI.superheromod.client.hud.HudStyle.alpha(0xFF8FE6FF, .8f * (1 - ph) * k));
+        }
+        if (cancelled) {
+            float x = TakedownPath.ease((t - TD_ABORT) / 3f) * 7;
+            for (float u = -x; u <= x; u += .5f) {
+                g.fill((int) (cx + u) - 1, (int) (cy + u) - 1, (int) (cx + u) + 1, (int) (cy + u) + 1, col);
+                g.fill((int) (cx + u) - 1, (int) (cy - u) - 1, (int) (cx + u) + 1, (int) (cy - u) + 1, col);
+            }
+        }
+    }
     @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) { RECS.clear(); PUSHED.clear(); }
 
+    /** Whole game ticks since the touch (his own steering steps on these, so the flip moves evenly every tick). */
+    static float holdTicks(Rec r) {
+        var level = Minecraft.getInstance().level;
+        return r == null || level == null || r.hitAt < -999 ? -1 : level.getGameTime() - r.hitTick;
+    }
     /** For his own client's steering: the flip's start, their feet, the dash's way, their height. */
     static Vec3 flipAt(Rec r, float t) {
         LivingEntity target = target(r);

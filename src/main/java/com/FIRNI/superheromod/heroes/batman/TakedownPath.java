@@ -41,13 +41,24 @@ public final class TakedownPath {
 
     // ------------------------------------------------------------------ the Batmobile
     public static final double RADIUS = 7.5, RUN_IN = 36;
-    public static final int IN = 16, ARC = 24, OUT = 22, GONE = IN + ARC + OUT, FIRE_FROM = IN + 3, FIRE_TO = IN + ARC - 2;
+    public static final int IN = 16, ARC = 30, OUT = 22, GONE = IN + ARC + OUT, FIRE_FROM = IN + 4, FIRE_TO = IN + ARC - 4;
+    /** Rounds a tick (the two guns each fire every tick, half a tick apart), and all of them. */
+    public static final int PER_TICK = 2, ROUNDS = (FIRE_TO - FIRE_FROM) * PER_TICK;
+    /** When round n leaves its gun (its clock), and which gun fires it (0 its right, 1 its left). */
+    public static float roundAt(int n) { return FIRE_FROM + n / (float) PER_TICK; }
+    public static int roundGun(int n) { return n & 1; }
+    /** How much faster than its average it goes at the ends of the arc (and slower in the middle, where it fires). */
+    static final double EASE = .6;
+    /** 0..1 along the arc at u (0..1 of its time): fast in, slow round the front while it fires, fast out. */
+    static double along(double u) { return u + EASE * Math.sin(Mth.TWO_PI * u) / Mth.TWO_PI; }
+    /** Its speed at the ends of the arc (blocks a tick), what the run in arrives at and the run out leaves with. */
+    static double endSpeed() { return RADIUS * Math.abs(TO - FROM) / ARC * (1 + EASE); }
     /** The arc: from this angle round to that one (radians, in the plane of side and front; 90° = straight in front of them). */
     static final double FROM = Math.toRadians(205), TO = Math.toRadians(-25);
     /** How far in it turns its nose at the full slide (radians). */
     static final double DRIFT = Math.toRadians(38);
     /** The share of its run-in that is steady speed (the rest is braking): it enters the arc at about the arc's own speed. */
-    static final double STEADY = .62;
+    static final double STEADY = .74;
 
     /** One run round them: their feet, their front (unit, flat), which way round (+1 / -1). */
     public record Run(Vec3 centre, Vec3 front, int side) {
@@ -65,14 +76,16 @@ public final class TakedownPath {
                 Vec3 entry = ring(FROM);
                 return entry.subtract(tangent(FROM).scale(RUN_IN * (1 - s)));
             }
-            if (c < IN + ARC) return ring(Mth.lerp((c - IN) / ARC, FROM, TO));
-            double e = c - IN - ARC, speed = RADIUS * Math.abs(TO - FROM) / ARC;
+            if (c < IN + ARC) return ring(angle(c));
+            double e = c - IN - ARC, speed = endSpeed();
             return ring(TO).add(tangent(TO).scale(speed * e + .09 * e * e));
         }
+        /** Its angle on the circle at clock c (inside the arc). */
+        double angle(float c) { return Mth.lerp(along(clamp((c - IN) / ARC)), FROM, TO); }
         /** Which way it travels at its clock c (unit, flat). */
         public Vec3 heading(float c) {
             if (c < IN) return tangent(FROM);
-            if (c < IN + ARC) return tangent(Mth.lerp((c - IN) / ARC, FROM, TO));
+            if (c < IN + ARC) return tangent(angle(c));
             return tangent(TO);
         }
         /** Which way its nose points: along its way, turned in toward them through the slide. */

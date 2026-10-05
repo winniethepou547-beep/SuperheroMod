@@ -306,10 +306,9 @@ public final class BatmanFlashFx {
         float white = 0, wash = 0, expose = 0, blur = 0, bloom = 0;
         if (x >= 1) { expose = glare; bloom = .5f * glare; }
         else if (blindMode == FULL) {
-            // Pure white for the first moments, then the shapes come back through the glare.
-            float y = Mth.clamp((x - .06f) / .94f, 0, 1);
-            float peak = Math.min(1, .55f + .6f * blindPower);
-            white = peak * (float) Math.pow(1 - y, 2.0);
+            // Solid white first (as in the games), then the shapes come back slowly through the glare.
+            float y = Mth.clamp((x - .14f) / .86f, 0, 1);
+            white = (float) Math.pow(1 - y, 1.45);
             wash = .36f * (float) Math.pow(1 - y, 1.1);
             expose = .42f * (float) Math.pow(1 - y, .85);
             blur = .6f * (float) Math.pow(1 - y, 1.4);

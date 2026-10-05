@@ -356,6 +356,9 @@ public final class BatmanController {
             }
             case G_FLASH -> {
                 // No damage, no push: a small pop, an enormous pulse of light, and the white-out for those near who see it.
+                // The light comes from a little above where it lies (lying in a thin layer of snow or a carpet, it would
+                // otherwise count as behind a wall for everyone).
+                at = at.add(0, .3, 0);
                 double r = BatmanConfig.FLASH_BLIND_RADIUS.get();
                 float recover = (float) (BatmanConfig.FLASH_RECOVER_SECONDS.get() * 20);
                 fxAt(at, FX_FLASH, at, Vec3.ZERO, (float) r, -1, pl.id, p);
@@ -738,8 +741,9 @@ public final class BatmanController {
     }
     /** Whether the burst at `at` can be seen from t's eyes (or reaches their body round the edge of something). */
     private static boolean sees(ServerLevel level, Vec3 at, LivingEntity t) {
-        for (Vec3 to : new Vec3[]{t.getEyePosition(), t.getBoundingBox().getCenter()})
-            if (level.clip(new ClipContext(at, to, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, t)).getType() == HitResult.Type.MISS) return true;
+        for (Vec3 from : new Vec3[]{at, at.add(0, .5, 0)})
+            for (Vec3 to : new Vec3[]{t.getEyePosition(), t.getBoundingBox().getCenter()})
+                if (level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, t)).getType() == HitResult.Type.MISS) return true;
         return false;
     }
     private static void tickClouds() {

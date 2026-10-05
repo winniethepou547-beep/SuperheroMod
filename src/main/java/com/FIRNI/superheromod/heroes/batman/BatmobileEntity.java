@@ -140,7 +140,9 @@ public final class BatmobileEntity extends Entity {
         }
         // The guns: a round a tick at the one Batman holds; every other one tells (the body takes it).
         if (TakedownPath.fires(tick)) {
+            // Both guns every tick: two reports, the second a touch higher.
             sound(ModSounds.BATMAN_BM_GUN.get(), 1.6f, .9f + .2f * random.nextFloat());
+            sound(ModSounds.BATMAN_BM_GUN.get(), 1.1f, 1.05f + .2f * random.nextFloat());
             boolean live = owner != null && target != null && target.isAlive() && !target.isRemoved() && owner.isAlive();
             if (live && (tick - TakedownPath.FIRE_FROM) % 2 == 1) {
                 BatmanController.hurt(owner, target, damagePerHit);

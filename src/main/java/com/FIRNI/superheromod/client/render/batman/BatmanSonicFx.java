@@ -449,14 +449,18 @@ public final class BatmanSonicFx {
     /** The low, heavy judder: strong side to side, a little up and down and a slight roll. Not the vanilla hurt shake. */
     @SubscribeEvent public static void camera(ViewportEvent.ComputeCameraAngles e) {
         float t = now(), dt = t - lastHit;
-        if (dt < 0 || dt > 40 || !shown()) return;
-        float a = shakeAtHit * (float) Math.exp(-dt / SHAKE_FADE) * BatmanConfig.SHAKE.get().floatValue();
-        if (a < .002f) return;
-        // The first instant: a shove away from the blast, then the vibration.
-        float shove = dt < 3 ? (1 - dt / 3) * side * 2.2f : 0;
-        float yaw = a * (2.8f * Mth.sin(t * Mth.TWO_PI * 7 / 20) + 1f * Mth.sin(t * Mth.TWO_PI * 17 / 20 + 1.3f)) + shove * a;
-        float pitch = a * .75f * Mth.sin(t * Mth.TWO_PI * 5 / 20 + .7f);
-        float roll = a * 1.2f * Mth.sin(t * Mth.TWO_PI * 3.5f / 20 + 2);
+        if (dt < 0 || !shown()) return;
+        float cfg = BatmanConfig.SHAKE.get().floatValue();
+        float a = dt > 40 ? 0 : shakeAtHit * (float) Math.exp(-dt / SHAKE_FADE) * cfg;
+        // Under the blows: a fine, fast trembling the whole time the hearing is swamped (not only after each pulse).
+        float tremble = disruption() * cfg;
+        if (a < .002f && tremble < .01f) return;
+        // The first instant: a shove away from the blast, then the heavy vibration.
+        float shove = dt < 3 ? (1 - dt / 3) * side * 4.5f : 0;
+        float yaw = a * (6f * Mth.sin(t * Mth.TWO_PI * 7 / 20) + 2.4f * Mth.sin(t * Mth.TWO_PI * 17 / 20 + 1.3f)) + shove * a
+                + tremble * (1.1f * Mth.sin(t * 2.9f) + .7f * Mth.sin(t * 4.7f + 1));
+        float pitch = a * 2.2f * Mth.sin(t * Mth.TWO_PI * 5 / 20 + .7f) + tremble * (.9f * Mth.sin(t * 3.7f + 2) + .5f * Mth.sin(t * 5.3f));
+        float roll = a * 3f * Mth.sin(t * Mth.TWO_PI * 3.5f / 20 + 2) + tremble * .8f * Mth.sin(t * 3.1f + 4);
         e.setYaw(e.getYaw() + yaw);
         e.setPitch(e.getPitch() + pitch);
         e.setRoll(e.getRoll() + roll);
@@ -466,7 +470,7 @@ public final class BatmanSonicFx {
         float dt = now() - lastHit;
         if (dt < 0 || dt > 12 || !shown()) return;
         float k = fovAtHit * (float) Math.exp(-dt / 2.2f) * Mth.clamp(dt / .6f, 0, 1) * BatmanConfig.SHAKE.get().floatValue();
-        e.setFOV(e.getFOV() + 7 * k);
+        e.setFOV(e.getFOV() + 12 * k);
     }
     /** The picture: the post effect while swamped (before the hands and the HUD). */
     @SubscribeEvent public static void picture(RenderLevelStageEvent e) {

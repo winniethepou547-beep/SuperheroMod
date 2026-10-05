@@ -303,7 +303,7 @@ public final class BatmanClient {
                     else p.setDeltaMovement(v.x * .5, v.y, v.z * .5);
                 }
                 case TD_HOLD -> {
-                    float h = r == null ? t : BatmanTakedownFx.holdTime(r);
+                    float h = r == null ? t : BatmanTakedownFx.holdTicks(r);
                     if (r != null && r.from != null && r.feet != null && h < TD_FLIP) {
                         Vec3 want = BatmanTakedownFx.flipAt(r, h + 1);
                         p.setDeltaMovement(want.subtract(p.position()));

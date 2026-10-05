@@ -117,12 +117,12 @@ final class TakedownMotion {
     /** The rounds landing on the one he holds: a signed jolt (right, left, right...) at hold time t. */
     static float jolt(float t) {
         float c = t - TD_CAR, j = 0;
-        for (int round = TakedownPath.FIRE_FROM; round < TakedownPath.FIRE_TO; round++) {
-            float d = c - round - TakedownPath.ROUND_TICKS;
+        for (int n = 0; n < TakedownPath.ROUNDS; n++) {
+            float d = c - TakedownPath.roundAt(n) - TakedownPath.ROUND_TICKS;
             if (d < 0 || d > 6) continue;
-            j += ((round & 1) == 0 ? 1 : -1) * .2f * (float) Math.exp(-d / 1.4f);
+            j += ((n / 2) % 2 == 0 ? 1 : -1) * .13f * (float) Math.exp(-d / 1.4f);
         }
-        return j;
+        return Mth.clamp(j, -.3f, .3f);
     }
 
     // ------------------------------------------------------------------ the miss

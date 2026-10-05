@@ -144,10 +144,11 @@ public final class BatmobileRenderer extends EntityRenderer<BatmobileEntity> {
         lamp(p, b, 0, cy, cz - .02f, 0, .5f, .5f, .08f, core, burn);
         lamp(p, b, 0, cy, cz - .04f, Mth.PI / 4, .36f, .36f, .06f, new float[]{1f, .75f, .35f}, burn);
         // ---- the guns: a pod either side of the hood, barrels forward, kicking back as each fires
-        int round = (int) age;
         for (int g = 0; g < 2; g++) {
             float gx = g == 0 ? -TakedownPath.GUN_X : TakedownPath.GUN_X;
-            float kick = TakedownPath.fires(round) && TakedownPath.gun(round) == g ? .1f * (1 - (age - round)) : 0;
+            // Each gun fires every tick, the left half a tick after the right.
+            float local = age - g * .5f;
+            float kick = TakedownPath.fires((int) Math.floor(local)) ? .12f * (1 - (local - (float) Math.floor(local))) : 0;
             box(p, v, light, gx - .16f, TakedownPath.GUN_Y - .16f, TakedownPath.GUN_Z - 1.0f, gx + .16f, TakedownPath.GUN_Y + .1f, TakedownPath.GUN_Z - .45f, PANEL);
             box(p, v, light, gx - .05f, TakedownPath.GUN_Y - .07f, TakedownPath.GUN_Z - .5f - kick, gx + .05f, TakedownPath.GUN_Y + .03f, TakedownPath.GUN_Z - kick, DARK);
         }
