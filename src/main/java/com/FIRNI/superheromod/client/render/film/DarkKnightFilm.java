@@ -24,7 +24,7 @@ import static com.FIRNI.superheromod.heroes.batman.BatmanUltBeats.*;
  * KARA ŞÖVALYE (Batman's X, 29 s), on its own stage (KnightStage: a dead yard at night in the rain, the city far below
  * when it goes up), timed and filmed by KnightPath. The fear under the lamp (four glimpses of him and a shape over the
  * roofs), the grapnel out of the dark, the sticky bomb and the two-foot kick, the shock blast that throws them both high
- * over the city, the Batwing called down to scan them and pass, the Batarang thrown without looking that pins them to
+ * over the city, the fall from the top with the Batwing called in to rake them with its guns, the Batarang thrown without looking that pins them to
  * the wall, his exit up the grapnel, and the still yard. This class is the frame: the sound (rain, wind, the lamp's hum,
  * the Batwing's engines, every beat; vanilla and the mod's own synthesised sounds, nothing recorded), the grade (out of
  * black, the cold flashes, into black) and the title.
@@ -77,8 +77,15 @@ final class DarkKnightFilm implements Film {
         for (int g : new int[]{G1, G2, G3, G4}) {
             add(c, g + SEEN, SoundEvents.BELL_RESONATE, .22f, .5f);
             add(c, g + SEEN, ModSounds.BATMAN_CAPE.get(), .45f, .8f);
-            add(c, g + GONE - 1, ModSounds.FX_WHOOSH_LIGHT.get(), .55f, .7f);
         }
+        // How each one ends: melting into the dark (a low breath of air), smoke (a pellet's pop and hiss), a blink (a thump).
+        add(c, G1 + GONE, ModSounds.FX_WHOOSH_LIGHT.get(), .4f, .5f);
+        add(c, G1 + GONE + 2, SoundEvents.SOUL_ESCAPE, .5f, .6f);
+        for (int g : new int[]{G2, G4}) {
+            add(c, g + GONE, ModSounds.BATMAN_SMOKE.get(), .9f, 1.1f);
+            add(c, g + GONE, SoundEvents.FIRE_EXTINGUISH, .5f, .7f);
+        }
+        add(c, G3 + GONE, SoundEvents.WARDEN_HEARTBEAT, .8f, .7f);
         add(c, PASS + 2, SoundEvents.PHANTOM_FLAP, .6f, .45f);
         add(c, PASS + 6, ModSounds.FX_WHOOSH_HEAVY.get(), .5f, .7f);
         add(c, PASS + 9, SoundEvents.PHANTOM_FLAP, .5f, .5f);
@@ -130,14 +137,17 @@ final class DarkKnightFilm implements Film {
         add(c, ARRIVE - 3, ModSounds.FX_WHOOSH_HEAVY.get(), 1f, .55f);
         add(c, ARRIVE, SoundEvents.WARDEN_SONIC_BOOM, .3f, .7f);
         add(c, ARRIVE, SoundEvents.ELYTRA_FLYING, .9f, 1.6f);
-        add(c, SCAN, ModSounds.BATMAN_SONIC_HUM.get(), .5f, 1.4f);
-        for (int at = SCAN; at < SCANNED; at += 9) add(c, at, SoundEvents.BEACON_POWER_SELECT, .3f, 1.8f);
-        add(c, SCANNED, ModSounds.BATMAN_SONIC_LOCK.get(), .8f, 1f);
-        add(c, SCANNED + 2, ModSounds.BATMAN_SONIC_BEEP.get(), .6f, .8f);
+        // The guns: a round every tick, the shots layered every other tick so the rattle stays clean; hits and ricochets.
+        for (int at = SCAN; at < PASS_BY; at += 2) {
+            if (!KnightPath.fires(at)) continue;
+            add(c, at, ModSounds.BATMAN_CANNON_SHOT.get(), .75f, .62f + .06f * (at % 3));
+            if (at % 6 == 0) add(c, at + 2, ModSounds.FX_IMPACT_METAL.get(), .35f, 1.5f);
+            if (at % 10 == 4) add(c, at + 1, SoundEvents.ARROW_HIT, .4f, .7f);
+        }
+        add(c, SCAN, SoundEvents.CROSSBOW_LOADING_END, .5f, .5f);
+        add(c, SCANNED, ModSounds.BATMAN_CANNON_STOP.get(), .7f, .7f);
         add(c, PASS_BY - 2, ModSounds.FX_WHOOSH_HEAVY.get(), 1f, .8f);
-        add(c, PASS_BY, SoundEvents.WARDEN_SONIC_BOOM, .6f, .9f);
-        add(c, PASS_BY, ModSounds.FX_ELECTRIC_ZAP.get(), 1f, .7f);
-        add(c, PASS_BY + 1, ModSounds.FX_ENERGY_BOOM.get(), .5f, 1.2f);
+        add(c, PASS_BY, SoundEvents.ELYTRA_FLYING, .8f, 1.7f);
         add(c, DROP, SoundEvents.FIRE_EXTINGUISH, .6f, .6f);
         add(c, DROP + 4, ModSounds.FX_ELECTRIC_CRACKLE.get(), .5f, 1f);
         // The landing in the yard, the Batarang, the throw without looking, the hit, the wall.
@@ -226,6 +236,15 @@ final class DarkKnightFilm implements Film {
     @Override public void overlay(GuiGraphics g, float t, int w, int h) {
         if (t >= STAGE_END) return;
         vignette(g, w, h, .42f + .12f * KnightPath.window(t, G1, FIRE, 20));
+        // The blink: an eyelid closes over the frame, and when it opens he is gone.
+        float[] v = KnightPath.vanish(t);
+        if (v != null && (int) v[0] == KnightPath.VANISH_BLINK) {
+            float d = v[1];
+            float shut = d < 1 ? clamp((d + 1.5f) / 2.5f) : 1 - clamp((d - 1) / 2.8f);
+            shut = shut * shut * (3 - 2 * shut);
+            int lid = (int) Math.ceil(h * .5f * shut);
+            if (lid > 0) { g.fill(0, 0, w, lid, 0xFF000000); g.fill(0, h - lid, w, h, 0xFF000000); }
+        }
         // The title over the still yard after he is gone.
         float title = KnightPath.window(t, 502, STAGE_END - 8, 10);
         if (title > .01f) {

@@ -67,6 +67,8 @@ public final class KnightPath {
         public float holdArg;
         /** The little light on his forearm (0..1). */
         public float signal;
+        /** 0..1: melting into the dark (the stage pours shadow over him). */
+        public float dark;
         public Vec3 middle() { return at.add(0, MIDDLE, 0); }
     }
     private static final Act ACT = new Act();
@@ -91,7 +93,7 @@ public final class KnightPath {
     public static Act batman(float t, float time) {
         Act a = ACT;
         a.shown = false; a.pitch = a.roll = 0; a.spread = 0; a.light = .1f; a.lookYaw = a.lookPitch = 0;
-        a.holdRight = a.holdLeft = BatmanBody.HOLD_NONE; a.holdArg = 0; a.signal = 0;
+        a.holdRight = a.holdLeft = BatmanBody.HOLD_NONE; a.holdArg = 0; a.signal = 0; a.dark = 0;
         Pose base = BatmanMotion.stance(time);
         a.pose = base;
         // ---- the fear: a blink of him, and gone
@@ -257,19 +259,44 @@ public final class KnightPath {
         }
         return a;
     }
-    /** One glimpse: there from start, the target's eyes find him at SEEN, at GONE he whips away into the dark. */
+    /** How each glimpse ends: he melts into the dark, a burst of smoke, or gone in the blink of an eye. */
+    public static final int VANISH_DARK = 0, VANISH_SMOKE = 1, VANISH_BLINK = 2;
+    static final int[] GLIMPSES = {G1, G2, G3, G4};
+    static final int[] VANISH = {VANISH_DARK, VANISH_SMOKE, VANISH_BLINK, VANISH_SMOKE};
+    static final Vec3[] SPOTS = {ESCAPE, ROOF_W, PERCH, EDGE};
+    /** Ticks the melting into the dark takes (the others are over in a tick or two). */
+    public static final int DARK_TICKS = 9;
+    /** The vanish going on at t: {kind, ticks since it began (at GONE), glimpse}, or null. */
+    public static float[] vanish(float t) {
+        for (int i = 0; i < GLIMPSES.length; i++) {
+            float d = t - (GLIMPSES[i] + GONE);
+            if (d >= -2 && d < 30) return new float[]{VANISH[i], d, i};
+        }
+        return null;
+    }
+    public static Vec3 spot(int glimpse) { return SPOTS[glimpse]; }
+    /** One glimpse: there from start, the target's eyes find him at SEEN, at GONE he goes the way this glimpse goes. */
     private static boolean glimpse(Act a, float t, float start, Vec3 at, Pose pose, float light) {
-        if (t < start || t >= start + GONE) return false;
+        int kind = VANISH_SMOKE;
+        for (int i = 0; i < GLIMPSES.length; i++) if (GLIMPSES[i] == start) kind = VANISH[i];
+        float d = t - (start + GONE);
+        float end = kind == VANISH_DARK ? DARK_TICKS * .75f : 1;
+        if (t < start || d >= end) return false;
         Vec3 target = Vec3.ZERO.add(0, 1, 0);
         Vec3 away = new Vec3(at.x - target.x, 0, at.z - target.z).normalize();
-        float gone = k(t, start + GONE - 2.2f, start + GONE);
         a.shown = true;
-        a.at = at.add(away.scale(1.4 * gone)).add(0, .9 * gone, 0);
         a.yaw = face(at, target);
         a.pose = pose;
         a.light = light;
-        a.spread = .5f * gone;
+        a.at = at;
         a.lookPitch = (float) Math.atan2(at.y + 1.5 - target.y, Math.sqrt((at.x) * (at.x) + (at.z) * (at.z))) * .6f;
+        if (kind == VANISH_DARK && d > 0) {
+            // Melting into the dark: no light on him any more, sinking back a little into the shadow it pours out of.
+            float k = clamp(d / (DARK_TICKS * .75f));
+            a.dark = k;
+            a.light = light * (1 - k);
+            a.at = at.add(away.scale(.35 * k)).add(0, -.12 * k, 0);
+        }
         return true;
     }
     /** Standing wrapped in the cape: the arms in close, the head a little down. */
@@ -341,49 +368,77 @@ public final class KnightPath {
     public static Vec3 stuck() { return new Vec3(KnightTarget.PINNED.x - .3, KnightTarget.PINNED.y + .55, WALL_Z - .03); }
 
     // ------------------------------------------------------------------ the Batwing
-    /** Far away where it comes from, relative to the target up there. */
-    static final Vec3 FAR = new Vec3(-170, 22, 150);
-    static final float RADIUS = 9, SPIN = Mth.TWO_PI / 30;
-    /** The Batwing at t (null before its lights show or once it is long gone): position, and where it is heading. */
+    /** Where it comes from (relative to the target): far off and above, along FAR's direction. */
+    static final Vec3 FAR = new Vec3(-82, 18, 72);
+    /** Its orbit while it fires: radius, height over the target (so it fires down at them), one lap in this many ticks. */
+    static final float RADIUS = 11, ABOVE = 5, SPIN = Mth.TWO_PI / 34;
+    /** The horizontal way it comes from (unit). */
+    static Vec3 farDir() { return new Vec3(FAR.x, 0, FAR.z).normalize(); }
+    /**
+     * The Batwing at t (null before its lights show or once it is long gone). Two lights far off, then it comes in fast,
+     * braking, straight over the target and over the camera that watches it come, into its orbit on the near side; it
+     * circles above them firing; then one last run past them and away.
+     */
     public static Vec3 batwing(float t) {
         if (t < LIGHTS || t > PASS_BY + 30) return null;
         Vec3 c = KnightTarget.centre(Math.min(t, DROP));
         if (t < ARRIVE) {
             float u = clamp((t - LIGHTS) / (ARRIVE - LIGHTS));
-            return c.add(FAR).lerp(orbit(ARRIVE), u * u * u);
+            return c.add(FAR).lerp(orbit(ARRIVE), 1 - Math.pow(1 - u, 1.6));
         }
         if (t < SCANNED) return orbit(t);
-        Vec3 from = orbit(SCANNED), pass = KnightTarget.centre(PASS_BY).add(1.6, .7, .3);
+        Vec3 from = orbit(SCANNED), pass = KnightTarget.centre(PASS_BY).add(1.8, 1.6, .3);
         Vec3 v = pass.subtract(from).scale(1f / (PASS_BY - SCANNED));
         float d = t - SCANNED;
         return from.add(v.scale(d + (d > PASS_BY - SCANNED ? .04 * Math.pow(d - (PASS_BY - SCANNED), 2) : 0)));
     }
     private static Vec3 orbit(float t) {
         Vec3 c = KnightTarget.centre(t);
-        float a = 2.42f + (t - ARRIVE) * SPIN;
-        return c.add(RADIUS * Mth.cos(a), 1.8 + .5 * Mth.sin(t * .11f), RADIUS * Mth.sin(a));
+        // It enters the orbit on the side away from where it came (past the target, over the camera).
+        float a = (float) Math.atan2(-farDir().z, -farDir().x) + (t - ARRIVE) * SPIN;
+        return c.add(RADIUS * Mth.cos(a), ABOVE + .5 * Mth.sin(t * .11f), RADIUS * Mth.sin(a));
     }
     /** Its heading (unit), and how hard it banks (radians, + rolls its right wing down). */
     public static Vec3 batwingHeading(float t) {
         Vec3 a = batwing(t - .5f), b = batwing(t + .5f);
         if (a == null || b == null || b.distanceToSqr(a) < 1e-8) return new Vec3(0, 0, 1);
-        return b.subtract(a).normalize();
+        Vec3 along = b.subtract(a).normalize();
+        // Firing, it pivots in the air to keep its nose (and its guns) on them as it circles.
+        float lock = window(t, SCAN - 4, SCANNED + 2, 4);
+        if (lock <= 0) return along;
+        Vec3 at = batwing(t), on = KnightTarget.centre(t).subtract(at).normalize();
+        return along.lerp(on, lock).normalize();
     }
     public static float batwingBank(float t) {
         if (t < ARRIVE - 2 || t > SCANNED + 2) return 0;
-        return .85f * window(t, ARRIVE - 2, SCANNED + 2, 5);
+        // Hovering on its guns it banks only a little.
+        return .85f * window(t, ARRIVE - 2, SCANNED + 2, 5) * (1 - .65f * window(t, SCAN - 4, SCANNED + 2, 4));
     }
-    /** The scan's light on the target (0..1). */
-    public static float scanLight(float t) { return window(t, SCAN, SCANNED + 4, 4) * (.75f + .25f * Mth.sin(t * .8f)); }
+    /** Its two nose guns (its own space: +z the nose, +x its left). */
+    public static final float GUN_X = .5f, GUN_Y = -.3f, GUN_Z = 4.1f;
+    /** How fast a round flies (blocks per tick). */
+    public static final float ROUND_SPEED = 7;
+    /** The rounds: one every tick from SCAN to SCANNED (the guns take turns), and a last burst on the pass. */
+    public static boolean fires(int tick) {
+        return (tick >= SCAN && tick < SCANNED) || (tick >= PASS_BY - 7 && tick < PASS_BY - 1);
+    }
+    /** 0..1: how hard the guns are going now (the target's limbs jerk with it). */
+    public static float gunfire(float t) {
+        return Math.max(window(t, SCAN, SCANNED, 3), window(t, PASS_BY - 7, PASS_BY - 1, 1.5f));
+    }
+    /** The flicker of muzzle flashes and hits on the target (0..1). */
+    public static float gunLight(float t) {
+        return gunfire(t) * (.55f + .45f * Math.abs(Mth.sin(t * 2.7f)));
+    }
 
     // ------------------------------------------------------------------ the flashes
-    /** A cold flash over everything: the bomb, the Batwing's pulse, the wall. */
+    /** A cold flash over everything: the bomb, the Batwing tearing past. */
     public static float flash(float t) {
         float f = 0;
         float b = t - BLAST;
         if (b >= 0 && b < 8) f = Math.max(f, (float) Math.exp(-b / 2.2));
         float p = t - PASS_BY;
-        if (p >= 0 && p < 6) f = Math.max(f, .7f * (float) Math.exp(-p / 1.8));
+        if (p >= 0 && p < 6) f = Math.max(f, .35f * (float) Math.exp(-p / 1.8));
         return f;
     }
     /** Distant lightning in the cloud (the backdrop's flash). */
@@ -443,7 +498,8 @@ public final class KnightPath {
         if (t < HIGH) {
             // From high above: both rising toward us, the city's grid far below.
             float u = (t - 228) / (HIGH - 228);
-            return new Film.View(new Vec3(1.2 + 2 * u, 80, -15.5), tc.add(0, -2, 0), 52, 0);
+            Vec3 top = KnightTarget.centre(Math.min(t, KnightTarget.APEX_T));
+            return new Film.View(new Vec3(1.2 + 2 * u, top.y + 22, -15.5), tc.add(0, -2, 0), 52, 0);
         }
         if (t < CALL) {
             // The wide: the dark sky, the cloud, the city, the body turning over and the glider round it.
@@ -457,11 +513,10 @@ public final class KnightPath {
             return new Film.View(m.add(f.scale(1.25)).add(side.scale(.75)).add(0, .55, 0), m.add(f.scale(.2)).add(0, .2, 0), 36, 0);
         }
         if (t < ARRIVE) {
-            // Over the target toward the two lights far off.
-            Vec3 wing = batwing(t);
-            Vec3 dir = (wing == null ? tc.add(FAR) : wing).subtract(tc).normalize();
-            Vec3 side = dir.cross(new Vec3(0, 1, 0)).normalize();
-            return new Film.View(tc.subtract(dir.scale(9)).add(side.scale(2.6)).add(0, 2.2, 0), tc.add(dir.scale(14)), 44, 0);
+            // Over the target toward the two lights far off: it grows, comes straight at us and roars over the camera.
+            Vec3 dir = farDir(), side = dir.cross(new Vec3(0, 1, 0)).normalize();
+            Vec3 aim = tc.add(dir.scale(14)).add(0, 2 + 2 * k(t, ARRIVE - 6, ARRIVE), 0);
+            return new Film.View(tc.subtract(dir.scale(8)).add(side.scale(2.2)).add(0, 1.6, 0), aim, 46 + 8 * k(t, ARRIVE - 8, ARRIVE), 0);
         }
         if (t < 352) return new Film.View(tc.add(13, -4, -9), tc.add(0, 1, 0), 58, 0);
         if (t < SCANNED) {
@@ -489,7 +544,7 @@ public final class KnightPath {
     /** Kicks: yaw, pitch, roll, field of view (degrees). */
     public static float[] kick(float t) {
         float yaw = 0, pitch = 0, roll = 0, fov = 0;
-        float[][] hits = {{BITE, .8f}, {YANK, 1.6f}, {KICK, 1.4f}, {BLAST, 3.0f}, {ARRIVE, .9f}, {PASS_BY, 2.2f}, {ROOF, .9f}, {HIT, .6f}, {WALL, 1.6f}};
+        float[][] hits = {{BITE, .8f}, {YANK, 1.6f}, {KICK, 1.4f}, {BLAST, 3.0f}, {ARRIVE - 3, 2.4f}, {PASS_BY, 2.2f}, {ROOF, .9f}, {HIT, .6f}, {WALL, 1.6f}};
         for (float[] h : hits) {
             float d = t - h[0];
             if (d < 0 || d > 20) continue;
@@ -499,6 +554,9 @@ public final class KnightPath {
             roll += a * noise(d * 1.7f + h[0] * 3) * .7f;
             fov += d < 3 ? h[1] * 1.4f * (1 - d / 3) : 0;
         }
+        // The guns: a steady rattle in the camera while they fire.
+        float guns = gunfire(t);
+        if (guns > 0) { yaw += .25f * guns * noise(t * 2.3f); pitch += .25f * guns * noise(t * 2.9f + 5); }
         // A handheld breath on the yard shots, stronger as the fear builds.
         float hand = .12f + .2f * k(t, G1, BACK);
         if (t < FIRE) { yaw += hand * noise(t * .07f); pitch += hand * noise(t * .05f + 4); }

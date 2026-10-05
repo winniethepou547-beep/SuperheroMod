@@ -25,6 +25,9 @@ public final class KnightTarget {
     public static final double MID = .95;
     /** Where they hang in the air after the launch, and where the Batarang meets them. */
     static final Vec3 HIGH_AT = new Vec3(0, 58, -14), HIT_AT = new Vec3(1.2, 8, 7);
+    /** The top of their flight (it must match FALL's first key), and its height: the fall from there ends exactly at HIT_AT. */
+    static final float APEX_T = 240;
+    static double apexY() { return HIT_AT.y + fallen(HIT); }
     /** Their middle pinned on the warehouse wall (their back to it). */
     public static final Vec3 PINNED = new Vec3(1.0, 5.6, KnightPath.WALL_Z - .32);
 
@@ -56,18 +59,23 @@ public final class KnightTarget {
             float u = (t - APEX) / (KICK - APEX);
             return new Vec3(0, 15.5 - .45 * u * u, -8.4);
         }
-        if (t < 250) {
+        if (t < APEX_T) {
             // Kicked, then the blast: thrown high over the city, slowing to the top.
-            float u = clamp((t - KICK) / (250 - KICK));
+            float u = clamp((t - KICK) / (APEX_T - KICK));
             double e = 1 - Math.pow(1 - u, 2.6), s = ease(u);
-            return new Vec3(HIGH_AT.x * s, 15.05 + (HIGH_AT.y - 15.05) * e, -8.4 + (HIGH_AT.z + 8.4) * s);
+            return new Vec3(HIGH_AT.x * s, 15.05 + (apexY() - 15.05) * e, -8.4 + (HIGH_AT.z + 8.4) * s);
         }
-        if (t < DROP) return hover(t);
+        double y = apexY() - fallen(t);
+        if (t < DROP) {
+            float d = t - APEX_T;
+            return new Vec3(HIGH_AT.x + .6 * Mth.sin(d * .021f), y, HIGH_AT.z + .6 * (1 - Mth.cos(d * .017f)));
+        }
         if (t < HIT) {
-            // The fall from the Batwing's pass: over Batman's head, toward the yard behind him.
-            Vec3 d = hover(DROP);
+            // The last of the fall: over Batman's head, toward the yard behind him.
+            float d = DROP - APEX_T;
+            double x0 = HIGH_AT.x + .6 * Mth.sin(d * .021f), z0 = HIGH_AT.z + .6 * (1 - Mth.cos(d * .017f));
             float u = clamp((t - DROP) / (HIT - DROP));
-            return new Vec3(Mth.lerp(u, d.x, HIT_AT.x), d.y - (d.y - HIT_AT.y) * Math.pow(u, 1.4), Mth.lerp(u, d.z, HIT_AT.z));
+            return new Vec3(Mth.lerp(u, x0, HIT_AT.x), y, Mth.lerp(u, z0, HIT_AT.z));
         }
         if (t < WALL) {
             // Carried by the Batarang onto the wall.
@@ -79,11 +87,20 @@ public final class KnightTarget {
         double jolt = d < 6 ? -.08 * Math.sin(d / 6 * Math.PI) : 0;
         return PINNED.add(.03 * Math.sin(t * .05), jolt - .05 * k(t, WALL, WALL + 8), 0);
     }
-    /** Up there, hanging: a slow drift, sinking a little. */
-    private static Vec3 hover(float t) {
-        float d = t - 250;
-        return new Vec3(HIGH_AT.x + .6 * Mth.sin(d * .021f), HIGH_AT.y - 2.5 * k(t, 250, DROP) + .25 * Mth.sin(d * .05f),
-                HIGH_AT.z + .6 * (1 - Mth.cos(d * .017f)));
+    /**
+     * How far they have fallen since the top: the speed (blocks per tick) rises through these keys, slowly at first,
+     * then faster as the Batwing's rounds drive them down, then the last stretch into the yard; integrated exactly.
+     */
+    private static final float[][] FALL = {{240, 0}, {SCAN, .35f}, {DROP, .63f}, {HIT, .95f}};
+    static double fallen(float t) {
+        double sum = 0;
+        for (int i = 0; i < FALL.length - 1; i++) {
+            float a = FALL[i][0], b = FALL[i + 1][0], va = FALL[i][1], vb = FALL[i + 1][1];
+            if (t <= a) break;
+            float e = Math.min(t, b) - a;
+            sum += va * e + .5 * (vb - va) / (b - a) * e * e;
+        }
+        return sum;
     }
     public static Vec3 feet(float t) { return centre(t).subtract(0, MID, 0); }
 
@@ -106,8 +123,9 @@ public final class KnightTarget {
     private static float free(float t) {
         float d = t - KICK;
         float a = -90 - 300 * (1 - (float) Math.exp(-d / 30)) - .55f * d;
-        // Held in the scan: the turn eases off (subtract the drift it would have made).
-        a += .4f * (Math.max(0, Math.min(t, SCANNED) - SCAN)) * k(t, SCAN, SCAN + 10);
+        // Under the guns: knocked over and over, faster.
+        float shot = Math.max(0, Math.min(t, SCANNED) - SCAN);
+        a -= .9f * shot * shot / (shot + 14);
         // The fall: tumbling faster.
         float fall = Math.max(0, t - DROP);
         a -= 2.6f * fall * fall / (fall + 8);
@@ -147,7 +165,8 @@ public final class KnightTarget {
         if (t > YANK && t < HIT) {
             flail = .9f * k(t, YANK, YANK + 4) * (1 - .7f * k(t, KICK - 3, KICK));
             flail += .5f * k(t, BLAST + 2, BLAST + 10) * (1 - .6f * k(t, 240, 270));
-            flail *= 1 - .85f * k(t, SCAN, SCAN + 12) * (1 - k(t, SCANNED, PASS_BY));
+            // Under the guns: every round jerks a limb.
+            flail += .6f * KnightPath.gunfire(t);
             flail += 1.1f * k(t, DROP, DROP + 6);
         }
         if (flail > 0) {
@@ -200,7 +219,7 @@ public final class KnightTarget {
         ActorPose pinned = of().j(CHEST, 10, 0, 0).j(HEAD, 34, 0, 0).j(RIGHT_UPPER_ARM, -4, 0, 22).j(RIGHT_LOWER_ARM, -14, 0, 0).j(LEFT_UPPER_ARM, -30, 0, -40)
                 .j(LEFT_LOWER_ARM, -12, 0, 0).j(RIGHT_UPPER_LEG, -6, 0, 6).j(RIGHT_LOWER_LEG, 14, 0, 0).j(LEFT_UPPER_LEG, 2, 0, -5).j(LEFT_LOWER_LEG, 8, 0, 0);
         return new FilmCast.Track().key(0, 0, ready).key(G2 + 8, 14, wary).key(G4 + SEEN + 2, 6, shield).key(BITE + 1, 1.5f, yanked)
-                .key(APEX, 10, flail).key(KICK, 3, folded).key(BLAST + 2, 3, spread).key(270, 40, limp).key(SCAN + 10, 12, held)
+                .key(APEX, 10, flail).key(KICK, 3, folded).key(BLAST + 2, 3, spread).key(270, 40, limp).key(SCAN + 6, 8, spread)
                 .key(SCANNED + 4, 8, limp).key(DROP + 4, 4, falling).key(HIT, 1.5f, struck).key(WALL, 1, slammed).key(WALL + 18, 14, pinned);
     }
 
@@ -251,9 +270,9 @@ public final class KnightTarget {
         // High up: cold, from the hidden moon.
         float high = (float) Mth.clamp((c.y - 12) / 20, 0, 1);
         r += .12f * high; g += .14f * high; b += .22f * high;
-        // The Batwing's scan.
-        float scan = KnightPath.scanLight(t);
-        r += .1f * scan; g += .35f * scan; b += .5f * scan;
+        // The Batwing's rounds: muzzle flashes and hits flickering orange on them.
+        float fire = KnightPath.gunLight(t);
+        r += .7f * fire; g += .42f * fire; b += .12f * fire;
         // The wall lamp over the pin.
         Vec3 w = KnightPath.WALL_LAMP;
         float wall = (float) Math.exp(-c.distanceToSqr(w) / 14);

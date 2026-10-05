@@ -76,7 +76,7 @@ public final class BatmobileEntity extends Entity {
         entityData.set(OWNER, owner.getId());
         entityData.set(PHASE, ARRIVING);
         entityData.set(PHASE_AT, (int) level().getGameTime());
-        moveTo(from.x, ground(from), from.z, heading, 0);
+        moveTo(from.x, ground(from), from.z, heading, 0f);
     }
     /** Server: drive off. */
     void leave() {

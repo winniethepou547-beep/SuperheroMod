@@ -5,12 +5,14 @@ package com.FIRNI.superheromod.heroes.batman;
  * and hands them back) and the client film (KnightPath times everything off these). Read top to bottom it is the film.
  * <p>
  * Fear: the target alone under one street lamp in a dead yard, rain, everything else black. They look right: Batman is
- * crouched on a fire escape, gone; a shape glides over the roofs; left: his silhouette on a roof edge, gone; behind:
- * high on the warehouse, gone; front again: he stands at the edge of the light, eyes burning, gone. They back away.
+ * crouched on a fire escape and melts into the dark; a shape glides over the roofs; left: his silhouette on a roof edge,
+ * gone in a burst of smoke; behind: high on the warehouse, gone in the blink of an eye; front again: he stands at the
+ * edge of the light, eyes burning, smoke, gone. They back away.
  * The grapnel bites their back out of the dark and rips them up into the air; he comes over them, a sticky bomb on
  * their chest, under them, both feet into them; the bomb goes off and throws them both high over the city. Up there,
- * in the dark, they tumble; he glides. He calls the Batwing: two lights far off, then it is there, circling them,
- * scanning; done, it tears past and they drop in a cloud of smoke. On a roof, his back to us, he raises a hand, a
+ * in the dark, they reach the top and start to fall; he glides beside them. He calls the Batwing: two lights far off,
+ * then it roars in over them, circles above and rakes them with its guns as they fall (faster and faster); it tears
+ * past and they come down trailing smoke. On a roof, his back to us, he raises a hand, a
  * Batarang, one throw: it takes them out of the air and pins them to the warehouse wall. He turns, fires the grapnel
  * up and is gone. The camera holds on the empty roof and the pinned body under the wall lamp; silence.
  */
@@ -31,7 +33,7 @@ public final class BatmanUltBeats {
     public static final int PLANT = 182, APEX = 186, UNDER = 192, KICK = 198, BLAST = 201;
     // ---- high in the dark
     public static final int HIGH = 252;
-    // ---- the Batwing
+    // ---- the Batwing (SCAN..SCANNED: its guns firing as it circles)
     public static final int CALL = 296, SIGNAL = 302, LIGHTS = 312, ARRIVE = 328, SCAN = 336, SCANNED = 392, PASS_BY = 398, DROP = 401;
     // ---- the Batarang
     public static final int ROOF = 414, RAISE = 422, THROW = 434, HIT = 444, WALL = 450;

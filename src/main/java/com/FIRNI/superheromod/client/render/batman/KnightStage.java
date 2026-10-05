@@ -69,7 +69,8 @@ public final class KnightStage {
         lines(fx, t);
         blast(fx, t);
         batwingLights(fx, t);
-        scan(fx, t);
+        guns(fx, t);
+        vanishes(fx, t);
         smoke(fx, t);
         batarangTrail(fx, t);
         wallHit(fx, t);
@@ -371,32 +372,87 @@ public final class KnightStage {
         }
         FilmFx.glow(c, wingPoint(at, turn, 0, .6f, 2.0f), .5, 0x5fe0ff, .22f);
     }
-    /** The scan: a fan of light from its belly sweeping the body, a ring running up and down it; red when done. */
-    private static void scan(FilmContext c, float t) {
-        float s = window(t, SCAN, SCANNED + 6, 3);
-        if (s <= 0) return;
-        Vec3 at = batwing(t);
-        if (at == null) return;
-        Vec3 belly = wingPoint(at, batwingTurn(t), 0, -.6f, .5f);
-        boolean locked = t >= SCANNED;
-        int col = locked ? 0xff4a3a : 0x8fe0ff;
-        float sweep = Mth.sin((t - SCAN) * .22f);
-        for (int i = 0; i < 7; i++) {
-            float up = -.9f + 1.8f * i / 6f;
-            Vec3 on = KnightTarget.point(t, .35 * sweep, up, 0);
-            FilmFx.streak(c, belly, on, .03, col, .35f * s, .12f * s, true);
+    /**
+     * The Batwing's guns: a round every tick, the two guns taking turns, each a hot streak flying at ROUND_SPEED from the
+     * muzzle to a point on the body (scattered a little), a flash at the muzzle as it leaves, sparks and a puff where it
+     * strikes. Nothing graphic: sparks off a falling body, as in the games.
+     */
+    private static void guns(FilmContext c, float t) {
+        int first = (int) Math.floor(t - 12), last = (int) Math.floor(t);
+        for (int tick = Math.max(first, SCAN); tick <= last; tick++) {
+            if (!KnightPath.fires(tick)) continue;
+            Vec3 at = batwing(tick);
+            if (at == null) continue;
+            int gun = tick % 2 == 0 ? 1 : -1;
+            Vec3 muzzle = wingPoint(at, batwingTurn(tick), gun * KnightPath.GUN_X, KnightPath.GUN_Y, KnightPath.GUN_Z);
+            double jx = (FilmFx.hash(tick * 3.1) - .5) * .7, jy = (FilmFx.hash(tick * 5.3) - .5) * 1.4, jz = (FilmFx.hash(tick * 7.7) - .5) * .5;
+            float age = t - tick;
+            // Where it strikes: the body where it is when the round gets there.
+            Vec3 aimAt = KnightTarget.point(tick + 1.5f, jx, jy, jz);
+            double dist = aimAt.distanceTo(muzzle);
+            float flight = (float) (dist / KnightPath.ROUND_SPEED);
+            if (age < .9f) {
+                FilmFx.glow(c, muzzle, .9, 0xffd27a, .9f * (1 - age / .9f));
+                FilmFx.glow(c, muzzle, .35, 0xffffff, 1 - age / .9f);
+            }
+            if (age < flight) {
+                Vec3 dir = aimAt.subtract(muzzle).normalize();
+                Vec3 head = muzzle.add(dir.scale(age * KnightPath.ROUND_SPEED));
+                Vec3 tail = head.subtract(dir.scale(Math.min(2.4, age * KnightPath.ROUND_SPEED)));
+                FilmFx.streak(c, tail, head, .05, 0xffb04a, 0, .95f, true);
+                FilmFx.streak(c, tail, head, .018, 0xffffff, 0, .9f, true);
+            } else if (age < flight + 6) {
+                float d = (age - flight) / 6;
+                Vec3 hit = KnightTarget.point(Math.min(t, HIT), jx, jy, jz);
+                if (d < .35f) FilmFx.glow(c, hit, .5, 0xffe2a0, .9f * (1 - d / .35f));
+                for (int k = 0; k < 4; k++) {
+                    Vec3 sv = new Vec3(FilmFx.hash(tick * 11 + k) - .5, FilmFx.hash(tick * 13 + k) - .2, FilmFx.hash(tick * 17 + k) - .5).normalize();
+                    Vec3 sa = hit.add(sv.scale(.15 + 1.1 * d)), sb = hit.add(sv.scale(.05 + .8 * d));
+                    FilmFx.streak(c, sb, sa, .015, 0xffc060, 0, .9f * (1 - d), true);
+                }
+                FilmFx.puff(c, hit, .3 + .6 * d, 0x3a3a40, .35f * (1 - d));
+            }
         }
-        Vec3 mid = KnightTarget.centre(t);
-        float ring = locked ? .75f * (1 - KnightPath.clamp((t - SCANNED) / 6f)) + .25f : .8f;
-        PoseStack p = c.pose();
-        p.pushPose();
-        p.translate(mid.x, mid.y, mid.z);
-        p.mulPose(Axis.ZP.rotationDegrees(KnightTarget.roll(t)));
-        p.mulPose(Axis.XP.rotationDegrees(KnightTarget.tumble(t)));
-        FilmFx.ring(c, new Vec3(0, .9 * sweep, 0), ring, .05, col, .75f * s, true);
-        FilmFx.ring(c, new Vec3(0, .9 * sweep, 0), ring + .2, .12, col, .2f * s, true);
-        p.popPose();
-        FilmFx.glow(c, belly, .6, col, .5f * s);
+    }
+    /**
+     * The glimpses' endings: shadow pouring up over him as he melts into the dark (his eyes go last); a burst of black
+     * smoke that swallows him and drifts off; the blink is the film's own (an eyelid over the frame).
+     */
+    private static Vec3 lastEyes;
+    private static void vanishes(FilmContext c, float t) {
+        float[] v = KnightPath.vanish(t);
+        if (v == null) return;
+        int kind = (int) v[0];
+        float d = v[1];
+        Vec3 at = KnightPath.spot((int) v[2]);
+        if (kind == KnightPath.VANISH_DARK) {
+            float k = KnightPath.clamp(d / KnightPath.DARK_TICKS);
+            if (d > -1 && d < KnightPath.DARK_TICKS + 14) {
+                float out = 1 - KnightPath.clamp((d - KnightPath.DARK_TICKS) / 14f);
+                for (int i = 0; i < 16; i++) {
+                    double a = FilmFx.hash(i * 2.7) * Math.PI * 2, r = .2 + .7 * FilmFx.hash(i * 4.1);
+                    double rise = Math.min(1, k * 1.3) * (.2 + 1.9 * FilmFx.hash(i * 6.3)) + .15 * d / 10;
+                    Vec3 pf = at.add(Math.cos(a) * r, rise, Math.sin(a) * r);
+                    FilmFx.puff(c, pf, .5 + .7 * k + .3 * FilmFx.hash(i), 0x040406, .85f * Math.min(1, k * 2) * out);
+                }
+            }
+            // His eyes, the last of him, fading in the dark.
+            if (eyes != null && d < KnightPath.DARK_TICKS * .75f) lastEyes = eyes;
+            if (lastEyes != null && d >= KnightPath.DARK_TICKS * .75f && d < KnightPath.DARK_TICKS + 4) {
+                float e = 1 - KnightPath.clamp((d - KnightPath.DARK_TICKS * .75f) / (KnightPath.DARK_TICKS * .25f + 4));
+                FilmFx.glow(c, lastEyes, .18, 0xf0f6ff, .9f * e);
+                FilmFx.glow(c, lastEyes, .5, 0x9fb8ff, .3f * e);
+            }
+        } else if (kind == KnightPath.VANISH_SMOKE && d > -1 && d < 30) {
+            // A smoke pellet at his feet: a dense black burst that hides him at once, then rolls and thins away.
+            float k = KnightPath.clamp(d / 30f);
+            if (d < 2) FilmFx.glow(c, at.add(0, .2, 0), 1.2, 0xfff0d8, .4f * (1 - d / 2));
+            for (int i = 0; i < 22; i++) {
+                double a = FilmFx.hash(i * 3.3) * Math.PI * 2, r = (.3 + 1.4 * FilmFx.hash(i * 1.9)) * (1 - Math.exp(-(d + 1) / 3));
+                Vec3 pf = at.add(Math.cos(a) * r, .2 + 2.0 * FilmFx.hash(i * 5.1) * (1 - Math.exp(-(d + 1) / 4)) + .03 * d, Math.sin(a) * r);
+                FilmFx.puff(c, pf, .7 + 1.1 * k + .4 * FilmFx.hash(i * 7), FilmFx.hash(i) < .5 ? 0x0b0c0f : 0x1b1c21, .9f * (1 - k * k));
+            }
+        }
     }
 
     // ------------------------------------------------------------------ lines, the bomb, the blast
@@ -607,19 +663,12 @@ public final class KnightStage {
             FilmFx.puff(c, at, 10 + 8 * FilmFx.hash(i * 4.1), 0x3a2618, .16f);
         }
     }
-    /** The target after the Batwing's pass: smoke streaming off them, a few blue sparks crackling over the body. */
+    /** The target under the Batwing's guns and after: smoke streaming off them, a few embers over the body. */
     private static void smoke(FilmContext c, float t) {
-        if (t < PASS_BY || t > WALL + 30) return;
-        // The pulse that hits them as it passes.
-        float p = t - PASS_BY;
-        if (p < 8) {
-            Vec3 at = KnightTarget.centre(t);
-            FilmFx.glow(c, at, 2.5 * (1 - p / 8), 0x9fd8ff, .8f * (1 - p / 8));
-            FilmFx.ring(c, at, .5 + 5 * (1 - Math.exp(-p / 2)), .2, 0xbfe6ff, .6f * (1 - p / 8), true);
-        }
+        if (t < SCAN || t > WALL + 30) return;
         for (int j = 0; j < 26; j++) {
             float age = j * 1.4f, s = t - age;
-            if (s < DROP - 2) break;
+            if (s < SCAN) break;
             if (s > HIT + 6) continue;
             Vec3 at = KnightTarget.centre(s).add((FilmFx.hash(j * 3 + Math.floor(s)) - .5) * .4, (FilmFx.hash(j * 7 + 1) - .5) * .4, 0);
             float fade = 1 - j / 26f;
@@ -630,14 +679,14 @@ public final class KnightStage {
             if (FilmFx.hash(Math.floor(t) * 13 + i) < .5) continue;
             Vec3 a = KnightTarget.point(t, (FilmFx.hash(i * 2 + Math.floor(t)) - .5) * .6, (FilmFx.hash(i * 5 + Math.floor(t)) - .5) * 1.6, .15);
             Vec3 b = a.add((FilmFx.hash(i * 9 + Math.floor(t)) - .5) * .5, (FilmFx.hash(i * 11 + Math.floor(t)) - .5) * .5, (FilmFx.hash(i * 3.3 + Math.floor(t)) - .5) * .5);
-            FilmFx.streak(c, a, b, .02, 0xbfe8ff, .9f, .3f, true);
+            FilmFx.streak(c, a, b, .02, 0xffb060, .9f, .3f, true);
         }
     }
     private static void eyesAndSignal(FilmContext c, float t) {
         KnightPath.Act a = KnightPath.batman(t, c.time());
         if (!a.shown) return;
         // In the dark his eyes are what you see.
-        if (eyes != null) FilmFx.glow(c, eyes, .32, 0xdcecff, .3f + .25f * (1 - a.light));
+        if (eyes != null) FilmFx.glow(c, eyes, .32, 0xdcecff, (.3f + .25f * (1 - a.light)) * (1 - .5f * a.dark));
         if (a.signal > 0 && handLeft != null) {
             FilmFx.glow(c, handLeft, .12, 0x9fe8ff, a.signal);
             FilmFx.glow(c, handLeft, .45, 0x5fbfff, .35f * a.signal);
