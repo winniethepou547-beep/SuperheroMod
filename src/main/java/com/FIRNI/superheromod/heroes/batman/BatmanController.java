@@ -292,6 +292,7 @@ public final class BatmanController {
         if (g == G_CANNON) { s.aiming = false; s.charging = false; if (BatmanCannon.use(p, s)) s.cooldowns[g] = BatmanConfig.CD_CANNON.get(); return; }
         if (g == G_SONIC) { s.aiming = false; s.charging = false; if (BatmanSonic.use(p, s)) s.cooldowns[g] = BatmanConfig.CD_SONIC.get(); return; }
         if (g == G_SHOCK) { s.aiming = false; s.charging = false; if (BatmanShock.toggle(p, s)) s.cooldowns[g] = BatmanConfig.CD_SHOCK.get(); return; }
+        if (g == G_BATMOBILE) { if (BatmanBatmobile.use(p, s)) s.cooldowns[g] = BatmanConfig.CD_BATMOBILE.get(); return; }
         s.cooldowns[g] = g == G_SMOKE ? BatmanConfig.CD_SMOKE.get() : BatmanConfig.CD_FLASH.get();
         s.throwing = g;
         s.aiming = false;

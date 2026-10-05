@@ -21,7 +21,7 @@ public final class BatmanConfig {
     public static final ForgeConfigSpec.DoubleValue CANNON_DAMAGE, CANNON_RANGE, CANNON_KNOCK, CANNON_MAX_DAMAGE, CANNON_SPREAD;
     public static final ForgeConfigSpec.IntValue CANNON_SHOTS_PER_SECOND;
     public static final ForgeConfigSpec.DoubleValue SONIC_DISTANCE, SONIC_RANGE, SONIC_HEALTH, SONIC_SECONDS, SONIC_SLOW, SONIC_SLOW_SECONDS;
-    public static final ForgeConfigSpec.IntValue CD_SMOKE, CD_FLASH, CD_SHOCK, CD_CANNON, CD_SONIC, CD_GRAPNEL, CD_DODGE, CD_REFLEX;
+    public static final ForgeConfigSpec.IntValue CD_SMOKE, CD_FLASH, CD_SHOCK, CD_CANNON, CD_SONIC, CD_BATMOBILE, CD_GRAPNEL, CD_DODGE, CD_REFLEX;
     public static final ForgeConfigSpec.DoubleValue GRAPNEL_RANGE, STRIKE_UPPER_DAMAGE, STRIKE_KICK_DAMAGE;
     public static final ForgeConfigSpec.IntValue BIND_CLICKS, BIND_MOB_TICKS, BIND_MAX_TICKS;
     /** X: the film. */
@@ -81,6 +81,9 @@ public final class BatmanConfig {
         SONIC_SLOW = b.comment("Slow on the target per hit (0.75 = 75 % slower)").defineInRange("slow", .75, 0, .95);
         SONIC_SLOW_SECONDS = b.comment("How long each hit's slow lasts").defineInRange("slowSeconds", 1.25, .1, 10);
         CD_SONIC = b.comment("Cooldown (ticks)").defineInRange("cooldown", 500, 0, 12000);
+        b.pop();
+        b.comment("Gadget: the Batmobile (R calls it: it drives in and parks beside him; R again sends it away). Its other features are still to be decided").push("batmobile");
+        CD_BATMOBILE = b.comment("Cooldown between calling it and sending it away (ticks)").defineInRange("cooldown", 60, 0, 12000);
         b.pop();
         b.comment("E: the grapnel gun").push("grapnel");
         GRAPNEL_RANGE = b.comment("How far the hook reaches").defineInRange("range", 45.0, 4, 120);

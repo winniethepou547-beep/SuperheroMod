@@ -74,7 +74,7 @@ public final class BatmanWheel {
         g.pose().popPose();
     }
 
-    /** A gadget's icon: smoke (puffs), flash (a star burst), electric gauntlets (a fist and a bolt), wrist cannon (two gauntlets firing), sonic trap (an emitter and its waves). */
+    /** A gadget's icon: smoke (puffs), flash (a star burst), electric gauntlets (a fist and a bolt), wrist cannon (two gauntlets firing), sonic trap (an emitter and its waves), the Batmobile (from the side). */
     static void icon(GuiGraphics g, int gadget, float x, float y, float s, int col, float time) {
         switch (gadget) {
             case G_SMOKE -> {
@@ -112,6 +112,16 @@ public final class BatmanWheel {
                     float r = s * (.62f + .38f * ((w + k * .5f) % 1));
                     HudStyle.arc(g, x, y - s * .15f, r, r + 1.1f, -50, 50, HudStyle.alpha(col, 1 - (w + k * .5f) % 1));
                 }
+            }
+            case G_BATMOBILE -> {
+                // The Batmobile from the side: a low wedge body with its canopy and fin, two big wheels, a red tail light.
+                fan(g, x, y, new float[]{-1f, .25f, -.9f, -.05f, -.45f, -.2f, -.15f, -.5f, .3f, -.5f, .55f, -.2f, .95f, -.12f, 1.05f, .2f, .9f, .3f, -.9f, .3f}, s, col);
+                fan(g, x + s * .62f, y - s * .38f, new float[]{-.1f, .2f, .05f, -.3f, .2f, .2f}, s, col);
+                disc(g, x - s * .58f, y + s * .35f, s * .3f, col);
+                disc(g, x + s * .6f, y + s * .35f, s * .34f, col);
+                disc(g, x - s * .58f, y + s * .35f, s * .12f, HudStyle.alpha(0xFF101114, .9f));
+                disc(g, x + s * .6f, y + s * .35f, s * .14f, HudStyle.alpha(0xFF101114, .9f));
+                disc(g, x + s * 1.0f, y + s * .02f, s * .1f, HudStyle.alpha(0xFFFF3A2E, .95f));
             }
             default -> {
                 // A fist (the knuckles a row of squares) and a cyan bolt across it.

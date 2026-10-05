@@ -32,12 +32,12 @@ public final class BatmanAction {
             REFLEX = 19;
 
     // ------------------------------------------------------------------ cooldown slots
-    public static final int CD_SMOKE = 0, CD_FLASH = 1, CD_SHOCK = 2, CD_CANNON = 3, CD_SONIC = 4, CD_GRAPNEL = 5, CD_DODGE = 6, CD_REFLEX = 7, COOLDOWNS = 8;
+    public static final int CD_SMOKE = 0, CD_FLASH = 1, CD_SHOCK = 2, CD_CANNON = 3, CD_SONIC = 4, CD_BATMOBILE = 5, CD_GRAPNEL = 6, CD_DODGE = 7, CD_REFLEX = 8, COOLDOWNS = 9;
 
     // ------------------------------------------------------------------ gadgets (the wheel, clockwise from the top)
     /** A gadget's cooldown slot is its own number (CD_SMOKE == G_SMOKE ...). */
-    public static final int G_SMOKE = 0, G_FLASH = 1, G_SHOCK = 2, G_CANNON = 3, G_SONIC = 4, GADGETS = 5;
-    public static final String[] GADGET_NAMES = {"Sis Bombası", "Flaş Bombası", "Elektrikli Muşta", "Bilek Topu", "Sonik Tuzak"};
+    public static final int G_SMOKE = 0, G_FLASH = 1, G_SHOCK = 2, G_CANNON = 3, G_SONIC = 4, G_BATMOBILE = 5, GADGETS = 6;
+    public static final String[] GADGET_NAMES = {"Sis Bombası", "Flaş Bombası", "Elektrikli Muşta", "Bilek Topu", "Sonik Tuzak", "Batmobil"};
 
     // ------------------------------------------------------------------ left click: the punches
     /**

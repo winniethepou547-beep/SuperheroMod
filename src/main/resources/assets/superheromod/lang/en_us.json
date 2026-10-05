@@ -96,5 +96,7 @@
   "subtitles.superheromod.batman.shock_miss": "Electricity crackles",
   "subtitles.superheromod.batman.shock_empty": "Gauntlets power down",
   "subtitles.superheromod.batman.shock_ready": "Gauntlets recharged",
-  "subtitles.superheromod.batman.shock_unequip": "Electric gauntlets release"
+  "subtitles.superheromod.batman.shock_unequip": "Electric gauntlets release",
+  "entity.superheromod.batmobile": "Batmobile",
+  "entity.superheromod.sonic_emitter": "Sonic Emitter"
 }
