@@ -94,11 +94,10 @@ public final class GhostChainRenderer {
             model.rightLeg.yRot = .22f; model.leftLeg.yRot = -.22f;
             return true;
         }
-        Sample sample = DATA.get(player.getId());
-        if (sample != null && sample.packet.mode() != 0) {
-            var p = sample.packet;
-            float tick = p.age() + age - (float)Math.floor(age);
-            var motion = samplePose(p,tick);
+        // The same pose (and the same freshness rule) the layer draws with: a stale sample must not freeze the arms
+        // in the last move's pose (they stayed up in the air after a move ended).
+        var motion = motion(player, age - (float)Math.floor(age));
+        if (motion != null) {
             model.body.yRot=motion.torso(); model.body.xRot=motion.lean();
             model.rightArm.x=-5*Mth.cos(motion.torso()); model.rightArm.z=5*Mth.sin(motion.torso());
             model.leftArm.x=5*Mth.cos(motion.torso()); model.leftArm.z=-5*Mth.sin(motion.torso());

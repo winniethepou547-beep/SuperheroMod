@@ -26,6 +26,15 @@ public final class GhostClientEvents {
                     com.FIRNI.superheromod.core.ability.AbilitySlot.LMB,down));
         chainHeld=down;
     }
+    /**
+     * Ghost Rider's arms are his chain moves: the game's own arm swing on a click (it bent the arm out of the drawn pose
+     * between moves) is left out. Mining and hitting still work.
+     */
+    @SubscribeEvent public static void noSwing(InputEvent.InteractionKeyMappingTriggered e) {
+        var mc=Minecraft.getInstance();
+        if(mc.player!=null && (e.isAttack() || e.isUseItem())
+                && "ghost_rider".equals(com.FIRNI.superheromod.client.ClientHeroRegistry.get(mc.player.getUUID())))e.setSwingHand(false);
+    }
     private static double bikeFall;
     private static boolean wasOnBike;
     private static int bikeAir;
