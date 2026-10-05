@@ -74,15 +74,17 @@ public final class BatmanFlashFx {
     private record Burst(Vec3 at, float start, List<Surface> faces, float seen) {}
     private static final List<Burst> BURSTS = new ArrayList<>();
     /** How far the light's rays look for faces round the burst, and how long the pulse lasts (ticks). */
-    private static final double REACH = 10;
-    private static final float PULSE = 10;
-    private static final int WHITE = 0xfff8ee, COOL = 0xe6eeff;
+    private static final double REACH = 18;
+    private static final float PULSE = 18;
+    private static final int WHITE = 0xfff8ee, COOL = 0xe6eeff, RAYS = 72;
 
     /** The light 0..1 `age` ticks after the burst: full in about a tick, then falling away fast. */
     static float pulse(float age) {
         if (age < 0 || age > PULSE) return 0;
         if (age < 1.1f) { float u = age / 1.1f; return u * u * (3 - 2 * u); }
-        return (float) Math.exp(-(age - 1.1f) / 1.7f) * (1 - (age - 1.1f) / (PULSE - 1.1f));
+        // A held instant of full light (CS2: the room goes white), then a long-ish falling tail.
+        if (age < 3) return 1;
+        return (float) Math.exp(-(age - 3) / 3.4f) * (1 - (age - 3) / (PULSE - 3));
     }
 
     /** The grenade went off at `at` (everyone near gets this). */
@@ -91,9 +93,10 @@ public final class BatmanFlashFx {
         if (mc.level == null || mc.player == null) return;
         List<Surface> faces = new ArrayList<>();
         // Rays every way (the cube's faces, edges and corners): the faces round it that the light falls on.
-        for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) for (int z = -1; z <= 1; z++) {
-            if (x == 0 && y == 0 && z == 0) continue;
-            Vec3 d = new Vec3(x, y, z).normalize();
+        // Rays evenly every way (a spiral over the sphere): the faces round it that the light falls on.
+        for (int i = 0; i < RAYS; i++) {
+            double yy = 1 - 2 * (i + .5) / RAYS, rr = Math.sqrt(1 - yy * yy), a = i * 2.399963;
+            Vec3 d = new Vec3(Math.cos(a) * rr, yy, Math.sin(a) * rr);
             BlockHitResult hit = mc.level.clip(new ClipContext(at, at.add(d.scale(REACH)), ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, mc.player));
             if (hit.getType() == HitResult.Type.MISS) continue;
             faces.add(new Surface(hit.getLocation(), Vec3.atLowerCornerOf(hit.getDirection().getNormal()), hit.getLocation().distanceTo(at)));
@@ -102,7 +105,7 @@ public final class BatmanFlashFx {
         Vec3 cam = mc.gameRenderer.getMainCamera().getPosition();
         double d = cam.distanceTo(at);
         boolean inSight = mc.level.clip(new ClipContext(cam, at, ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, mc.player)).getType() == HitResult.Type.MISS;
-        float seen = (float) Mth.clamp(1 - (d - 4) / 18, 0, 1) * (inSight ? 1 : .4f);
+        float seen = (float) Mth.clamp(1 - (d - 8) / 34, 0, 1) * (inSight ? 1 : .55f);
         BURSTS.add(new Burst(at, now(), faces, seen));
     }
 
@@ -136,13 +139,18 @@ public final class BatmanFlashFx {
                     // The light on the faces round it, brighter and tighter the nearer.
                     for (Surface s : b.faces()) {
                         float d = (float) s.distance();
-                        float alpha = 1.25f * k / (1 + .1f * d * d);
-                        if (alpha > .01f) BatmanCannonFx.splash(c, s.at().add(s.normal().scale(.02)), s.normal(), 1.4 + .75 * d, WHITE, Math.min(1, alpha));
+                        float alpha = 2.4f * k / (1 + .035f * d * d);
+                        if (alpha <= .01f) continue;
+                        Vec3 on = s.at().add(s.normal().scale(.02));
+                        BatmanCannonFx.splash(c, on, s.normal(), 2.2 + 1.0 * d, WHITE, Math.min(1, alpha));
+                        // Past full white the light spreads wider over the surface (a second, broader layer).
+                        if (alpha > 1) BatmanCannonFx.splash(c, on, s.normal(), 3.4 + 1.5 * d, WHITE, Math.min(1, alpha - 1));
                     }
                     // The core (small) and the radial glow (short).
-                    FilmFx.glow(c, b.at(), .55 + .25 * k, 0xffffff, k);
-                    FilmFx.glow(c, b.at(), 2.6 * (.6 + .4 * k), WHITE, .8f * k);
-                    FilmFx.glow(c, b.at(), 7.5, COOL, .3f * k);
+                    FilmFx.glow(c, b.at(), .9 + .5 * k, 0xffffff, k);
+                    FilmFx.glow(c, b.at(), 4.5 * (.6 + .4 * k), WHITE, k);
+                    FilmFx.glow(c, b.at(), 14, COOL, .55f * k);
+                    FilmFx.glow(c, b.at(), 26, WHITE, .22f * k);
                 }
                 // The pressure: one quick shell of air, a faint ring along the ground.
                 if (age < 7) {
@@ -183,7 +191,7 @@ public final class BatmanFlashFx {
             dirtyField.setBoolean(lt, true);
             if (k < .004f) { lifted = false; return; }
             NativeImage px = (NativeImage) pixelsField.get(lt);
-            float lift = Math.min(.92f, k * .95f);
+            float lift = Math.min(.97f, k * 1.1f);
             for (int y = 0; y < 16; y++) for (int x = 0; x < 16; x++) {
                 int c = px.getPixelRGBA(x, y);
                 int a = c >>> 24, c2 = c >> 16 & 255, c1 = c >> 8 & 255, c0 = c & 255;
@@ -287,13 +295,17 @@ public final class BatmanFlashFx {
      * itself, washed toward a pale grey (contrast and colour going), lifted (overexposed), and the white over it all.
      */
     @SubscribeEvent public static void screen(RenderGuiEvent.Pre e) {
-        if (blindMode != FULL && blindMode != BEHIND_WALL) return;
         var mc = Minecraft.getInstance();
         if (mc.player == null) return;
-        float x = recovery(1);
-        if (x >= 1) return;
-        float white, wash, expose, blur, bloom;
-        if (blindMode == FULL) {
+        // Everyone who sees a burst (blinded or not, Batman too): the whole picture blazes up for the moment of the
+        // light, as the eye takes it in (CS2's flash lights the room for the ones it misses too).
+        float glare = Math.min(.75f, .8f * worldLight(now()));
+        boolean blinded = blindMode == FULL || blindMode == BEHIND_WALL;
+        float x = blinded ? recovery(1) : 1;
+        if (x >= 1 && glare < .01f) return;
+        float white = 0, wash = 0, expose = 0, blur = 0, bloom = 0;
+        if (x >= 1) { expose = glare; bloom = .5f * glare; }
+        else if (blindMode == FULL) {
             // Pure white for the first moments, then the shapes come back through the glare.
             float y = Mth.clamp((x - .06f) / .94f, 0, 1);
             float peak = Math.min(1, .55f + .6f * blindPower);
@@ -306,6 +318,7 @@ public final class BatmanFlashFx {
             float y = 1 - x;
             white = .28f * y * y; wash = .1f * y; expose = .22f * y; blur = .2f * y; bloom = .12f * y;
         }
+        expose = Math.max(expose, glare);
         e.getGuiGraphics().flush();
         RenderSystem.backupProjectionMatrix();
         RenderSystem.setProjectionMatrix(new Matrix4f(), VertexSorting.ORTHOGRAPHIC_Z);

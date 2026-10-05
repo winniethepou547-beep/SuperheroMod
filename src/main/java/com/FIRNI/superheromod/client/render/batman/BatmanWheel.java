@@ -186,6 +186,8 @@ public final class BatmanWheel {
         float a = (color >>> 24) / 255f, r = (color >> 16 & 255) / 255f, gr = (color >> 8 & 255) / 255f, b = (color & 255) / 255f;
         if (a <= 0) return;
         RenderSystem.enableBlend(); RenderSystem.defaultBlendFunc();
+        // Both windings: a shape whose points run clockwise on screen (the flash's star did) was culled away unseen.
+        RenderSystem.disableCull();
         RenderSystem.setShader(GameRenderer::getPositionColorShader);
         BufferBuilder buffer = Tesselator.getInstance().getBuilder();
         buffer.begin(VertexFormat.Mode.TRIANGLE_FAN, DefaultVertexFormat.POSITION_COLOR);
@@ -197,6 +199,7 @@ public final class BatmanWheel {
             buffer.vertex(m, x + pts[j * 2] * s, y + pts[j * 2 + 1] * s, 0).color(r, gr, b, a).endVertex();
         }
         BufferUploader.drawWithShader(buffer.end());
+        RenderSystem.enableCull();
         RenderSystem.disableBlend();
     }
     static float ease(float t) { t = Mth.clamp(t, 0, 1); return t * t * (3 - 2 * t); }
