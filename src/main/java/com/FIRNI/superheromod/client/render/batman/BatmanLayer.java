@@ -133,7 +133,7 @@ public final class BatmanLayer extends RenderLayer<AbstractClientPlayer, PlayerM
         }
         blend.ground = ground;
         boolean free = action == IDLE || action == WHEEL || action == GRAPNEL_AIM || action == GRAPNEL_FIRE;
-        float legs = free ? 1 : action == PUNCH || action == BATARANG || action == BATARANG_CHARGE || action == BATARANG_MULTI || action == GADGET_THROW || action == CANNON ? .6f : 0;
+        float legs = free ? 1 : action == PUNCH || action == BATARANG || action == BATARANG_CHARGE || action == BATARANG_MULTI || action == GADGET_THROW || action == CANNON || action == SHOCK_PUNCH ? .6f : 0;
         float arms = action == IDLE ? 1 : 0;
         float wantRun = e.isSprinting() && amount > .3f ? 1 : 0;
         blend.run += (wantRun - blend.run) * (1 - (float) Math.exp(-dt * .3f));

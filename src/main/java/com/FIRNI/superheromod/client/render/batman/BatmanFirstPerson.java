@@ -3,6 +3,7 @@ package com.FIRNI.superheromod.client.render.batman;
 import com.FIRNI.superheromod.SuperheroMod;
 import com.FIRNI.superheromod.client.render.film.FilmDirector;
 import com.FIRNI.superheromod.client.render.panther.PantherMotion;
+import com.FIRNI.superheromod.heroes.batman.BatmanShock;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import net.minecraft.client.Minecraft;
@@ -94,6 +95,9 @@ public final class BatmanFirstPerson {
         BatmanBody.handRight = BatmanBody.handLeft = BatmanBody.muzzle = null;
         // The wrist cannon (BatmanCannonFx): how far both gauntlets are open for this draw.
         BatmanBody.CANNON[0] = BatmanBody.CANNON[1] = s != null && action == CANNON ? BatmanCannonFx.deployed(s, action, t) : 0;
+        // The electric gauntlets (BatmanShockFx): how much of them is on, and their charge, for this draw.
+        BatmanBody.SHOCK[0] = BatmanBody.SHOCK[1] = s != null ? BatmanShockFx.worn(s, action, t) : 0;
+        BatmanBody.shockEnergy = s == null ? 1 : s.energy;
         try {
             for (int side = 0; side < 2; side++) {
                 Arm a = NOW[side];
@@ -119,6 +123,7 @@ public final class BatmanFirstPerson {
         } finally {
             BatmanBody.capture = false;
             BatmanBody.CANNON[0] = BatmanBody.CANNON[1] = 0;
+            BatmanBody.SHOCK[0] = BatmanBody.SHOCK[1] = 0;
             BatmanBody.thermal = 0;
             BatmanGear.thermal = 0;
         }
@@ -205,6 +210,8 @@ public final class BatmanFirstPerson {
         }
         // ---- the wrist cannon (its own block below)
         if (action == CANNON) cannon(t, s);
+        // ---- the electric gauntlets: the boxer's guard, the heavy blows, locking on and coming off (its own block below)
+        if (s != null && (action == SHOCK_EQUIP || action == SHOCK_UNEQUIP || action == SHOCK_PUNCH || (s.shock && action == IDLE))) shock(action, t, s, time);
         // ---- the sonic trap's remote in the left hand (its own block at the end)
         sonic(action, t, s, gliding, now);
         // Gliding: both hands low and wide, holding the cape's edge.
@@ -280,6 +287,74 @@ public final class BatmanFirstPerson {
                 a.lerp(aim, cool, k(t, fireEnd + 2, fireEnd + 6));
                 a.shown = 1 - k(t, CANNON_TICKS - 8, CANNON_TICKS);
             }
+        }
+    }
+
+    // ------------------------------------------------------------------ the electric gauntlets (BatmanShockFx draws them)
+    private static final Arm[] SHOCK_A = {new Arm(), new Arm()}, SHOCK_B = {new Arm(), new Arm()}, SHOCK_C = {new Arm(), new Arm()};
+    /**
+     * Each heavy blow in his own view (BatmanShock.S_*): where the striking arm is loaded and where it lands (x, y, z,
+     * pitch, yaw, roll); the other fist stays up in the guard. Straights drive into the middle, the uppercut rises, the
+     * hooks sweep across from the side, the low hook and the shovel go in under the view, the overhand comes down.
+     */
+    private static final float[][] SHOCK_LOAD = {
+            {.42f, -.72f, -.42f, -60, 16, 10}, {-.4f, -.7f, -.45f, -60, -16, -10}, {.3f, -1.02f, -.6f, -36, 8, 0}, {-.8f, -.58f, -.45f, -86, -70, 80},
+            {.9f, -.56f, -.4f, -86, 78, -80}, {-.6f, -.98f, -.5f, -70, -40, 60}, {.38f, -1.0f, -.4f, -50, 10, 0}, {-.45f, -.38f, -.4f, -110, -25, -10}};
+    private static final float[][] SHOCK_HIT = {
+            {.08f, -.42f, -.9f, -89, 4, 0}, {-.06f, -.42f, -.9f, -89, -4, 0}, {.06f, -.4f, -.76f, -20, 6, 0}, {-.06f, -.5f, -.78f, -90, -62, 85},
+            {.06f, -.5f, -.78f, -90, 62, -85}, {-.04f, -.86f, -.82f, -84, -35, 70}, {.06f, -.72f, -.92f, -86, 4, 0}, {-.05f, -.5f, -.86f, -100, -6, 0}};
+    /** The boxer's guard in view: both gauntlets up at the lower corners, bouncing a little with his stance. */
+    private static Arm shockGuard(Arm a, int side, float time) {
+        float sx = side == 0 ? 1 : -1;
+        a.set(.36f * sx, -.66f + .012f * Mth.sin(time * .2f), -.55f, -60, 13 * sx, 10 * sx, 1);
+        return a;
+    }
+    private static void shock(int action, float t, BatmanClient.State s, float time) {
+        Arm r = NOW[0], l = NOW[1];
+        shockGuard(r, 0, time);
+        shockGuard(l, 1, time);
+        if (action == SHOCK_EQUIP) {
+            // Up before him looking down at them as they lock on, drawn apart, slammed together at the clap, then the guard.
+            for (int side = 0; side < 2; side++) {
+                Arm a = NOW[side];
+                float sx = side == 0 ? 1 : -1;
+                Arm look = SHOCK_A[side].set(.22f * sx, -.64f, -.5f, -42, 6 * sx, 0, t < 7 ? .55f : 1);
+                Arm apart = SHOCK_B[side].set(.5f * sx, -.52f, -.56f, -70, 30 * sx, 20 * sx, 1);
+                Arm clap = SHOCK_C[side].set(.07f * sx, -.47f, -.62f, -80, 75 * sx, 80 * sx, 1);
+                if (t < 4) a.lerp(rest(A[side], side, false), look, ease(t / 4));
+                else if (t < 19) a.copy(look);
+                else if (t < 23.2f) a.lerp(look, apart, k(t, 19, 23.2f));
+                else if (t < SHOCK_CLAP) a.lerp(apart, clap, PantherMotion.snap(t, 23.2f, SHOCK_CLAP));
+                else if (t < SHOCK_CLAP + 1.8f) a.copy(clap);
+                else a.lerp(clap, shockGuard(A[side], side, time), k(t, SHOCK_CLAP + 1.8f, SHOCK_EQUIP_TICKS));
+                // A small jolt as each part seats; the charge's tremor; pressed together at the clap.
+                for (float at : new float[]{4.5f, 6.5f, 8.5f}) { float j = t - at; if (j >= 0 && j < 2) a.wrist += .1f * (float) Math.exp(-j / .5f) * Mth.sin(j * 9); }
+                float build = k(t, 11, 24) * (1 - k(t, SHOCK_CLAP - 3, SHOCK_CLAP - 1));
+                a.y += .004f * build * Mth.sin(time * 7.1f + side);
+            }
+        } else if (action == SHOCK_UNEQUIP) {
+            // Down before him, the last discharge jerks them, the hands open and sink out of sight.
+            for (int side = 0; side < 2; side++) {
+                Arm a = NOW[side];
+                float sx = side == 0 ? 1 : -1;
+                Arm low = SHOCK_A[side].set(.24f * sx, -.68f, -.5f, -40, 6 * sx, 0, .85f);
+                if (t < 4) a.lerp(shockGuard(A[side], side, time), low, ease(t / 4));
+                else a.copy(low);
+                float j = t - BatmanShock.DISCHARGE_AT;
+                if (j >= 0 && j < 2.5f) { a.y += .02f * (float) Math.exp(-j / .6f) * Mth.sin(j * 10); a.curl = .3f; }
+                a.shown = 1 - k(t, 9, SHOCK_UNEQUIP_TICKS);
+            }
+        } else if (action == SHOCK_PUNCH) {
+            int b = BatmanShock.blow(s.combo), side = BatmanShock.BLOW_SIDE[b];
+            float lt = BatmanShockFx.local(t, s.combo), h = BatmanShock.BLOW_HIT[b], len = BatmanShock.BLOW_TICKS[b];
+            float[] ld = SHOCK_LOAD[b], ht = SHOCK_HIT[b];
+            Arm load = SHOCK_A[side].set(ld[0], ld[1], ld[2], ld[3], ld[4], ld[5], 1), hit = SHOCK_B[side].set(ht[0], ht[1], ht[2], ht[3], ht[4], ht[5], 1);
+            Arm a = NOW[side], g = shockGuard(SHOCK_C[side], side, time);
+            // PREP (into the load) → ACCELERATION (snapping out) → IMPACT (held for the hit-stop) → RECOVERY (home to the guard).
+            if (lt < h * .6f) a.lerp(g, load, ease(lt / (h * .6f)));
+            else if (lt < h) a.lerp(load, hit, PantherMotion.snap(lt, h * .6f, h));
+            else a.lerp(hit, g, k(lt, h + 1.2f, len));
+            if (BatmanShock.landed(s.combo) && lt >= h && lt < h + 1) a.x += .006f * Mth.sin(time * 11);
         }
     }
 

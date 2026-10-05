@@ -845,6 +845,132 @@ def s_sonic_retract():
                (mix(0.3, (thump(0.3, 90, 40, 0.06), 0, 1.1), (lowpass(noise(0.3, 484), 600) * env_ad(0.3, 0.001, 0.03), 0, .6)), 1.22, 1))
 
 
+# Batman: the electric gauntlets (WayneTech power knuckles: locks and servos, stored charge, KRAK-KZZZT discharges)
+def zap_buzz(d, f0, seed, gate=0.55):
+    # A gated electric buzz: a sawtooth chopped by noise, through a bright band.
+    t = t_axis(d)
+    saw = signal.sawtooth(2 * np.pi * f0 * t) * (np.abs(lowpass(noise(d, seed), 400)) > gate * 0.1)
+    return bandpass(saw, 300, 6000)
+
+
+def s_shock_equip():
+    # Locking on: two pairs of mechanical locks and a servo each (the left a beat later), the shutters clicking open,
+    # the first sparks, then the charge spreading: a rising whine and crackle that ends just before the clap.
+    d = 1.3
+    t = t_axis(d)
+    layers = []
+    for off, p, sd in ((0.06, 1.0, 901), (0.2, 1.06, 911)):
+        layers += [(servo(0.22, 520 * p, 1150 * p, sd), off, .4), (lock_clunk(sd + 2, 380 * p), off + 0.12, .9),
+                   (tick_click(sd + 4, 2200 * p), off + 0.22, .6)]
+    layers += [(tick_click(921, 3100), 0.48, .45), (tick_click(923, 3400), 0.53, .4)]
+    k = np.clip((t - 0.55) / 0.7, 0, 1)
+    rise = sine_sweep(d, 300, 2400, 1.4) * k ** 1.6
+    shimmer = fm(d, 1500, 1.41, 2.0, 1.7) * k ** 2 * 0.3
+    sparks = crackle(d, 140, 2500, 10000, seed=925) * (0.15 + 0.85 * k ** 1.3) * (t > 0.55)
+    hum = (np.sin(2 * np.pi * 120 * t) + .5 * np.sin(2 * np.pi * 240 * t)) * k * 0.3
+    layers += [(rise, 0, .55), (shimmer, 0, 1), (sparks, 0, .55), (hum, 0, .8)]
+    out = mix(d, *layers)
+    out *= np.clip((1.28 - t) / 0.03, 0, 1)
+    return out
+
+
+def s_shock_clap():
+    # The fists slam together: a hard metal CLACK, an electric KRAK, a short bass hit, a spitting zap tail.
+    d = 1.1
+    clack = mix(0.5, (modal(0.5, 860, [1, 2.3, 3.9, 5.7], [.12, .08, .05, .03], [1, .7, .5, .3], seed=931), 0, .9), (crack(0.04, 932, 2500), 0, 1.2))
+    krak = highpass(noise(0.06, 933), 1800) * env_ad(0.06, 0.0002, 0.008)
+    zap = crackle(0.6, 700, 1500, 11000, seed=934, decay=0.12)
+    buzz = zap_buzz(0.35, 140, 935) * env_ad(0.35, 0.001, 0.09)
+    bass = thump(d, 105, 38, 0.18)
+    return reverb(mix(d, (clack, 0, 1), (krak, 0.003, 1.3), (zap, 0.004, .9), (buzz, 0.01, .5), (bass, 0, 1.4),
+                      (sine_sweep(0.12, 5200, 2600, 0.5) * env_ad(0.12, 0.0005, 0.02), 0.002, .4)), 0.5, 0.9, 0.18)
+
+
+def s_shock_hum():
+    # The stored charge humming in the gauntlets: a low electrical hum, a gritty buzz, a thin high whine that wavers,
+    # sparse crackle. Exactly periodic over its length (whole cycles, crackle filtered round the loop) so it loops.
+    d = 1.0
+    n = int(d * SR)
+    t = np.arange(n) / SR
+    fr = np.fft.rfftfreq(n, 1 / SR)
+    core = sum(g * np.sin(2 * np.pi * f * t) for f, g in ((60, .6), (120, 1), (180, .4), (240, .25), (360, .1)))
+    saw = np.fft.rfft(signal.sawtooth(2 * np.pi * 120 * t))
+    saw[fr > 2500] = 0
+    buzz = np.fft.irfft(saw, n) * (0.7 + 0.3 * np.sin(2 * np.pi * 3 * t))
+    whine = np.sin(2 * np.pi * 3300 * t + 0.8 * np.sin(2 * np.pi * 7 * t)) * (0.5 + 0.5 * np.sin(2 * np.pi * 5 * t) ** 2)
+    r = np.random.default_rng(941)
+    imp = np.zeros(n)
+    for at in r.integers(0, n, 70):
+        imp[at] = r.uniform(.4, 1) * r.choice([-1, 1])
+    cr = np.fft.rfft(imp)
+    cr[(fr < 2000) | (fr > 10000)] = 0
+    crack_l = np.fft.irfft(cr, n)
+    crack_l /= np.max(np.abs(crack_l)) + 1e-9
+    hiss = looped_noise(n, 3000, 8000, 942)
+    return core * .45 + buzz * .3 + whine * .06 + crack_l * .35 + hiss * .05
+
+
+def s_shock_swing():
+    # A heavy charged swing: the air moved by the fist, an electric buzz sweeping up with it, a crackle off the knuckles.
+    d = 0.42
+    t = t_axis(d)
+    air = whoosh(d, 220, 1500, 1.6, 0.55, seed=951, body=0.5)
+    sweep = bandpass(signal.sawtooth(2 * np.pi * np.cumsum(90 * (2.2 ** (t / d))) / SR), 200, 4000) * np.sin(np.pi * t / d) ** 1.5
+    return mix(d, (air, 0, 1), (sweep, 0, .35), (crackle(d, 45, 2500, 9000, seed=952) * np.sin(np.pi * t / d) ** 2, 0, .14))
+
+
+def s_shock_hit():
+    # A charged blow landing: THUD (a heavy body blow) + KRAK (the discharge's crack) + KZZZT (a dense buzzing
+    # crackle dying away), a bright zap sweep. Variants are pitched copies; the server also varies the pitch.
+    d = 0.9
+    thud = mix(d, (thump(d, 115, 44, 0.12), 0, 1.3), (lowpass(noise(d, 961), 700) * env_ad(d, 0.001, 0.035), 0, .9))
+    krak = mix(0.1, (highpass(noise(0.1, 962), 2000) * env_ad(0.1, 0.0002, 0.01), 0, 1.3), (crack(0.06, 963, 1200), 0, .8))
+    kz = crackle(0.5, 900, 1200, 10000, seed=964, decay=0.14) + zap_buzz(0.5, 150, 965, 0.4) * env_ad(0.5, 0.002, 0.13) * .6
+    sweep = sine_sweep(0.15, 6500, 1800, 0.5) * env_ad(0.15, 0.0005, 0.03)
+    return reverb(mix(d, (thud, 0, 1), (krak, 0.002, 1), (kz, 0.008, .85), (sweep, 0.004, .35)), 0.4, 0.7, 0.14)
+
+
+def s_shock_miss():
+    # A charged miss: a short electric crack in the air before the fist, a little zap, a puff of air.
+    d = 0.4
+    return mix(d, (crackle(0.18, 260, 1800, 10000, seed=971, decay=0.04), 0, .7), (crack(0.04, 972, 2800), 0, .7),
+               (zap_buzz(0.15, 170, 973) * env_ad(0.15, 0.001, 0.04), 0.005, .4), (whoosh(0.3, 600, 2600, 2, 0.3, seed=974), 0, .35))
+
+
+def s_shock_empty():
+    # The charge runs out: the hum's pitch falls away, sputtering crackle with gaps, a dull click.
+    d = 0.9
+    t = t_axis(d)
+    fall = sine_sweep(0.7, 1500, 110, 0.6) * env_ad(0.7, 0.003, 0.25)
+    gate = (np.sin(2 * np.pi * 9 * t) > 0.2) * env_ad(d, 0.002, 0.3)
+    sput = crackle(d, 400, 1500, 9000, seed=981) * gate
+    return mix(d, (fall, 0, .6), (sput, 0, .7), ((np.sin(2 * np.pi * 120 * t) * env_ad(d, 0.002, 0.2)), 0, .35), (tick_click(982, 1400), 0.6, .5))
+
+
+def s_shock_ready():
+    # Charged again: a quick rising chirp, a crackle running over the plates, a small bright ping.
+    d = 0.75
+    t = t_axis(d)
+    rise = sine_sweep(0.35, 400, 2600, 1.3) * np.clip(t[:int(0.35 * SR)] / 0.35, 0, 1) ** 1.5
+    return mix(d, (rise, 0, .6), (crackle(0.4, 300, 2500, 10000, seed=991, decay=0.15), 0.25, .7),
+               (clink(2400, 992, 0.4) * env_ad(0.4, 0.0005, 0.08), 0.33, .4), (thump(0.3, 160, 80, 0.06), 0.32, .5))
+
+
+def s_shock_unequip():
+    # Coming off: the charge winds down, the last arcs, the final KZZZT discharge (0.3 s: tick 6), the locks release
+    # with clicks and servos, a last clunk.
+    d = 1.0
+    t = t_axis(d)
+    wind = sine_sweep(0.32, 1700, 260, 0.6) * env_ad(0.32, 0.003, 0.12)
+    arcs = crackle(0.3, 120, 2500, 9000, seed=1001) * np.linspace(1, .3, int(0.3 * SR))
+    kz = crackle(0.22, 1000, 1200, 10000, seed=1002, decay=0.07) + zap_buzz(0.22, 130, 1003, 0.4) * env_ad(0.22, 0.001, 0.07) * .7
+    layers = [(wind, 0, .5), (arcs, 0, .35), (kz, 0.3, 1.1), (crack(0.04, 1004, 2200), 0.3, .9)]
+    for off, p, sd in ((0.44, 1.0, 1011), (0.54, 1.07, 1021)):
+        layers += [(tick_click(sd, 2100 * p), off, .6), (servo(0.2, 1200 * p, 560 * p, sd + 1), off + 0.03, .35)]
+    layers += [(lock_clunk(1031, 360), 0.72, .8)]
+    return mix(d, *layers)
+
+
 SOUNDS = {
     'fx': {'whoosh_light': s_whoosh_light, 'whoosh_heavy': s_whoosh_heavy, 'impact_heavy': s_impact_heavy, 'impact_metal': s_impact_metal,
            'electric_zap': s_electric_zap, 'electric_crackle': s_electric_crackle, 'energy_swell': s_energy_swell, 'energy_boom': s_energy_boom},
@@ -865,10 +991,13 @@ SOUNDS = {
                'cannon_final': s_cannon_final, 'cannon_stop': s_cannon_stop, 'cannon_retract': s_cannon_retract,
                'sonic_beep': s_sonic_beep, 'sonic_rumble': s_sonic_rumble, 'sonic_rise': s_sonic_rise, 'sonic_lock': s_sonic_lock,
                'sonic_hum': s_sonic_hum, 'sonic_pulse': s_sonic_pulse, 'sonic_hit': s_sonic_hit, 'sonic_ring': s_sonic_ring,
-               'sonic_break': s_sonic_break, 'sonic_retract': s_sonic_retract},
+               'sonic_break': s_sonic_break, 'sonic_retract': s_sonic_retract,
+               'shock_equip': s_shock_equip, 'shock_clap': s_shock_clap, 'shock_hum': s_shock_hum, 'shock_swing': s_shock_swing,
+               'shock_hit': s_shock_hit, 'shock_miss': s_shock_miss, 'shock_empty': s_shock_empty, 'shock_ready': s_shock_ready,
+               'shock_unequip': s_shock_unequip},
 }
 # A few sounds get pitch/time variants so repeats never sound identical.
-VARIANTS = {'cannon_shot': 3, 'punch': 3, 'batarang': 2, 'claw_slash': 3, 'blade_slash': 3, 'whoosh_light': 2, 'claw_hit': 2, 'hulk_punch': 2, 'shield_hit': 2, 'electric_zap': 2, 'metal_shing': 2}
+VARIANTS = {'cannon_shot': 3, 'shock_hit': 3, 'shock_miss': 2, 'shock_swing': 2, 'punch': 3, 'batarang': 2, 'claw_slash': 3, 'blade_slash': 3, 'whoosh_light': 2, 'claw_hit': 2, 'hulk_punch': 2, 'shield_hit': 2, 'electric_zap': 2, 'metal_shing': 2}
 
 
 def resample(x, factor):
@@ -877,7 +1006,7 @@ def resample(x, factor):
 
 
 # Looping sounds are written whole (no trimming or fades, which would leave a seam at the loop point).
-LOOPS = {'cannon_hum', 'sonic_hum', 'sonic_ring'}
+LOOPS = {'cannon_hum', 'sonic_hum', 'sonic_ring', 'shock_hum'}
 
 
 def write_ogg(path, x, loop=False):

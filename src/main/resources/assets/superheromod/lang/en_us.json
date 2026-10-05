@@ -87,5 +87,14 @@
   "subtitles.superheromod.batman.sonic_ring": "Ears ring",
   "subtitles.superheromod.batman.sonic_break": "Emitter shorts out",
   "subtitles.superheromod.batman.sonic_retract": "Emitter retracts",
-  "subtitles.superheromod.batman.cape": "Cape snaps"
+  "subtitles.superheromod.batman.cape": "Cape snaps",
+  "subtitles.superheromod.batman.shock_equip": "Electric gauntlets lock on",
+  "subtitles.superheromod.batman.shock_clap": "Gauntlets clap with a crack of electricity",
+  "subtitles.superheromod.batman.shock_hum": "Electric gauntlets hum",
+  "subtitles.superheromod.batman.shock_swing": "Charged fist swings",
+  "subtitles.superheromod.batman.shock_hit": "Electric punch lands",
+  "subtitles.superheromod.batman.shock_miss": "Electricity crackles",
+  "subtitles.superheromod.batman.shock_empty": "Gauntlets power down",
+  "subtitles.superheromod.batman.shock_ready": "Gauntlets recharged",
+  "subtitles.superheromod.batman.shock_unequip": "Electric gauntlets release"
 }

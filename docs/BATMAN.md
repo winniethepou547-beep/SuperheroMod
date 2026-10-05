@@ -54,6 +54,13 @@ siyah yarasa, siyah başlık ve kulaklar, zırhlı eldivenler ve botlar, yere ka
 - Solda yetenek listesi (bekleme süreleriyle).
 - Yetenek listesinin üstünde 5 ince, düz Batman simgesi: Batarang sayısı. Attıkça sönerler, zamanla aşağıdan yukarı yeniden dolarlar (2 sn'de bir); basılı tutarken sayılanlar altın renginde parlar.
 
+## Elektrikli Muşta
+- R (muşta seçiliyken): eller aşağı-yana iner, ağır siyah eldivenler ve parmak eklemi plakaları mekanik olarak kilitlenir, enerji dolar (sağdaki çubuk 0→100), iki yumruğunu birbirine vurur: "KRAK", turkuaz elektrik ve ışık patlaması. Sonra boksör duruşu.
+- Takılıyken sol tık hızlı yumruklar yerine 8 farklı ağır elektrikli boks vuruşu: sağ düz, sol kroş, sağ aparkat, sol kroşe, geniş sağ kroşe, alçak sol kroşe, sağ gövde, sol yukarıdan. Her yumrukta elektrik izi ve kısa ışık.
+- Doğrudan isabet: turkuaz-beyaz parlama, temas noktasından elektrik dalları, hedefin üzerinde dolaşan arklar ve titreme, kısa vuruş donması, sarsıntı. Enerjinin ~%23'ünü harcar (dolu enerjiyle 4–5 isabet); ıska neredeyse hiç harcamaz; boşta çok yavaş azalır.
+- Enerji biterse elektrik kesilir (yarım hasarla boks devam eder). 1,5 sn sonra takılıyken 14 saniyede dolar; elektrik dolunca geri gelir.
+- R tekrar: elektrik söner, son bir deşarj ve "KZZZT", eldivenler çözülür, normal yumruklar geri gelir.
+
 ## Bilek Topu (WayneTech)
 - Kullanınca iki bilekteki zırh plakaları açılır, namlu ve sarı yayıcılar mekanik olarak yerine kilitlenir (tık sesleri), iki kolunu nişangâha kaldırır.
 - 4 saniye boyunca iki bilekten dönüşümlü çok hızlı sarı atışlar; nişangâhı nereye çevirirsen kolları oraya döner. Her atışta çok katmanlı namlu parlaması, kısa sarı iz, çevreye (zemin, duvar, Batman'in kolları, göğsü, pelerini) sarı ışık vurması, küçük kamera titreşimi.
