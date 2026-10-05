@@ -110,7 +110,9 @@ public final class BatmanSonicFx {
     /** The torn ground left a moment after an emitter has gone (sunk back, or blown apart: scorched). */
     private record Scar(Vec3 at, int id, float start, float life, boolean burnt) {}
     /** What this client has already played for one emitter. */
-    private static final class Watch { float last = -2; Hum hum; boolean breakSeen, blasted; float hitAt = -100; }
+    private static final class Watch { float last = -2; Hum hum; boolean breakSeen, blasted; float hitAt = -100;
+        /** The stream: where its last pulse went and when (it flows on while the pulses keep coming). */
+        Vec3 streamTo; float streamAt = -100, streamStart = -100; }
 
     private static final List<Pulse> PULSES = new ArrayList<>();
     private static final List<Mote> MOTES = new ArrayList<>();
@@ -158,6 +160,9 @@ public final class BatmanSonicFx {
                 }
                 boolean hit = p.power() > 0;
                 PULSES.add(new Pulse(p.id(), p.entity(), hit, from, p.dir(), t));
+                Watch sw = WATCH.computeIfAbsent(p.id(), k -> new Watch());
+                if (t - sw.streamAt > SonicEmitterEntity.PULSE_EVERY + 4) sw.streamStart = t;
+                sw.streamTo = p.dir(); sw.streamAt = t;
                 Vec3 dir = p.dir().subtract(from).normalize();
                 RINGS.add(new Ring(from, dir, .25f, .85f, .06f, t, 4, RING, .7f, true));
                 MOTES.add(new Mote(M_GLOW, from, Vec3.ZERO, .7f, 0, COLD, 3, t, .8f));
@@ -629,7 +634,12 @@ public final class BatmanSonicFx {
                 if (k < 0 || k > 1) continue;
                 ground(c, s.at(), s.id(), 1 - k, 1, s.burnt());
             }
-            for (Pulse pl : PULSES) pulse(c, pl, time);
+            // One unbroken sound wave per emitter while it fires (the pulses only mark where it lands).
+            for (SonicEmitterEntity em : SonicEmitterEntity.CLIENT) {
+                if (em.isRemoved() || em.level() != mc.level || !em.placed()) continue;
+                Watch w = WATCH.get(em.getId());
+                if (w != null) stream(c, em, w, partial, time);
+            }
             for (Ring r : RINGS) {
                 float k = (time - r.start()) / r.life();
                 if (k < 0 || k > 1) continue;
@@ -780,6 +790,36 @@ public final class BatmanSonicFx {
      * front a thin ring about the line that widens the further it has come (a sound cone), wobbling a little, the
      * leading one brightest and the ones behind it fading; a faint haze of pushed air between them.
      */
+    /**
+     * The continuous wave: fronts all the way from the chamber to where it lands, evenly spaced and flowing out at
+     * PULSE_SPEED, widening and wobbling with distance; it runs out to the target from its first pulse and fades out
+     * a little after its last.
+     */
+    private static void stream(FilmContext c, SonicEmitterEntity e, Watch w, float partial, float time) {
+        if (w.streamTo == null) return;
+        float since = time - w.streamAt;
+        float on = 1 - Mth.clamp((since - SonicEmitterEntity.PULSE_EVERY - 2) / 6f, 0, 1);
+        if (on <= 0) return;
+        Vec3[] face = face(e, partial);
+        if (face == null) return;
+        Vec3 from = face[0], dir = w.streamTo.subtract(from);
+        double len = dir.length();
+        if (len < 1e-3) return;
+        dir = dir.scale(1 / len);
+        // Reaching out at first, then the whole way.
+        double reach = Math.min(len, (time - w.streamStart) * PULSE_SPEED);
+        double gap = FRONT_GAP * .8, scroll = (time * PULSE_SPEED * .5) % gap;
+        for (double d = scroll + .2; d < reach; d += gap) {
+            Vec3 at = from.add(dir.scale(d));
+            float fade = on * (float) (1 - .35 * d / len);
+            double wobble = 1 + .08 * Math.sin(time * 1.7 + d * 3.1);
+            double radius = (.22 + FRONT_SPREAD * d) * wobble;
+            ring(c, at, dir, radius, .045, ((int) Math.floor((d - scroll) / gap)) % 3 == 0 ? RING : COLD, .5f * fade, true);
+            if (((int) Math.floor((d - scroll) / gap)) % 2 == 1) FilmFx.puff(c, at, radius * 1.1, HAZE, .04f * fade);
+        }
+        FilmFx.glow(c, from, .45, 0xe8f8ff, .35f * on);
+        FilmFx.glow(c, from.add(dir.scale(reach)), .5, 0xe8f8ff, .25f * on);
+    }
     private static void pulse(FilmContext c, Pulse p, float time) {
         float u = (time - p.start) / p.travel;
         if (u < 0 || u > 1) return;

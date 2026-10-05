@@ -262,7 +262,8 @@ public final class BatmanThermal {
         List<LivingEntity> bodies = new ArrayList<>();
         for (Entity en : mc.level.entitiesForRendering()) {
             if (!(en instanceof LivingEntity l) || !l.isAlive()) continue;
-            if (en == player && firstPerson) continue;
+            // Never himself: he sees the others in heat, not his own body (first or third person).
+            if (en == player) continue;
             if (en.distanceToSqr(me) > range * range) continue;
             bodies.add(l);
         }

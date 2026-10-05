@@ -28,8 +28,9 @@ import static com.FIRNI.superheromod.heroes.batman.BatmanConfig.f;
  * straight, left cross, right uppercut, left hook, wide right hook, low left hook to the body, right shovel to the body,
  * left overhand), each one PREP → ACCELERATION → IMPACT → RECOVERY, clicks buffered. A blow that lands is decided here:
  * damage (half without charge), a short electric stagger, a short hit-stop (the blow is held STOP ticks longer, the
- * clients hold the pose), and a big share of the charge (State.energy). Idling drains it slowly; empty, the electricity
- * is off (he still boxes, at half damage) until, after a rest, the pair has recharged to SHOCK_POWER_BACK.
+ * clients hold the pose), and a big share of the charge (State.energy). Idling drains it slowly; it never recharges while
+ * worn: empty, they come off by themselves (as soon as the blow in hand is done) and the gadget waits SHOCK_EMPTY_COOLDOWN;
+ * put on again, they are fully charged.
  * <p>
  * Sync: State.shock / State.energy are in the state packet; the rest rides on State.combo while they are worn (owned
  * here then): the blow count in the low byte, COMBO_HIT (the current blow landed: the clients hold the pose for the
@@ -78,7 +79,7 @@ public final class BatmanShock {
     public static int length(int combo) { int b = blow(combo); return BLOW_TICKS[b] + (landed(combo) ? stop(b) : 0); }
 
     /** What the State does not hold: the electricity off, ticks since the last blow, whether this blow was charged, combo written by us. */
-    private static final class Extra { boolean off, charged, dirty; int rest; }
+    private static final class Extra { boolean off, charged, dirty, spent; int rest; }
     private static final Map<UUID, Extra> EXTRA = new HashMap<>();
     private static Extra extra(ServerPlayer p) { return EXTRA.computeIfAbsent(p.getUUID(), id -> new Extra()); }
 
@@ -95,7 +96,9 @@ public final class BatmanShock {
             BatmanController.sound(p, SoundEvents.ARMOR_EQUIP_IRON, .45f, 1.3f);
         } else {
             s.shock = true;
-            s.combo = x.off ? COMBO_OFF : 0;
+            // Put on again: fully charged.
+            s.energy = 1; x.off = false; x.spent = false;
+            s.combo = 0;
             s.lastBlowEnd = -1000;
             x.dirty = true; x.rest = 0;
             BatmanController.set(s, SHOCK_EQUIP);
@@ -247,13 +250,14 @@ public final class BatmanShock {
         BatmanController.fx(p, FX_SHOCK_EMPTY, between(p), Vec3.ZERO, 0, p.getId(), p.getId());
         BatmanController.sound(p, ModSounds.BATMAN_SHOCK_EMPTY.get(), .9f, 1f);
         BatmanController.sound(p, SoundEvents.FIRE_EXTINGUISH, .25f, 1.7f);
-        BatmanController.tell(p, "Elektrikli Muşta: enerji bitti (dinlenince şarj olur)");
+        x.spent = true;
+        BatmanController.tell(p, "Elektrikli Muşta: enerji bitti, çıkarılıyor");
     }
 
     /**
-     * Every tick for every Batman: while worn the charge drains slowly (not while they lock on), an empty pair recharges
-     * after a rest and the electricity comes back at SHOCK_POWER_BACK; the flags on State.combo follow. Off his hands
-     * the charge keeps. Dead: they come off.
+     * Every tick for every Batman: while worn the charge drains slowly (not while they lock on) and never comes back;
+     * empty, they come off by themselves once the blow in hand is done, and the gadget cools down. The flags on
+     * State.combo follow. Dead: they come off.
      */
     @SubscribeEvent public static void playerTick(TickEvent.PlayerTickEvent e) {
         if (e.phase != TickEvent.Phase.END || !(e.player instanceof ServerPlayer p)) return;
@@ -271,13 +275,17 @@ public final class BatmanShock {
             if (!x.off) {
                 if (s.action != SHOCK_EQUIP) s.energy = Math.max(0, s.energy - 1f / (float) (BatmanConfig.SHOCK_DRAIN_SECONDS.get() * 20));
                 if (s.energy <= 1e-4f) empty(p, s, x);
-            } else if (x.rest >= BatmanConfig.SHOCK_RECHARGE_DELAY.get() * 20) {
-                s.energy = Math.min(1, s.energy + 1f / (float) (BatmanConfig.SHOCK_RECHARGE_SECONDS.get() * 20));
-                if (s.energy >= f(BatmanConfig.SHOCK_POWER_BACK) - 1e-4f) {
-                    x.off = false;
-                    BatmanController.fx(p, FX_SHOCK_READY, between(p), Vec3.ZERO, 1, p.getId(), p.getId());
-                    BatmanController.sound(p, ModSounds.BATMAN_SHOCK_READY.get(), .9f, 1f);
-                }
+            }
+            if (x.spent && s.action != SHOCK_PUNCH && !BatmanController.busy(s)) {
+                // Spent: off they come, and the gadget waits.
+                x.spent = false;
+                s.shock = false;
+                s.queued = false;
+                BatmanController.set(s, SHOCK_UNEQUIP);
+                BatmanController.sound(p, ModSounds.BATMAN_SHOCK_UNEQUIP.get(), 1f, .9f);
+                BatmanController.sound(p, SoundEvents.ARMOR_EQUIP_IRON, .45f, 1.2f);
+                s.cooldowns[G_SHOCK] = (int) Math.round(BatmanConfig.SHOCK_EMPTY_COOLDOWN.get() * 20);
+                return;
             }
             s.combo = (Math.max(0, s.combo) & ~COMBO_OFF) | (x.off ? COMBO_OFF : 0);
             x.dirty = true;

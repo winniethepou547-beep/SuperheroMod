@@ -16,7 +16,7 @@ public final class BatmanConfig {
     public static final ForgeConfigSpec.DoubleValue SMOKE_RADIUS, SMOKE_SECONDS, SMOKE_DAMAGE;
     public static final ForgeConfigSpec.DoubleValue FLASH_RADIUS, FLASH_SECONDS;
     public static final ForgeConfigSpec.DoubleValue STICKY_DAMAGE, STICKY_LAUNCH, STICKY_RADIUS;
-    public static final ForgeConfigSpec.DoubleValue SHOCK_DAMAGE, SHOCK_ENERGY_PER_HIT, SHOCK_DRAIN_SECONDS, SHOCK_RECHARGE_SECONDS, SHOCK_RECHARGE_DELAY, SHOCK_POWER_BACK;
+    public static final ForgeConfigSpec.DoubleValue SHOCK_DAMAGE, SHOCK_ENERGY_PER_HIT, SHOCK_DRAIN_SECONDS, SHOCK_EMPTY_COOLDOWN;
     public static final ForgeConfigSpec.DoubleValue REFLEX_SECONDS, REFLEX_GAUNTLET_RANGE;
     public static final ForgeConfigSpec.DoubleValue CANNON_DAMAGE, CANNON_RANGE, CANNON_KNOCK, CANNON_MAX_DAMAGE, CANNON_SPREAD;
     public static final ForgeConfigSpec.IntValue CANNON_SHOTS_PER_SECOND;
@@ -61,9 +61,7 @@ public final class BatmanConfig {
         SHOCK_DAMAGE = b.comment("Damage of a charged blow that lands (an uncharged one does about half)").defineInRange("blowDamage", 6.0, 0, 100);
         SHOCK_ENERGY_PER_HIT = b.comment("Energy a blow that lands uses (1 = all of it)").defineInRange("energyPerHit", .23, 0, 1);
         SHOCK_DRAIN_SECONDS = b.comment("Seconds a full charge lasts without hitting anything").defineInRange("idleDrainSeconds", 90.0, 5, 3600);
-        SHOCK_RECHARGE_SECONDS = b.comment("Seconds to charge again from empty (worn, after a short pause)").defineInRange("rechargeSeconds", 14.0, 1, 600);
-        SHOCK_RECHARGE_DELAY = b.comment("Seconds of rest (no blows) before an empty pair starts recharging").defineInRange("rechargeDelaySeconds", 1.5, 0, 60);
-        SHOCK_POWER_BACK = b.comment("Charge (0..1) an empty pair must reach before the electricity comes back").defineInRange("powerBackAt", 1.0, .05, 1);
+        SHOCK_EMPTY_COOLDOWN = b.comment("Seconds before they can be put on again once the charge ran out (they come off by themselves, and are charged again when put on)").defineInRange("emptyCooldownSeconds", 15.0, 0, 600);
         CD_SHOCK = b.comment("Cooldown between putting them on and taking them off (ticks)").defineInRange("cooldown", 20, 0, 1200);
         b.pop();
         b.comment("Gadget: the dual wrist cannon (4 seconds of aimed rapid fire from both gauntlets)").push("wristCannon");

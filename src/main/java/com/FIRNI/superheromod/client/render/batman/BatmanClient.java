@@ -313,7 +313,8 @@ public final class BatmanClient {
         if (e.getEntity() != mc.player || !isHero(mc.player)) { shiftRun = false; return; }
         var p = mc.player;
         var keys = e.getInput();
-        boolean shift = keys.shiftKeyDown;
+        // Read off the key itself: the hero sneak suppressor may already have cleared the input's sneak flag.
+        boolean shift = mc.screen == null && mc.options.keyShift.isDown();
         keys.shiftKeyDown = false;
         boolean moving = keys.forwardImpulse > .1f;
         if (shift && moving && !p.isInWater() && !BatmanBound.bound()) { p.setSprinting(true); shiftRun = true; }

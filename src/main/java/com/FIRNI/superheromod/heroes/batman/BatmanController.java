@@ -60,6 +60,8 @@ public final class BatmanController {
         int combo = -1; long lastBlowEnd = -1000; boolean queued;
         // Batarangs
         int batarangs = BATARANG_MAX, refill; boolean charging; int chargeAge, charge, throwCount;
+        /** Batarangs let go during a roll: thrown as soon as the roll is over. */
+        int throwAfterRoll;
         // gadgets
         int gadget = G_SMOKE, throwing; boolean wheel;
         // movement
@@ -239,13 +241,16 @@ public final class BatmanController {
         int was = s.charge;
         s.charge = Mth.clamp(s.chargeAge / BATARANG_STEP, 1, Math.min(BATARANG_MAX, s.batarangs));
         // Held past a tap: both hands come together with the Batarangs fanned between the fingers.
-        if (s.chargeAge == BATARANG_STEP && (s.action == IDLE || s.action == PUNCH || s.action == WHEEL)) set(s, BATARANG_CHARGE);
+        // (Also after a roll made while holding: the fan comes back into his hands.)
+        if (s.chargeAge >= BATARANG_STEP && (s.action == IDLE || s.action == PUNCH || s.action == WHEEL)) set(s, BATARANG_CHARGE);
         if (s.charge > was) sound(p, SoundEvents.ARMOR_EQUIP_CHAIN, .4f, 1.4f + s.charge * .1f);
     }
     private static void releaseCharge(ServerPlayer p, State s) {
         if (!s.charging) return;
         s.charging = false;
         int k = s.chargeAge < BATARANG_STEP ? 1 : s.charge;
+        // Let go in the middle of a roll: they all fly the moment he is up.
+        if (s.action == DODGE) { s.throwAfterRoll = k; return; }
         if (busy(s)) return;
         s.throwCount = k;
         set(s, k <= 1 ? BATARANG : BATARANG_MULTI);
@@ -509,7 +514,8 @@ public final class BatmanController {
         if (s.action == GRAPNEL_PULL || s.action == GRAPNEL_STRIKE || s.action == GRAPNEL_FIRE || s.action == DODGE || s.action == CANNON) return;
         if (s.cooldowns[CD_DODGE] > 0) return;
         s.cooldowns[CD_DODGE] = Math.max(BatmanConfig.CD_DODGE.get(), DODGE_TICKS + 2);
-        s.dodgeYaw = yaw; s.aiming = false; s.charging = false; s.gliding = false;
+        // A held Batarang charge carries through the roll (charge, roll, let them all go).
+        s.dodgeYaw = yaw; s.aiming = false; s.gliding = false;
         set(s, DODGE);
         fx(p, FX_DODGE, p.position(), Vec3.ZERO, yaw, p.getId(), 0);
         sound(p, ModSounds.BATMAN_CAPE.get(), .6f, 1.25f);
@@ -565,7 +571,12 @@ public final class BatmanController {
         }
         if (s.action == GRAPNEL_STRIKE || s.action == GRAPNEL_PULL) s.noFall = true;
         int len = length(s.action);
-        if (len > 0 && s.age >= len && s.action != GRAPNEL_STRIKE && s.action != GRAPNEL_YANK) set(s, s.aiming ? GRAPNEL_AIM : IDLE);
+        if (len > 0 && s.age >= len && s.action != GRAPNEL_STRIKE && s.action != GRAPNEL_YANK) {
+            boolean rolled = s.action == DODGE;
+            set(s, s.aiming ? GRAPNEL_AIM : IDLE);
+            if (rolled && s.throwAfterRoll > 0 && s.batarangs > 0) { s.throwCount = s.throwAfterRoll; set(s, s.throwCount <= 1 ? BATARANG : BATARANG_MULTI); }
+        }
+        if (s.action != DODGE) s.throwAfterRoll = 0;
         send(p, s);
     }
     @SubscribeEvent public static void serverTick(TickEvent.ServerTickEvent e) {
