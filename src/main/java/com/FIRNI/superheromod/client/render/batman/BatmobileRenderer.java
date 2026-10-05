@@ -2,6 +2,7 @@ package com.FIRNI.superheromod.client.render.batman;
 
 import com.FIRNI.superheromod.client.render.ghost.GhostMaterials;
 import com.FIRNI.superheromod.heroes.batman.BatmobileEntity;
+import com.FIRNI.superheromod.heroes.batman.TakedownPath;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
@@ -67,13 +68,11 @@ public final class BatmobileRenderer extends EntityRenderer<BatmobileEntity> {
         VertexConsumer v = b.getBuffer(RenderType.entityCutoutNoCull(GhostMaterials.TEXTURE));
         float yaw = Mth.rotLerp(partial, e.yRotO, e.getYRot());
         float spin = Mth.lerp(partial, e.spinO, e.spin);
-        int phase = e.phase();
-        float age = e.phaseAge(partial);
-        // How hard it is driving (the turbine burns, the nose lifts, the body leans into the slide).
-        float drive = phase == BatmobileEntity.ARRIVING ? 1 - Mth.clamp((age - BatmobileEntity.ARRIVE * .6f) / (BatmobileEntity.ARRIVE * .4f), 0, 1)
-                : phase == BatmobileEntity.LEAVING ? 1 : 0;
-        float slide = phase == BatmobileEntity.ARRIVING ? Mth.sin(Mth.PI * Mth.clamp((age - BatmobileEntity.ARRIVE * .62f) / (BatmobileEntity.ARRIVE * .38f), 0, 1)) : 0;
-        float settle = phase == BatmobileEntity.PARKED ? (float) Math.exp(-age / 5f) * Mth.sin(age * .9f) : 0;
+        float age = e.clock(partial);
+        // How hard it is driving (the turbine burns, the nose lifts, the body leans into the slide); the boost squats it.
+        float drive = TakedownPath.drive(age);
+        float slide = TakedownPath.slide(age) * (e.run() == null ? 0 : e.run().side());
+        float settle = -.6f * TakedownPath.boost(age) * (float) Math.exp(-Math.max(0, age - TakedownPath.IN - TakedownPath.ARC) / 6f);
         p.pushPose();
         p.mulPose(Axis.YP.rotationDegrees(-yaw));
         // The body on its springs: the slide rolls it, braking dips the nose, it rocks once as it stops.
@@ -140,8 +139,18 @@ public final class BatmobileRenderer extends EntityRenderer<BatmobileEntity> {
         }
         box(p, v, light, -.36f, cy - .36f, cz + .05f, .36f, cy + .36f, cz + .2f, DARK);
         float burn = .45f + .55f * drive + .06f * Mth.sin((e.tickCount + partial) * .9f);
-        lamp(p, b, 0, cy, cz - .02f, 0, .5f, .5f, .08f, CORE, burn);
+        float boost = TakedownPath.boost(age);
+        float[] core = {Mth.lerp(boost, CORE[0], .35f), Mth.lerp(boost, CORE[1], .85f), Mth.lerp(boost, CORE[2], 1f)};
+        lamp(p, b, 0, cy, cz - .02f, 0, .5f, .5f, .08f, core, burn);
         lamp(p, b, 0, cy, cz - .04f, Mth.PI / 4, .36f, .36f, .06f, new float[]{1f, .75f, .35f}, burn);
+        // ---- the guns: a pod either side of the hood, barrels forward, kicking back as each fires
+        int round = (int) age;
+        for (int g = 0; g < 2; g++) {
+            float gx = g == 0 ? -TakedownPath.GUN_X : TakedownPath.GUN_X;
+            float kick = TakedownPath.fires(round) && TakedownPath.gun(round) == g ? .1f * (1 - (age - round)) : 0;
+            box(p, v, light, gx - .16f, TakedownPath.GUN_Y - .16f, TakedownPath.GUN_Z - 1.0f, gx + .16f, TakedownPath.GUN_Y + .1f, TakedownPath.GUN_Z - .45f, PANEL);
+            box(p, v, light, gx - .05f, TakedownPath.GUN_Y - .07f, TakedownPath.GUN_Z - .5f - kick, gx + .05f, TakedownPath.GUN_Y + .03f, TakedownPath.GUN_Z - kick, DARK);
+        }
         // ---- the lights
         for (int s = -1; s <= 1; s += 2) {
             lamp(p, b, s * .62f, .72f, 3.04f, s * -.18f, .5f, .045f, .04f, HEAD, 1);

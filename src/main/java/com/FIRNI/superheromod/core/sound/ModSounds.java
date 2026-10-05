@@ -87,6 +87,14 @@ public final class ModSounds {
     public static final RegistryObject<SoundEvent> BATMAN_FLASH = reg("batman.flash");
     public static final RegistryObject<SoundEvent> BATMAN_FLASH_BOUNCE = reg("batman.flash_bounce");
     public static final RegistryObject<SoundEvent> BATMAN_FLASH_RING = reg("batman.flash_ring");
+    public static final RegistryObject<SoundEvent> BATMAN_TD_SIGNAL = reg("batman.td_signal");
+    public static final RegistryObject<SoundEvent> BATMAN_TD_ABORT = reg("batman.td_abort");
+    public static final RegistryObject<SoundEvent> BATMAN_TD_TRACKER = reg("batman.td_tracker");
+    public static final RegistryObject<SoundEvent> BATMAN_TD_LOCK = reg("batman.td_lock");
+    public static final RegistryObject<SoundEvent> BATMAN_BM_ENGINE = reg("batman.bm_engine");
+    public static final RegistryObject<SoundEvent> BATMAN_BM_DRIFT = reg("batman.bm_drift");
+    public static final RegistryObject<SoundEvent> BATMAN_BM_BOOST = reg("batman.bm_boost");
+    public static final RegistryObject<SoundEvent> BATMAN_BM_GUN = reg("batman.bm_gun");
     public static final RegistryObject<SoundEvent> BATMAN_MINE = reg("batman.mine");
     public static final RegistryObject<SoundEvent> BATMAN_CAPE = reg("batman.cape");
     // batman: the wrist cannon

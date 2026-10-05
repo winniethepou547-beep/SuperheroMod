@@ -115,6 +115,7 @@ public final class BatmanFx {
         if (p.kind() >= FX_SHOCK_FIRST && p.kind() <= FX_SHOCK_LAST) { BatmanShockFx.receive(p); return; }
         if (p.kind() >= FX_ULT_FIRST && p.kind() <= FX_ULT_LAST) { BatmanUltFx.receive(p); return; }
         if (p.kind() == FX_BLOCK) { BatmanReflexFx.receive(p); return; }
+        if (p.kind() == FX_TD) { BatmanTakedownFx.receive(p); return; }
         switch (p.kind()) {
             case FX_PUNCH -> {
                 boolean rapid = p.power() >= RAPID;

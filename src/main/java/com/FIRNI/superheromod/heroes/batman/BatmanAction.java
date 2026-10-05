@@ -29,7 +29,13 @@ public final class BatmanAction {
             /** The electric gauntlets (BatmanShock): locking on and the clap that charges them; coming off; one heavy electric blow of the boxing combo (combo = the blow). */
             SHOCK_EQUIP = 16, SHOCK_UNEQUIP = 17, SHOCK_PUNCH = 18,
             /** Q: the reflex block's stance (the window itself is State.reflexUntil; deflects play over it, see BatmanReflex). */
-            REFLEX = 19;
+            REFLEX = 19,
+            /**
+             * The Batmobile remote takedown (BatmanTakedown): the call (hand to the ear, the signal), the two-armed dash
+             * (a skill shot: only a real touch counts), on a touch the hold (flip over them, tracker, rear lock, the
+             * Batmobile's run and guns, the takedown face first), on a miss the stumble and the cancelled call.
+             */
+            TD_SIGNAL = 20, TD_DASH = 21, TD_HOLD = 22, TD_MISS = 23;
 
     // ------------------------------------------------------------------ cooldown slots
     public static final int CD_SMOKE = 0, CD_FLASH = 1, CD_SHOCK = 2, CD_CANNON = 3, CD_SONIC = 4, CD_BATMOBILE = 5, CD_GRAPNEL = 6, CD_DODGE = 7, CD_REFLEX = 8, COOLDOWNS = 9;
@@ -75,6 +81,23 @@ public final class BatmanAction {
     public static final int CANNON_DEPLOY = 14, CANNON_FIRE = 80, CANNON_RETRACT = 18, CANNON_TICKS = CANNON_DEPLOY + CANNON_FIRE + CANNON_RETRACT;
     /** The sonic trap's remote: raised, the button pressed at SONIC_PRESS, lowered by SONIC_TICKS. */
     public static final int SONIC_PRESS = 9, SONIC_TICKS = 20;
+
+    // ------------------------------------------------------------------ R (Batmobile): the remote takedown
+    /** The call: the hand at the ear by TD_EAR, beeps, confirmed at TD_CONFIRM, the dash starts at TD_SIGNAL_TICKS. */
+    public static final int TD_EAR = 4, TD_CONFIRM = 12, TD_SIGNAL_TICKS = 16;
+    /** The dash: arms thrown open for TD_WIND ticks, then TD_MOVE ticks at TD_SPEED blocks a tick; a touch counts until TD_DASH_TICKS (a little grace for lag). */
+    public static final int TD_WIND = 4, TD_MOVE = 8, TD_DASH_TICKS = TD_WIND + TD_MOVE + 2;
+    public static final double TD_SPEED = 1.3;
+    /**
+     * The hold, from the touch: the flip over them to behind them by TD_FLIP, the tracker clicks on at TD_TRACK, the
+     * rear lock at TD_LOCK; the Batmobile's run starts at TD_CAR (its own clock: TakedownPath); his right hand rises at
+     * TD_PUSH and drives their head down, they fall face first from TD_FALL and hit the ground at TD_IMPACT; he is done
+     * by TD_HOLD_TICKS, they lie until TD_DOWN and get up.
+     */
+    public static final int TD_FLIP = 10, TD_TRACK = 12, TD_LOCK = 16, TD_CAR = 3, TD_PUSH = 46, TD_FALL = 50, TD_IMPACT = 55,
+            TD_HOLD_TICKS = 66, TD_DOWN = 74;
+    /** The miss: carried on and slowing (TD_SLIDE), caught off balance, the hand to the ear at TD_MISS_EAR, cancelled (red X) at TD_ABORT; open to attack throughout. */
+    public static final int TD_SLIDE = 6, TD_MISS_EAR = 12, TD_ABORT = 16, TD_MISS_TICKS = 32;
 
     // ------------------------------------------------------------------ Q: the reflex block
     /** The window lasts REFLEX_TICKS; a deflect's own move lasts DEFLECT_TICKS, and a new one may start REFLEX_GAP after the last. */
@@ -147,6 +170,8 @@ public final class BatmanAction {
     public static final int FX_BLOCK = 60;
     /** Dazed (entity, power = ticks, dir.x = 0..1 how hard): the stars round the head (DazeStars), seen by everyone. */
     public static final int FX_DAZE = 61;
+    /** The takedown (pos = their feet at the touch / his position, dir = the dash's way, entity = them, id = Batman; power 0 dash, 1 touch, 2 miss). */
+    public static final int FX_TD = 62;
     /** What his own client tells the server (BatmanInputPacket). */
     public static final int IN_GLIDE_ON = 0, IN_GLIDE_OFF = 1, IN_DODGE = 2, IN_GADGET_SELECT = 3, IN_GADGET_USE = 4,
             IN_GRAPNEL_TOGGLE = 5, IN_GRAPNEL_FIRE = 6, IN_WHEEL_OPEN = 7, IN_WHEEL_CLOSE = 8,
@@ -170,6 +195,8 @@ public final class BatmanAction {
             case SHOCK_EQUIP -> SHOCK_EQUIP_TICKS;
             case SHOCK_UNEQUIP -> SHOCK_UNEQUIP_TICKS;
             case REFLEX -> REFLEX_TICKS;
+            case TD_SIGNAL -> TD_SIGNAL_TICKS;
+            case TD_MISS -> TD_MISS_TICKS;
             default -> 0;
         };
     }

@@ -290,9 +290,7 @@ landing spot and the target to the crater.
   `SonicEmitterEntity.struckBy` from `AbilityInputPacket`, since hero attacks only look for living bodies) rise,
   track and pulse the target: 0 damage, speed modifier, the target's own client shakes, `batman_sonic` post shader, muffled
   sounds; sounds played per role; the wave is drawn as one continuous stream per emitter while it pulses, `BatmanSonicFx.stream`),
-  Batmobile (`G_BATMOBILE` 5: `BatmanBatmobile` call/send away, `BatmobileEntity` (ModEntities `batmobile`, server-driven path: run-up from
-  behind, brake, drift park beside him, leave; noSave) + `BatmobileRenderer` (Arkham Knight box model, turning wheels, turbine, lights);
-  its other features are undecided); the thermal sensor and the mine were removed), E = grapnel gun out
+  Batmobile REMOTE TAKEDOWN (`G_BATMOBILE` 5, a skill shot, below); the thermal sensor and the mine were removed), E = grapnel gun out
   (LMB fires; block = pull, body = GRAPNEL_STRIKE combo, which at `STRIKE_KICK` sticks a bomb on the back of their head
   (`BatmanSticky`, `STICKY_FUSE` 2.5 s, blast + airtime stagger; drawn by `BatmanFx` via `stickyAt`); RMB on a body = GRAPNEL_YANK: line round the legs, left hand hauls, target
   DOWNED on its back and dragged `DRAG_DIST` 4.4, then BOUND (`BatmanBind` server / `BatmanBound` client: coils drawn, a bound
@@ -334,6 +332,19 @@ landing spot and the target to the crater.
   `Ring` loop `flash_ring` + `PlaySoundEvent` muffle follow it. Behind a wall: a dim glare only; the thrower: a soft ring only.
   Mobs get blindness/slow/`DAZED`. `FX_DAZE` → `client/render/DazeStars` (3-5 gold stars per body, one set per body,
   extended not doubled; wear off slowing, shrinking, fading, drifting up) - the one daze effect, also used by the stagger.
+- Batmobile remote takedown (`heroes/batman/BatmanTakedown` server, `TakedownPath` shared pure paths, `BatmobileEntity` the car,
+  client `TakedownMotion` poses, `BatmanTakedownFx` effects/target render turn/his camera, timings `BatmanAction.TD_*`, `FX_TD`):
+  TD_SIGNAL (hand to the ear, 3/4 signal ring, `td_signal`) → TD_DASH (arms wide, then `TD_SPEED` along the look fixed at the
+  dash's start, steered by his own client; the server sweeps his body against theirs (`touched`, REACH .3): no lock-on, no homing)
+  → TD_HOLD on a touch (front flip with a half twist over them to `TakedownPath.behind`, his view turned with it; tracker on the
+  back of their head at TD_TRACK; rear lock at TD_LOCK; the car is spawned at TD_CAR and runs `TakedownPath.Run` on its own clock,
+  computed identically on server and clients from synced centre/front/side (updateInterval 20, no position packets): run in,
+  crescent slide round their FRONT at RADIUS with the nose in, guns fire `FIRE_FROM..FIRE_TO` (server damage every other round,
+  60 % of `takedownDamage`), blue boost out; the push at TD_PUSH, face-first fall (render turn in `BatmanTakedownFx.pre`) and
+  impact at TD_IMPACT (40 %), held (`HELD`) until TD_DOWN, then stagger) or TD_MISS (slide, stumble, ear, red ring + X, `td_abort`;
+  no block/attack/roll meanwhile). Cooldown `takedownCooldown` either way. Sounds `td_*`, `bm_*` (synth).
+- Effect test `/etkidene flas|sonik|sis` (`core/command/EffectTestCommands`): the flash grenade (`Pellet.test`), a sonic trap
+  (`BatmanSonic.test`, emitters with `test` set) or a smoke cloud (`Cloud.test`) on the player themselves, to see the victim's side.
 - HUD: `HudStyle.skill` rows, Batarang count over the rows (5 thin plain bat symbols `BatmanWheel.bat`, filling back), grapnel reticle,
   `BatmanWheel` (Arkham/Spider-Man 2 style wheel). Effects: `BatmanFx` (Batarangs, pellets, smoke puffs, flash, thermal ping,
   mines, the slack-then-taut line). Look/animation: `BatmanBody`, `BatmanMotion`, `BatmanLayer`, `BatmanGear`, `BatmanFirstPerson`,

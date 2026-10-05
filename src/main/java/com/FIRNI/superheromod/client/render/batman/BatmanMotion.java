@@ -76,6 +76,7 @@ public final class BatmanMotion {
             case SONIC -> BatmanSonicFx.pose(base, t, c.time());
             case SHOCK_EQUIP, SHOCK_UNEQUIP, SHOCK_PUNCH -> BatmanShockFx.pose(action, base, t, c.combo(), c.time());
             case REFLEX -> reflex(base, t, c.time());
+            case TD_SIGNAL, TD_DASH, TD_HOLD, TD_MISS -> TakedownMotion.pose(action, base, t, c.time());
             default -> base;
         };
     }

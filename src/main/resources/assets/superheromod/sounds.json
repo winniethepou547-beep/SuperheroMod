@@ -342,6 +342,56 @@
       "superheromod:batman/flash_ring"
     ]
   },
+  "batman.td_signal": {
+    "subtitle": "subtitles.superheromod.batman.td_signal",
+    "sounds": [
+      "superheromod:batman/td_signal"
+    ]
+  },
+  "batman.td_abort": {
+    "subtitle": "subtitles.superheromod.batman.td_abort",
+    "sounds": [
+      "superheromod:batman/td_abort"
+    ]
+  },
+  "batman.td_tracker": {
+    "subtitle": "subtitles.superheromod.batman.td_tracker",
+    "sounds": [
+      "superheromod:batman/td_tracker"
+    ]
+  },
+  "batman.td_lock": {
+    "subtitle": "subtitles.superheromod.batman.td_lock",
+    "sounds": [
+      "superheromod:batman/td_lock"
+    ]
+  },
+  "batman.bm_engine": {
+    "subtitle": "subtitles.superheromod.batman.bm_engine",
+    "sounds": [
+      "superheromod:batman/bm_engine"
+    ]
+  },
+  "batman.bm_drift": {
+    "subtitle": "subtitles.superheromod.batman.bm_drift",
+    "sounds": [
+      "superheromod:batman/bm_drift"
+    ]
+  },
+  "batman.bm_boost": {
+    "subtitle": "subtitles.superheromod.batman.bm_boost",
+    "sounds": [
+      "superheromod:batman/bm_boost"
+    ]
+  },
+  "batman.bm_gun": {
+    "subtitle": "subtitles.superheromod.batman.bm_gun",
+    "sounds": [
+      "superheromod:batman/bm_gun",
+      "superheromod:batman/bm_gun_1",
+      "superheromod:batman/bm_gun_2"
+    ]
+  },
   "batman.mine": {
     "subtitle": "subtitles.superheromod.batman.mine",
     "sounds": [

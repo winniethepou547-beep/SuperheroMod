@@ -21,6 +21,8 @@ public final class BatmanConfig {
     public static final ForgeConfigSpec.DoubleValue CANNON_DAMAGE, CANNON_RANGE, CANNON_KNOCK, CANNON_MAX_DAMAGE, CANNON_SPREAD;
     public static final ForgeConfigSpec.IntValue CANNON_SHOTS_PER_SECOND;
     public static final ForgeConfigSpec.DoubleValue SONIC_DISTANCE, SONIC_RANGE, SONIC_HEALTH, SONIC_SECONDS, SONIC_SLOW, SONIC_SLOW_SECONDS;
+    /** The Batmobile remote takedown: its whole damage (most from the guns, the rest from the takedown). */
+    public static final ForgeConfigSpec.DoubleValue TAKEDOWN_DAMAGE;
     public static final ForgeConfigSpec.IntValue CD_SMOKE, CD_FLASH, CD_SHOCK, CD_CANNON, CD_SONIC, CD_BATMOBILE, CD_GRAPNEL, CD_DODGE, CD_REFLEX;
     public static final ForgeConfigSpec.DoubleValue GRAPNEL_RANGE, STRIKE_UPPER_DAMAGE, STRIKE_KICK_DAMAGE;
     public static final ForgeConfigSpec.IntValue BIND_CLICKS, BIND_MOB_TICKS, BIND_MAX_TICKS;
@@ -86,8 +88,10 @@ public final class BatmanConfig {
         SONIC_SLOW_SECONDS = b.comment("How long each hit's slow lasts").defineInRange("slowSeconds", 1.25, .1, 10);
         CD_SONIC = b.comment("Cooldown (ticks)").defineInRange("cooldown", 500, 0, 12000);
         b.pop();
-        b.comment("Gadget: the Batmobile (R calls it: it drives in and parks beside him; R again sends it away). Its other features are still to be decided").push("batmobile");
-        CD_BATMOBILE = b.comment("Cooldown between calling it and sending it away (ticks)").defineInRange("cooldown", 60, 0, 12000);
+        b.comment("Gadget: the Batmobile remote takedown (R: the call, then a two-armed dash where he looks; only a real touch starts the takedown)").push("batmobile");
+        CD_BATMOBILE = b.comment("Cooldown after a takedown or a miss (ticks)").defineInRange("takedownCooldown", 360, 0, 12000);
+        TAKEDOWN_DAMAGE = b.comment("Whole damage of a takedown: 60% from the Batmobile's guns, 40% when he drives them into the ground")
+                .defineInRange("takedownDamage", 16.0, 0, 200);
         b.pop();
         b.comment("E: the grapnel gun").push("grapnel");
         GRAPNEL_RANGE = b.comment("How far the hook reaches").defineInRange("range", 45.0, 4, 120);

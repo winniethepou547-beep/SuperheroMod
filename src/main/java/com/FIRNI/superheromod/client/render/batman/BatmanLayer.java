@@ -133,7 +133,8 @@ public final class BatmanLayer extends RenderLayer<AbstractClientPlayer, PlayerM
         }
         blend.ground = ground;
         boolean free = action == IDLE || action == WHEEL || action == GRAPNEL_AIM || action == GRAPNEL_FIRE;
-        float legs = free ? 1 : action == PUNCH || action == BATARANG || action == BATARANG_CHARGE || action == BATARANG_MULTI || action == GADGET_THROW || action == CANNON || action == SHOCK_PUNCH ? .6f : 0;
+        float legs = free ? 1 : action == PUNCH || action == BATARANG || action == BATARANG_CHARGE || action == BATARANG_MULTI || action == GADGET_THROW || action == CANNON || action == SHOCK_PUNCH
+                || action == TD_SIGNAL ? .6f : 0;
         float arms = action == IDLE ? 1 : 0;
         float wantRun = e.isSprinting() && amount > .3f ? 1 : 0;
         blend.run += (wantRun - blend.run) * (1 - (float) Math.exp(-dt * .3f));
@@ -173,6 +174,16 @@ public final class BatmanLayer extends RenderLayer<AbstractClientPlayer, PlayerM
             align = a * PantherMotion.k(t, 0, .8f);
             along = true;
         }
+        // The takedown: along the dash, round with the flip's half twist to face back at them, held facing them.
+        if (s != null && !shown && (action == TD_DASH || action == TD_HOLD || action == TD_MISS && t < TD_MISS_EAR)) {
+            BatmanTakedownFx.Rec td = BatmanTakedownFx.rec(e.getId());
+            if (td != null) {
+                float bodyYaw = Mth.rotLerp(partial, e.yBodyRotO, e.yBodyRot);
+                float want = action == TD_HOLD ? BatmanTakedownFx.faceYaw(td, Math.max(0, BatmanTakedownFx.holdTime(td))) : (float) Math.toDegrees(Math.atan2(-td.dir.x, td.dir.z));
+                align = Mth.wrapDegrees(want - bodyYaw) * Mth.DEG_TO_RAD;
+                along = true;
+            }
+        }
         Vec3 hook = s == null || s.hook == null ? null : s.hookPrev == null ? s.hook : s.hookPrev.lerp(s.hook, Mth.clamp(now - s.received, 0, 1));
         if (s != null && !shown && action == GRAPNEL_PULL && hook != null) {
             Vec3 from = e.getPosition(partial).add(0, 1.4, 0), d = hook.subtract(from);
@@ -192,7 +203,7 @@ public final class BatmanLayer extends RenderLayer<AbstractClientPlayer, PlayerM
 
         // ---- his look, spread down the body (not while the body faces along a path)
         var model = getParentModel();
-        float look = action == DODGE || action == GRAPNEL_PULL || action == GRAPNEL_STRIKE ? 0 : 1;
+        float look = action == DODGE || action == GRAPNEL_PULL || action == GRAPNEL_STRIKE || action == TD_DASH || action == TD_HOLD || action == TD_MISS ? 0 : 1;
         float lookYaw = model.head.yRot * look, lookPitch = model.head.xRot * look;
         float spread = (action == IDLE || action == WHEEL ? 1 : .5f) * (1 - .7f * glide);
         float addPelvis = .1f * lookYaw * spread * PantherMotion.clamp(pose.get(PLANT)), addSpine = .12f * lookYaw * spread, addChest = .18f * lookYaw * spread,

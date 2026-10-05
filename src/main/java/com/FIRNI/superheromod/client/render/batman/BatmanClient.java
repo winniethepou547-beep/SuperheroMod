@@ -114,6 +114,8 @@ public final class BatmanClient {
     /** The gadget wheel is open on this client (left click picks a gadget then, it never punches). */
     public static boolean wheelOpen() { return wheelOpen; }
     public static void shake(float amount) { ClientScreenShake.add(amount * BatmanConfig.SHAKE.get().floatValue()); }
+    /** A widening of his own view (the dash). */
+    static void kickFov(float amount) { fovKick = Math.min(1, fovKick + amount); }
 
     public static void receive(BatmanStatePacket p) {
         var mc = Minecraft.getInstance();
@@ -182,7 +184,8 @@ public final class BatmanClient {
         long win = mc.getWindow().getWindow();
         boolean ctrl = InputConstants.isKeyDown(win, GLFW.GLFW_KEY_LEFT_CONTROL) || InputConstants.isKeyDown(win, GLFW.GLFW_KEY_RIGHT_CONTROL);
         if (ctrl && !ctrlDown && (s == null || s.cooldowns[CD_DODGE] <= 0) && now() - dodgeStart > DODGE_TICKS + 2
-                && (s == null || (s.action != GRAPNEL_PULL && s.action != GRAPNEL_STRIKE && s.action != GRAPNEL_FIRE && s.action != CANNON))) {
+                && (s == null || (s.action != GRAPNEL_PULL && s.action != GRAPNEL_STRIKE && s.action != GRAPNEL_FIRE && s.action != CANNON
+                        && s.action != TD_SIGNAL && s.action != TD_DASH && s.action != TD_HOLD && s.action != TD_MISS))) {
             float f = p.input == null ? 0 : p.input.forwardImpulse, l = p.input == null ? 0 : p.input.leftImpulse;
             float rel = Math.abs(f) + Math.abs(l) < .01f ? 0 : (float) Math.atan2(-l, f);
             dodgeStart = now();
@@ -191,7 +194,8 @@ public final class BatmanClient {
         }
         ctrlDown = ctrl;
         // SPACE held in the air (falling): the cape spreads.
-        boolean busyMove = s != null && (s.action == GRAPNEL_PULL && now() - letGoAt > 6 || s.action == GRAPNEL_STRIKE || s.action == DODGE);
+        boolean busyMove = s != null && (s.action == GRAPNEL_PULL && now() - letGoAt > 6 || s.action == GRAPNEL_STRIKE || s.action == DODGE
+                || s.action == TD_DASH || s.action == TD_HOLD || s.action == TD_MISS);
         boolean want = mc.options.keyJump.isDown() && !p.onGround() && !p.isInWater() && !p.getAbilities().flying && !busyMove
                 && (glideSent || p.getDeltaMovement().y < -.08);
         if (want != glideSent) { send(want ? IN_GLIDE_ON : IN_GLIDE_OFF, 0, 0); glideSent = want; }
@@ -281,6 +285,42 @@ public final class BatmanClient {
                 p.setDeltaMovement(to.x * .3, Math.max(v.y, to.y * .35), to.z * .3);
             } else if (t >= STRIKE_FLIP && !flipped) { flipped = true; p.setDeltaMovement(-strikeDir.x * .55, .42, -strikeDir.z * .55); }
             p.fallDistance = 0;
+            input.forwardImpulse = input.leftImpulse = 0; input.jumping = false;
+            return;
+        }
+        // The Batmobile takedown: the call (a slow walk), the dash along its way, the flip over them and the hold
+        // behind them, a miss carrying him on off balance.
+        if (s.action == TD_SIGNAL || s.action == TD_DASH || s.action == TD_HOLD || s.action == TD_MISS) {
+            BatmanTakedownFx.Rec r = BatmanTakedownFx.rec(p.getId());
+            float t = now - s.start;
+            Vec3 dir = r == null ? new Vec3(-Mth.sin(p.getYRot() * Mth.DEG_TO_RAD), 0, Mth.cos(p.getYRot() * Mth.DEG_TO_RAD)) : r.dir;
+            p.fallDistance = 0;
+            switch (s.action) {
+                case TD_SIGNAL -> { input.forwardImpulse *= .4f; input.leftImpulse *= .4f; input.jumping = false; return; }
+                case TD_DASH -> {
+                    if (t < TD_WIND) p.setDeltaMovement(v.x * .3, v.y, v.z * .3);
+                    else if (t < TD_WIND + TD_MOVE) { p.setDeltaMovement(dir.x * TD_SPEED, Math.max(v.y, -.6), dir.z * TD_SPEED); fovKick = Math.min(1, fovKick + .12f); }
+                    else p.setDeltaMovement(v.x * .5, v.y, v.z * .5);
+                }
+                case TD_HOLD -> {
+                    float h = r == null ? t : BatmanTakedownFx.holdTime(r);
+                    if (r != null && r.from != null && r.feet != null && h < TD_FLIP) {
+                        Vec3 want = BatmanTakedownFx.flipAt(r, h + 1);
+                        p.setDeltaMovement(want.subtract(p.position()));
+                        // The view turns round with the half twist (back to the player once he is down behind them).
+                        float yaw = BatmanTakedownFx.faceYaw(r, h + 1);
+                        p.yRotO = p.getYRot();
+                        p.setYRot(p.getYRot() + Mth.wrapDegrees(yaw - p.getYRot()) * .6f);
+                    } else if (r != null && r.feet != null) {
+                        Vec3 to = com.FIRNI.superheromod.heroes.batman.TakedownPath.behind(r.feet, r.dir).subtract(p.position());
+                        p.setDeltaMovement(to.x * .5, v.y, to.z * .5);
+                    } else p.setDeltaMovement(0, v.y, 0);
+                }
+                default -> {
+                    if (t < TD_SLIDE) { double k = .8 * (1 - t / TD_SLIDE); p.setDeltaMovement(dir.x * TD_SPEED * k, v.y, dir.z * TD_SPEED * k); }
+                    else if (t >= TD_MISS_EAR) { input.forwardImpulse *= .4f; input.leftImpulse *= .4f; input.jumping = false; return; }
+                }
+            }
             input.forwardImpulse = input.leftImpulse = 0; input.jumping = false;
             return;
         }

@@ -23,7 +23,7 @@ public final class BatmanWheel {
     static final int CYAN = 0xFF5FD6FF, GLASS = 0xC0101820, RIM = 0xFF2B4A5A;
     private static final String[] INFO = {"Geniş kara sis: içindekiler göremez, sen termalle görürsün", "Yakındakileri kör eder", "Tak / çıkar: ağır elektrikli boks",
             "4 sn iki bilekten seri atış, nişangâhı izler", "İki sonik verici yerden çıkar, hedefi sersemletir",
-            "Çağır: arkandan gelip yanına park eder; tekrar: gönder"};
+            "Kulağa dokun, baktığın yöne atıl: değersen Batmobil onu tarar"};
     /** Degrees each sector spans. */
     static final float SECTOR = 360f / GADGETS;
 

@@ -164,14 +164,18 @@ public final class BatmanController {
     /** In the middle of something nothing else may start over it. */
     static boolean busy(State s) {
         return s.action == GRAPNEL_FIRE || s.action == GRAPNEL_PULL || s.action == GRAPNEL_STRIKE || s.action == GRAPNEL_YANK || s.action == DODGE || s.action == SHOCK_EQUIP || s.action == SHOCK_UNEQUIP
-                || s.action == CANNON || s.action == SONIC;
+                || s.action == CANNON || s.action == SONIC || takedown(s);
     }
+    /** In the Batmobile takedown (the call, the dash, the hold, a missed one's recovery: nothing else meanwhile). */
+    static boolean takedown(State s) { return s.action == TD_SIGNAL || s.action == TD_DASH || s.action == TD_HOLD || s.action == TD_MISS; }
 
     // ------------------------------------------------------------------ keys
     public static void press(ServerPlayer p, AbilitySlot slot, boolean down) {
         if (!isHero(p)) return;
         State s = state(p);
         if (FilmSessions.busy(p.getUUID())) return;
+        // In the takedown his hands are full (and a missed one leaves him open: no block, no attack).
+        if (takedown(s)) return;
         if (slot == AbilitySlot.ULTIMATE && down) { BatmanReflex.start(p, s); return; }
         // X: KARA ŞÖVALYE (BatmanUltSession holds both, DarkKnightFilm plays it). FILM_READY stays as a switch: off, X only
         // says so (starting the session with no film registered would hold both players with nothing on screen).
@@ -190,7 +194,7 @@ public final class BatmanController {
         State s = state(p);
         if (FilmSessions.busy(p.getUUID())) return;
         switch (kind) {
-            case IN_GLIDE_ON -> { if (!p.onGround() && s.action != GRAPNEL_PULL && s.action != GRAPNEL_STRIKE && !s.gliding) { s.gliding = true; sound(p, ModSounds.BATMAN_CAPE.get(), .7f, 1f); } }
+            case IN_GLIDE_ON -> { if (!p.onGround() && s.action != GRAPNEL_PULL && s.action != GRAPNEL_STRIKE && !takedown(s) && !s.gliding) { s.gliding = true; sound(p, ModSounds.BATMAN_CAPE.get(), .7f, 1f); } }
             case IN_GLIDE_OFF -> s.gliding = false;
             case IN_DODGE -> dodge(p, s, amount);
             case IN_GADGET_SELECT -> {
@@ -323,7 +327,7 @@ public final class BatmanController {
         if (g == G_CANNON) { s.aiming = false; s.charging = false; if (BatmanCannon.use(p, s)) s.cooldowns[g] = BatmanConfig.CD_CANNON.get(); return; }
         if (g == G_SONIC) { s.aiming = false; s.charging = false; if (BatmanSonic.use(p, s)) s.cooldowns[g] = BatmanConfig.CD_SONIC.get(); return; }
         if (g == G_SHOCK) { s.aiming = false; s.charging = false; if (BatmanShock.toggle(p, s)) s.cooldowns[g] = BatmanConfig.CD_SHOCK.get(); return; }
-        if (g == G_BATMOBILE) { if (BatmanBatmobile.use(p, s)) s.cooldowns[g] = BatmanConfig.CD_BATMOBILE.get(); return; }
+        if (g == G_BATMOBILE) { if (BatmanTakedown.start(p, s)) s.cooldowns[g] = BatmanConfig.CD_BATMOBILE.get(); return; }
         s.cooldowns[g] = g == G_SMOKE ? BatmanConfig.CD_SMOKE.get() : BatmanConfig.CD_FLASH.get();
         s.throwing = g;
         s.aiming = false;
@@ -568,7 +572,7 @@ public final class BatmanController {
 
     // ------------------------------------------------------------------ CTRL: the roll
     private static void dodge(ServerPlayer p, State s, float yaw) {
-        if (s.action == GRAPNEL_PULL || s.action == GRAPNEL_STRIKE || s.action == GRAPNEL_FIRE || s.action == DODGE || s.action == CANNON) return;
+        if (s.action == GRAPNEL_PULL || s.action == GRAPNEL_STRIKE || s.action == GRAPNEL_FIRE || s.action == DODGE || s.action == CANNON || takedown(s)) return;
         if (s.cooldowns[CD_DODGE] > 0) return;
         s.cooldowns[CD_DODGE] = Math.max(BatmanConfig.CD_DODGE.get(), DODGE_TICKS + 2);
         // A held Batarang charge carries through the roll (charge, roll, let them all go).
@@ -594,7 +598,7 @@ public final class BatmanController {
         if (s.batarangs < BATARANG_MAX) {
             if (++s.refill >= BatmanConfig.BATARANG_REFILL_SECONDS.get() * 20) { s.batarangs++; s.refill = 0; }
         } else s.refill = 0;
-        if (!p.isAlive()) { s.gliding = false; s.aiming = false; s.charging = false; s.hook = 0; s.hookEntity = null; if (s.action != IDLE) set(s, IDLE); }
+        if (!p.isAlive()) { s.gliding = false; s.aiming = false; s.charging = false; s.hook = 0; s.hookEntity = null; if (takedown(s)) BatmanTakedown.cancel(p); if (s.action != IDLE) set(s, IDLE); }
         chargeTick(p, s);
         switch (s.action) {
             case PUNCH -> punchTick(p, s);
@@ -609,6 +613,7 @@ public final class BatmanController {
             case CANNON -> BatmanCannon.tick(p, s);
             case SONIC -> BatmanSonic.tick(p, s);
             case SHOCK_EQUIP, SHOCK_UNEQUIP, SHOCK_PUNCH -> BatmanShock.tick(p, s);
+            case TD_SIGNAL, TD_DASH, TD_HOLD, TD_MISS -> BatmanTakedown.tick(p, s);
             default -> {}
         }
         hookTick(p, s);
@@ -626,7 +631,7 @@ public final class BatmanController {
             s.landed = under && !moving ? s.landed + 1 : 0;
             if (s.landed > 6) s.noFall = false;
         }
-        if (s.action == GRAPNEL_STRIKE || s.action == GRAPNEL_PULL) s.noFall = true;
+        if (s.action == GRAPNEL_STRIKE || s.action == GRAPNEL_PULL || s.action == TD_DASH || s.action == TD_HOLD) s.noFall = true;
         int len = length(s.action);
         if (len > 0 && s.age >= len && s.action != GRAPNEL_STRIKE && s.action != GRAPNEL_YANK) {
             boolean rolled = s.action == DODGE;

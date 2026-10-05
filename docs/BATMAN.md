@@ -32,7 +32,15 @@ siyah yarasa, siyah başlık ve kulaklar, zırhlı eldivenler ve botlar, yere ka
 - **Elektrikli Muşta:** R ile takılır / çıkarılır. Takılıyken sol tık ağır elektrikli boks kombosu olur; ekranın sağında enerji çubuğu (ayrıntılar aşağıda).
 - **Bilek Topu:** iki bilekten 4 saniye seri sarı enerji atışı; nişangâhı izler (ayrıntılar aşağıda).
 - **Sonik Tuzak:** kumandanın kırmızı düğmesine basar, iki sonik verici yerden çıkıp hedefi sersemletir (ayrıntılar aşağıda).
-- **Batmobil:** R ile çağırırsın: arkandan hızla gelir, fren yapıp yana kayarak sağına park eder (türbini yanar, lastiklerden duman). R tekrar: hızlanarak uzaklaşır ve gider. Arkham Knight tasarımı; başka özellikleri henüz kararlaştırılmadı.
+- **Batmobil — Uzaktan Takedown (yüksek risk / yüksek ödül):** sinematik değil, savaşın içinde kullanılır.
+  - R: Batman sağ elini kulağına götürür, başının yanında küçük mavi 3/4 sinyal halkası dalgalar yollar (BİP, BİP, onay sesi). Bu sırada yavaş yürüyebilirsin.
+  - Sonra iki kolunu iki yana açar, öne eğilir ve **baktığın yöne** hızla atılır (~10 blok). Otomatik kilitlenme, hedef takibi, yakındaysa yardım YOK: gerçekten değmen gerekir.
+  - **Değerse:** hedefin üzerinden yarım dönüşlü bir taklayla arkasına geçer (kamera onunla döner), kafasının arkasına kırmızı ışığı yanıp sönen küçük bir takip cihazı takar (KLİK), iki koluyla arkadan kilitler.
+  - Batmobil gelir, hedefin önünden geniş bir hilal çizerek yan yan kayar (lastik dumanı, siyah lastik izleri, savrulan taşlar, farlar) ve silahlarıyla tarar (namlu alevleri, kısa ve hızlı mermi izleri, isabette kıvılcım ve duman). Hedef kollarının arasında çırpınır, her mermiyle sağa sola sarsılır.
+  - Batmobil motor kükremesiyle mavi Arkham alevi bırakarak uzaklaşır. Batman sağ eliyle hedefin kafasını arkadan kavrar ve onu yüzüstü yere indirir (toz, sarsıntı). Vurulduğu yerlerden bir süre duman tüter; hedef kısa bir süre yerde kalır, sonra sersemlemiş kalkar.
+  - Hasar: toplam 16 (ayarlarda), %60'ı Batmobil'in mermilerinden, %40'ı yere indirmeden.
+  - **Iskalarsa:** Batmobil gelmez. Batman birkaç metre daha kayıp dengesini toplar, elini kulağına götürür; sinyal kırmızıya döner, üzerine kırmızı X çıkar (iptal sesi). Bu sırada savunmasızdır: blok, saldırı, takla yok.
+  - Bekleme süresi her iki durumda da 18 saniye.
 
 ## Termal Görüş (kendi sisinde kendiliğinden)
 - Açılırken ~0,6 sn: ekran kenarları kararır, renkler solar, kısa bir dijital bozulma (kayan şeritler, renk ayrışması, parazit, ışık nabzı), sonra soğuk termal dünya gelir.
@@ -97,6 +105,12 @@ siyah yarasa, siyah başlık ve kulaklar, zırhlı eldivenler ve botlar, yere ka
 - `/blokdene yakin`: önünde bir test zombisi belirir; sağdan, önden, soldan üç kez vurur (Batman eldivenle yana savurur, Panther savuşturur), sonra kaybolur.
 - `/blokdene uzak`: 12 blok öteden üç ok gelir (Batman pelerini önüne çeker, Panther savuşturur).
 - Her vuruştan önce blok yeniden açılır, bekleme süresine bakılmaz. Hile (cheat) açık olmalı.
+
+## Rakibin gördüğünü deneme (herhangi bir kahramanla ya da kahramansız)
+- `/etkidene flas`: önüne bir flaş bombası yuvarlanır ve patlar: ekranın beyazlaması, kulak çınlaması, boğuk sesler, başının üstündeki yıldızlar.
+- `/etkidene sonik`: Batman 8 blok önündeymiş gibi iki yanında sonik vericiler çıkar ve seni sarsar.
+- `/etkidene sis`: etrafında başkasının sis bulutu açılır. (Batman iken kendi termal görüşün açılacağı için bunu başka bir kahramanla ya da kahramansız dene.)
+- Hile (cheat) açık olmalı. Hiçbiri hasar vermez.
 
 ## Ayarlar
 `config/superheromod-batman.toml`: her hasar, menzil, süre, bekleme süresi ve sayı.

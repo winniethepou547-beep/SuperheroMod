@@ -609,6 +609,86 @@ def s_bat_flash_ring():
     return tone * .5 + hiss
 
 
+def _beep(d, f, seed=0):
+    t = t_axis(d)
+    gate = np.clip(t / 0.004, 0, 1) * np.clip((d - t) / 0.01, 0, 1)
+    return (np.sin(2 * np.pi * f * t) + 0.2 * np.sin(2 * np.pi * 2 * f * t)) * gate
+
+
+def s_td_signal():
+    # The earpiece call: BEEP, BEEP, then the confirm chirp (two quick rising tones) - small, clean, a little radio hiss.
+    d = 0.95
+    chirp = np.concatenate([_beep(0.05, 2400), _beep(0.07, 3300)])
+    hiss = bandpass(noise(d, 451), 2500, 7000) * 0.04 * env_ad(d, 0.01, 0.5)
+    return mix(d, (_beep(0.09, 2600), 0.0, .7), (_beep(0.09, 2600), 0.24, .7), (chirp, 0.62, .8), (hiss, 0, 1))
+
+
+def s_td_abort():
+    # Signal cancelled: one beep, then a falling, buzzy error tone.
+    d = 0.75
+    err = signal.square(2 * np.pi * np.cumsum(np.linspace(620, 380, int(0.38 * SR))) / SR) * env_ad(0.38, 0.005, 0.25)
+    return mix(d, (_beep(0.08, 2600), 0, .7), (lowpass(err, 2500), 0.2, .45), (crack(0.02, 452, 2600), 0.18, .3))
+
+
+def s_td_tracker():
+    # The tracker on the back of the head: a hard CLICK and three tiny high blips as its light comes on.
+    d = 0.6
+    layers = [(tick_click(461, 2400), 0, 1.1), (thump(0.08, 600, 300, 0.01), 0, .5)]
+    for i in range(3):
+        layers.append((_beep(0.035, 4200), 0.16 + i * 0.12, .35))
+    return mix(d, *layers)
+
+
+def s_td_lock():
+    # The grip locking: cloth and armour pressed hard, a heavy mechanical clunk of the gauntlets.
+    d = 0.5
+    cloth = bandpass(noise(d, 471), 600, 3500) * env_ad(d, 0.01, 0.08)
+    return mix(d, (cloth, 0, .6), (lock_clunk(472, 360), 0.03, 1.1), (thump(d, 120, 55, 0.06), 0.02, .8))
+
+
+def s_bm_engine():
+    # The Batmobile coming in: a far growl rising fast to a roar (pitch up as it nears), the turbine whine on top.
+    d = 1.5
+    t = t_axis(d)
+    f = 48 * (1 + 0.9 * (t / d) ** 1.6)
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    growl = (signal.sawtooth(ph) + 0.6 * signal.sawtooth(2 * ph + 0.3)) * (0.25 + 0.75 * (t / d) ** 1.4)
+    rumble = lowpass(noise(d, 481), 300) * (t / d) ** 1.2
+    whine = np.sin(2 * np.pi * np.cumsum(1400 + 1600 * (t / d) ** 2) / SR) * 0.12 * (t / d) ** 2
+    return lowpass(soft(growl * 0.6 + rumble * 1.4 + whine, 1.6), 3500) * np.clip((d - t) / 0.12, 0, 1)
+
+
+def s_bm_drift():
+    # Tyres sliding: a wavering squeal (two bands) over road friction and grit.
+    d = 1.4
+    t = t_axis(d)
+    fq = 1250 + 160 * np.sin(2 * np.pi * 5.5 * t) + 90 * np.sin(2 * np.pi * 13 * t)
+    squeal = np.sin(2 * np.pi * np.cumsum(fq) / SR) + 0.5 * np.sin(2 * np.pi * np.cumsum(fq * 1.97) / SR)
+    env = np.clip(t / 0.06, 0, 1) * np.clip((d - t) / 0.35, 0, 1)
+    friction = bandpass(noise(d, 491), 400, 3000) * 0.7
+    grit = debris(d, 18, 492, 1500, 6000, 0.05)
+    return mix(d, (squeal * env * 0.45, 0, 1), (friction * env, 0, .8), (grit, 0, .4))
+
+
+def s_bm_boost():
+    # The afterburner: a deep engine roar and a jet-like burst of rushing air, falling away into the distance.
+    d = 1.9
+    t = t_axis(d)
+    roar_f = 60 * (1 + 0.5 * np.clip(t / 0.3, 0, 1))
+    ph = 2 * np.pi * np.cumsum(roar_f) / SR
+    roar = soft(signal.sawtooth(ph) + 0.5 * signal.sawtooth(1.5 * ph), 2.0) * env_ad(d, 0.02, 0.9)
+    jet = swept(noise(d, 501), 900, 3500, 1.4, curve=0.5) * env_ad(d, 0.03, 0.7)
+    boom = thump(d, 90, 35, 0.12)
+    return mix(d, (lowpass(roar, 1800), 0, .9), (jet, 0, 1.0), (boom, 0, 1.0))
+
+
+def s_bm_gun():
+    # One round of the Batmobile's guns: a heavy, short mechanical bang with a metallic tail (rapid fire = many of these).
+    d = 0.22
+    bang = mix(d, (crack(0.03, 511, 1500), 0, 1.2), (thump(d, 140, 60, 0.03), 0, 1.1), (highpass(noise(d, 512), 3000) * env_ad(d, 0.0005, 0.01), 0, .6))
+    return mix(d, (bang, 0, 1), (clink(1200, 513, 0.2) * env_ad(0.2, 0.001, 0.03), 0.004, .3))
+
+
 def s_bat_mine():
     # Gadget electronics: two short beeps and a mechanical click.
     d = 0.45
@@ -1004,6 +1084,8 @@ SOUNDS = {
     'ghost': {'chain_whip': s_chain_whip, 'hellfire': s_hellfire},
     'sandman': {'sand_whoosh': s_sand_whoosh, 'sand_impact': s_sand_impact},
     'batman': {'punch': s_bat_punch, 'batarang': s_bat_batarang, 'grapnel': s_bat_grapnel, 'smoke': s_bat_smoke, 'flash': s_bat_flash, 'flash_bounce': s_bat_flash_bounce, 'flash_ring': s_bat_flash_ring,
+               'td_signal': s_td_signal, 'td_abort': s_td_abort, 'td_tracker': s_td_tracker, 'td_lock': s_td_lock,
+               'bm_engine': s_bm_engine, 'bm_drift': s_bm_drift, 'bm_boost': s_bm_boost, 'bm_gun': s_bm_gun,
                'mine': s_bat_mine, 'cape': s_bat_cape,
                'cannon_deploy': s_cannon_deploy, 'cannon_charge': s_cannon_charge, 'cannon_shot': s_cannon_shot, 'cannon_hum': s_cannon_hum,
                'cannon_final': s_cannon_final, 'cannon_stop': s_cannon_stop, 'cannon_retract': s_cannon_retract,
@@ -1015,7 +1097,7 @@ SOUNDS = {
                'shock_unequip': s_shock_unequip},
 }
 # A few sounds get pitch/time variants so repeats never sound identical.
-VARIANTS = {'cannon_shot': 3, 'shock_hit': 3, 'shock_miss': 2, 'shock_swing': 2, 'punch': 3, 'batarang': 2, 'claw_slash': 3, 'blade_slash': 3, 'whoosh_light': 2, 'claw_hit': 2, 'hulk_punch': 2, 'shield_hit': 2, 'electric_zap': 2, 'metal_shing': 2}
+VARIANTS = {'bm_gun': 3, 'cannon_shot': 3, 'shock_hit': 3, 'shock_miss': 2, 'shock_swing': 2, 'punch': 3, 'batarang': 2, 'claw_slash': 3, 'blade_slash': 3, 'whoosh_light': 2, 'claw_hit': 2, 'hulk_punch': 2, 'shield_hit': 2, 'electric_zap': 2, 'metal_shing': 2}
 
 
 def resample(x, factor):

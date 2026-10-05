@@ -59,12 +59,12 @@ public final class ModEntities {
                             com.FIRNI.superheromod.heroes.batman.SonicEmitterEntity::new, MobCategory.MISC)
                     .sized(1.1f, 2.0f).clientTrackingRange(10).updateInterval(20).fireImmune().noSave().build("sonic_emitter"));
 
-    /** Batman's Batmobile (heroes/batman/BatmobileEntity): drives in, parks, drives off; never saved. */
+    /** Batman's Batmobile (heroes/batman/BatmobileEntity): the remote takedown's run (every client works out its path itself); never saved. */
     public static final RegistryObject<EntityType<com.FIRNI.superheromod.heroes.batman.BatmobileEntity>> BATMOBILE =
             ENTITY_TYPES.register("batmobile", () -> EntityType.Builder
                     .<com.FIRNI.superheromod.heroes.batman.BatmobileEntity>of(
                             com.FIRNI.superheromod.heroes.batman.BatmobileEntity::new, MobCategory.MISC)
-                    .sized(3.0f, 1.7f).clientTrackingRange(12).updateInterval(1).fireImmune().noSave().build("batmobile"));
+                    .sized(3.0f, 1.7f).clientTrackingRange(12).updateInterval(20).fireImmune().noSave().build("batmobile"));
 
     public static void register(IEventBus modEventBus) {
         ENTITY_TYPES.register(modEventBus);
