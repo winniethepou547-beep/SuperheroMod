@@ -120,6 +120,14 @@ public final class BatmanController {
     /** His state if he has one yet (null otherwise), for the event handlers of the other Batman classes. */
     static State peek(ServerPlayer p) { return STATES.get(p.getUUID()); }
     static State state(ServerPlayer p) { return STATES.computeIfAbsent(p.getUUID(), id -> new State()); }
+    /** The block test (/blokdene): the reflex block on now, whatever its cooldown. False when he is not Batman. */
+    public static boolean testBlock(ServerPlayer p) {
+        if (!isHero(p)) return false;
+        State s = state(p);
+        s.cooldowns[CD_REFLEX] = 0;
+        BatmanReflex.start(p, s);
+        return true;
+    }
     static void set(State s, int action) { s.action = action; s.age = 0; }
     static void tell(ServerPlayer p, String text) { p.displayClientMessage(Component.literal("§7" + text), true); }
     /** In the middle of something nothing else may start over it. */
