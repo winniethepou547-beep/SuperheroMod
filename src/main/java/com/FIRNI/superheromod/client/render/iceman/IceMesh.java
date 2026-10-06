@@ -1,11 +1,11 @@
 package com.FIRNI.superheromod.client.render.iceman;
 
-import com.FIRNI.superheromod.client.render.ghost.GhostMaterials;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix3f;
@@ -19,40 +19,62 @@ import java.util.List;
  * Iceman's ice, the one material everything of his is made of (his body, the weapons, the sculptures, the slide's track,
  * the shell, the spikes, the frost on his enemies), so it all reads as the same ice.
  * <p>
- * Solid, like the user's reference art (the comic Iceman and Marvel Snap's): every flat facet is shaded on its own from
- * a light above the camera, deep blue in shadow, the ice's cyan in the middle, cold white where the light hits, so the
- * shapes read as hard cut crystal; the outline glows cyan (worked out per vertex from where the camera is), the facets
- * catch a white glint as they turn. Only forming and melting ice is see-through (the context's alpha). Materials
- * ({@link Mat}) set the tone; CLOTH materials are the X-Men suit. Thin bright lines (glowing cracks, crystal edges) and
- * sparkles are additive light, gathered while drawing and emitted at {@link Ctx#end()}.
+ * Minecraft ice, after the user's reference (a blocky Minecraft Iceman of bright blue ice): solid, textured in pixels
+ * (16 texels a block, 1 a model pixel) with real ice's structure (textures/entity/iceman/ice.png: a bright cyan-blue
+ * body, deeper blue pockets, short white fracture streaks on the slant, trapped air bubbles; frost.png: whiter packed
+ * ice and rime), mapped on whichever side a face looks to (so a block of it reads like a block of ice). The texture
+ * carries the look; each face is lit softly from above the camera on top of Minecraft's own light, and the ice is wet:
+ * a white gloss where the light glances off a face toward the eye and a little cold light on the outline, added on top
+ * (additive), never a cyan crystal glow. Only forming and melting ice is see-through (the context's alpha).
+ * Materials ({@link Mat}) tint it (deep, glacier, milky ice pick the whiter texture); CLOTH materials are plain colour.
+ * His body has its own skin (skin.png, Minecraft box layout, {@link #skinBox}). Thin bright lines (glowing cracks) and
+ * sparkles are additive light.
  * <p>
- * Use: {@code Ctx c = IceMesh.begin(pose, buffers, light)}, then (after any change of the pose stack) {@code c.at(pose)},
- * the shapes, and {@code c.end()}. Coordinates are those of the pose stack (pixels if the caller scaled by 1/16).
+ * Everything is gathered while drawing and emitted at {@link Ctx#end()} texture by texture (ice, frost, skin, then the
+ * light), so the buffers are never mixed. Use: {@code Ctx c = IceMesh.begin(pose, buffers, light)}, then (after any
+ * change of the pose stack) {@code c.at(pose)}, the shapes, and {@code c.end()}. Coordinates are those of the pose
+ * stack (pixels if the caller scaled by 1/16: the texture scale follows the stack's scale).
  */
 public final class IceMesh {
     private IceMesh() {}
 
-    /** The ice itself (translucent, sorted, lit, depth-writing). */
-    public static final RenderType ICE = RenderType.entityTranslucent(GhostMaterials.TEXTURE);
-    /** Light: the eyes, the cracks' and the edges' glints (additive, full bright). */
-    public static final RenderType GLINT = RenderType.eyes(GhostMaterials.TEXTURE);
+    public static final ResourceLocation ICE_TEX = new ResourceLocation("superheromod", "textures/entity/iceman/ice.png"),
+            FROST_TEX = new ResourceLocation("superheromod", "textures/entity/iceman/frost.png"),
+            SKIN_TEX = new ResourceLocation("superheromod", "textures/entity/iceman/skin.png");
+    /** The ice, the frost and his skin (translucent, sorted, lit, depth-writing, both sides). */
+    public static final RenderType ICE = RenderType.entityTranslucent(ICE_TEX), FROST_ICE = RenderType.entityTranslucent(FROST_TEX),
+            SKIN = RenderType.entityTranslucent(SKIN_TEX);
+    /** Light: the gloss, the eyes, the cracks (additive, full bright, both sides). */
+    public static final RenderType GLINT = IceTypes.GLINT;
+    private static final RenderType[] TYPES = {ICE, FROST_ICE, SKIN};
+    static final int T_ICE = 0, T_FROST = 1, T_SKIN = 2;
     static final int FULL = 15728880;
+    /** The size of the tiles and of the skin, in texels. */
+    static final float TILE = 16, SKIN_SIZE = 64;
+    /** Draws what is gathered in a buffer source for the ice (after the contexts' end()). */
+    public static void endBatches(MultiBufferSource.BufferSource b) {
+        for (RenderType t : TYPES) b.endBatch(t);
+        b.endBatch(GLINT);
+    }
 
     /**
-     * A material. Ice (kind ICE): solid, like the reference art (comic and Marvel Snap Iceman): its middle tone (r, g, b),
-     * every flat facet shaded from a cold highlight through that tone to a deep blue shadow by the light above the camera,
-     * a cyan glow along the outline (rim), a white glint (spec), lifted toward white by milk; clear / edge = its opacity
-     * seen straight on / edge-on (nearly 1: it is NOT see-through; less only while forming or melting).
-     * Cloth (kind CLOTH): the suit: plain lit colour, a soft sheen, a faint cold rim.
+     * A material. Ice (kind ICE): r, g, b tint the ice texture (CLEAR's colour = the texture as drawn; darker or bluer
+     * deepens it); milky ice (milk >= .15, or a pale colour) takes the frost texture; clear / edge = its opacity seen
+     * straight on / edge-on (1: it is NOT see-through; less only while forming or melting); rim = the cold light on its
+     * outline; spec = how wet and glossy. Cloth (kind CLOTH): the suit's plain colour, a faint sheen.
      */
     public record Mat(float r, float g, float b, float clear, float edge, float milk, float rim, float spec, int kind) {
         public Mat(float r, float g, float b, float clear, float edge, float milk, float rim, float spec) { this(r, g, b, clear, edge, milk, rim, spec, ICE_KIND); }
         /** The same, more see-through (k < 1) or more solid (k > 1). */
         public Mat alpha(float k) { return new Mat(r, g, b, Math.min(1, clear * k), Math.min(1, edge * k), milk, rim, spec, kind); }
         public Mat tint(float tr, float tg, float tb) { return new Mat(r * tr, g * tg, b * tb, clear, edge, milk, rim, spec, kind); }
+        /** Which texture it is drawn with. */
+        int tex() { return kind == CLOTH_KIND || milk >= .15f || r >= .7f ? T_FROST : T_ICE; }
     }
     public static final int ICE_KIND = 0, CLOTH_KIND = 1;
-    /** Plain ice: the light cyan body of the ice. */
+    /** The ice texture's own colour, and the frost's (a material of this colour draws the texture as it is). */
+    private static final float IR = .52f, IG = .82f, IB = 1f, FR = .85f, FG = .95f, FB = 1f;
+    /** Plain ice: the bright blue body of the ice. */
     public static final Mat CLEAR = new Mat(.52f, .82f, 1f, .96f, 1f, .04f, .9f, .9f);
     /** Pale ice: whiter, frostier (highlights of the body, hair, plates). */
     public static final Mat MILKY = new Mat(.76f, .92f, 1f, .97f, 1f, .2f, .65f, .6f);
@@ -64,13 +86,15 @@ public final class IceMesh {
     public static final Mat DEEP = new Mat(.2f, .42f, .78f, .98f, 1f, 0f, .6f, .8f);
     /** A fresh break: the inside, cleaner and brighter than the surface. */
     public static final Mat FRESH = new Mat(.82f, .97f, 1f, .92f, 1f, .3f, 1f, 1.2f);
-    /** Glacier ice: thick, a deeper cyan-blue (the shell, the giant mace). */
+    /** Glacier ice: thick, a deeper blue (the shell, the giant mace). */
     public static final Mat GLACIER = new Mat(.4f, .7f, .95f, .96f, 1f, .08f, .85f, .9f);
     /** The X-Men suit (the comic Iceman): black, red, the grey of the belt. */
     public static final Mat SUIT_BLACK = new Mat(.075f, .08f, .1f, 1, 1, 0, .2f, .35f, CLOTH_KIND),
             SUIT_RED = new Mat(.74f, .07f, .085f, 1, 1, 0, .15f, .3f, CLOTH_KIND),
             SUIT_GREY = new Mat(.26f, .27f, .31f, 1, 1, 0, .2f, .5f, CLOTH_KIND),
             SUIT_PALE = new Mat(.86f, .86f, .9f, 1, 1, 0, .1f, .4f, CLOTH_KIND);
+    /** His skin's boxes: the texture as painted; ice parts wet and glossy, suit parts barely. */
+    public static final Mat SKIN_ICE = new Mat(1, 1, 1, 1, 1, 0, .7f, .9f), SKIN_SUIT = new Mat(1, 1, 1, 1, 1, 0, .25f, .3f);
 
     // ------------------------------------------------------------------ the drawing context
     public static Ctx begin(PoseStack pose, MultiBufferSource buffers, int light) {
@@ -80,9 +104,21 @@ public final class IceMesh {
         c.at(pose);
         return c;
     }
+    /** What one texture gathers: per vertex x, y, z, r, g, b, a, u, v, nx, ny, nz (in view space) and the light. */
+    private static final class Batch {
+        float[] f = new float[12 * 64];
+        int[] l = new int[64];
+        int n;
+        void put(float x, float y, float z, float r, float g, float b, float a, float u, float v, float nx, float ny, float nz, int light) {
+            if ((n + 1) * 12 > f.length) { f = java.util.Arrays.copyOf(f, f.length * 2); l = java.util.Arrays.copyOf(l, l.length * 2); }
+            int i = n * 12;
+            f[i] = x; f[i + 1] = y; f[i + 2] = z; f[i + 3] = r; f[i + 4] = g; f[i + 5] = b; f[i + 6] = a; f[i + 7] = u; f[i + 8] = v;
+            f[i + 9] = nx; f[i + 10] = ny; f[i + 11] = nz;
+            l[n++] = light;
+        }
+    }
     public static final class Ctx {
         MultiBufferSource buffers;
-        VertexConsumer ice;
         Matrix4f m;
         Matrix3f n;
         public int light;
@@ -92,7 +128,12 @@ public final class IceMesh {
         public float time;
         /** Full bright (lit by itself: the ice does not darken at night when false). */
         public boolean emissive;
-        float cx, cy, cz, ux, uy, uz, rx, ry, rz;
+        /** Texels per unit of the stack: worked out from its scale (16 a block) unless set here (> 0). */
+        public float texel;
+        /** Where the texture is pinned (in the stack's units): set it on a moving piece so its texture moves with it. */
+        public float ox, oy, oz;
+        float cx, cy, cz, ux, uy, uz, rx, ry, rz, autoTexel = 16;
+        private final Batch[] batches = {new Batch(), new Batch(), new Batch()};
         private float[] glints = new float[256];
         private int glintCount;
 
@@ -103,7 +144,7 @@ public final class IceMesh {
             Matrix4f inv = new Matrix4f(m).invert();
             Vector3f cam = inv.transformPosition(new Vector3f());
             cx = cam.x; cy = cam.y; cz = cam.z;
-            // The camera's up in this space (the glint's light comes from above the camera).
+            // The camera's up in this space (the light comes from above the camera).
             Vector3f up = new Vector3f(n.m01(), n.m11(), n.m21());
             if (up.lengthSquared() < 1e-8f) up.set(0, 1, 0);
             up.normalize();
@@ -112,83 +153,113 @@ public final class IceMesh {
             if (right.lengthSquared() < 1e-8f) right.set(1, 0, 0);
             right.normalize();
             rx = right.x; ry = right.y; rz = right.z;
-            if (ice == null) ice = buffers.getBuffer(ICE);
+            // How long a unit of this space is (16 texels a block).
+            float sc = Mth.sqrt(m.m00() * m.m00() + m.m01() * m.m01() + m.m02() * m.m02());
+            autoTexel = sc > 1e-6f ? 16 * sc : 16;
             return this;
         }
         /** Where the camera is in this space. */
         public Vec3 camera() { return new Vec3(cx, cy, cz); }
+        /** Pins the texture to a point (a moving piece's own middle), in this space. */
+        public Ctx origin(Vec3 at) { ox = (float) at.x; oy = (float) at.y; oz = (float) at.z; return this; }
 
-        /** Emits the gathered light (cracks, edges, sparkles, eyes); the context cannot draw ice after this. */
+        /** Emits what was gathered (the ice, the frost, the skin, then the light); call once the shapes are drawn. */
         public void end() {
+            for (int t = 0; t < 3; t++) {
+                Batch b = batches[t];
+                if (b.n == 0) continue;
+                VertexConsumer v = buffers.getBuffer(TYPES[t]);
+                float[] f = b.f;
+                for (int i = 0; i < b.n; i++) {
+                    int k = i * 12;
+                    v.vertex(f[k], f[k + 1], f[k + 2], f[k + 3], f[k + 4], f[k + 5], f[k + 6], f[k + 7], f[k + 8], OverlayTexture.NO_OVERLAY, b.l[i], f[k + 9], f[k + 10], f[k + 11]);
+                }
+                b.n = 0;
+            }
             if (glintCount == 0) return;
             VertexConsumer v = buffers.getBuffer(GLINT);
             for (int i = 0; i < glintCount; i += 7)
-                v.vertex(glints[i], glints[i + 1], glints[i + 2], glints[i + 3], glints[i + 4], glints[i + 5], 1, .5f, .5f, OverlayTexture.NO_OVERLAY, FULL, 0, 1, 0);
+                v.vertex(glints[i], glints[i + 1], glints[i + 2]).color(glints[i + 3], glints[i + 4], glints[i + 5], 1f).endVertex();
             glintCount = 0;
-            ice = null;
         }
 
         // ---- vertices
         private final Vector4f tp = new Vector4f();
         private final Vector3f tn = new Vector3f();
-        /** One vertex of ice at (x, y, z) with its face's normal (unit), material and an extra opacity. */
-        void vert(float x, float y, float z, float nx, float ny, float nz, Mat mat, float a) {
+        /** The last face's corners in view space and their added light (for the gloss over it). */
+        private final float[] qp = new float[12], qa = new float[4];
+        private int qi;
+        float texel() { return texel > 0 ? texel : autoTexel; }
+        /**
+         * One vertex of ice at (x, y, z) with its face's normal (unit), texture coordinates, material and an extra
+         * opacity, on texture tex; keeps its light added on top for the face's gloss.
+         */
+        void vert(int tex, float x, float y, float z, float nx, float ny, float nz, float u, float v, Mat mat, float a) {
             float vx = cx - x, vy = cy - y, vz = cz - z;
             float len = Mth.sqrt(vx * vx + vy * vy + vz * vz);
             if (len < 1e-5f) len = 1e-5f;
             vx /= len; vy /= len; vz /= len;
             float dot = nx * vx + ny * vy + nz * vz;
-            // The facet's normal turned to the eye (the shapes do not care which way their corners run).
+            // The facet's normal turned to the eye (the shapes do not care which way their corners run; Minecraft's
+            // light needs the side we see).
             float sn = dot < 0 ? -1 : 1;
             float fx = nx * sn, fy = ny * sn, fz = nz * sn;
-            float facing = Math.abs(dot);
-            float rim = 1 - facing, rim2 = rim * rim;
+            float rim = 1 - Math.abs(dot), rim2 = rim * rim;
             // The key light: above the camera, a little to its left, toward the scene.
             float lx = ux * .75f + vx * .5f - rx * .35f, ly = uy * .75f + vy * .5f - ry * .35f, lz = uz * .75f + vz * .5f - rz * .35f;
             float ll = Mth.sqrt(lx * lx + ly * ly + lz * lz);
             lx /= ll; ly /= ll; lz /= ll;
-            float lambert = fx * lx + fy * ly + fz * lz;
-            float tone = Mth.clamp(lambert * .5f + .5f, 0, 1);
-            // The glint: that light reflected by the facet toward the eye.
+            float tone = Mth.clamp((fx * lx + fy * ly + fz * lz) * .5f + .5f, 0, 1);
+            // The gloss: that light glancing off the face toward the eye (wet ice: a broad soft sheen and a hot core).
             float hx = lx + vx, hy = ly + vy, hz = lz + vz;
             float hl = Mth.sqrt(hx * hx + hy * hy + hz * hz);
             float nh = hl < 1e-5f ? 0 : Math.max(0, (fx * hx + fy * hy + fz * hz) / hl);
-            float spec = nh * nh; spec *= spec; spec *= spec; spec *= spec * nh;   // ^17
-            spec *= mat.spec() * (.8f + .2f * Mth.sin(time * .35f + x * 2.1f + y * 1.3f + z * 1.7f));
-            float r, g, b;
+            float n2 = nh * nh, n4 = n2 * n2, n8 = n4 * n4;
+            float gloss = (n8 * .35f + n8 * n8 * n4 * .9f) * mat.spec() * (.85f + .15f * Mth.sin(time * .35f + x * 2.1f + y * 1.3f + z * 1.7f));
+            float r, g, b, add;
             if (mat.kind() == CLOTH_KIND) {
-                // The suit: plain colour lit softly, a sheen on the folds facing the light, a faint cold rim.
-                float k = .5f + .5f * tone;
-                r = mat.r() * k + spec * .22f + rim2 * mat.rim() * .08f + flash;
-                g = mat.g() * k + spec * .22f + rim2 * mat.rim() * .14f + flash;
-                b = mat.b() * k + spec * .25f + rim2 * mat.rim() * .2f + flash;
+                float k = .7f + .3f * tone;
+                r = mat.r() * k; g = mat.g() * k; b = mat.b() * k;
+                add = gloss * .18f + rim2 * rim * mat.rim() * .06f;
             } else {
-                // Ice: deep blue in shadow, the ice's own cyan in the middle, cold white where the light hits.
-                float toMid = smooth(.18f, .52f, tone), toHigh = smooth(.7f, .93f, tone);
-                float sr = mat.r() * .3f, sg = mat.g() * .48f, sb = mat.b() * .78f;
-                float hr = Mth.lerp(.78f, mat.r(), 1), hg = Mth.lerp(.78f, mat.g(), 1), hb = 1;
-                r = Mth.lerp(toHigh, Mth.lerp(toMid, sr, mat.r()), hr);
-                g = Mth.lerp(toHigh, Mth.lerp(toMid, sg, mat.g()), hg);
-                b = Mth.lerp(toHigh, Mth.lerp(toMid, sb, mat.b()), hb);
-                float milk = mat.milk();
-                r = Mth.lerp(milk, r, 1); g = Mth.lerp(milk, g, 1); b = Mth.lerp(milk, b, 1);
-                // The cyan glow along the outline, the glint, a flash.
-                float glow = rim2 * rim * mat.rim();
-                r += glow * .35f + spec + flash; g += glow * .8f + spec + flash; b += glow + spec + flash;
+                // The texture is the ice; this only lights it softly and tints it.
+                float k = .9f + .1f * smooth(.1f, .95f, tone);
+                if (tex == T_SKIN) { r = mat.r(); g = mat.g(); b = mat.b(); }
+                else if (tex == T_FROST) { r = Math.min(1, mat.r() / FR); g = Math.min(1, mat.g() / FG); b = Math.min(1, mat.b() / FB); }
+                else { r = Math.min(1, mat.r() / IR); g = Math.min(1, mat.g() / IG); b = Math.min(1, mat.b() / IB); }
+                r *= k; g *= k; b *= k;
+                add = gloss * .55f + rim2 * rim * mat.rim() * .14f;
             }
+            add += flash;
             float al = Mth.lerp(rim2, mat.clear(), mat.edge());
             al = Mth.clamp(al * a * alpha, 0, 1);
             if (al <= .003f) al = 0;
             tp.set(x, y, z, 1).mul(m);
-            tn.set(nx, ny, nz).mul(n);
-            ice.vertex(tp.x, tp.y, tp.z, Mth.clamp(r, 0, 1), Mth.clamp(g, 0, 1), Mth.clamp(b, 0, 1), al, .5f, .5f, OverlayTexture.NO_OVERLAY, emissive ? FULL : light, tn.x, tn.y, tn.z);
+            tn.set(fx, fy, fz).mul(n);
+            batches[tex].put(tp.x, tp.y, tp.z, Mth.clamp(r, 0, 1), Mth.clamp(g, 0, 1), Mth.clamp(b, 0, 1), al, u, v, tn.x, tn.y, tn.z, emissive ? FULL : light);
+            qp[qi * 3] = tp.x; qp[qi * 3 + 1] = tp.y; qp[qi * 3 + 2] = tp.z;
+            qa[qi] = add * al;
+            qi = (qi + 1) & 3;
+        }
+        /** The gloss of the face just drawn (its four corners), added on top of it where there is any. */
+        void gloss() {
+            float top = Math.max(Math.max(qa[0], qa[1]), Math.max(qa[2], qa[3]));
+            qi = 0;
+            if (top < .015f) return;
+            for (int i = 0; i < 4; i++) {
+                float k = qa[i];
+                raw(qp[i * 3], qp[i * 3 + 1], qp[i * 3 + 2], .82f * k, .93f * k, k);
+            }
         }
         private static float smooth(float e0, float e1, float x) { float t = Mth.clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); }
         /** A light point (additive), in this space; gathered for end(). */
         void light(float x, float y, float z, float r, float g, float b) {
-            if (glintCount + 7 > glints.length) glints = java.util.Arrays.copyOf(glints, glints.length * 2);
             tp.set(x, y, z, 1).mul(m);
-            glints[glintCount++] = tp.x; glints[glintCount++] = tp.y; glints[glintCount++] = tp.z;
+            raw(tp.x, tp.y, tp.z, r, g, b);
+        }
+        private void raw(float x, float y, float z, float r, float g, float b) {
+            if (glintCount + 7 > glints.length) glints = java.util.Arrays.copyOf(glints, glints.length * 2);
+            glints[glintCount++] = x; glints[glintCount++] = y; glints[glintCount++] = z;
             glints[glintCount++] = Math.min(1, r); glints[glintCount++] = Math.min(1, g); glints[glintCount++] = Math.min(1, b);
             glintCount++;
         }
@@ -203,12 +274,57 @@ public final class IceMesh {
         if (l < 1e-9f) { N[0] = 0; N[1] = 1; N[2] = 0; return; }
         N[0] = nx / l; N[1] = ny / l; N[2] = nz / l;
     }
-    /** A flat four-cornered facet (its normal from its corners). */
+    /** A flat four-cornered facet (its normal from its corners), the material's texture mapped on the side it faces. */
     public static void quad(Ctx c, float ax, float ay, float az, float bx, float by, float bz, float qx, float qy, float qz, float dx, float dy, float dz, Mat mat, float a) {
         normal(ax, ay, az, bx, by, bz, qx, qy, qz);
         float nx = N[0], ny = N[1], nz = N[2];
-        c.vert(ax, ay, az, nx, ny, nz, mat, a); c.vert(bx, by, bz, nx, ny, nz, mat, a);
-        c.vert(qx, qy, qz, nx, ny, nz, mat, a); c.vert(dx, dy, dz, nx, ny, nz, mat, a);
+        int tex = mat.tex();
+        if (mat.kind() == CLOTH_KIND) {
+            // Plain colour: the frost texture's white texel.
+            float w = .5f / TILE;
+            c.vert(tex, ax, ay, az, nx, ny, nz, w, w, mat, a); c.vert(tex, bx, by, bz, nx, ny, nz, w, w, mat, a);
+            c.vert(tex, qx, qy, qz, nx, ny, nz, w, w, mat, a); c.vert(tex, dx, dy, dz, nx, ny, nz, w, w, mat, a);
+            c.gloss();
+            return;
+        }
+        // Mapped like a block: from the side the face looks to (16 texels a block, 1 a pixel).
+        float k = c.texel() / TILE;
+        float anx = Math.abs(nx), any = Math.abs(ny), anz = Math.abs(nz);
+        int axis = any >= anx && any >= anz ? 1 : anx >= anz ? 0 : 2;
+        c.vert(tex, ax, ay, az, nx, ny, nz, tu(c, axis, ax, az) * k, tv(c, axis, ay, az) * k, mat, a);
+        c.vert(tex, bx, by, bz, nx, ny, nz, tu(c, axis, bx, bz) * k, tv(c, axis, by, bz) * k, mat, a);
+        c.vert(tex, qx, qy, qz, nx, ny, nz, tu(c, axis, qx, qz) * k, tv(c, axis, qy, qz) * k, mat, a);
+        c.vert(tex, dx, dy, dz, nx, ny, nz, tu(c, axis, dx, dz) * k, tv(c, axis, dy, dz) * k, mat, a);
+        c.gloss();
+    }
+    private static float tu(Ctx c, int axis, float x, float z) { return axis == 0 ? z - c.oz : x - c.ox; }
+    private static float tv(Ctx c, int axis, float y, float z) { return axis == 1 ? z - c.oz : y - c.oy; }
+
+    /**
+     * A box of his skin (skin.png): from (x0, y0, z0) to (x1, y1, z1) (model space: y down, -z his front, -x his right),
+     * its texture the box at (u, v) of w x h x d texels in Minecraft's layout (top, bottom; right side, front, left side,
+     * back), stretched over the box whatever its real size (a box may be grown over its texture, like a skin's second
+     * layer). Texels with no alpha are not drawn.
+     */
+    public static void skinBox(Ctx c, float x0, float y0, float z0, float x1, float y1, float z1, int u, int v, int w, int h, int d, Mat mat, float a) {
+        float s = 1 / SKIN_SIZE;
+        float uL = u * s, uD = (u + d) * s, uW = (u + d + w) * s, uDW = (u + d + w + d) * s, uE = (u + 2 * d + 2 * w) * s, uWW = (u + d + 2 * w) * s;
+        float vT = v * s, vD = (v + d) * s, vH = (v + d + h) * s;
+        // Top (y0): front edge toward the front face. Bottom (y1).
+        face(c, x0, y0, z0, uD, vD, x1, y0, z0, uW, vD, x1, y0, z1, uW, vT, x0, y0, z1, uD, vT, 0, -1, 0, mat, a);
+        face(c, x0, y1, z1, uW, vT, x1, y1, z1, uWW, vT, x1, y1, z0, uWW, vD, x0, y1, z0, uW, vD, 0, 1, 0, mat, a);
+        // His right (x0): back at the left of its texture, front at the right; the front (z0); his left (x1); the back (z1).
+        face(c, x0, y0, z1, uL, vD, x0, y0, z0, uD, vD, x0, y1, z0, uD, vH, x0, y1, z1, uL, vH, -1, 0, 0, mat, a);
+        face(c, x0, y0, z0, uD, vD, x1, y0, z0, uW, vD, x1, y1, z0, uW, vH, x0, y1, z0, uD, vH, 0, 0, -1, mat, a);
+        face(c, x1, y0, z0, uW, vD, x1, y0, z1, uDW, vD, x1, y1, z1, uDW, vH, x1, y1, z0, uW, vH, 1, 0, 0, mat, a);
+        face(c, x1, y0, z1, uDW, vD, x0, y0, z1, uE, vD, x0, y1, z1, uE, vH, x1, y1, z1, uDW, vH, 0, 0, 1, mat, a);
+    }
+    private static void face(Ctx c, float ax, float ay, float az, float au, float av, float bx, float by, float bz, float bu, float bv,
+                             float qx, float qy, float qz, float qu, float qv, float dx, float dy, float dz, float du, float dv,
+                             float nx, float ny, float nz, Mat mat, float a) {
+        c.vert(T_SKIN, ax, ay, az, nx, ny, nz, au, av, mat, a); c.vert(T_SKIN, bx, by, bz, nx, ny, nz, bu, bv, mat, a);
+        c.vert(T_SKIN, qx, qy, qz, nx, ny, nz, qu, qv, mat, a); c.vert(T_SKIN, dx, dy, dz, nx, ny, nz, du, dv, mat, a);
+        c.gloss();
     }
     /** A three-cornered facet (as a quad with its last corner doubled). */
     public static void tri(Ctx c, float ax, float ay, float az, float bx, float by, float bz, float qx, float qy, float qz, Mat mat, float a) {

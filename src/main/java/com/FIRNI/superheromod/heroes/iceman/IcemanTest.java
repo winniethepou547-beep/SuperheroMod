@@ -46,6 +46,8 @@ import static com.FIRNI.superheromod.heroes.iceman.IcemanAction.*;
  *   weapons          the next weapon of the wheel, and three dummies
  *   mace|spear|sword that weapon in hand, and a dummy
  *   shatteredground  a dummy 11 blocks ahead, the cracks run to it
+ *   solid            solid ice to try for 20 seconds: a bar of sculpted ice across your way at head height (walk into it),
+ *                    and to your right a raised stretch of track rising like a ramp (walk up it and stand on it)
  */
 @Mod.EventBusSubscriber(modid = SuperheroMod.MODID)
 public final class IcemanTest {
@@ -56,7 +58,7 @@ public final class IcemanTest {
 
     @SubscribeEvent public static void register(RegisterCommandsEvent event) {
         LiteralArgumentBuilder<CommandSourceStack> test = Commands.literal("test");
-        for (String what : new String[]{"shift", "shift_up", "shift_cancel", "shift_air", "shift_descend", "shift_speed", "shift_slope", "brush", "slide", "shell", "shellbreak", "shellburst", "weapons", "mace", "spear", "sword", "shatteredground"})
+        for (String what : new String[]{"shift", "shift_up", "shift_cancel", "shift_air", "shift_descend", "shift_speed", "shift_slope", "brush", "slide", "shell", "shellbreak", "shellburst", "weapons", "mace", "spear", "sword", "shatteredground", "solid"})
             test.then(Commands.literal(what).executes(ctx -> run(ctx, what, -1)));
         test.then(Commands.literal("frost").executes(ctx -> run(ctx, "frost", 50))
                 .then(Commands.argument("amount", FloatArgumentType.floatArg(0, 100)).executes(ctx -> run(ctx, "frost", FloatArgumentType.getFloat(ctx, "amount")))));
@@ -134,9 +136,40 @@ public final class IcemanTest {
                 if (d != null) IcemanGround.test(p, d);
                 say(p, "Parçalanmış Zemin: çatlaklar kuklaya koşar, buz dikenleri fırlatır. Önce donmuşsa (don ölçer yüksek / 100) çok daha güçlü.");
             }
+            case "solid" -> {
+                ensure(p);
+                solidTest(p);
+                say(p, "Katı buz (20 sn): önünde baş hizasında bir buz kütlesi var, içinden geçmeye çalış (geçememelisin). Sağında yükselen bir buz yolu: "
+                        + "üstüne çık, üstünde yürü ve dur (düşmemelisin). Okla vurursan ok sekmeli.");
+            }
             default -> {}
         }
         return 1;
+    }
+    /** Ticks the solid test's ice stands. */
+    private static final int SOLID_TEST_LIFE = 400;
+    /**
+     * The solid test: a bar of sculpted ice across his way, 4 blocks ahead at head height, 4 blocks wide (real sculpture
+     * boxes); and to his right a raised stretch of track (the slide's own boxes) rising from knee height to 1.6 blocks
+     * over 5.6 blocks and running on level, drawn as a thin bar of ice along its top so it can be seen.
+     */
+    private static void solidTest(ServerPlayer p) {
+        Vec3 f = IcemanController.facing(p), right = new Vec3(-f.z, 0, f.x), base = p.position();
+        float radius = IcemanConfig.f(IcemanConfig.SCULPT_THICKNESS);
+        List<Vec3> bar = new ArrayList<>();
+        for (double s = -2; s <= 2.001; s += SCULPT_STEP) bar.add(base.add(f.scale(4)).add(right.scale(s)).add(0, 1.55, 0));
+        IcemanBrush.test(p, bar, radius, SOLID_TEST_LIFE, true);
+        List<Vec3> look = new ArrayList<>();
+        Vec3 start = base.add(right.scale(2.6)).add(f.scale(1.2));
+        double length = 8.4;
+        for (double d = 0; d <= length + .001; d += IcemanSlide.SOLID_STEP) {
+            double top = Math.min(1.6, .3 + d * .23);
+            IcemanSlide.solidBox(p, start.add(f.scale(d)).add(0, top - IcemanSlide.SOLID_HEIGHT, 0), (float) IcemanSlide.SOLID_HEIGHT,
+                    SOLID_TEST_LIFE + SCULPT_CRACK);
+        }
+        // What can be seen of it: a thin bar of ice just under the boxes' top.
+        for (double d = 0; d <= length + .001; d += SCULPT_STEP) look.add(start.add(f.scale(d)).add(0, Math.min(1.6, .3 + d * .23) - .2, 0));
+        IcemanBrush.test(p, look, .2f, SOLID_TEST_LIFE, false);
     }
     private static void say(ServerPlayer p, String text) { p.sendSystemMessage(Component.literal("§b[Iceman testi] §f" + text)); }
     /** Makes the player Iceman (if not already). */

@@ -38,6 +38,8 @@ public final class ModEntityRegistration {
         public static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
             event.registerEntityRenderer(ModEntities.SONIC_EMITTER.get(),
                     com.FIRNI.superheromod.client.render.batman.SonicEmitterRenderer::new);
+            event.registerEntityRenderer(ModEntities.ICE_SOLID.get(),
+                    com.FIRNI.superheromod.client.render.iceman.IceSolidRenderer::new);
             event.registerEntityRenderer(ModEntities.BATMOBILE.get(),
                     com.FIRNI.superheromod.client.render.batman.BatmobileRenderer::new);
             event.registerEntityRenderer(ModEntities.SETTLED_SAND_BALL.get(),

@@ -66,8 +66,7 @@ public final class IceStage {
     /** Draws the ice gathered so far (and its light). */
     public void endIce() {
         if (ctx != null) { ctx.end(); ctx = null; }
-        ice.endBatch(IceMesh.ICE);
-        ice.endBatch(IceMesh.GLINT);
+        IceMesh.endBatches(ice);
     }
     /** The film effects' context (world coordinates). */
     public FilmContext fx() {

@@ -25,7 +25,9 @@ import static com.FIRNI.superheromod.heroes.iceman.IcemanController.*;
  * a stream of cold that raises their frost meter fast (their screen frosts over with it) and bites a little. Into the
  * air: ice is sculpted where his aim is, SCULPT_DISTANCE ahead, following the mouse's path; each new point is sent to
  * the clients, which grow the ice there (a line, thickening, volume, crystals). A sculpture stands SCULPT_SECONDS, then
- * cracks and breaks apart. While it stands it is real: bodies are pushed out of it and projectiles shatter on it.
+ * cracks and breaks apart. While it stands it is real: a row of solid boxes (IceSolidEntity, a cube round every stretch
+ * of its path) that nobody can walk through and anyone can stand on; a body the ice grew round is pushed out of it, and
+ * projectiles shatter on it. The boxes go the moment it starts to crack (nobody bumps into ice that is visibly breaking).
  */
 final class IcemanBrush {
     private IcemanBrush() {}
@@ -34,7 +36,13 @@ final class IcemanBrush {
     static final class Sculpture {
         final int id; final ServerPlayer owner; final List<Vec3> points = new ArrayList<>(); final float radius;
         AABB box; boolean done; int age, life = -1, breaking = -1;
+        /** Its solid boxes, and the middle of the last one laid. */
+        final List<IceSolidEntity> solids = new ArrayList<>(); Vec3 lastSolid;
         Sculpture(int id, ServerPlayer owner, float radius) { this.id = id; this.owner = owner; this.radius = radius; }
+        /** Its solid boxes taken away now. */
+        void dropSolids() { for (IceSolidEntity e : solids) e.gone(); solids.clear(); }
+        /** The body's box is inside one of its solid boxes (ice that grew round where it stood). */
+        boolean holds(AABB body) { for (IceSolidEntity e : solids) if (e.holds(body)) return true; return false; }
         void add(Vec3 at) { points.add(at); AABB b = new AABB(at, at).inflate(radius + .2); box = box == null ? b : box.minmax(b); }
         boolean solid() { return breaking < 0 && !points.isEmpty(); }
     }
@@ -60,8 +68,25 @@ final class IcemanBrush {
         if (sc == null) return;
         sc.done = true;
         sc.life = (int) Math.round(IcemanConfig.SCULPT_SECONDS.get() * 20);
-        if (sc.points.size() < 2) { SCULPTURES.remove(sc); fxAt(p, sc.points.isEmpty() ? p.position() : sc.points.get(0), FX_SCULPT_BREAK, sc.points.isEmpty() ? p.position() : sc.points.get(0), Vec3.ZERO, 0, p.getId(), sc.id); return; }
+        if (sc.points.size() < 2) { sc.dropSolids(); SCULPTURES.remove(sc); fxAt(p, sc.points.isEmpty() ? p.position() : sc.points.get(0), FX_SCULPT_BREAK, sc.points.isEmpty() ? p.position() : sc.points.get(0), Vec3.ZERO, 0, p.getId(), sc.id); return; }
+        // Its tip gets a box of its own, and every box now stands as long as the ice (the crack takes them sooner).
+        Vec3 tip = sc.points.get(sc.points.size() - 1);
+        if (sc.lastSolid == null || sc.lastSolid.distanceTo(tip) > sc.radius * .5) solid(sc, tip, true);
+        for (IceSolidEntity e : sc.solids) e.setLife(sc.life + SCULPT_CRACK + 20);
         fxAt(p, sc.points.get(0), FX_SCULPT_END, sc.points.get(sc.points.size() - 1), Vec3.ZERO, sc.life, p.getId(), sc.id);
+    }
+    /** How long a box of a sculpture still being made may stand (it is set to the sculpture's own time when let go). */
+    private static int buildLife() { return (int) Math.round(IcemanConfig.SCULPT_SECONDS.get() * 20) + 400; }
+    /**
+     * A solid box round a new point of the sculpture: a cube 2 * radius on a side centred on it, once the point is
+     * radius * 1.1 from the last box (they overlap, no gaps). It hardens at once unless a living body is in it; then
+     * as soon as that body is out (pushed out by tickSculptures).
+     */
+    private static void solid(Sculpture sc, Vec3 at, boolean force) {
+        if (!force && sc.lastSolid != null && sc.lastSolid.distanceTo(at) < sc.radius * 1.1) return;
+        sc.lastSolid = at;
+        IceSolidEntity e = IceSolidEntity.spawn(sc.owner, at.add(0, -sc.radius, 0), sc.radius * 2, sc.radius * 2, buildLife(), .05);
+        if (e != null) sc.solids.add(e);
     }
 
     static void tick(ServerPlayer p, State s) {
@@ -111,6 +136,7 @@ final class IcemanBrush {
         for (int i = 1; i <= steps && sc.points.size() < SCULPT_POINTS; i++) {
             Vec3 pt = sc.points.isEmpty() ? at : last.lerp(at, i / (double) steps);
             sc.add(pt);
+            solid(sc, pt, false);
             fxAt(p, pt, FX_SCULPT_POINT, pt, new Vec3(sc.radius, 0, 0), sc.points.size() - 1, p.getId(), sc.id);
         }
         if (sc.points.size() % 4 == 1) at(p, at, ModSounds.ICEMAN_SCULPT.get(), .55f, .9f + p.getRandom().nextFloat() * .25f);
@@ -120,6 +146,7 @@ final class IcemanBrush {
     private static void crack(Sculpture sc) {
         if (sc.breaking >= 0) return;
         sc.breaking = 0;
+        sc.dropSolids();
         Vec3 mid = sc.points.isEmpty() ? sc.owner.position() : sc.points.get(sc.points.size() / 2);
         fxAt(sc.owner, mid, FX_SCULPT_BREAK, mid, Vec3.ZERO, sc.points.size(), sc.owner.getId(), sc.id);
         at(sc.owner, mid, ModSounds.ICEMAN_CRACK.get(), 1f, .9f);
@@ -129,8 +156,17 @@ final class IcemanBrush {
     static void tickSculptures() {
         for (Iterator<Sculpture> it = SCULPTURES.iterator(); it.hasNext(); ) {
             Sculpture sc = it.next();
-            if (sc.owner.isRemoved()) { it.remove(); continue; }
+            if (sc.owner.isRemoved()) {
+                // Its Iceman gone from the world (died): the clients still let it stand its time, and so do its boxes.
+                int left = sc.breaking >= 0 || !sc.done ? 0 : sc.life;
+                for (IceSolidEntity e : sc.solids) e.setLife(left);
+                sc.solids.clear();
+                it.remove();
+                continue;
+            }
             sc.age++;
+            // Still being made: its boxes stand on.
+            if (!sc.done && sc.age % 20 == 0) for (IceSolidEntity e : sc.solids) e.setLife(buildLife());
             if (sc.breaking >= 0) {
                 if (++sc.breaking == SCULPT_CRACK) {
                     Vec3 mid = sc.points.get(sc.points.size() / 2);
@@ -156,7 +192,9 @@ final class IcemanBrush {
                     proj.discard();
                     continue;
                 }
-                // Pushed out sideways (never through it).
+                // A body the ice grew round is pushed out sideways (never through it); one only leaning on it or
+                // standing on top meets the solid boxes and is left alone.
+                if (!sc.holds(e.getBoundingBox().deflate(.02))) continue;
                 Vec3 out = d < 1e-3 ? new Vec3(1, 0, 0) : new Vec3(off.x, Math.max(0, off.y) * .3, off.z).normalize();
                 double push = (reach - d) * .5 + .06;
                 Vec3 v = e.getDeltaMovement();
@@ -192,5 +230,29 @@ final class IcemanBrush {
         for (Sculpture sc : SCULPTURES) if (sc.owner == p) crack(sc);
         SCULPTURES.removeIf(sc -> sc.owner == p);
         IcemanWeapons.clear(p);
+        IcemanSlide.clear(p);
+    }
+
+    /**
+     * The test command: a finished sculpture along `pts` at once (drawn on every client, standing `life` ticks, then it
+     * cracks like any other). solidBoxes false = only the ice you see (the test's raised track lays its own boxes).
+     */
+    static void test(ServerPlayer p, List<Vec3> pts, float radius, int life, boolean solidBoxes) {
+        if (pts.size() < 2) return;
+        Sculpture sc = new Sculpture(nextId++, p, radius);
+        SCULPTURES.add(sc);
+        for (int i = 0; i < pts.size() && i < SCULPT_POINTS; i++) {
+            Vec3 pt = pts.get(i);
+            sc.add(pt);
+            if (solidBoxes) solid(sc, pt, false);
+            fxAt(p, pt, FX_SCULPT_POINT, pt, new Vec3(radius, 0, 0), i, p.getId(), sc.id);
+        }
+        sc.done = true;
+        sc.life = life;
+        Vec3 tip = sc.points.get(sc.points.size() - 1);
+        if (solidBoxes && (sc.lastSolid == null || sc.lastSolid.distanceTo(tip) > radius * .5)) solid(sc, tip, true);
+        for (IceSolidEntity e : sc.solids) e.setLife(life + SCULPT_CRACK + 20);
+        fxAt(p, sc.points.get(0), FX_SCULPT_END, tip, Vec3.ZERO, life, p.getId(), sc.id);
+        at(p, sc.points.get(sc.points.size() / 2), ModSounds.ICEMAN_FORM_BIG.get(), .8f, 1f);
     }
 }

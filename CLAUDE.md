@@ -390,26 +390,32 @@ landing spot and the target to the crater.
   training dummies = NoAI husks). Packets `IcemanStatePacket` / `IcemanFxPacket` / `IcemanInputPacket`.
 - Keys: LMB weapon, RMB brush, E held = Ice Armory wheel (E has NO other mechanic — user's rule), SHIFT held = ice slide,
   CTRL = sub-zero slide, Q shell / burst, R shattered ground, X = "not designed yet" (do not invent an ultimate).
-- Look: the user REJECTED see-through ice ("saydam olmamalı"): ice is SOLID, cut like crystal (reference: comic cover +
-  Marvel Snap art). `IceMesh` is THE material for everything (`entityTranslucent` render type but opacity ~1; per-vertex
-  stylised shading: each flat facet lit from above the camera, deep blue shadow -> the Mat's cyan -> cold white highlight,
-  cyan glow on the outline, white glint; translucency only for forming/melting via ctx alpha). `Mat` has a `kind`: ICE or
-  CLOTH (the suit: SUIT_BLACK/RED/GREY/PALE). Presets CLEAR/MILKY/CORE/FROST/DEEP/FRESH/GLACIER; shapes loft, limb, crystal,
-  shard, tube; `vein` = a crack glowing cyan ON the surface (additive, lifted toward the camera); `line/sparkle/glow` =
-  additive, emitted at `Ctx.end()`. Call `ctx.at(pose)` after every stack change.
-  `IcemanBody` (pixels): the X-Men suit painted per facet by `suit(x, y, z)` (black, red chest/shoulder panel narrowing in a V
-  to the belt, black V neckline to the X emblem, red shoulder caps, black sleeves/legs, grey belt), ice face/neck (`SKIN`,
-  faceted skull with a squarer face plane `faceZ`, brow/cheek/nose/chin blocks, DEEP sockets, white glowing eyes), hair = a
-  HAIR cap + crystals swept up and back, ice gauntlets (`ARMOUR`, elbow to fist, spikes, icicles, big ice fingers), ice
-  knees/shins/feet; hooks WEAPON*, SHELL_*, HAND_GLOW. `IcemanLayer`, `IcemanMotion`
+- Look: MINECRAFT BLOCKY (the user's latest reference: a blocky Minecraft Iceman riding a beam of bright blue ice blocks).
+  The user rejected see-through ice ("saydam olmamalı"), then rounded/high-poly models and crystal-looking ice ("küp
+  modellerden vazgeçme", "kristal gibi durmasın, buz olduğu belli olsun"). `IceMesh` is THE material for everything: TEXTURED
+  pixel ice (`textures/entity/iceman/ice.png`, `frost.png`, his `skin.png`, all drawn by `tools/textures/iceman_skin.py`),
+  mapped from the side a face looks to (16 texels a block, 1 a model pixel; `Ctx.texel`, `Ctx.origin` pins it on moving
+  pieces), soft light, an additive wet gloss per face (`gloss()`), opaque (alpha only for forming/melting). Everything is
+  gathered and emitted at `Ctx.end()` per texture (ICE, FROST_ICE, SKIN, then GLINT = `IceTypes`, additive no-cull);
+  `IceMesh.endBatches`. `Mat` tints the texture (milky/pale -> frost texture); CLOTH = plain colour. Call `ctx.at(pose)`
+  after every stack change.
+  `IcemanBody` (pixels): Minecraft boxes via `IceMesh.skinBox` (Minecraft box-UV layout; the `SKIN_*` u,v,w,h,d table must
+  match the Python script): ice cube head with a pixel face + a frosted hair layer + a crest of 4-sided ice spikes, chest /
+  abdomen / pelvis in the X-Men suit (red V, black neckline, X, grey belt), red shoulders then ice arms (gauntlet box, fist,
+  shoulder/forearm spikes, icicles), black shorts to mid thigh then ice shins/feet with knee spikes; the shell = glacier
+  boxes over each part; hooks WEAPON*, SHELL_*, HAND_GLOW. `IcemanLayer`, `IcemanMotion`
   (+ `IcemanMoveMotion`, `IcemanWeaponMotion`, `IcemanShellMotion`), `IcemanFirstPerson` (draws the real arms from the same
   pose under the camera). World effects go through `IceStage` (AFTER_TRANSLUCENT_BLOCKS: ice, then FilmFx) and the shared
   pooled `IceParticles` (`shatter()` = the one break language: flash, big pieces, shards, mist, dust, melting).
   `FrostFx` = frost on bodies by stage + deep-freeze encasing + the victim's screen frost / slide lens.
-- Sounds group `iceman` (synth). Splash `tools/splash/iceman.py`. Docs for the user: `docs/ICEMAN.md`.
+- Sounds group `iceman` (synth). Splash `tools/splash/iceman.py` (composes `tools/splash/iceman_model.png`, the in-game model
+  rendered by the offline preview harness below; re-render it when the body changes). Docs for the user: `docs/ICEMAN.md`.
+- Left-behind ice is SOLID: `heroes/iceman/IceSolidEntity` (invisible synced box, `canBeCollidedWith`, soft until no body is
+  in it, never saved, dies with its owner/time) under the raised slide track (`IcemanSlide`) and along sculptures
+  (`IcemanBrush`); `/iceman test solid` builds a test bar and ramp.
 - Body preview offline (no game needed): a /tmp scratch harness renders IcemanBody with fake MC classes (fakes for
   PoseStack/VertexConsumer/RenderType/Vec3/Mth/Minecraft + the real JOML jar, a Dump class writing the quads, a Python
-  painter's-algorithm renderer). Rebuild it if /tmp was wiped.
+  painter's-algorithm renderer that samples the textures per texel). Rebuild it if /tmp was wiped.
 
 ## Champion select (P)
 - `client/gui/ChampionSelectScreen` (key P; the dev Pose Studio moved to F8 under a new key id) + roster data

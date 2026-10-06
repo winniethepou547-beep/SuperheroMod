@@ -1,15 +1,20 @@
 # Iceman (Buzun Efendisi)
 
-Görünüş çizgi roman kapağındaki Iceman: X-Men kostümü (siyah; omuzlardan göğse kırmızı panel, bele doğru V şeklinde daralır;
-boyundan göğüs kemiğindeki yuvarlak X amblemine inen siyah V yaka; siyah yanlar, kollar ve bacaklar). Gücünün göründüğü yerler buz:
-buzdan yüz ve boyun, yukarı ve geriye taranmış sivri buz kristali saçlar, dirseklerden yumruklara kadar iri, kaba buz eldivenler,
-dizler, kaval kemikleri ve ayaklar buz kaplı. Buz saydam değil: katı, kristal gibi yüzeyli; gölgede koyu mavi, ortada camgöbeği,
-ışık alan yüzeyler soğuk beyaz; dış hatlarında camgöbeği bir parıltı, üzerinde camgöbeği parlayan çatlaklar, kristal dikenler ve
-sarkıtlar var (referans: çizgi roman kapağı ve Marvel Snap Iceman çizimi). Hareket ederken üstünden az miktarda kırağı tozu dökülür.
+Görünüş Minecraft'a uygun: tıpkı bir Minecraft oyuncusu gibi küplerden yapılmış, yuvarlatılmış ya da çok poligonlu değil
+(referans: parlak mavi buz bloklarından bir yolda kayan Minecraft Iceman'i). Kafası piksel yüzlü bir buz küpü (kalın kaşların altında
+parlayan beyaz gözler, burun, sıkılı ağız), tepesinde yukarı ve geriye doğru buz dikenleri. Gövdede X-Men kostümü (omuzlardan göğse
+kırmızı, göğüsteki X'e inen siyah V yaka, koyu gri yan paneller, gri kemer). Omuzlar kırmızı, sonra kollar buz: iri buz eldivenler,
+buz yumruklar, omuzlarda ve kollarda buz dikenleri, sarkıtlar. Uyluğun yarısına kadar siyah şort, sonra buz bacaklar, dizlerde dikenler.
 
-Bütün buzlar (bedendeki buz, heykeller, kaydırak yolu, kabuk, dikenler, düşmanların üstündeki buz) aynı malzemeden yapılır.
-Her buz önce nemi çeker, sonra kırağı, sonra kristal çekirdekleri, büyüme ve kalınlaşma ile oluşur. Kırılırken de önce çatlar,
-çatlaklar yayılır, büyük parçalar ve kıymıklar kopar, kısa bir parlama olur, parçalar düşer ve küçükler eriyip kırağıya döner.
+Buz saydam değil ve kristal gibi durmuyor: gerçek buzun yapısı piksel doku olarak çizildi (parlak açık mavi gövde, kalın yerlerde
+daha koyu mavi cepler, içindeki kırılma yüzeylerinin yakaladığı kısa beyaz çizgiler, hapsolmuş küçük hava kabarcıkları; sütlü
+buzda daha beyaz, sıkışmış buz). Yüzeyi ıslak gibi parlar: ışığın sana yansıdığı yüzlerde beyaz bir parlama.
+
+Bütün buzlar (bedendeki buz, heykeller, kaydırak yolu, kabuk, dikenler, silahlar, düşmanların üstündeki buz) aynı buzdan yapılır.
+**Bıraktığın buzlar gerçek nesnedir:** havadaki kaydırak yolunun ve buz heykellerinin içinden geçilemez, üstlerine çıkılıp
+yürünebilir, oklar sekip düşer. Buz eriyince ya da kırılınca bu katılık da gider. Senin altına yeni dökülen yol, sen üstünden
+geçene kadar yumuşaktır (takılmazsın); sonra senin için de katıdır.
+
 Hiçbir şey bir anda belirmez ya da kaybolmaz.
 
 ## Tuşlar
@@ -125,6 +130,7 @@ seni önce Iceman yapar. Kurban tarafını (ekrandaki buz) herhangi bir kahraman
 | `/iceman test shellbreak` | Kabuğun canı sıfır: parçalanma, yorgun iniş, kalkış |
 | `/iceman test shellburst` | Kabuk patlaması |
 | `/iceman test shatteredground` | 11 blok önüne kukla, çatlaklar ona koşar |
+| `/iceman test solid` | Önüne baş hizasında bir buz heykeli, sağına yükselen bir kaydırak yolu: içinden geçemediğini, üstüne çıkabildiğini dene (20 saniye) |
 
 Üçüncü şahıs kamerada (F5) izlemek en iyisi.
 

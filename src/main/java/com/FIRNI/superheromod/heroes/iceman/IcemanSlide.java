@@ -33,9 +33,24 @@ final class IcemanSlide {
     private static final Map<UUID, ArrayDeque<Vec3>> TRAILS = new HashMap<>();
     /** The whole track he leaves (his feet each tick, with the time), for as long as it stands: anyone on it gets frost. */
     private record Mark(Vec3 at, long time) {}
-    private static final class Track { final ServerPlayer owner; final ArrayDeque<Mark> marks = new ArrayDeque<>(); final Map<Integer, Long> touched = new HashMap<>(); Track(ServerPlayer owner) { this.owner = owner; } }
+    /** A track: his feet along it, who it touched lately, and the solid boxes under it (IceSolidEntity, oldest first). */
+    private static final class Track {
+        final ServerPlayer owner; final ArrayDeque<Mark> marks = new ArrayDeque<>(); final Map<Integer, Long> touched = new HashMap<>();
+        final ArrayDeque<IceSolidEntity> solids = new ArrayDeque<>();
+        /** Where the last box was laid (null: none yet). */
+        Vec3 lastSolid;
+        Track(ServerPlayer owner) { this.owner = owner; }
+    }
     private static final java.util.List<Track> TRACKS = new java.util.ArrayList<>();
     private static final Map<UUID, Track> RIDING = new HashMap<>();
+    /**
+     * The track's solid boxes: one each SOLID_STEP blocks of his path, SOLID_WIDTH square, SOLID_HEIGHT thick, the top
+     * SOLID_TOP under his feet (where the drawn track's top is); only where the track runs in the air (on the ground it
+     * lies flat on the ground and a box would only be a step). At most SOLID_MAX per track (the oldest, soonest to melt,
+     * goes first). Each stands as long as its stretch of track is drawn.
+     */
+    static final double SOLID_STEP = .7, SOLID_WIDTH = 1.0, SOLID_HEIGHT = .35, SOLID_TOP = .03, SOLID_GRACE = .35;
+    static final int SOLID_MAX = 160, SOLID_LIFE = SLIDE_TRACK_LIFE + SLIDE_TRACK_MELT / 2;
 
     static void start(ServerPlayer p, State s) {
         if (s.action == SLIDE) return;
@@ -103,7 +118,10 @@ final class IcemanSlide {
         trail.addLast(p.position());
         while (trail.size() > 24) trail.removeFirst();
         Track track = RIDING.get(p.getUUID());
-        if (track != null) track.marks.addLast(new Mark(p.position(), p.level().getGameTime()));
+        if (track != null) {
+            track.marks.addLast(new Mark(p.position(), p.level().getGameTime()));
+            lay(p, track, p.position());
+        }
         if (s.slideAge % 2 != 0) return;
         long now = p.level().getGameTime();
         // Whoever the slide (or the fresh ice behind it) touches.
@@ -162,12 +180,62 @@ final class IcemanSlide {
         if (s.age >= DASH_TICKS) set(s, IDLE);
     }
 
+    /**
+     * A solid box under the track where his feet are now, if the last one is SOLID_STEP behind and the track runs in the
+     * air here. Laid soft: it hardens once he (and anyone else) is clear of it, so he never snags on the ice laid under
+     * him; afterwards it is solid for everyone, him included (he can land on his old track and run along it).
+     */
+    private static void lay(ServerPlayer p, Track t, Vec3 feet) {
+        if (t.lastSolid != null && t.lastSolid.distanceToSqr(feet) < SOLID_STEP * SOLID_STEP) return;
+        double top = feet.y - SOLID_TOP, ground = ground(p.level(), feet);
+        if (feet.y - ground < .3) return;
+        double bottom = Math.max(top - SOLID_HEIGHT, ground);
+        if (top - bottom < .1) return;
+        IceSolidEntity box = solidBox(p, new Vec3(feet.x, bottom, feet.z), (float) (top - bottom), SOLID_LIFE);
+        t.lastSolid = feet;
+        if (box == null) return;
+        t.solids.addLast(box);
+        while (t.solids.size() > SOLID_MAX) t.solids.pollFirst().gone();
+    }
+    /** One of the track's boxes, its bottom middle at `bottom`; also used by the test command. */
+    static IceSolidEntity solidBox(ServerPlayer p, Vec3 bottom, float height, int life) {
+        return IceSolidEntity.spawn(p, bottom, (float) SOLID_WIDTH, height, life, SOLID_GRACE);
+    }
+    /** The top of the ground under a point (within 8 blocks), or far below when there is none (as IcemanTrack.ground). */
+    private static double ground(net.minecraft.world.level.Level level, Vec3 at) {
+        net.minecraft.core.BlockPos base = net.minecraft.core.BlockPos.containing(at.x, at.y + .2, at.z);
+        for (int dy = 0; dy <= 8; dy++) {
+            net.minecraft.core.BlockPos pos = base.below(dy);
+            var state = level.getBlockState(pos);
+            if (state.isAir()) continue;
+            var shape = state.getCollisionShape(level, pos);
+            if (shape.isEmpty()) continue;
+            double top = pos.getY() + shape.max(net.minecraft.core.Direction.Axis.Y);
+            if (top <= at.y + .25) return top;
+        }
+        return at.y - 99;
+    }
+    /** All of one Iceman's tracks gone at once, their solid ice with them (logging out, no longer Iceman). */
+    static void clear(ServerPlayer p) {
+        TRAILS.remove(p.getUUID());
+        RIDING.remove(p.getUUID());
+        for (java.util.Iterator<Track> it = TRACKS.iterator(); it.hasNext(); ) {
+            Track t = it.next();
+            if (t.owner != p && !t.owner.getUUID().equals(p.getUUID())) continue;
+            for (IceSolidEntity e : t.solids) e.gone();
+            t.solids.clear();
+            it.remove();
+        }
+    }
+
     /** Everyone standing on (or in) one of the tracks still there gets a little frost now and then, and the icy lens. */
     static void tickTracks() {
         if (TRACKS.isEmpty()) return;
         for (java.util.Iterator<Track> it = TRACKS.iterator(); it.hasNext(); ) {
             Track t = it.next();
             ServerPlayer p = t.owner;
+            // (The boxes need nothing here: each goes away by itself when its stretch of track has melted.)
+            while (!t.solids.isEmpty() && t.solids.peekFirst().isRemoved()) t.solids.pollFirst();
             if (p.isRemoved() || t.marks.isEmpty() && !RIDING.containsValue(t)) { it.remove(); continue; }
             long now = p.level().getGameTime();
             while (!t.marks.isEmpty() && now - t.marks.peekFirst().time() > SLIDE_TRACK_LIFE + SLIDE_TRACK_MELT / 2) t.marks.removeFirst();
