@@ -31,26 +31,51 @@ final class IcemanSlide {
 
     /** Where each sliding Iceman has been lately (his feet, newest last): the fresh track bodies can touch. */
     private static final Map<UUID, ArrayDeque<Vec3>> TRAILS = new HashMap<>();
+    /** The whole track he leaves (his feet each tick, with the time), for as long as it stands: anyone on it gets frost. */
+    private record Mark(Vec3 at, long time) {}
+    private static final class Track { final ServerPlayer owner; final ArrayDeque<Mark> marks = new ArrayDeque<>(); final Map<Integer, Long> touched = new HashMap<>(); Track(ServerPlayer owner) { this.owner = owner; } }
+    private static final java.util.List<Track> TRACKS = new java.util.ArrayList<>();
+    private static final Map<UUID, Track> RIDING = new HashMap<>();
 
     static void start(ServerPlayer p, State s) {
         if (s.action == SLIDE) return;
         if (!(free(s) || s.action == BRUSH)) return;
+        if (s.action == SLIDE_END) set(s, IDLE);
         if (s.cooldowns[CD_SLIDE] > 0) { tell(p, "Buz Kaydırağı: " + seconds(s.cooldowns[CD_SLIDE])); return; }
         if (s.action == BRUSH) IcemanBrush.release(p, s);
         s.slideAge = 0;
         s.slideTouched.clear();
         set(s, SLIDE);
         TRAILS.put(p.getUUID(), new ArrayDeque<>());
+        Track track = new Track(p);
+        TRACKS.add(track);
+        RIDING.put(p.getUUID(), track);
+        s.airFall = false;
         sound(p, ModSounds.ICEMAN_SLIDE_START.get(), 1f, 1f);
         sound(p, ModSounds.ICEMAN_FORM_BIG.get(), .6f, 1.3f);
     }
+    /**
+     * SHIFT let go (or the time is up): on the ground he brakes into his stance (SLIDE_END: a foot dragged, ice spray,
+     * the body turning); in the air he leaves the ice with what momentum he has and falls (no fall damage until he is down).
+     */
     static void stop(ServerPlayer p, State s) {
         if (s.action != SLIDE) return;
-        set(s, IDLE);
+        boolean ground = p.onGround() || !p.level().noCollision(p, p.getBoundingBox().move(0, -.3, 0));
+        set(s, ground ? SLIDE_END : IDLE);
+        s.airFall = !ground;
         s.cooldowns[CD_SLIDE] = Math.max(s.cooldowns[CD_SLIDE], IcemanConfig.CD_SLIDE.get());
         s.noFallUntil = p.level().getGameTime() + 40;
         TRAILS.remove(p.getUUID());
+        RIDING.remove(p.getUUID());
         sound(p, ModSounds.ICEMAN_CRACK.get(), .5f, 1.3f);
+        if (ground) sound(p, ModSounds.ICEMAN_DASH.get(), .5f, 1.4f);
+    }
+    /** The test autopilot: his own client rides the slide by itself (mode = IcemanAction.AUTO_*). */
+    static void autopilot(ServerPlayer p, State s, int mode) {
+        s.cooldowns[CD_SLIDE] = 0;
+        if (s.action == SLIDE) stop(p, s);
+        if (s.action == SLIDE_END) set(s, IDLE);
+        fxTo(p, FX_AUTO_SLIDE, p.position(), Vec3.ZERO, 0, p.getId(), mode);
     }
     /** CTRL: the sub-zero slide toward rel (radians from his facing; 0 = straight ahead). */
     static void dash(ServerPlayer p, State s, float rel) {
@@ -69,6 +94,7 @@ final class IcemanSlide {
 
     static void tick(ServerPlayer p, State s) {
         if (s.action == DASH) { dashTick(p, s); return; }
+        if (s.action == SLIDE_END) { if (s.age >= SLIDE_END_TICKS) set(s, IDLE); return; }
         s.slideAge++;
         p.fallDistance = 0;
         s.noFallUntil = p.level().getGameTime() + 30;
@@ -76,6 +102,8 @@ final class IcemanSlide {
         ArrayDeque<Vec3> trail = TRAILS.computeIfAbsent(p.getUUID(), id -> new ArrayDeque<>());
         trail.addLast(p.position());
         while (trail.size() > 24) trail.removeFirst();
+        Track track = RIDING.get(p.getUUID());
+        if (track != null) track.marks.addLast(new Mark(p.position(), p.level().getGameTime()));
         if (s.slideAge % 2 != 0) return;
         long now = p.level().getGameTime();
         // Whoever the slide (or the fresh ice behind it) touches.
@@ -132,5 +160,35 @@ final class IcemanSlide {
             }
         }
         if (s.age >= DASH_TICKS) set(s, IDLE);
+    }
+
+    /** Everyone standing on (or in) one of the tracks still there gets a little frost now and then, and the icy lens. */
+    static void tickTracks() {
+        if (TRACKS.isEmpty()) return;
+        for (java.util.Iterator<Track> it = TRACKS.iterator(); it.hasNext(); ) {
+            Track t = it.next();
+            ServerPlayer p = t.owner;
+            if (p.isRemoved() || t.marks.isEmpty() && !RIDING.containsValue(t)) { it.remove(); continue; }
+            long now = p.level().getGameTime();
+            while (!t.marks.isEmpty() && now - t.marks.peekFirst().time() > SLIDE_TRACK_LIFE + SLIDE_TRACK_MELT / 2) t.marks.removeFirst();
+            if (t.marks.isEmpty() || now % 5 != 0) continue;
+            double x0 = 1e9, y0 = 1e9, z0 = 1e9, x1 = -1e9, y1 = -1e9, z1 = -1e9;
+            for (Mark m : t.marks) { x0 = Math.min(x0, m.at().x); y0 = Math.min(y0, m.at().y); z0 = Math.min(z0, m.at().z); x1 = Math.max(x1, m.at().x); y1 = Math.max(y1, m.at().y); z1 = Math.max(z1, m.at().z); }
+            var box = new net.minecraft.world.phys.AABB(x0, y0, z0, x1, y1, z1).inflate(1.2, 1.5, 1.2);
+            for (LivingEntity e : p.level().getEntitiesOfClass(LivingEntity.class, box, e -> targetable(p, e))) {
+                Long last = t.touched.get(e.getId());
+                if (last != null && now - last < 25) continue;
+                Vec3 feet = e.position();
+                boolean on = false;
+                for (Mark m : t.marks) {
+                    double dx = m.at().x - feet.x, dz = m.at().z - feet.z, dy = feet.y - m.at().y;
+                    if (dx * dx + dz * dz < 1.1 && dy > -1.6 && dy < 1.0) { on = true; break; }
+                }
+                if (!on) continue;
+                t.touched.put(e.getId(), now);
+                hurt(p, e, 0, f(IcemanConfig.SLIDE_FROST) * .35f);
+                if (e instanceof ServerPlayer victim) fxTo(victim, FX_LENS, p.position(), Vec3.ZERO, .6f, p.getId(), 40);
+            }
+        }
     }
 }

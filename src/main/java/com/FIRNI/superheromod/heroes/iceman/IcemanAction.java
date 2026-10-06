@@ -39,7 +39,9 @@ public final class IcemanAction {
             /** R: hands to the ground, the cracks run out to the target, the spikes burst up. */
             GROUND = 12,
             /** The weapon wheel is open (E held). */
-            WHEEL = 13;
+            WHEEL = 13,
+            /** SHIFT let go on the ground: the braking (a foot dragged, ice spray, the body turning) back into the stance. */
+            SLIDE_END = 14;
 
     // ------------------------------------------------------------------ cooldown slots
     public static final int CD_DASH = 0, CD_SHELL = 1, CD_GROUND = 2, CD_SLIDE = 3, CD_WEAPON = 4, CD_BRUSH = 5, COOLDOWNS = 6;
@@ -82,13 +84,26 @@ public final class IcemanAction {
     /** The cracks run over it for SCULPT_CRACK ticks before it breaks apart. */
     public static final int SCULPT_CRACK = 14;
 
-    // ------------------------------------------------------------------ SHIFT: the ice slide
-    /** Blocks a tick at full speed, and how fast he gets there; how much of his look's pitch he follows (climbing/diving). */
-    public static final float SLIDE_SPEED = .78f, SLIDE_ACCEL = .06f, SLIDE_CLIMB = .55f;
-    /** The track stays SLIDE_TRACK_LIFE ticks, then cracks and melts away over SLIDE_TRACK_MELT. */
+    // ------------------------------------------------------------------ SHIFT: the 3D ice slide (Days of Future Past)
+    /**
+     * SHIFT pressed: SLIDE_PREP ticks of getting ready (the weight down, knees bending, one arm forward, the other back,
+     * frost under the feet, the ice growing out ahead) before he moves; then he speeds up (SLIDE_ACCEL a tick) to
+     * SLIDE_SPEED along the mouse's way, gaining on the way down (SLIDE_GRAVITY times the slope), losing a little in sharp
+     * turns (SLIDE_TURN_LOSS per radian). He never follows the look's pitch: SPACE held raises the track (its pitch climbs
+     * SLIDE_PITCH_RATE a tick up to SLIDE_ASCENT_MAX radians); let go, it bends over a short crest and down again
+     * (SLIDE_PITCH_FALL a tick down to -SLIDE_DESCENT_MAX) until it meets the ground and runs along it.
+     */
+    public static final int SLIDE_PREP = 7;
+    public static final float SLIDE_SPEED = .82f, SLIDE_ACCEL = .032f, SLIDE_GRAVITY = .05f, SLIDE_TURN_LOSS = .9f;
+    public static final float SLIDE_ASCENT_MAX = .72f, SLIDE_PITCH_RATE = .045f, SLIDE_PITCH_FALL = .03f, SLIDE_DESCENT_MAX = .6f;
+    /** Kept for older callers: how much of the look's pitch the slide once followed (no longer used for climbing). */
+    public static final float SLIDE_CLIMB = 0;
+    /** The track stays SLIDE_TRACK_LIFE ticks, then dissolves from its oldest end (cracks, shards, frost) over SLIDE_TRACK_MELT. */
     public static final int SLIDE_TRACK_LIFE = 160, SLIDE_TRACK_MELT = 40;
-    /** Stepping off at the end. */
-    public static final int SLIDE_END_TICKS = 8;
+    /** SHIFT let go on the ground: the braking (SLIDE_END) lasts SLIDE_END_TICKS. */
+    public static final int SLIDE_END_TICKS = 14;
+    /** The test autopilot (/iceman test shift...): what it does. */
+    public static final int AUTO_SHIFT = 0, AUTO_UP = 1, AUTO_CANCEL = 2, AUTO_AIR = 3, AUTO_DESCEND = 4, AUTO_SPEED = 5, AUTO_SLOPE = 6;
 
     // ------------------------------------------------------------------ CTRL: the sub-zero slide
     public static final int DASH_TICKS = 13;
@@ -159,5 +174,6 @@ public final class IcemanAction {
             FX_SHELL_BURST = 22,                    // the shell's burst
             FX_GROUND = 23,                         // shattered ground: the cracks set off (pos = from, dir = to, power = frost bonus, id)
             FX_GROUND_ERUPT = 24,                   // the spikes burst (pos, power = size, id)
-            FX_BRUSH_FROST = 25;                    // a burst of frost on a body from the brush (entity)
+            FX_BRUSH_FROST = 25,                    // a burst of frost on a body from the brush (entity)
+            FX_AUTO_SLIDE = 26;                     // to Iceman only (the test): his client rides the slide by itself (id = AUTO_* mode)
 }

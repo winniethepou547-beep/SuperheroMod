@@ -156,7 +156,8 @@ public final class IcemanClient {
             if (pick && hovered >= 0) { send(IN_WEAPON_SELECT, hovered, 0); closeWheel(false); }
         }
         // SHIFT held: the ice slide (read off the key itself: the hero sneak suppressor may clear the input's flag).
-        boolean shift = mc.options.keyShift.isDown() && !wheelOpen;
+        autoTick(p);
+        boolean shift = shiftHeld() && !wheelOpen;
         boolean canSlide = s == null || s.action == IDLE || s.action == SLIDE || s.action == BRUSH || s.action == FORM || s.action == WHEEL;
         if (shift && !slideSent && canSlide && (s == null || s.cooldowns[CD_SLIDE] <= 0)) { send(IN_SLIDE_ON, 0, 0); slideSent = true; }
         else if (!shift && slideSent) { send(IN_SLIDE_OFF, 0, 0); slideSent = false; }
@@ -174,6 +175,50 @@ public final class IcemanClient {
         }
         ctrlDown = ctrl;
     }
+    // ------------------------------------------------------------------ the slide test's autopilot (/iceman test shift...)
+    private static int autoMode = -1;
+    private static long autoStart;
+    /** Starts the autopilot: his own slide ridden by itself (IcemanAction.AUTO_*), so the user can watch it alone. */
+    public static void autopilot(int mode) { autoMode = mode; autoStart = now(); }
+    private static float autoT() { return autoMode < 0 ? -1 : now() - autoStart; }
+    /** How long each test ride lasts (ticks of SHIFT held). */
+    private static int autoEnd(int mode) {
+        return switch (mode) { case AUTO_CANCEL -> 70; case AUTO_AIR -> 66; case AUTO_DESCEND -> 150; case AUTO_SPEED -> 180; case AUTO_SLOPE -> 170; default -> 140; };
+    }
+    /** SHIFT held: the key itself or the autopilot. */
+    public static boolean shiftHeld() {
+        var mc = Minecraft.getInstance();
+        float t = autoT();
+        return mc.options.keyShift.isDown() || t >= 0 && t < autoEnd(autoMode);
+    }
+    /** SPACE held (the slide's track rising): the key itself or the autopilot. */
+    public static boolean spaceHeld() {
+        var mc = Minecraft.getInstance();
+        if (mc.options.keyJump.isDown()) return true;
+        float t = autoT();
+        return switch (autoMode) {
+            case AUTO_UP -> t >= 25 && t < 80;
+            case AUTO_AIR -> t >= 18 && t < 66;
+            case AUTO_DESCEND -> t >= 20 && t < 70;
+            case AUTO_SLOPE -> t >= 20 && t < 45 || t >= 70 && t < 95 || t >= 120 && t < 145;
+            default -> false;
+        };
+    }
+    /** The autopilot's steering (a turn of his view, degrees a tick) and its end. */
+    private static void autoTick(Player p) {
+        float t = autoT();
+        if (t < 0) return;
+        if (t > autoEnd(autoMode) + 30) { autoMode = -1; return; }
+        float turn = switch (autoMode) {
+            case AUTO_SHIFT -> t >= 40 && t < 70 ? 2.2f : t >= 80 && t < 110 ? -2.2f : 0;
+            case AUTO_UP -> t >= 25 && t < 80 ? 1.5f : 0;
+            case AUTO_DESCEND -> t >= 20 && t < 70 ? -1.2f : 0;
+            case AUTO_SLOPE -> 1.1f * Mth.sin(t * .05f);
+            default -> 0;
+        };
+        if (turn != 0 && t < autoEnd(autoMode)) { p.setYRot(p.getYRot() + turn); p.yHeadRot = p.getYRot(); }
+    }
+
     private static void openWheel(Player p) {
         wheelOpen = true; wheelX = wheelY = 0; hovered = -1;
         lockYaw = p.getYRot(); lockPitch = p.getXRot();
@@ -250,7 +295,7 @@ public final class IcemanClient {
         e.setNewFovModifier(Mth.lerp(.6f, e.getFovModifier(), 1f) * (1 + .1f * fovKick + .14f * fovSpeed));
     }
     @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) {
-        STATES.clear(); wheelOpen = false; eDown = ctrlDown = slideSent = false;
+        STATES.clear(); wheelOpen = false; eDown = ctrlDown = slideSent = false; autoMode = -1;
     }
 
     // ------------------------------------------------------------------ HUD
@@ -279,7 +324,7 @@ public final class IcemanClient {
         hint(g, font, mc.options.keyAttack, lmb, s.cooldowns[CD_WEAPON], s.action == STRIKE || s.action == CHARGE, 10, row - 12);
         hint(g, font, mc.options.keyUse, s.action == BRUSH ? (s.brushTarget >= 0 ? "Kriyojenik Fırça: dondur" : "Kriyojenik Fırça: heykel") : "Kriyojenik Fırça (basılı)", s.cooldowns[CD_BRUSH], s.action == BRUSH, 10, row);
         hint(g, font, mc.options.keyInventory, "Buz Cephaneliği (basılı: seç)", 0, wheelOpen, 10, row + 12);
-        hint(g, font, mc.options.keyShift, "Buz Kaydırağı (basılı)", s.cooldowns[CD_SLIDE], s.action == SLIDE, 10, row + 24);
+        hint(g, font, mc.options.keyShift, "Buz Kaydırağı (basılı; + BOŞLUK: yüksel)", s.cooldowns[CD_SLIDE], s.action == SLIDE, 10, row + 24);
         hintRaw(g, font, "CTRL", "Sıfır Altı Kayış", s.cooldowns[CD_DASH], s.action == DASH, 10, row + 36);
         hint(g, font, AbilityKeyHandler.KEY_RAPID_FIRE, "Parçalanmış Zemin", s.cooldowns[CD_GROUND], s.action == GROUND, 10, row + 48);
         hint(g, font, AbilityKeyHandler.KEY_ULTIMATE, s.shellUp() ? "Kabuk: PATLAT" : "Kriyojenik Kabuk", s.cooldowns[CD_SHELL], s.shellUp(), 10, row + 60);

@@ -56,7 +56,7 @@ public final class IcemanTest {
 
     @SubscribeEvent public static void register(RegisterCommandsEvent event) {
         LiteralArgumentBuilder<CommandSourceStack> test = Commands.literal("test");
-        for (String what : new String[]{"brush", "slide", "shell", "shellbreak", "shellburst", "weapons", "mace", "spear", "sword", "shatteredground"})
+        for (String what : new String[]{"shift", "shift_up", "shift_cancel", "shift_air", "shift_descend", "shift_speed", "shift_slope", "brush", "slide", "shell", "shellbreak", "shellburst", "weapons", "mace", "spear", "sword", "shatteredground"})
             test.then(Commands.literal(what).executes(ctx -> run(ctx, what, -1)));
         test.then(Commands.literal("frost").executes(ctx -> run(ctx, "frost", 50))
                 .then(Commands.argument("amount", FloatArgumentType.floatArg(0, 100)).executes(ctx -> run(ctx, "frost", FloatArgumentType.getFloat(ctx, "amount")))));
@@ -81,6 +81,24 @@ public final class IcemanTest {
                 ensure(p);
                 for (int i = 0; i < 3; i++) dummy(p, 8 + i * 3.5, (i - 1) * 1.2);
                 say(p, "Ekranındaki buzlu mercek: kaydırağın değdiği birinin gördüğü. Önündeki kuklaların içinden SHIFT basılı kayarak geç.");
+            }
+            case "shift", "shift_up", "shift_cancel", "shift_air", "shift_descend", "shift_speed", "shift_slope" -> {
+                ensure(p);
+                int mode = switch (what) {
+                    case "shift_up" -> AUTO_UP; case "shift_cancel" -> AUTO_CANCEL; case "shift_air" -> AUTO_AIR;
+                    case "shift_descend" -> AUTO_DESCEND; case "shift_speed" -> AUTO_SPEED; case "shift_slope" -> AUTO_SLOPE; default -> AUTO_SHIFT;
+                };
+                IcemanSlide.autopilot(p, IcemanController.state(p), mode);
+                if (mode == AUTO_SHIFT || mode == AUTO_SPEED) for (int i = 0; i < 2; i++) dummy(p, 14 + i * 6, (i == 0 ? 1.5 : -1.5));
+                say(p, switch (mode) {
+                    case AUTO_UP -> "Kendi kendine kayıyorsun: 1 sn sonra SPACE basılı gibi buz yolu sağa doğru çapraz yükselir, sonra aşağı kayarsın. F5 ile dışarıdan izle.";
+                    case AUTO_CANCEL -> "Hızlanıp yerde SHIFT bırakılır: ayak sürtme, buz sıçraması, gövde dönüşü, fren ve duruş; buz arkadan çatlayıp çözülür.";
+                    case AUTO_AIR -> "Yükselip HAVADA SHIFT bırakılır: buz yolu son noktada kristalleşir, momentumla ayrılıp düşer ve iner (düşme hasarı yok).";
+                    case AUTO_DESCEND -> "Yükselir, SPACE bırakılır: kısa tepe, sonra kendi buz yolundan aşağı hızlanarak kayar.";
+                    case AUTO_SPEED -> "Uzun düz kayış: yavaş başlar, buz oluşur, hızlanır, en yüksek hıza çıkar (FOV ve rüzgâr artar).";
+                    case AUTO_SLOPE -> "Dalgalı yol: SPACE aralıklarla basılır, yukarı - tepe - aşağı - tekrar; hız iniş çıkışla değişir.";
+                    default -> "Kendi kendine kayıyorsun: hazırlık, buz oluşumu, hızlanma, sağa ve sola dönüşler, sonra bırakış. Önündeki kuklalara değersen donarlar.";
+                });
             }
             case "brush" -> { ensure(p); dummy(p, 7, 0); say(p, "Sağ tık basılı: kuklaya akış (don ölçeri hızla dolar, 100'de derin donma); boşluğa doğru: fareyi gezdirerek buz heykeli."); }
             case "shell" -> { ensure(p); IcemanShell.testShell(p, IcemanController.state(p)); say(p, "Kriyojenik Kabuk: ayaktan başa kapanır. Q tekrar: patlama. /iceman test shellhit 5 / 15 / 40 ile vuruş tepkileri."); }

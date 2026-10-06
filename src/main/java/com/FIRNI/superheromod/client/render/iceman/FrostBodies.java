@@ -177,7 +177,7 @@ public final class FrostBodies {
         LivingEntity en = e.getEntity();
         FrostFx.Body b = FrostFx.BODIES.get(en.getId());
         if (b == null || b.deep) return;
-        float t = en.tickCount + e.getPartialTick() + en.getId() * 3.7f;
+        float t = en.tickCount % 2000 + e.getPartialTick() + en.getId() % 97 * 3.7f;
         float shown = b.shown(e.getPartialTick());
         float bout = Mth.sin(t * .13f);
         float amp = shown > 70 ? (shown - 70) / 30f * .011f * bout * bout : 0;
@@ -293,7 +293,7 @@ public final class FrostBodies {
         if (e.phase != TickEvent.Phase.END || ENCASED.isEmpty()) return;
         var mc = Minecraft.getInstance();
         if (mc.level == null || mc.isPaused()) return;
-        float now = mc.level.getGameTime();
+        float now = FrostFx.ticks();
         for (Iterator<Encase> it = ENCASED.values().iterator(); it.hasNext(); ) {
             Encase en = it.next();
             if (en.broke < 0) {
@@ -312,7 +312,7 @@ public final class FrostBodies {
                 en.shardsDone = true;
                 float cos = Mth.cos(en.yaw), sin = Mth.sin(en.yaw);
                 for (Slab s : en.slabs) {
-                    Vec3 local = piece(en, s, .5f, 8, null, null);
+                    Vec3 local = piece(en, s, .5f, 8, null, 1);
                     Vec3 at = en.feet.add(local.x * cos - local.z * sin, local.y, local.x * sin + local.z * cos);
                     int n = IceParticles.count(2, at);
                     for (int i = 0; i < n; i++)
@@ -574,12 +574,12 @@ public final class FrostBodies {
      * A piece of a slab (around its share mid of the height) `t` ticks after the break: where its middle is (body-local)
      * and, into axes (if given), its turned axis, outward and side directions. k scales its throw (upper pieces further).
      */
-    private static Vec3 piece(Encase en, Slab s, float mid, float t, Vec3[] axes, Float k) {
+    private static Vec3 piece(Encase en, Slab s, float mid, float t, Vec3[] axes, float k) {
         float H = en.height, len = (s.h() - s.by()) * H;
         Vec3 O = new Vec3(Mth.cos(s.ang()), 0, Mth.sin(s.ang())), S = new Vec3(-Mth.sin(s.ang()), 0, Mth.cos(s.ang()));
         Vec3 A = UP.add(O.scale(s.lean())).normalize();
         Vec3 c0 = O.scale(s.radial()).add(0, s.by() * H, 0).add(A.scale(len * mid));
-        float kk = k == null ? 1 : k, blow = en.how == 2 ? 1.6f : 1;
+        float kk = k, blow = en.how == 2 ? 1.6f : 1;
         float out = s.vOut() * kk * blow * t, up = s.vUp() * kk * t - .5f * .05f * t * t;
         Vec3 c = c0.add(O.scale(out)).add(0, up, 0);
         if (c.y < .08) c = new Vec3(c.x, .08, c.z);
@@ -650,5 +650,7 @@ public final class FrostBodies {
         return IceMesh.ring((float) c.x, (float) c.y, (float) c.z, u, S, d * prof, w * prof, n, .18f, seed, seed * .3f);
     }
 
+    /** The body is no longer followed (gone, or its frost melted away). */
+    static void forget(int id) { RIGS.remove(id); }
     static void clear() { RIGS.clear(); ENCASED.clear(); PRINTS.clear(); PUSHED.clear(); }
 }

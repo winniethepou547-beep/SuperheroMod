@@ -79,6 +79,8 @@ public final class IcemanLayer extends RenderLayer<AbstractClientPlayer, PlayerM
         if (to == RELEASE) return .6f;
         if (to == SLIDE) return 2.5f;
         if (to == IDLE && from == SLIDE) return 4f;
+        if (to == SLIDE_END) return 1.5f;
+        if (to == IDLE && from == SLIDE_END) return 3f;
         if (to == IDLE && from == SHELL_BREAK) return 4f;
         if (to == IDLE) return 3f;
         return 2f;

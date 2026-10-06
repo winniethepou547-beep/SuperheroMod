@@ -61,7 +61,7 @@ public final class IcemanMotion {
     /** A move's pose at its clock t over the base (the stance with the walk under it). */
     public static Pose sample(int action, float t, Pose base, Ctx c) {
         Pose out = switch (action) {
-            case BRUSH, SLIDE, DASH -> IcemanMoveMotion.sample(action, t, base, c);
+            case BRUSH, SLIDE, DASH, SLIDE_END -> IcemanMoveMotion.sample(action, t, base, c);
             case FORM, STRIKE, CHARGE, RELEASE -> IcemanWeaponMotion.sample(action, t, base, c);
             case SHELL_FORM, SHELL, SHELL_BREAK, SHELL_BURST, GROUND -> IcemanShellMotion.sample(action, t, base, c);
             case WHEEL -> wheel(base, c.time());

@@ -2,6 +2,7 @@ package com.FIRNI.superheromod.client.render.iceman;
 
 import com.FIRNI.superheromod.SuperheroMod;
 import com.FIRNI.superheromod.core.sound.ModSounds;
+import com.FIRNI.superheromod.heroes.iceman.IcemanAction;
 import com.FIRNI.superheromod.network.packet.IcemanFxPacket;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -79,9 +80,12 @@ public final class FrostFx {
     /** True while the body is deep frozen (held in a block of ice). */
     public static boolean deep(int entityId) { Body b = BODIES.get(entityId); return b != null && b.deep; }
     /** The frost stage the body shows (IcemanAction.stage: 0 none .. 4 heavy, 5 deep frozen). */
-    public static int stage(int entityId) { Body b = BODIES.get(entityId); return b == null ? 0 : stage(b.shown, b.deep); }
+    public static int stage(int entityId) { Body b = BODIES.get(entityId); return b == null ? 0 : IcemanAction.stage(b.shown, b.deep); }
 
-    static float now() { var mc = Minecraft.getInstance(); return mc.level == null ? 0 : mc.level.getGameTime() + mc.getFrameTime(); }
+    /** This client's own clock (ticks since the game started, plus the frame's share): small numbers, so it stays smooth. */
+    private static long clock;
+    static float now() { return clock + Minecraft.getInstance().getFrameTime(); }
+    static float ticks() { return clock; }
     static boolean isMe(int id) { var mc = Minecraft.getInstance(); return mc.player != null && mc.player.getId() == id; }
     private static Body body(int id) { return BODIES.computeIfAbsent(id, Body::new); }
 
@@ -181,6 +185,7 @@ public final class FrostFx {
         var mc = Minecraft.getInstance();
         if (mc.level != lastLevel) { clear(); lastLevel = mc.level; }
         if (mc.level == null || mc.isPaused()) return;
+        clock++;
         Vec3 cam = mc.gameRenderer.getMainCamera().getPosition();
         for (Iterator<Body> it = BODIES.values().iterator(); it.hasNext(); ) {
             Body b = it.next();
@@ -189,20 +194,21 @@ public final class FrostFx {
                 // Gone (dead, out of sight): an ice block round them breaks, nothing is left standing.
                 if (FrostBodies.encased(b.id)) FrostBodies.breakEncase(b.id, 1);
                 if (isMe(b.id)) FrostScreen.broke(1);
+                FrostBodies.forget(b.id);
                 it.remove();
                 continue;
             }
             ease(b, le);
-            int stage = stage(b.shown, b.deep);
+            int stage = IcemanAction.stage(b.shown, b.deep);
             boolean near = le.position().distanceToSqr(cam) < 48 * 48;
             if (stage > b.stage && stage >= 3 && stage < 5 && near)
                 mc.level.playLocalSound(le.getX(), le.getY() + le.getBbHeight() * .5, le.getZ(), ModSounds.ICEMAN_CRACK.get(), SoundSource.PLAYERS, .22f, 1.6f + RNG.nextFloat() * .25f, false);
             b.stage = stage;
-            float now = mc.level.getGameTime();
+            float now = clock;
             b.blooms.removeIf(bl -> now - bl.born() > 30);
             if (near && !le.isInvisible()) live(mc, b, le, cam);
             if (b.shiver > 0) b.shiver--;
-            if (!b.deep && b.meter <= 0 && b.shown <= .05f && b.blooms.isEmpty() && !FrostBodies.encased(b.id)) it.remove();
+            if (!b.deep && b.meter <= 0 && b.shown <= .05f && b.blooms.isEmpty() && !FrostBodies.encased(b.id)) { FrostBodies.forget(b.id); it.remove(); }
         }
         FrostScreen.tick();
     }

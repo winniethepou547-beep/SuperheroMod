@@ -59,6 +59,8 @@ public final class IcemanController {
         boolean rmb; int brushTarget = -1, brushAge; IcemanBrush.Sculpture sculpture;
         // the slides
         float slideYaw, dashYaw; int slideAge; boolean dashHit; long noFallUntil;
+        /** Let go of the slide in the air: no fall damage until he is down again. */
+        boolean airFall;
         final Map<Integer, Long> slideTouched = new HashMap<>();
         // the shell
         float shellHp;
@@ -85,7 +87,7 @@ public final class IcemanController {
     }
     static boolean shell(State s) { return s.action == SHELL_FORM || s.action == SHELL || s.action == SHELL_BREAK || s.action == SHELL_BURST; }
     /** Free to start something new (standing, the wheel open, the weapon forming). */
-    static boolean free(State s) { return s.action == IDLE || s.action == WHEEL || s.action == FORM; }
+    static boolean free(State s) { return s.action == IDLE || s.action == WHEEL || s.action == FORM || s.action == SLIDE_END; }
 
     // ------------------------------------------------------------------ keys
     public static void press(ServerPlayer p, AbilitySlot slot, boolean down) {
@@ -135,7 +137,7 @@ public final class IcemanController {
         switch (s.action) {
             case FORM, STRIKE, CHARGE, RELEASE -> IcemanWeapons.tick(p, s);
             case BRUSH -> IcemanBrush.tick(p, s);
-            case SLIDE, DASH -> IcemanSlide.tick(p, s);
+            case SLIDE, DASH, SLIDE_END -> IcemanSlide.tick(p, s);
             case SHELL_FORM, SHELL, SHELL_BREAK, SHELL_BURST -> IcemanShell.tick(p, s);
             case GROUND -> IcemanGround.tick(p, s);
             case WHEEL -> { if (!s.wheel) set(s, IDLE); }
@@ -143,12 +145,14 @@ public final class IcemanController {
         }
         // A weapon picked while busy forms as soon as he is free.
         if (s.formPending && s.action == IDLE && s.cooldowns[CD_WEAPON] <= 0) IcemanWeapons.form(p, s);
-        if (p.level().getGameTime() < s.noFallUntil) p.fallDistance = 0;
+        if (p.level().getGameTime() < s.noFallUntil || s.airFall) p.fallDistance = 0;
+        if (s.airFall && s.action != SLIDE && (p.onGround() || p.isInWater())) s.airFall = false;
         send(p, s);
     }
     @SubscribeEvent public static void serverTick(TickEvent.ServerTickEvent e) {
         if (e.phase != TickEvent.Phase.END) return;
         IcemanBrush.tickSculptures();
+        IcemanSlide.tickTracks();
         IcemanWeapons.tickSpears();
         IcemanGround.tickCracks();
         IcemanTest.tick(e.getServer());
@@ -165,7 +169,7 @@ public final class IcemanController {
     @SubscribeEvent public static void fall(LivingFallEvent e) {
         if (!(e.getEntity() instanceof ServerPlayer p) || !isHero(p)) return;
         State s = STATES.get(p.getUUID());
-        if (s != null && (p.level().getGameTime() < s.noFallUntil || s.action == SLIDE || s.action == DASH)) { e.setDistance(0); e.setCanceled(true); }
+        if (s != null && (p.level().getGameTime() < s.noFallUntil || s.airFall || s.action == SLIDE || s.action == DASH)) { e.setDistance(0); e.setCanceled(true); }
     }
     /** His left click is his own; the vanilla punch would hit twice. */
     @SubscribeEvent public static void plainAttack(AttackEntityEvent e) { if (isHero(e.getEntity())) e.setCanceled(true); }

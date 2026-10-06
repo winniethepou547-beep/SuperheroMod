@@ -24,6 +24,7 @@ public final class IcemanFx {
             case FX_SHELL_HIT, FX_SHELL_BREAK, FX_SHELL_BURST -> IcemanShellFx.receive(p);
             case FX_GROUND, FX_GROUND_ERUPT -> IcemanGroundFx.receive(p);
             case FX_SHATTER -> shatter(p);
+            case FX_AUTO_SLIDE -> IcemanClient.autopilot(p.id());
             default -> {}
         }
     }
