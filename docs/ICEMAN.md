@@ -1,12 +1,13 @@
 # Iceman (Buzun Efendisi)
 
-X-Men: Geçmiş Günler Gelecek'teki (Days of Future Past) Iceman temel alındı: tenden eser yok, tepeden tırnağa canlı buz.
-Her parçası iki katmanlı: içte sütlü, yoğun bir çekirdek (kas ve kemik gibi görünür), üstünde berrak, mavimsi bir kabuk.
-Yüzeyin kenarları ışığı yakalayıp parlar, içinde ince beyaz çatlaklar görünür. Ön kollarında ve sırtında küçük kristal sırtlar,
-eklemlerinde kırağı var. Kafası buzdan, yüz düzlemi geniş, kaşları ağır, göz çukurları koyu buzdan; gözleri soluk parlıyor,
-başının üstünde geriye doğru yatık alçak kristaller duruyor. Hareket ederken üstünden az miktarda kırağı tozu dökülür.
+Görünüş çizgi roman kapağındaki Iceman: X-Men kostümü (siyah; omuzlardan göğse kırmızı panel, bele doğru V şeklinde daralır;
+boyundan göğüs kemiğindeki yuvarlak X amblemine inen siyah V yaka; siyah yanlar, kollar ve bacaklar). Gücünün göründüğü yerler buz:
+buzdan yüz ve boyun, yukarı ve geriye taranmış sivri buz kristali saçlar, dirseklerden yumruklara kadar iri, kaba buz eldivenler,
+dizler, kaval kemikleri ve ayaklar buz kaplı. Buz saydam değil: katı, kristal gibi yüzeyli; gölgede koyu mavi, ortada camgöbeği,
+ışık alan yüzeyler soğuk beyaz; dış hatlarında camgöbeği bir parıltı, üzerinde camgöbeği parlayan çatlaklar, kristal dikenler ve
+sarkıtlar var (referans: çizgi roman kapağı ve Marvel Snap Iceman çizimi). Hareket ederken üstünden az miktarda kırağı tozu dökülür.
 
-Bütün buzlar (beden, silahlar, heykeller, kaydırak yolu, kabuk, dikenler, düşmanların üstündeki buz) aynı malzemeden yapılır.
+Bütün buzlar (bedendeki buz, heykeller, kaydırak yolu, kabuk, dikenler, düşmanların üstündeki buz) aynı malzemeden yapılır.
 Her buz önce nemi çeker, sonra kırağı, sonra kristal çekirdekleri, büyüme ve kalınlaşma ile oluşur. Kırılırken de önce çatlar,
 çatlaklar yayılır, büyük parçalar ve kıymıklar kopar, kısa bir parlama olur, parçalar düşer ve küçükler eriyip kırağıya döner.
 Hiçbir şey bir anda belirmez ya da kaybolmaz.

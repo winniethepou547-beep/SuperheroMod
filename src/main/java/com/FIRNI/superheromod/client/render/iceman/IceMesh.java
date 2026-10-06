@@ -19,12 +19,12 @@ import java.util.List;
  * Iceman's ice, the one material everything of his is made of (his body, the weapons, the sculptures, the slide's track,
  * the shell, the spikes, the frost on his enemies), so it all reads as the same ice.
  * <p>
- * Layered: every shape is drawn translucent, its colour and opacity worked out per vertex from where the camera is
- * (a view-dependent, Fresnel-like rim): faces seen straight on are clear and let the inside show through (an inner
- * milky core drawn under a clear shell reads as depth, a slight refraction feel); faces seen edge-on go bright and
- * opaque, so every facet's outline glows like the crystalline rim of real ice; a specular glint from above the camera
- * catches the facets as they turn. Materials ({@link Mat}) set the tint, how clear and how milky it is. Thin bright lines
- * (inner cracks, crystal edges) and sparkles are additive light, gathered while drawing and emitted at {@link Ctx#end()}.
+ * Solid, like the user's reference art (the comic Iceman and Marvel Snap's): every flat facet is shaded on its own from
+ * a light above the camera, deep blue in shadow, the ice's cyan in the middle, cold white where the light hits, so the
+ * shapes read as hard cut crystal; the outline glows cyan (worked out per vertex from where the camera is), the facets
+ * catch a white glint as they turn. Only forming and melting ice is see-through (the context's alpha). Materials
+ * ({@link Mat}) set the tone; CLOTH materials are the X-Men suit. Thin bright lines (glowing cracks, crystal edges) and
+ * sparkles are additive light, gathered while drawing and emitted at {@link Ctx#end()}.
  * <p>
  * Use: {@code Ctx c = IceMesh.begin(pose, buffers, light)}, then (after any change of the pose stack) {@code c.at(pose)},
  * the shapes, and {@code c.end()}. Coordinates are those of the pose stack (pixels if the caller scaled by 1/16).
@@ -39,28 +39,38 @@ public final class IceMesh {
     static final int FULL = 15728880;
 
     /**
-     * A kind of ice: its tint (r, g, b), its opacity seen straight on (clear) and edge-on (edge), how milky-white it is
-     * (milk), how much its rim brightens (rim), how strong its glint is (spec).
+     * A material. Ice (kind ICE): solid, like the reference art (comic and Marvel Snap Iceman): its middle tone (r, g, b),
+     * every flat facet shaded from a cold highlight through that tone to a deep blue shadow by the light above the camera,
+     * a cyan glow along the outline (rim), a white glint (spec), lifted toward white by milk; clear / edge = its opacity
+     * seen straight on / edge-on (nearly 1: it is NOT see-through; less only while forming or melting).
+     * Cloth (kind CLOTH): the suit: plain lit colour, a soft sheen, a faint cold rim.
      */
-    public record Mat(float r, float g, float b, float clear, float edge, float milk, float rim, float spec) {
-        /** The same ice, more see-through (k < 1) or more solid (k > 1). */
-        public Mat alpha(float k) { return new Mat(r, g, b, Math.min(1, clear * k), Math.min(1, edge * k), milk, rim, spec); }
-        public Mat tint(float tr, float tg, float tb) { return new Mat(r * tr, g * tg, b * tb, clear, edge, milk, rim, spec); }
+    public record Mat(float r, float g, float b, float clear, float edge, float milk, float rim, float spec, int kind) {
+        public Mat(float r, float g, float b, float clear, float edge, float milk, float rim, float spec) { this(r, g, b, clear, edge, milk, rim, spec, ICE_KIND); }
+        /** The same, more see-through (k < 1) or more solid (k > 1). */
+        public Mat alpha(float k) { return new Mat(r, g, b, Math.min(1, clear * k), Math.min(1, edge * k), milk, rim, spec, kind); }
+        public Mat tint(float tr, float tg, float tb) { return new Mat(r * tr, g * tg, b * tb, clear, edge, milk, rim, spec, kind); }
     }
-    /** Clear ice: blue-tinted, see-through, a bright rim. */
-    public static final Mat CLEAR = new Mat(.58f, .82f, 1f, .16f, .9f, .06f, .95f, 1f);
-    /** Milky ice: whiter, cloudier. */
-    public static final Mat MILKY = new Mat(.80f, .90f, 1f, .45f, .92f, .5f, .75f, .7f);
-    /** The dense core inside a limb: nearly white, nearly solid (seen through the clear shell over it). */
-    public static final Mat CORE = new Mat(.84f, .92f, 1f, .5f, .85f, .7f, .45f, .35f);
-    /** Rime, frost: white, rough, matt. */
-    public static final Mat FROST = new Mat(.94f, .97f, 1f, .7f, .95f, .9f, .3f, .25f);
-    /** Thick deep ice: darker blue (eye sockets, the shadows of the face, old ice). */
-    public static final Mat DEEP = new Mat(.32f, .56f, .86f, .42f, .9f, 0f, .7f, .9f);
+    public static final int ICE_KIND = 0, CLOTH_KIND = 1;
+    /** Plain ice: the light cyan body of the ice. */
+    public static final Mat CLEAR = new Mat(.52f, .82f, 1f, .96f, 1f, .04f, .9f, .9f);
+    /** Pale ice: whiter, frostier (highlights of the body, hair, plates). */
+    public static final Mat MILKY = new Mat(.76f, .92f, 1f, .97f, 1f, .2f, .65f, .6f);
+    /** The inside of a limb (rarely seen now the ice is solid). */
+    public static final Mat CORE = new Mat(.76f, .92f, 1f, .97f, 1f, .2f, .5f, .4f);
+    /** Rime, frost: white, matt. */
+    public static final Mat FROST = new Mat(.9f, .97f, 1f, .92f, .96f, .55f, .3f, .3f);
+    /** Deep ice: dark blue (eye sockets, shadows, old ice). */
+    public static final Mat DEEP = new Mat(.2f, .42f, .78f, .98f, 1f, 0f, .6f, .8f);
     /** A fresh break: the inside, cleaner and brighter than the surface. */
-    public static final Mat FRESH = new Mat(.9f, .98f, 1f, .5f, 1f, .35f, 1f, 1.2f);
-    /** Glacier ice: thick, cold, a deeper blue body (the shell, the giant mace). */
-    public static final Mat GLACIER = new Mat(.5f, .74f, .97f, .45f, .95f, .2f, .85f, .9f);
+    public static final Mat FRESH = new Mat(.82f, .97f, 1f, .92f, 1f, .3f, 1f, 1.2f);
+    /** Glacier ice: thick, a deeper cyan-blue (the shell, the giant mace). */
+    public static final Mat GLACIER = new Mat(.4f, .7f, .95f, .96f, 1f, .08f, .85f, .9f);
+    /** The X-Men suit (the comic Iceman): black, red, the grey of the belt. */
+    public static final Mat SUIT_BLACK = new Mat(.075f, .08f, .1f, 1, 1, 0, .2f, .35f, CLOTH_KIND),
+            SUIT_RED = new Mat(.74f, .07f, .085f, 1, 1, 0, .15f, .3f, CLOTH_KIND),
+            SUIT_GREY = new Mat(.26f, .27f, .31f, 1, 1, 0, .2f, .5f, CLOTH_KIND),
+            SUIT_PALE = new Mat(.86f, .86f, .9f, 1, 1, 0, .1f, .4f, CLOTH_KIND);
 
     // ------------------------------------------------------------------ the drawing context
     public static Ctx begin(PoseStack pose, MultiBufferSource buffers, int light) {
@@ -82,7 +92,7 @@ public final class IceMesh {
         public float time;
         /** Full bright (lit by itself: the ice does not darken at night when false). */
         public boolean emissive;
-        float cx, cy, cz, ux, uy, uz;
+        float cx, cy, cz, ux, uy, uz, rx, ry, rz;
         private float[] glints = new float[256];
         private int glintCount;
 
@@ -98,6 +108,10 @@ public final class IceMesh {
             if (up.lengthSquared() < 1e-8f) up.set(0, 1, 0);
             up.normalize();
             ux = up.x; uy = up.y; uz = up.z;
+            Vector3f right = new Vector3f(n.m00(), n.m10(), n.m20());
+            if (right.lengthSquared() < 1e-8f) right.set(1, 0, 0);
+            right.normalize();
+            rx = right.x; ry = right.y; rz = right.z;
             if (ice == null) ice = buffers.getBuffer(ICE);
             return this;
         }
@@ -124,25 +138,52 @@ public final class IceMesh {
             if (len < 1e-5f) len = 1e-5f;
             vx /= len; vy /= len; vz /= len;
             float dot = nx * vx + ny * vy + nz * vz;
+            // The facet's normal turned to the eye (the shapes do not care which way their corners run).
+            float sn = dot < 0 ? -1 : 1;
+            float fx = nx * sn, fy = ny * sn, fz = nz * sn;
             float facing = Math.abs(dot);
             float rim = 1 - facing, rim2 = rim * rim;
-            // The glint: light from above and behind the camera, reflected by the facet toward the eye.
-            float lx = ux * .8f + vx * .6f, ly = uy * .8f + vy * .6f, lz = uz * .8f + vz * .6f;
+            // The key light: above the camera, a little to its left, toward the scene.
+            float lx = ux * .75f + vx * .5f - rx * .35f, ly = uy * .75f + vy * .5f - ry * .35f, lz = uz * .75f + vz * .5f - rz * .35f;
+            float ll = Mth.sqrt(lx * lx + ly * ly + lz * lz);
+            lx /= ll; ly /= ll; lz /= ll;
+            float lambert = fx * lx + fy * ly + fz * lz;
+            float tone = Mth.clamp(lambert * .5f + .5f, 0, 1);
+            // The glint: that light reflected by the facet toward the eye.
             float hx = lx + vx, hy = ly + vy, hz = lz + vz;
             float hl = Mth.sqrt(hx * hx + hy * hy + hz * hz);
-            float sn = dot < 0 ? -1 : 1;
-            float nh = hl < 1e-5f ? 0 : Math.max(0, sn * (nx * hx + ny * hy + nz * hz) / hl);
+            float nh = hl < 1e-5f ? 0 : Math.max(0, (fx * hx + fy * hy + fz * hz) / hl);
             float spec = nh * nh; spec *= spec; spec *= spec; spec *= spec * nh;   // ^17
-            spec *= mat.spec() * (.75f + .25f * Mth.sin(time * .35f + x * 2.1f + y * 1.3f + z * 1.7f));
-            float white = Mth.clamp(mat.milk() * .55f + rim2 * mat.rim() * .65f + spec + flash, 0, 1);
-            float r = Mth.lerp(white, mat.r(), 1) + spec * .3f, g = Mth.lerp(white, mat.g(), 1) + spec * .3f, b = Mth.lerp(white, mat.b(), 1) + spec * .2f;
-            float al = Mth.lerp(rim2, mat.clear(), mat.edge()) + spec * .5f;
+            spec *= mat.spec() * (.8f + .2f * Mth.sin(time * .35f + x * 2.1f + y * 1.3f + z * 1.7f));
+            float r, g, b;
+            if (mat.kind() == CLOTH_KIND) {
+                // The suit: plain colour lit softly, a sheen on the folds facing the light, a faint cold rim.
+                float k = .5f + .5f * tone;
+                r = mat.r() * k + spec * .22f + rim2 * mat.rim() * .08f + flash;
+                g = mat.g() * k + spec * .22f + rim2 * mat.rim() * .14f + flash;
+                b = mat.b() * k + spec * .25f + rim2 * mat.rim() * .2f + flash;
+            } else {
+                // Ice: deep blue in shadow, the ice's own cyan in the middle, cold white where the light hits.
+                float toMid = smooth(.18f, .52f, tone), toHigh = smooth(.7f, .93f, tone);
+                float sr = mat.r() * .3f, sg = mat.g() * .48f, sb = mat.b() * .78f;
+                float hr = Mth.lerp(.78f, mat.r(), 1), hg = Mth.lerp(.78f, mat.g(), 1), hb = 1;
+                r = Mth.lerp(toHigh, Mth.lerp(toMid, sr, mat.r()), hr);
+                g = Mth.lerp(toHigh, Mth.lerp(toMid, sg, mat.g()), hg);
+                b = Mth.lerp(toHigh, Mth.lerp(toMid, sb, mat.b()), hb);
+                float milk = mat.milk();
+                r = Mth.lerp(milk, r, 1); g = Mth.lerp(milk, g, 1); b = Mth.lerp(milk, b, 1);
+                // The cyan glow along the outline, the glint, a flash.
+                float glow = rim2 * rim * mat.rim();
+                r += glow * .35f + spec + flash; g += glow * .8f + spec + flash; b += glow + spec + flash;
+            }
+            float al = Mth.lerp(rim2, mat.clear(), mat.edge());
             al = Mth.clamp(al * a * alpha, 0, 1);
             if (al <= .003f) al = 0;
             tp.set(x, y, z, 1).mul(m);
             tn.set(nx, ny, nz).mul(n);
-            ice.vertex(tp.x, tp.y, tp.z, Math.min(1, r), Math.min(1, g), Math.min(1, b), al, .5f, .5f, OverlayTexture.NO_OVERLAY, emissive ? FULL : light, tn.x, tn.y, tn.z);
+            ice.vertex(tp.x, tp.y, tp.z, Mth.clamp(r, 0, 1), Mth.clamp(g, 0, 1), Mth.clamp(b, 0, 1), al, .5f, .5f, OverlayTexture.NO_OVERLAY, emissive ? FULL : light, tn.x, tn.y, tn.z);
         }
+        private static float smooth(float e0, float e1, float x) { float t = Mth.clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); }
         /** A light point (additive), in this space; gathered for end(). */
         void light(float x, float y, float z, float r, float g, float b) {
             if (glintCount + 7 > glints.length) glints = java.util.Arrays.copyOf(glints, glints.length * 2);
@@ -326,24 +367,18 @@ public final class IceMesh {
     }
 
     /**
-     * A vein of white inside the ice (an inner crack, a frozen-in fracture): a thin quad facing the camera, drawn WITH the
-     * ice (sorted among its faces, so it shows through the clear surface over it, unlike light, which the surface's depth
-     * would hide). k = how bright / opaque.
+     * A crack in the ice glowing cyan (as in the reference art), from a to b on its surface; k = how bright.
      */
     public static void vein(Ctx c, Vec3 a, Vec3 b, float w, float k) {
-        float ax = (float) a.x, ay = (float) a.y, az = (float) a.z, bx = (float) b.x, by = (float) b.y, bz = (float) b.z;
-        float dx = bx - ax, dy = by - ay, dz = bz - az;
-        float vx = c.cx - ax, vy = c.cy - ay, vz = c.cz - az;
-        float sx = dy * vz - dz * vy, sy = dz * vx - dx * vz, sz = dx * vy - dy * vx;
-        float sl = Mth.sqrt(sx * sx + sy * sy + sz * sz);
-        float vl = Mth.sqrt(vx * vx + vy * vy + vz * vz);
-        if (sl < 1e-9f || vl < 1e-9f) return;
-        sx *= w / sl; sy *= w / sl; sz *= w / sl;
-        float nx = vx / vl, ny = vy / vl, nz = vz / vl;
-        c.vert(ax - sx, ay - sy, az - sz, nx, ny, nz, VEIN, k); c.vert(ax + sx, ay + sy, az + sz, nx, ny, nz, VEIN, k);
-        c.vert(bx + sx, by + sy, bz + sz, nx, ny, nz, VEIN, k * .8f); c.vert(bx - sx, by - sy, bz - sz, nx, ny, nz, VEIN, k * .8f);
+        if (k <= .01f) return;
+        // A glowing crack lying on the surface (the reference's cyan cracks), lifted a hair toward the eye so the solid
+        // ice under it never hides it.
+        Vec3 cam = new Vec3(c.cx, c.cy, c.cz);
+        Vec3 ta = cam.subtract(a), tb = cam.subtract(b);
+        if (ta.lengthSqr() < 1e-8 || tb.lengthSqr() < 1e-8) return;
+        Vec3 la = a.add(ta.normalize().scale(w * 2.5)), lb = b.add(tb.normalize().scale(w * 2.5));
+        line(c, la, lb, w, .25f * k, .75f * k, k);
     }
-    private static final Mat VEIN = new Mat(.92f, .97f, 1f, .75f, .75f, .6f, 0, 0);
 
     // ------------------------------------------------------------------ light
     /** A thin bright line from a to b (additive; colour per end, alpha folded in), facing the camera; width w. */
