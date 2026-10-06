@@ -52,6 +52,8 @@ public final class IcemanBody {
     public static Vec3 handRight, handLeft, eyes, chest, weaponBase, weaponTip;
 
     private static IceMesh.Ctx c;
+    /** The stack being drawn with (for the small turned pieces). */
+    private static PoseStack ps;
     private static float time;
 
     private static void px(PoseStack p, double x, double y, double z) { p.translate(x, y, z); }
@@ -69,6 +71,7 @@ public final class IcemanBody {
         if (align != 0) p.mulPose(Axis.YP.rotation(align));
         p.scale(1 / 16f, 1 / 16f, 1 / 16f);
         c = IceMesh.begin(p, b, light);
+        ps = p;
         c.time = t;
         c.alpha = ALPHA;
         try {
@@ -122,6 +125,7 @@ public final class IcemanBody {
         } finally {
             c.end();
             c = null;
+            ps = null;
             p.popPose();
         }
     }
@@ -134,6 +138,7 @@ public final class IcemanBody {
         time = t;
         if (capture) handRight = handLeft = eyes = chest = weaponBase = weaponTip = null;
         c = IceMesh.begin(p, b, light);
+        ps = p;
         c.time = t;
         c.alpha = ALPHA;
         try {
@@ -146,23 +151,27 @@ public final class IcemanBody {
         } finally {
             c.end();
             c = null;
+            ps = null;
         }
     }
 
     // ------------------------------------------------------------------ building blocks
     /** A segment along y in the current frame: rings at the given heights (y, rx, rz, z offset), a core inside, the shell over all (when it has reached height h). */
     private static void seg(float x, float[] ys, float[] rxs, float[] rzs, float[] zs, int n, int seed, Mat skin, float h) {
+        seg(x, ys, rxs, rzs, zs, n, seed, skin, h, 0);
+    }
+    /** caps: 1 closes the first ring, 2 the last (only where an end shows: inside the body a cap would show through the ice). */
+    private static void seg(float x, float[] ys, float[] rxs, float[] rzs, float[] zs, int n, int seed, Mat skin, float h, int caps) {
         int k = ys.length;
         float[][] outer = new float[k][], inner = new float[k][];
         for (int i = 0; i < k; i++) {
             outer[i] = hring(x, ys[i], zs[i], rxs[i], rzs[i], n, .1f, seed + i * 3, seed * .37f);
             inner[i] = hring(x, ys[i], zs[i] + .05f, rxs[i] * .6f, rzs[i] * .6f, n, .18f, seed + i * 3 + 1, seed * .37f + .4f);
         }
-        for (int i = 0; i < k - 1; i++) loft(c, inner[i], inner[i + 1], CORE, ALPHA_CORE, i == 0, i == k - 2);
-        for (int i = 0; i < k - 1; i++) loft(c, outer[i], outer[i + 1], skin, 1, i == 0, i == k - 2);
+        for (int i = 0; i < k - 1; i++) loft(c, inner[i], inner[i + 1], CORE, 1, false, false);
+        for (int i = 0; i < k - 1; i++) loft(c, outer[i], outer[i + 1], skin, 1, i == 0 && (caps & 1) != 0, i == k - 2 && (caps & 2) != 0);
         shell(x, ys, rxs, rzs, zs, n, seed, h);
     }
-    private static final float ALPHA_CORE = 1;
     /** The shell over a segment once it has closed up to its height (h: 0 feet .. 1 crown). */
     private static void shell(float x, float[] ys, float[] rxs, float[] rzs, float[] zs, int n, int seed, float h) {
         if (SHELL_COVER <= 0) return;
@@ -190,10 +199,14 @@ public final class IcemanBody {
         }
     }
     /** A milky plate just under the surface (muscle seen through the ice): a box turned about z then x. */
-    private static void plate(PoseStack p, float x, float y, float z, float rx, float rz, float w, float h, float d, Mat mat) {
+    private static void plate(float x, float y, float z, float rx, float rz, float w, float h, float d, Mat mat) { plate(x, y, z, rx, 0, rz, w, h, d, mat); }
+    /** The same, turned about z, then y, then x. */
+    private static void plate(float x, float y, float z, float rx, float ry, float rz, float w, float h, float d, Mat mat) {
+        PoseStack p = ps;
         p.pushPose();
         p.translate(x, y, z);
         if (rz != 0) p.mulPose(Axis.ZP.rotation(rz));
+        if (ry != 0) p.mulPose(Axis.YP.rotation(ry));
         if (rx != 0) p.mulPose(Axis.XP.rotation(rx));
         c.at(p);
         cube(c, 0, 0, 0, w, h, d, mat, 1);
@@ -202,7 +215,7 @@ public final class IcemanBody {
     }
     /** A faint crack inside the ice from a to b (current frame). */
     private static void crack(float ax, float ay, float az, float bx, float by, float bz, float k) {
-        line(c, new Vec3(ax, ay, az), new Vec3(bx, by, bz), .045f, .22f * k, .42f * k, .55f * k);
+        IceMesh.vein(c, new Vec3(ax, ay, az), new Vec3(bx, by, bz), .05f, .55f * k);
     }
     /** A little rime on a joint. */
     private static void rime(float x, float y, float z, float w, float h, float d) { cube(c, x, y, z, w, h, d, FROST.alpha(.8f), 1); }
@@ -213,7 +226,7 @@ public final class IcemanBody {
         c.at(p);
         // Thigh: full, the quad bulging in front, tapering to the knee.
         seg(0, new float[]{-.6f, 2.4f, 6.1f}, new float[]{2.2f, 2.3f, 1.7f}, new float[]{2.25f, 2.4f, 1.8f}, new float[]{0, -.15f, 0}, 7, 11 + side, CLEAR, .52f);
-        plate(p, s * -.2f, 2.6f, -1.55f, -.05f, 0, 2.2f, 3.4f, .5f, MILKY.alpha(.8f));
+        plate(s * -.2f, 2.6f, -1.55f, -.05f, 0, 2.2f, 3.4f, .5f, MILKY.alpha(.8f));
         crack(s * .9f, .8f, -2.05f, s * .2f, 4.2f, -1.9f, 1);
         px(p, 0, 6, 0);
         p.mulPose(Axis.XP.rotation(knee));
@@ -223,7 +236,7 @@ public final class IcemanBody {
         rime(0, -.9f, -1.8f, 1.6f, .25f, .5f);
         // The shin, the calf behind it, tapering to the ankle.
         seg(0, new float[]{-.4f, 1.9f, 4.9f}, new float[]{1.75f, 1.85f, 1.2f}, new float[]{1.8f, 2.15f, 1.3f}, new float[]{0, .3f, 0}, 7, 21 + side, CLEAR, .25f);
-        plate(p, 0, 1.6f, 1.25f, .1f, 0, 2.0f, 2.4f, .6f, MILKY.alpha(.7f));
+        plate(0, 1.6f, 1.25f, .1f, 0, 2.0f, 2.4f, .6f, MILKY.alpha(.7f));
         crack(0, .4f, -1.5f, s * .4f, 3.6f, -1.1f, .8f);
         px(p, 0, 4.8f, 0);
         p.mulPose(Axis.XP.rotation(ankle));
@@ -249,7 +262,7 @@ public final class IcemanBody {
         seg(0, new float[]{-1.2f, -3.3f, -5.8f}, new float[]{3.55f, 3.35f, 3.95f}, new float[]{2.15f, 2.05f, 2.35f}, new float[]{0, 0, 0}, 10, 61, CLEAR, .58f);
         // The abdominals: three rows of milky blocks under the clear front; the obliques at the sides.
         for (int row = 0; row < 3; row++)
-            for (int s = -1; s <= 1; s += 2) cube(c, s * 1.05f, -1.2f - row * 1.55f, -1.55f, 1.65f, 1.25f, .55f, MILKY.alpha(.75f));
+            for (int s = -1; s <= 1; s += 2) cube(c, s * 1.0f, -1.2f - row * 1.55f, -1.5f, 1.5f, 1.15f, .5f, MILKY.alpha(.5f));
         for (int s = -1; s <= 1; s += 2) cube(c, s * 3.0f, -3.0f, -.6f, .7f, 3.6f, 2.2f, MILKY.alpha(.45f));
         // The spine down the back: a ridge of small crystals.
         for (int i = 0; i < 3; i++) crystal(c, new Vec3(0, -1.3f - i * 1.7f, 1.7f), new Vec3(0, -.35, 1), .9f + .15f * i, .32f, 4, 70 + i, MILKY, 1, .25f);
@@ -258,9 +271,9 @@ public final class IcemanBody {
         seg(0, new float[]{.2f, -2.5f, -4.9f, -6.6f}, new float[]{4.0f, 4.7f, 4.85f, 3.0f}, new float[]{2.35f, 2.75f, 2.5f, 2.05f}, new float[]{0, -.1f, .05f, .2f}, 10, 81, CLEAR, .7f);
         for (int s = -1; s <= 1; s += 2) {
             // The pecs: broad milky plates, angled; the shoulder blades behind.
-            cube(c, s * 2.1f, -3.7f, -2.05f, 3.6f, 2.9f, .7f, MILKY.alpha(.85f));
-            cube(c, s * 2.3f, -2.35f, -2.25f, 3.0f, .45f, .4f, CORE.alpha(.5f));
-            cube(c, s * 2.2f, -3.6f, 1.9f, 2.8f, 3.6f, .6f, MILKY.alpha(.6f));
+            plate(s * 2.0f, -3.8f, -1.95f, 0, s * -.12f, 3.3f, 2.6f, .6f, MILKY.alpha(.55f));
+            cube(c, s * 2.2f, -2.45f, -2.2f, 2.8f, .35f, .35f, CORE.alpha(.45f));
+            plate(s * 2.1f, -3.6f, 1.85f, 0, s * .15f, 2.6f, 3.3f, .5f, MILKY.alpha(.4f));
             // The collarbone: a thin crystal ridge out to the shoulder.
             crystal(c, new Vec3(s * .7f, -5.9f, -1.6f), new Vec3(s, -.1, .05), 3.3f, .35f, 4, 90 + s, MILKY, 1, .3f);
             // Lats.
@@ -363,55 +376,76 @@ public final class IcemanBody {
     }
 
     // ------------------------------------------------------------------ the head
-    /** A ring round the head at height y: an ellipse a little flattened in front (the face). */
-    private static float[] skull(float y, float rx, float rz, float z, int seed) {
-        float[] r = hring(0, y, z, rx, rz, 10, .05f, seed, .31f);
-        for (int i = 0; i < 10; i++) if (r[i * 3 + 2] < z) r[i * 3 + 2] = z + (r[i * 3 + 2] - z) * .86f;
+    /** The skull's rings from the jaw to the crown: height, half width, half depth, centre's depth. */
+    private static final float[] HY = {.6f, -.3f, -1.7f, -3.4f, -5.0f, -6.6f, -7.8f, -8.45f},
+            HX = {1.9f, 2.4f, 3.05f, 3.45f, 3.7f, 3.6f, 2.9f, 1.6f},
+            HZ = {2.0f, 2.7f, 3.35f, 3.6f, 3.8f, 3.75f, 3.15f, 1.8f},
+            HC = {.1f, -.75f, -.5f, -.25f, -.05f, .15f, .3f, .35f};
+    /** A ring round the head: an ellipse behind, squarer in front (the broad plane of the face). */
+    private static float[] skull(float y, float rx, float rz, float z, int seed, float k) {
+        int n = 12;
+        float[] r = new float[n * 3];
+        for (int i = 0; i < n; i++) {
+            float a = .26f + Mth.TWO_PI * i / n, cs = Mth.cos(a), sn = Mth.sin(a);
+            float j = 1 + .05f * (float) (hash(seed * 31 + i * 7.13) - .5) * 2;
+            float x, zz;
+            if (sn < 0) { x = Math.signum(cs) * (float) Math.pow(Math.abs(cs), .7) * rx; zz = -(float) Math.pow(-sn, .7) * rz * .9f; }
+            else { x = cs * rx; zz = sn * rz; }
+            r[i * 3] = x * j * k; r[i * 3 + 1] = y; r[i * 3 + 2] = z + zz * j * k;
+        }
         return r;
     }
+    /** Where the face's surface is (its depth, z) at (x, y), from the same rings. */
+    private static float faceZ(float x, float y) {
+        int i = 0;
+        while (i < HY.length - 2 && y < HY[i + 1]) i++;
+        float u = Mth.clamp((y - HY[i]) / (HY[i + 1] - HY[i]), 0, 1);
+        float rx = Mth.lerp(u, HX[i], HX[i + 1]), rz = Mth.lerp(u, HZ[i], HZ[i + 1]), zc = Mth.lerp(u, HC[i], HC[i + 1]);
+        float cs = Math.min(1, (float) Math.pow(Math.min(1, Math.abs(x) / rx), 1 / .7));
+        float sn = Mth.sqrt(Math.max(0, 1 - cs * cs));
+        return zc - (float) Math.pow(sn, .7) * rz * .9f;
+    }
     private static void head(PoseStack p) {
-        // The skull: rings from the jaw to the crown.
-        float[] ys = {.6f, -.3f, -1.7f, -3.4f, -5.0f, -6.6f, -7.8f, -8.4f};
-        float[] rx = {1.9f, 2.35f, 3.05f, 3.5f, 3.75f, 3.6f, 2.85f, 1.6f};
-        float[] rz = {2.0f, 2.6f, 3.3f, 3.65f, 3.85f, 3.75f, 3.1f, 1.8f};
-        float[] zs = {.1f, -.85f, -.55f, -.25f, -.05f, .15f, .3f, .35f};
-        float[][] outer = new float[ys.length][], inner = new float[ys.length][];
-        for (int i = 0; i < ys.length; i++) {
-            outer[i] = skull(ys[i], rx[i], rz[i], zs[i], 181 + i);
-            inner[i] = skull(ys[i], rx[i] * .62f, rz[i] * .62f, zs[i] + .2f, 191 + i);
+        int m = HY.length;
+        float[][] outer = new float[m][], inner = new float[m][];
+        for (int i = 0; i < m; i++) {
+            outer[i] = skull(HY[i], HX[i], HZ[i], HC[i], 181 + i, 1);
+            inner[i] = skull(HY[i], HX[i], HZ[i], HC[i] + .25f, 191 + i, .6f);
         }
-        for (int i = 0; i < ys.length - 1; i++) loft(c, inner[i], inner[i + 1], CORE, 1, i == 0, i == ys.length - 2);
-        for (int i = 0; i < ys.length - 1; i++) loft(c, outer[i], outer[i + 1], CLEAR, 1, i == 0, i == ys.length - 2);
+        for (int i = 0; i < m - 1; i++) loft(c, inner[i], inner[i + 1], CORE, 1, false, false);
+        for (int i = 0; i < m - 1; i++) loft(c, outer[i], outer[i + 1], CLEAR, 1, false, i == m - 2);
         shell(0, new float[]{.6f, -4.5f, -8.6f}, new float[]{2.4f, 3.9f, 1.9f}, new float[]{2.6f, 4.0f, 2.0f}, new float[]{-.4f, -.1f, .35f}, 9, 201, .9f);
-        // The face: a heavy brow, deep sockets of darker ice, the eyes; the nose's ridge, the cheekbones, the mouth set hard, the chin.
+        // The face, inside the clear surface (seen through it): a heavy brow, deep sockets of darker ice, the cheekbones,
+        // the nose's ridge, the mouth set hard, the chin.
         for (int s = -1; s <= 1; s += 2) {
-            plate(p, s * 1.45f, -5.75f, -3.55f, -.2f, s * -.18f, 2.7f, .8f, .9f, MILKY);
-            plate(p, s * 1.45f, -4.8f, -3.25f, 0, s * -.12f, 2.0f, 1.05f, .5f, DEEP);
-            plate(p, s * 2.45f, -3.55f, -2.95f, -.15f, s * .35f, 1.6f, .7f, .8f, MILKY.alpha(.85f));
-            plate(p, s * 1.0f, -1.55f, -3.15f, 0, s * .1f, .9f, .35f, .4f, MILKY.alpha(.7f));
-            cube(c, s * 3.65f, -4.2f, .1f, .5f, 1.6f, 1.1f, CLEAR, 1);
+            plate(s * 1.4f, -5.7f, faceZ(1.4f, -5.7f) + .35f, -.25f, s * -.25f, s * -.15f, 2.5f, .75f, .7f, MILKY.alpha(.85f));
+            plate(s * 1.4f, -4.8f, faceZ(1.4f, -4.8f) + .45f, 0, s * -.25f, s * -.1f, 1.9f, 1.0f, .5f, DEEP);
+            plate(s * 2.3f, -3.5f, faceZ(2.3f, -3.5f) + .4f, -.15f, s * -.55f, s * .3f, 1.4f, .65f, .6f, MILKY.alpha(.7f));
+            plate(s * 1.0f, -1.5f, faceZ(1.0f, -1.5f) + .3f, 0, s * -.2f, s * .1f, .9f, .32f, .35f, MILKY.alpha(.6f));
+            plate(s * 3.6f, -4.2f, .1f, 0, 0, 0, .45f, 1.6f, 1.1f, CLEAR);
         }
-        plate(p, 0, -3.75f, -3.6f, .3f, 0, .75f, 2.0f, .7f, MILKY);
-        plate(p, 0, -2.85f, -3.85f, 0, 0, 1.0f, .5f, .5f, MILKY);
-        plate(p, 0, -1.5f, -3.32f, 0, 0, 1.9f, .22f, .3f, DEEP);
-        plate(p, 0, .05f, -2.75f, .2f, 0, 1.6f, .9f, .8f, MILKY.alpha(.8f));
-        // The eyes: pale, cold, glowing.
+        plate(0, -3.7f, faceZ(0, -3.7f) + .05f, .3f, 0, 0, .7f, 2.0f, .6f, MILKY.alpha(.85f));
+        plate(0, -2.75f, faceZ(0, -2.75f) - .1f, 0, 0, 0, .95f, .45f, .5f, MILKY.alpha(.85f));
+        plate(0, -1.5f, faceZ(0, -1.5f) + .25f, 0, 0, 0, 1.8f, .2f, .3f, DEEP);
+        plate(0, .05f, faceZ(0, .05f) + .35f, .2f, 0, 0, 1.5f, .85f, .7f, MILKY.alpha(.7f));
+        // The eyes: pale, cold, glowing, set in the sockets.
         float pulse = .9f + .1f * Mth.sin(time * .07f);
         for (int s = -1; s <= 1; s += 2) {
-            Vec3 e = new Vec3(s * 1.45f, -4.8f, -3.6f);
-            line(c, e.add(-.6, .05 * s, 0), e.add(.6, -.05 * s, 0), .2f, .75f * pulse, .95f * pulse, pulse);
-            IceMesh.glow(c, e.add(0, 0, -.1), 1.5f, .12f * pulse, .22f * pulse, .3f * pulse);
+            Vec3 e = new Vec3(s * 1.4f, -4.82f, faceZ(1.4f, -4.82f) - .08f);
+            Vec3 in = new Vec3(s * .42, .06 * s, s * -.1);
+            line(c, e.subtract(in), e.add(in), .12f, .62f * pulse, .86f * pulse, pulse);
+            IceMesh.glow(c, e.add(0, 0, -.15), .7f, .08f * pulse, .16f * pulse, .24f * pulse);
         }
-        if (capture) eyes = world(p, 0, -4.8f, -3.8f);
+        if (capture) eyes = world(p, 0, -4.8f, faceZ(0, -4.8f) - .2f);
         // The crest: low crystals swept back over the crown, the ice of the scalp.
         for (int i = 0; i < 5; i++) {
             float z = -1.9f + i * 1.1f, y = -8.0f + Math.abs(i - 1.5f) * .25f;
-            crystal(c, new Vec3(0, y, z), new Vec3(0, -.55, .85), 1.1f - Math.abs(i - 1.5f) * .12f, .45f, 5, 211 + i, MILKY, 1, .4f);
+            crystal(c, new Vec3(0, y, z), new Vec3(0, -.55, .85), 1.1f - Math.abs(i - 1.5f) * .12f, .45f, 5, 211 + i, MILKY, 1, .12f);
             for (int s = -1; s <= 1; s += 2)
-                crystal(c, new Vec3(s * 1.7f, y + .9f, z + .2f), new Vec3(s * .35, -.5, .8), .8f, .3f, 4, 221 + i + s, CLEAR, 1, .25f);
+                crystal(c, new Vec3(s * 1.7f, y + .9f, z + .2f), new Vec3(s * .35, -.5, .8), .8f, .3f, 4, 221 + i + s, CLEAR, 1, .08f);
         }
-        crack(-2.4f, -6.6f, -3.0f, -.6f, -7.6f, -2.2f, .8f);
-        crack(1.8f, -2.4f, -3.2f, 3.0f, -.8f, -2.4f, .6f);
+        crack(-2.4f, -6.6f, faceZ(-2.4f, -6.6f) + .25f, -.6f, -7.6f, faceZ(-.6f, -7.6f) + .25f, .8f);
+        crack(1.8f, -2.4f, faceZ(1.8f, -2.4f) + .25f, 3.0f, -.8f, faceZ(3.0f, -.8f) + .3f, .6f);
     }
 
     // ------------------------------------------------------------------ world points

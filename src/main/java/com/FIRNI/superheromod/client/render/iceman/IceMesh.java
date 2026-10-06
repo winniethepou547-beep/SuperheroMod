@@ -48,11 +48,11 @@ public final class IceMesh {
         public Mat tint(float tr, float tg, float tb) { return new Mat(r * tr, g * tg, b * tb, clear, edge, milk, rim, spec); }
     }
     /** Clear ice: blue-tinted, see-through, a bright rim. */
-    public static final Mat CLEAR = new Mat(.58f, .82f, 1f, .2f, .92f, .08f, .95f, 1f);
+    public static final Mat CLEAR = new Mat(.58f, .82f, 1f, .16f, .9f, .06f, .95f, 1f);
     /** Milky ice: whiter, cloudier. */
-    public static final Mat MILKY = new Mat(.80f, .90f, 1f, .55f, .95f, .5f, .75f, .7f);
+    public static final Mat MILKY = new Mat(.80f, .90f, 1f, .45f, .92f, .5f, .75f, .7f);
     /** The dense core inside a limb: nearly white, nearly solid (seen through the clear shell over it). */
-    public static final Mat CORE = new Mat(.86f, .93f, 1f, .78f, .98f, .75f, .45f, .35f);
+    public static final Mat CORE = new Mat(.84f, .92f, 1f, .5f, .85f, .7f, .45f, .35f);
     /** Rime, frost: white, rough, matt. */
     public static final Mat FROST = new Mat(.94f, .97f, 1f, .7f, .95f, .9f, .3f, .25f);
     /** Thick deep ice: darker blue (eye sockets, the shadows of the face, old ice). */
@@ -324,6 +324,26 @@ public final class IceMesh {
             prev = ring;
         }
     }
+
+    /**
+     * A vein of white inside the ice (an inner crack, a frozen-in fracture): a thin quad facing the camera, drawn WITH the
+     * ice (sorted among its faces, so it shows through the clear surface over it, unlike light, which the surface's depth
+     * would hide). k = how bright / opaque.
+     */
+    public static void vein(Ctx c, Vec3 a, Vec3 b, float w, float k) {
+        float ax = (float) a.x, ay = (float) a.y, az = (float) a.z, bx = (float) b.x, by = (float) b.y, bz = (float) b.z;
+        float dx = bx - ax, dy = by - ay, dz = bz - az;
+        float vx = c.cx - ax, vy = c.cy - ay, vz = c.cz - az;
+        float sx = dy * vz - dz * vy, sy = dz * vx - dx * vz, sz = dx * vy - dy * vx;
+        float sl = Mth.sqrt(sx * sx + sy * sy + sz * sz);
+        float vl = Mth.sqrt(vx * vx + vy * vy + vz * vz);
+        if (sl < 1e-9f || vl < 1e-9f) return;
+        sx *= w / sl; sy *= w / sl; sz *= w / sl;
+        float nx = vx / vl, ny = vy / vl, nz = vz / vl;
+        c.vert(ax - sx, ay - sy, az - sz, nx, ny, nz, VEIN, k); c.vert(ax + sx, ay + sy, az + sz, nx, ny, nz, VEIN, k);
+        c.vert(bx + sx, by + sy, bz + sz, nx, ny, nz, VEIN, k * .8f); c.vert(bx - sx, by - sy, bz - sz, nx, ny, nz, VEIN, k * .8f);
+    }
+    private static final Mat VEIN = new Mat(.92f, .97f, 1f, .75f, .75f, .6f, 0, 0);
 
     // ------------------------------------------------------------------ light
     /** A thin bright line from a to b (additive; colour per end, alpha folded in), facing the camera; width w. */
