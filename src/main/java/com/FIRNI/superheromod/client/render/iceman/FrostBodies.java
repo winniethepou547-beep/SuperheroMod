@@ -40,18 +40,18 @@ import static com.FIRNI.superheromod.heroes.iceman.IcemanAction.*;
 
 /**
  * The frost meter seen on bodies (any living thing: players, zombies, animals), drawn in Iceman's ice (IceMesh) after
- * the translucent blocks, stage by stage, every crystal growing in from nothing as the meter rises and melting away as
- * it falls:
+ * the translucent blocks, stage by stage, every piece growing in from nothing as the meter rises and melting away as
+ * it falls. Minecraft ice, never crystals: small square spikes and cubes of ice, flat square plates of frost:
  * <ul>
  * <li>from the first touch: rime on the ground round the feet and on the feet, a thin whitening of tiny frost specks
  *     all over, frosty footprints behind them;</li>
- * <li>from 25: crystals up the legs, frost clusters on the shoulders;</li>
- * <li>from 50: bigger icing on the arms (hanging a little, like icicles) and the torso, frost plates;</li>
- * <li>from 75: heavy cover, big crystals everywhere, a cluster on the head; the body shivers now and then;</li>
- * <li>DEEP FREEZE: a block of ice closes round them from the ground up in DEEP_CLOSE ticks, an organic mass of big
- *     overlapping slabs and crystals (clear, milky and glacier ice, bright rims) with the body still seen inside,
- *     a frost skirt on the ground; cracks run over it near the end; when it breaks the slabs split, fly apart, tumble,
- *     shatter into shards and melt (the inside of every break clean and bright).</li>
+ * <li>from 25: square spikes of ice up the legs, little clusters of ice cubes on the shoulders;</li>
+ * <li>from 50: bigger icing on the arms (hanging a little, like square icicles) and the torso, frost plates;</li>
+ * <li>from 75: heavy cover, big spikes and cubes everywhere, a cluster on the head; the body shivers now and then;</li>
+ * <li>DEEP FREEZE: a block of ice closes round them from the ground up in DEEP_CLOSE ticks, a chunky mass of big
+ *     overlapping blocks (clear, milky and glacier ice) with flat tops and lids closing over the head, a frost skirt
+ *     of square tiles and small cubes on the ground; cracks run over it near the end; when it breaks the blocks split,
+ *     fly apart, tumble, shatter into ice cubes and melt (the inside of every break clean and bright).</li>
  * </ul>
  * Crystals ride on the body's real limbs where the model is a humanoid's (its limbs read just after it is drawn), on a
  * box layout of the bounding box otherwise (four legs for animals). Fewer of them far away, none past 48 blocks.
@@ -209,7 +209,7 @@ public final class FrostBodies {
     }
 
     // ------------------------------------------------------------------ the deep freeze
-    /** One of the big pieces of the block: round the body at an angle, leaning, its height, its two half-widths. */
+    /** One of the big blocks of the deep freeze: round the body at an angle, leaning, its height, its two half-widths. */
     private record Slab(float ang, float radial, float by, float h, float w, float d, float lean, float delay, int sides, int seed,
                         IceMesh.Mat mat, float vOut, float vUp, float spin) {}
     private static final class Encase {
@@ -240,12 +240,12 @@ public final class FrostBodies {
         int n = 9;
         for (int i = 0; i < n; i++)
             slabs.add(new Slab(Mth.TWO_PI * i / n + f(r, -.25f, .25f), R * f(r, .45f, .8f), 0, f(r, .74f, 1.12f), width * f(r, .28f, .4f) + .05f, width * f(r, .2f, .3f) + .04f,
-                    f(r, -.1f, .18f), f(r, 0, .5f), 5 + r.nextInt(2), r.nextInt(1 << 20), mats[i % 3], f(r, .05f, .1f), f(r, .06f, .14f), f(r, .12f, .26f) * (r.nextBoolean() ? 1 : -1)));
-        // The crown closing over the head last.
+                    f(r, -.05f, .08f), f(r, 0, .5f), 5 + r.nextInt(2), r.nextInt(1 << 20), mats[i % 3], f(r, .05f, .1f), f(r, .06f, .14f), f(r, .12f, .26f) * (r.nextBoolean() ? 1 : -1)));
+        // The lids closing over the head last.
         for (int i = 0; i < 3; i++)
             slabs.add(new Slab(f(r, 0, Mth.TWO_PI), R * .22f, .45f, f(r, 1.02f, 1.16f), width * .3f + .04f, width * .24f + .03f,
-                    -.22f, f(r, .55f, .75f), 5, r.nextInt(1 << 20), IceMesh.CLEAR, f(r, .03f, .07f), f(r, .14f, .2f), f(r, .15f, .3f) * (r.nextBoolean() ? 1 : -1)));
-        // The big cracks: random walks up and across the outer faces of a few slabs.
+                    -.12f, f(r, .55f, .75f), 5, r.nextInt(1 << 20), IceMesh.CLEAR, f(r, .03f, .07f), f(r, .14f, .2f), f(r, .15f, .3f) * (r.nextBoolean() ? 1 : -1)));
+        // The big cracks: random walks up and across the outer faces of a few blocks.
         int cn = 6;
         float[][] cracks = new float[cn][];
         int[] crackSlab = new int[cn];
@@ -308,7 +308,7 @@ public final class FrostBodies {
             }
             float t = now - en.broke;
             if (!en.shardsDone && t >= 8) {
-                // The flying pieces burst into shards as they come down.
+                // The flying pieces burst into chunks of ice as they come down.
                 en.shardsDone = true;
                 float cos = Mth.cos(en.yaw), sin = Mth.sin(en.yaw);
                 for (Slab s : en.slabs) {
@@ -402,15 +402,17 @@ public final class FrostBodies {
             float g = FilmFx.ease((shown - s.t0()) / s.span());
             if (g <= .01f) continue;
             float alpha = Math.min(1, g * 2.2f);
-            int sidesN = far ? 4 : 5 + (s.seed() & 1);
             if (s.kind() == GROUND || s.kind() == SPROUT) {
                 if (ground < .02f) continue;
                 float lx = s.w() * Math.max(w, .4f), lz = s.t() * Math.max(w, .4f);
                 Vec3 at = new Vec3(lx * cos - lz * sin, .012, lx * sin + lz * cos);
                 if (s.kind() == GROUND) plate(c, at, UP, s.rad() * k * (.4f + .6f * g), s.len() * k, s.seed(), s.mat(), alpha * ground * .9f);
                 else {
-                    Vec3 dir = at.multiply(1, 0, 1).normalize().scale(s.bias()).add(UP).normalize();
-                    IceMesh.crystal(c, at, dir, s.len() * k * g, s.rad() * k * (.35f + .65f * g), sidesN, s.seed(), s.mat(), alpha * ground, .4f * g);
+                    // A little cube of ice frozen onto the ground, leaning out.
+                    float size = s.len() * k * g * .8f;
+                    Vec3 o = at.multiply(1, 0, 1);
+                    float turn = (float) Math.atan2(o.x, o.z) + (float) IceMesh.hash(s.seed()) * .8f;
+                    IceParticles.cube(c, at.x, at.y + size * .35f, at.z, size, size, size, turn, s.bias() * -.5f, 0, s.mat(), alpha * ground);
                 }
                 continue;
             }
@@ -421,25 +423,34 @@ public final class FrostBodies {
             switch (s.kind()) {
                 case PLATE -> plate(c, at.add(n.scale(.004)), n, s.rad() * k * (.35f + .65f * g), s.len() * k * g, s.seed(), s.mat(), alpha * .9f);
                 case CLUSTER -> {
+                    // A few small cubes of ice frozen together on the surface.
                     Vec3 d = n.add(0, s.bias(), 0).normalize();
                     Vec3[] fr = IceMesh.frame(d);
                     for (int i = 0; i < 3; i++) {
                         float a = s.seed() * .37f + i * 2.1f;
-                        Vec3 di = d.add(fr[0].scale(Mth.cos(a) * .5)).add(fr[1].scale(Mth.sin(a) * .5)).normalize();
-                        float len = s.len() * k * g * (.75f + .35f * (float) IceMesh.hash(s.seed() + i));
-                        IceMesh.crystal(c, at.subtract(di.scale(s.rad() * k * .5)), di, len, s.rad() * k * (.35f + .65f * g), sidesN, s.seed() + i * 17, s.mat(), alpha, .5f * g);
+                        float size = s.len() * k * g * (.5f + .25f * (float) IceMesh.hash(s.seed() + i));
+                        Vec3 p = at.add(fr[0].scale(Mth.cos(a) * size * .5)).add(fr[1].scale(Mth.sin(a) * size * .5)).add(d.scale(size * (.2 + .25 * i)));
+                        IceParticles.cube(c, p.x, p.y, p.z, size, size, size, a, (float) IceMesh.hash(s.seed() * 3 + i) - .5f, (float) IceMesh.hash(s.seed() * 5 + i) - .5f, s.mat(), alpha);
                     }
                 }
+                case SPECK -> {
+                    // A fleck of frost: a tiny cube.
+                    float size = s.len() * k * g * .6f;
+                    Vec3 p = at.add(n.scale(size * .2));
+                    IceParticles.cube(c, p.x, p.y, p.z, size, size, size, s.seed() * .7f, s.seed() * .3f, s.seed() * .11f, s.mat(), alpha);
+                }
                 default -> {
+                    // A small square spike of ice standing out of the surface (hanging a little where it is biased down: a square icicle).
                     Vec3[] fr = IceMesh.frame(n);
                     float j0 = (float) IceMesh.hash(s.seed() * 1.3) - .5f, j1 = (float) IceMesh.hash(s.seed() * 2.9) - .5f;
                     Vec3 d = n.add(0, s.bias(), 0).add(fr[0].scale(j0 * .6)).add(fr[1].scale(j1 * .6)).normalize();
                     float r = s.rad() * k * (.35f + .65f * g);
-                    IceMesh.crystal(c, at.subtract(d.scale(r * .6f)), d, s.len() * k * g, r, s.kind() == SPECK ? 4 : sidesN, s.seed(), s.mat(), alpha, s.kind() == SPECK ? 0 : .5f * g);
+                    float len = s.len() * k * g;
+                    IceParticles.spike(c, at.subtract(d.scale(r * .6f)), d, len, r, s.seed() * .37f, far || len < .08f ? 0 : 1, s.mat(), alpha);
                 }
             }
         }
-        // The brush's blooms: a little burst of crystals growing in, then melting.
+        // The brush's blooms: a little burst of ice cubes freezing on, then melting.
         for (FrostFx.Bloom bl : b.blooms) {
             float age = now - bl.born();
             float g = FilmFx.ease(age / 3) * (1 - FilmFx.ease((age - 12) / 16));
@@ -450,8 +461,9 @@ public final class FrostBodies {
             for (int i = 0; i < 4; i++) {
                 float a = bl.seed() * .53f + i * 1.7f;
                 Vec3 di = out.add(fr[0].scale(Mth.cos(a) * .7)).add(fr[1].scale(Mth.sin(a) * .7)).normalize();
-                float len = (.05f + .07f * (float) IceMesh.hash(bl.seed() + i * 3)) * k * g;
-                IceMesh.crystal(c, at.add(fr[0].scale(Mth.cos(a) * .04)).add(fr[1].scale(Mth.sin(a) * .04)), di, len, .016f * k * (.4f + .6f * g), 4, bl.seed() + i, i % 2 == 0 ? IceMesh.FROST : IceMesh.CLEAR, g, .6f * g);
+                float size = (.035f + .04f * (float) IceMesh.hash(bl.seed() + i * 3)) * k * g;
+                Vec3 p = at.add(fr[0].scale(Mth.cos(a) * .04)).add(fr[1].scale(Mth.sin(a) * .04)).add(di.scale(size * .5));
+                IceParticles.cube(c, p.x, p.y, p.z, size, size, size, a, a * .7f, a * .3f, i % 2 == 0 ? IceMesh.FROST : IceMesh.CLEAR, g);
             }
             if (age < 5) IceMesh.sparkle(c, at.add(out.scale(.05)), .09f * k, (1 - age / 5) * .9f);
         }
@@ -498,15 +510,14 @@ public final class FrostBodies {
         m.transformDirection(N);
         if (N.lengthSquared() < 1e-10f) N.set(0, 1, 0); else N.normalize();
     }
-    /** A patch of frost hugging a surface: a low faceted dome, irregular, lying on the plane of normal n. */
+    /** A patch of frost hugging a surface: a flat square plate of ice lying on the plane of normal n, turned its own way. */
     private static void plate(IceMesh.Ctx c, Vec3 at, Vec3 n, float radius, float thick, int seed, IceMesh.Mat mat, float alpha) {
         if (radius <= .002f || alpha <= .01f) return;
         Vec3[] fr = IceMesh.frame(n);
         float ph = (float) IceMesh.hash(seed) * 6;
-        float[] r0 = IceMesh.ring((float) at.x, (float) at.y, (float) at.z, fr[0], fr[1], radius, radius * .8f, 6, .3f, seed, ph);
-        Vec3 up = at.add(n.scale(Math.max(.002f, thick)));
-        float[] r1 = IceMesh.ring((float) up.x, (float) up.y, (float) up.z, fr[0], fr[1], radius * .55f, radius * .45f, 6, .3f, seed + 3, ph + .4f);
-        IceMesh.loft(c, r0, r1, mat, alpha, false, true);
+        Vec3 u = fr[0].scale(Mth.cos(ph)).add(fr[1].scale(Mth.sin(ph))), v = fr[1].scale(Mth.cos(ph)).subtract(fr[0].scale(Mth.sin(ph)));
+        float t = Math.max(.002f, thick) * .5f;
+        IceParticles.obox(c, at.add(n.scale(t)), u, n, v, radius * .8f, t, radius * .62f, mat, alpha);
     }
 
     private static void prints(IceMesh.Ctx c, IceStage st, float now) {
@@ -538,8 +549,9 @@ public final class FrostBodies {
             float a = i * Mth.TWO_PI / 8 + (float) IceMesh.hash(en.entity + i) * .6f, d = R * (1.05f + .35f * (float) IceMesh.hash(en.entity * 3 + i));
             Vec3 at = new Vec3(Mth.cos(a) * d, .012, Mth.sin(a) * d);
             plate(c, at, UP, (.12f + .1f * (float) IceMesh.hash(i * 7 + en.entity)) * skirt, .02f, en.entity + i * 13, IceMesh.FROST, .85f * skirt);
-            Vec3 out = new Vec3(Mth.cos(a), 1.3, Mth.sin(a)).normalize();
-            IceMesh.crystal(c, at.scale(.92), out, .16f * skirt * (.6f + .5f * (float) IceMesh.hash(i + en.entity * 5)), .035f * skirt, 5, en.entity + i, IceMesh.CLEAR, skirt, .4f * skirt);
+            float size = .1f * skirt * (.6f + .5f * (float) IceMesh.hash(i + en.entity * 5));
+            Vec3 p = at.scale(.92);
+            IceParticles.cube(c, p.x, p.y + size * .35f, p.z, size, size, size, a, .3f, 0, IceMesh.CLEAR, skirt);
         }
         if (broken < 0) {
             if (self) return;
@@ -558,7 +570,7 @@ public final class FrostBodies {
             return;
         }
         if (self && broken < 3) return;
-        // Broken: every slab splits in two, the pieces fly, tumble, shrink and melt.
+        // Broken: every block splits in two, the pieces fly, tumble, shrink and melt.
         for (Slab s : en.slabs) for (int half = 0; half < 2; half++) {
             float y0 = half * .5f, y1 = y0 + .5f;
             Vec3[] axes = new Vec3[3];
@@ -591,7 +603,7 @@ public final class FrostBodies {
         }
         return c;
     }
-    /** A crack running over a slab's outer face, glinting, its front a spark. */
+    /** A crack running over a block's outer face, glowing (it is about to break), its front a spark. */
     private static void crack(IceMesh.Ctx c, Encase en, int ci, float k) {
         Slab s = en.slabs[en.crackSlab[ci]];
         float[] p = en.cracks[ci];
@@ -603,52 +615,45 @@ public final class FrostBodies {
         float reach = k * (n - 1) * (1.1f - .2f * ci / (float) en.cracks.length);
         Vec3 prev = null;
         for (int i = 0; i < n; i++) {
-            float y = p[i * 2 + 1], w = p[i * 2], prof = 1 - .32f * y;
-            Vec3 at = base.add(A.scale(len * y)).add(O.scale(s.d() * prof * 1.08f)).add(S.scale(s.w() * prof * w));
+            float y = p[i * 2 + 1], w = p[i * 2];
+            Vec3 at = base.add(A.scale(len * y)).add(O.scale(s.d() * 1.04f)).add(S.scale(s.w() * w));
             if (prev != null) {
                 float seg = Mth.clamp(reach - (i - 1), 0, 1);
                 if (seg <= 0) break;
                 Vec3 to = prev.lerp(at, seg);
-                IceMesh.line(c, prev, to, .007f + .006f * k, .55f * k, .78f * k, .95f * k);
+                IceMesh.vein(c, prev, to, .007f + .006f * k, .95f * k);
                 if (seg < 1) { IceMesh.sparkle(c, to, .06f, .8f * k); break; }
             }
             prev = at;
         }
     }
     /**
-     * A slab of the block between the shares y0..y1 of its height: an uneven prism narrowing upward (half-widths w
-     * across, d outward), closing to a point over its last fifth; cut faces (a break) in the bright clean ice.
+     * A block of the deep freeze between the shares y0..y1 of its height: a box along A (half-widths w across along S,
+     * d outward along O), flat at both ends; an end that is a break (not the block's own bottom or top) in the bright
+     * clean ice. (n, seed: unused, kept for the callers.)
      */
     private static void prism(IceMesh.Ctx c, Vec3 base, Vec3 A, Vec3 O, Vec3 S, float len, float w, float d, float y0, float y1,
                               int n, int seed, IceMesh.Mat mat, IceMesh.Mat cut, float alpha, boolean whole) {
         if (len <= .01f || alpha <= .01f) return;
-        float yb = Math.min(y1, .8f);
-        float[] r0 = ring(base, A, O, S, len, w, d, y0, n, seed);
-        if (y0 < .8f) {
-            float[] r1 = ring(base, A, O, S, len, w, d, yb, n, seed + 1);
-            IceMesh.loft(c, r0, r1, mat, alpha, false, false);
-            IceMesh.cap(c, r0, y0 > 0 || !whole ? cut : mat, alpha, true);
-            r0 = r1;
+        Vec3 u = O.subtract(A.scale(O.dot(A)));
+        u = u.lengthSqr() < 1e-8 ? IceMesh.frame(A)[0] : u.normalize();
+        float[] p = BLOCK;
+        for (int k = 0; k < 8; k++) {
+            int q = k & 3;
+            double su = q == 0 || q == 3 ? -d : d, sv = q < 2 ? -w : w, sa = len * (k < 4 ? y0 : y1);
+            p[k * 3] = (float) (base.x + u.x * su + S.x * sv + A.x * sa);
+            p[k * 3 + 1] = (float) (base.y + u.y * su + S.y * sv + A.y * sa);
+            p[k * 3 + 2] = (float) (base.z + u.z * su + S.z * sv + A.z * sa);
         }
-        if (y1 <= .8f) { IceMesh.cap(c, r0, cut, alpha, false); return; }
-        if (y1 < .999f) {
-            float[] r1 = ring(base, A, O, S, len, w, d, y1, n, seed + 2);
-            IceMesh.loft(c, r0, r1, mat, alpha, false, false);
-            IceMesh.cap(c, r1, cut, alpha, false);
-            return;
+        for (int i = 0; i < 4; i++) {
+            int j = (i + 1) & 3;
+            IceMesh.quad(c, p[i * 3], p[i * 3 + 1], p[i * 3 + 2], p[j * 3], p[j * 3 + 1], p[j * 3 + 2],
+                    p[j * 3 + 12], p[j * 3 + 13], p[j * 3 + 14], p[i * 3 + 12], p[i * 3 + 13], p[i * 3 + 14], mat, alpha);
         }
-        Vec3 tip = base.add(A.scale(len));
-        for (int i = 0; i < n; i++) {
-            int j = (i + 1) % n;
-            IceMesh.tri(c, r0[i * 3], r0[i * 3 + 1], r0[i * 3 + 2], r0[j * 3], r0[j * 3 + 1], r0[j * 3 + 2], (float) tip.x, (float) tip.y, (float) tip.z, mat, alpha);
-        }
+        IceMesh.quad(c, p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9], p[10], p[11], y0 > 0 || !whole ? cut : mat, alpha);
+        IceMesh.quad(c, p[12], p[13], p[14], p[15], p[16], p[17], p[18], p[19], p[20], p[21], p[22], p[23], y1 < 1 || !whole ? cut : mat, alpha);
     }
-    private static float[] ring(Vec3 base, Vec3 A, Vec3 O, Vec3 S, float len, float w, float d, float y, int n, int seed) {
-        float prof = y <= .8f ? 1 - .32f * y : .744f * (1 - y) / .2f;
-        Vec3 c = base.add(A.scale(len * y));
-        Vec3 u = O.subtract(A.scale(O.dot(A))).normalize();
-        return IceMesh.ring((float) c.x, (float) c.y, (float) c.z, u, S, d * prof, w * prof, n, .18f, seed, seed * .3f);
-    }
+    private static final float[] BLOCK = new float[24];
 
     /** The body is no longer followed (gone, or its frost melted away). */
     static void forget(int id) { RIGS.remove(id); }

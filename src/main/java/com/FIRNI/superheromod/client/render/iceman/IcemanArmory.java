@@ -9,30 +9,31 @@ import static com.FIRNI.superheromod.heroes.iceman.IcemanAction.*;
 
 /**
  * The Ice Armory's three weapons, all of Iceman's own ice (IceMesh), in the hand's frame: pixels, the grip at the origin
- * (inside his fist), the long axis toward -z, the blades' width along y.
+ * (inside his fist), the long axis toward -z, the blades' width along y. Built like Minecraft items made 3D: boxes and
+ * four-sided points, textured ice (never hexagonal crystals, never round).
  * <ul>
- * <li>MACE: a heavy crystalline head (a milky core inside clear outer facets, six flanged crystal blades round it, spikes
- * between them and a long one on top, bright rims on every flange), a thick ridged handle, a collar of crystals where
- * the head sits, a pommel crystal. Held and grown (size 1..MACE_MAX) it is the same mace scaled up with new uneven
- * shells of glacier ice accreting over the head, one layer after another, each with new spikes (frost first, then
- * crystals, then thick ice), until it is about three times his height.</li>
- * <li>SPEAR: a long faceted shaft (about 1.6 blocks) with a milky core, a crystal collar, a leaf-shaped faceted blade
- * with a milky midrib and glinting edges, a butt spike. Drawn back for a throw (size above 1) its blade grows longer.</li>
- * <li>SWORD: a broad faceted blade with a ridge (a milky line down its middle, clear edges catching glints that run along
- * them), a crystal crossguard, a ridged grip, a pommel crystal.</li>
+ * <li>MACE: a heavy cube of ice for a head, a square ice spike standing out of each side and a longer one off its end,
+ * small cubes studding its corners; a square handle wrapped in wider bands of milky ice, a square collar plate where
+ * the head sits, a cube pommel. Held and grown (size 1..MACE_MAX) it is the same mace scaled up with new blocks of
+ * glacier ice accreting over the head, one after another, each turned its own way with its own square spikes (rime
+ * first, then the ice thickening), until it is about three times his height.</li>
+ * <li>SPEAR: a long square shaft (about 1.6 blocks) with frost knots, a square collar with four small points, a flat
+ * blade of ice (a box widening out of the collar, then narrowing in a step to a four-sided point) with a milky ridge
+ * down its middle, a square butt spike. Drawn back for a throw (size above 1) its blade grows longer.</li>
+ * <li>SWORD: a flat box blade with a milky ridge, its point a step and then a four-sided point, a bar crossguard with
+ * cube ends, a square grip with bands, a cube pommel.</li>
  * </ul>
  * Forming (form 0..1) follows the ice language: a breath of frost and sparkles along the weapon's shape first, then small
- * crystal nuclei along it, then the real parts growing out of the grip along the axis and thickening (never popping in
- * at full size). Cracking (crack 0..1): bright crack lines spreading over it; 2 and over: the mace's head (or the
- * blade) has broken away and only the handle is left in the fist.
+ * frost cubes along it, then the real parts growing out of the grip along the axis and thickening (never popping in at
+ * full size). Cracking (crack 0..1): bright crack lines spreading over it; 2 and over: the mace's head (or the blade) has
+ * broken away and only the handle is left in the fist.
  */
 public final class IcemanArmory {
     private IcemanArmory() {}
 
-    /** Plain sizes (pixels): the mace's head centre, its radius, its tip; the spear's blade base; the sword's tip. */
+    /** Plain sizes (pixels): the mace's head centre, its half-size, its tip; the spear's blade base; the sword's tip. */
     static final float MACE_HEAD = 14.5f, MACE_R = 3.2f, MACE_TIP = 20.5f, MACE_POMMEL = 5.0f, SPEAR_BLADE = 17f, SPEAR_BUTT = 8.5f,
             SWORD_TIP = 21f, SWORD_POMMEL = 4.2f;
-    private static final Vec3 BACK = new Vec3(0, 0, 1), AHEAD = new Vec3(0, 0, -1);
 
     /** How long the weapon is from the grip to its tip (pixels). */
     public static float length(int weapon, float size) {
@@ -63,7 +64,9 @@ public final class IcemanArmory {
     public static void inHand(IceMesh.Ctx c, PoseStack p, int weapon, float form, float size, float crack, float time) {
         if (form <= .001f) return;
         IcemanArmory.form = Mth.clamp(form, 0, 1);
-        float flash = c.flash;
+        float flash = c.flash, ox = c.ox, oy = c.oy, oz = c.oz;
+        // The texture belongs to the weapon (its own frame, pixel for pixel).
+        c.ox = c.oy = c.oz = 0;
         if (form < 1) c.flash = Math.max(flash, .35f * (1 - form));
         try {
             switch (weapon) {
@@ -74,11 +77,12 @@ public final class IcemanArmory {
             if (form < 1) forming(c, weapon, size, time);
         } finally {
             c.flash = flash;
+            c.ox = ox; c.oy = oy; c.oz = oz;
             IcemanArmory.form = 1;
         }
     }
 
-    /** The first stages: frost and sparkles along the shape, crystal nuclei that the real ice then swallows. */
+    /** The first stages: frost and sparkles along the shape, small frost cubes that the real ice then swallows. */
     private static void forming(IceMesh.Ctx c, int weapon, float size, float time) {
         float len = length(weapon, size), back = weapon == W_MACE ? MACE_POMMEL * size : weapon == W_SPEAR ? SPEAR_BUTT : SWORD_POMMEL;
         float frost = Mth.clamp(form / .2f, 0, 1) * (1 - Mth.clamp((form - .45f) / .4f, 0, 1));
@@ -93,18 +97,17 @@ public final class IcemanArmory {
             // The breath of frost: sparkles flickering along the shape.
             float tw = .5f + .5f * Mth.sin(time * 1.7f + i * 2.1f);
             if (frost > .02f) IceMesh.sparkle(c, at, .9f + .6f * r * .2f, .8f * frost * tw);
-            // A nucleus: a small crystal that grows, then is swallowed by the part growing over it.
+            // A nucleus: a small cube of frost that grows, then is swallowed by the part growing over it.
             float nk = Mth.clamp((form - .12f - Math.abs(u) * .3f) / .25f, 0, 1) * (1 - grown(u));
             if (nk > .01f) {
-                Vec3 out = new Vec3(Math.cos(a), Math.sin(a), (hash(i * 9.1) - .5) * 1.4).normalize();
-                IceMesh.crystal(c, at.scale(.6), out, 1.6f * nk * (.7f + .6f * (float) hash(i * 2.9)), .32f * nk + .05f, 4, 300 + i, FROST, .9f, .6f);
+                float sz = 1.3f * nk * (.7f + .6f * (float) hash(i * 2.9));
+                IceParticles.cube(c, at.x * .7, at.y * .7, at.z, sz, sz, sz, (float) a, (float) (hash(i * 9.1) - .5), (float) a * .5f, FROST, .9f);
             }
         }
         // A thin frosted sheath along the shape before the ice thickens inside it.
         if (frost > .02f) {
-            float gz = -len * Mth.clamp(form / .35f, 0, 1);
-            IceMesh.limb(c, new Vec3(0, 0, Math.min(back, 2)), new Vec3(0, 0, gz), radiusAt(weapon, 0, size) * 1.1f + .2f,
-                    radiusAt(weapon, -gz, size) * .9f + .2f, 6, 330 + weapon, FROST.alpha(.35f * frost), null, 1);
+            float gz = -len * Mth.clamp(form / .35f, 0, 1), r = radiusAt(weapon, 0, size) + .25f;
+            IceMesh.box(c, -r, -r, gz, r, r, Math.min(back, 2), FROST, .35f * frost);
         }
     }
     /** About how thick the weapon is at a distance d (pixels) out from the grip (negative: behind it). */
@@ -116,213 +119,214 @@ public final class IcemanArmory {
         };
     }
 
+    // ------------------------------------------------------------------ shapes in the hand's frame
+    /** A square bar along the axis from z0 to z1, half-width h. */
+    private static void bar(IceMesh.Ctx c, float z0, float z1, float h, Mat mat, float a) {
+        IceMesh.box(c, -h, -h, Math.min(z0, z1), h, h, Math.max(z0, z1), mat, a);
+    }
+    private static final float[] P8 = new float[24];
+    /** A flat block along the axis from z0 (half-width w0, half-thickness t0) to z1 (w1, t1): its width along y, thickness along x. */
+    private static void slab(IceMesh.Ctx c, float z0, float w0, float t0, float z1, float w1, float t1, Mat mat, float a) {
+        float[] p = P8;
+        for (int k = 0; k < 8; k++) {
+            int q = k & 3;
+            float w = k < 4 ? w0 : w1, t = k < 4 ? t0 : t1;
+            p[k * 3] = q == 0 || q == 3 ? -t : t;
+            p[k * 3 + 1] = q < 2 ? -w : w;
+            p[k * 3 + 2] = k < 4 ? z0 : z1;
+        }
+        IceParticles.hexa(c, p, mat, a);
+    }
+    /** A four-sided point along the axis: from the rectangle at z0 (half-width w along y, half-thickness t along x) to the tip. */
+    private static void point(IceMesh.Ctx c, float z0, float w, float t, float tipZ, Mat mat, float a) {
+        IceMesh.tri(c, -t, -w, z0, t, -w, z0, 0, 0, tipZ, mat, a);
+        IceMesh.tri(c, t, -w, z0, t, w, z0, 0, 0, tipZ, mat, a);
+        IceMesh.tri(c, t, w, z0, -t, w, z0, 0, 0, tipZ, mat, a);
+        IceMesh.tri(c, -t, w, z0, -t, -w, z0, 0, 0, tipZ, mat, a);
+    }
+
     // ------------------------------------------------------------------ the mace
     private static void mace(IceMesh.Ctx c, float s, float crack, float time) {
         float headZ = -MACE_HEAD * s, r = MACE_R * s, handleTop = -(MACE_HEAD - MACE_R * .82f) * s;
         boolean headGone = crack >= 2;
         float total = MACE_TIP * s;
-        // The pommel crystal, behind the fist.
+        // The pommel: a cube behind the fist with a short point.
         float gp = grown(-MACE_POMMEL * s / total * 1.2f);
         if (gp > 0) {
-            IceMesh.crystal(c, new Vec3(0, 0, (MACE_POMMEL - .4f) * s), BACK, 2.6f * s * gp, .95f * s * thick(gp), 6, 41, MILKY, 1, .5f);
-            IceMesh.limb(c, new Vec3(0, 0, (MACE_POMMEL - .3f) * s), new Vec3(0, 0, (MACE_POMMEL - 1.4f) * s), 1.15f * s * thick(gp), .9f * s * thick(gp), 7, 42, CLEAR, null, 1);
+            float h = 1.15f * s * thick(gp);
+            IceMesh.box(c, -h, -h, (MACE_POMMEL - 1.6f) * s, h, h, (MACE_POMMEL + .2f) * s, MILKY, 1);
+            point(c, (MACE_POMMEL + .2f) * s, .7f * s * thick(gp), .7f * s * thick(gp), (MACE_POMMEL + .2f + 1.3f * gp) * s, CLEAR, 1);
         }
-        // The handle: ridged, a milky core inside clear ice; grows out of the fist both ways.
+        // The handle: a square bar wrapped in wider bands; grows out of the fist both ways.
         int segs = 8;
-        float z0 = (MACE_POMMEL - 1.2f) * s, z1 = headGone ? handleTop * .72f : handleTop;
+        float z0 = (MACE_POMMEL - 1.4f) * s, z1 = headGone ? handleTop * .72f : handleTop;
         for (int i = 0; i < segs; i++) {
             float a = Mth.lerp(i / (float) segs, z0, z1), b = Mth.lerp((i + 1) / (float) segs, z0, z1);
             float g = grown(Math.max(Math.abs(a), Math.abs(b)) / total * (a > 0 ? 1.2f : 1));
             if (g <= 0) continue;
-            float rr = (i % 2 == 0 ? .78f : .95f) * s * thick(g);
             float bb = a + (b - a) * Math.min(1, g * 1.3f);
-            IceMesh.limb(c, new Vec3(0, 0, a), new Vec3(0, 0, bb), rr, (i % 2 == 0 ? .95f : .78f) * s * thick(g), 7, 50 + i, CLEAR, MILKY, 1);
+            boolean band = i % 3 == 1;
+            bar(c, a, bb, (band ? .98f : .8f) * s * thick(g), band ? MILKY : CLEAR, 1);
         }
         if (headGone) {
             // The jagged stump left in the fist, the clean bright inside showing.
             for (int i = 0; i < 4; i++) {
                 double a = i * 1.7 + .4;
-                IceMesh.crystal(c, new Vec3(Math.cos(a) * .4 * s, Math.sin(a) * .4 * s, z1 + .3f * s), new Vec3(Math.cos(a) * .4, Math.sin(a) * .4, -1),
-                        (i % 2 == 0 ? 1.4f : 1.9f) * s, .35f * s, 4, 60 + i, FRESH, 1, .8f);
+                IceParticles.spike(c, Math.cos(a) * .45 * s, Math.sin(a) * .45 * s, z1 + .3f * s, Math.cos(a) * .35, Math.sin(a) * .35, -1,
+                        (i % 2 == 0 ? 1.4f : 1.9f) * s, .4f * s, (float) a, 0, FRESH, 1);
             }
-            cracksShaft(c, MACE_CRACKS_HANDLE, 1, s, z0, z1, .9f * s, false);
+            cracksShaft(c, MACE_CRACKS_HANDLE, 1, s, z0, z1, .82f * s, false);
             return;
         }
         float gh = grown(MACE_HEAD * s / total);
         if (gh <= 0) return;
-        // The collar where the head sits: a flared ring and short crystals.
+        // The collar where the head sits: a square plate and four small points at its corners.
         float gc = grown((MACE_HEAD - MACE_R) * s / total);
         if (gc > 0) {
-            IceMesh.limb(c, new Vec3(0, 0, handleTop + 1.6f * s), new Vec3(0, 0, handleTop - .2f * s), .9f * s * thick(gc), 1.6f * s * thick(gc), 8, 70, CLEAR, MILKY, 1);
-            for (int i = 0; i < 6; i++) {
-                double a = i * Mth.TWO_PI / 6 + .5;
-                IceMesh.crystal(c, new Vec3(Math.cos(a) * .9 * s, Math.sin(a) * .9 * s, handleTop + .8f * s), new Vec3(Math.cos(a), Math.sin(a), -1.4),
-                        1.7f * s * gc, .36f * s, 4, 71 + i, CLEAR, 1, .6f);
+            float h = 1.75f * s * thick(gc);
+            IceMesh.box(c, -h, -h, handleTop - .3f * s, h, h, handleTop + 1.0f * s, MILKY, 1);
+            for (int i = 0; i < 4; i++) {
+                float sx = i == 0 || i == 3 ? -1 : 1, sy = i < 2 ? -1 : 1;
+                IceParticles.spike(c, sx * h * .8f, sy * h * .8f, handleTop + .4f * s, sx * .6, sy * .6, -1, 1.6f * s * gc, .38f * s, Mth.HALF_PI * .5f, 0, CLEAR, 1);
             }
         }
-        // The head grows from its middle outward: the core, the facets, the flanges, the spikes.
+        // The head grows from its middle outward: the cube, then its spikes and studs.
         float hr = r * Mth.clamp(gh * 1.25f, 0, 1);
         float hk = thick(gh);
-        Vec3 centre = new Vec3(0, 0, headZ);
-        ellipsoid(c, centre, hr * .62f, hr * .78f, 7, 81, CORE, 1);
-        ellipsoid(c, centre, hr, hr * 1.12f, 9, 82, CLEAR, .95f);
+        float layers = (s - 1) / (MACE_MAX - 1) * 6;
         float gf = Mth.clamp((gh - .25f) / .75f, 0, 1);
-        for (int i = 0; i < 6; i++) {
-            double a = i * Mth.TWO_PI / 6;
-            Vec3 out = new Vec3(Math.cos(a), Math.sin(a), 0);
-            flange(c, centre, out, hr * .55f, hr + 2.6f * s * gf, 2.3f * s * hk, .42f * s * hk, gf);
-            // A spike between two flanges, above and below the middle.
-            double b = a + Mth.PI / 6;
-            for (int k = -1; k <= 1; k += 2) {
-                Vec3 d = new Vec3(Math.cos(b), Math.sin(b), k * .75).normalize();
-                IceMesh.crystal(c, centre.add(d.scale(hr * .75f)), d, 2.3f * s * gf, .5f * s * hk, 5, 90 + i * 2 + (k + 1) / 2, CLEAR, 1, .7f);
+        {
+            IceMesh.box(c, -hr, -hr, headZ - hr * 1.06f, hr, hr, headZ + hr * 1.06f, CLEAR, 1);
+            if (gf > 0) {
+                // A square spike out of the middle of each side.
+                for (int i = 0; i < 4; i++) {
+                    float dx = i == 0 ? 1 : i == 1 ? -1 : 0, dy = i == 2 ? 1 : i == 3 ? -1 : 0;
+                    IceParticles.spike(c, dx * hr * .9f, dy * hr * .9f, headZ, dx, dy, 0, (2.4f * s + hr * .1f) * gf, .95f * s * hk, Mth.HALF_PI * .5f, 1, CLEAR, 1);
+                }
+                // Small cubes studding its corners.
+                float st = .95f * s * gf;
+                for (int i = 0; i < 8; i++) {
+                    float sx = (i & 1) == 0 ? -1 : 1, sy = (i & 2) == 0 ? -1 : 1, sz = (i & 4) == 0 ? -1 : 1;
+                    IceMesh.cube(c, sx * hr, sy * hr, headZ + sz * hr * 1.06f, st, st, st, MILKY, 1);
+                }
             }
         }
-        IceMesh.crystal(c, centre.add(0, 0, -hr * .8f), AHEAD, (MACE_TIP - MACE_HEAD - MACE_R * .8f) * s * gf + .01f, .75f * s * hk, 6, 99, MILKY, 1, .8f);
-        // Grown: the new layers of ice accreting over the head, each its own uneven shell with new spikes.
-        float layers = (s - 1) / (MACE_MAX - 1) * 6;
+        // The long spike off its end.
+        float tipLen = (MACE_TIP - MACE_HEAD - MACE_R * .8f) * s * gf + .01f;
+        IceParticles.spike(c, 0, 0, headZ - hr * .95f - r * .07f * Math.min(6, layers), 0, 0, -1, tipLen, .95f * s * hk, Mth.HALF_PI * .5f, 2, CLEAR, 1);
+        // Grown: the new blocks of ice accreting over the head, each turned its own way with its own spikes.
         for (int i = 1; i <= 6 && layers > 0; i++) {
             float f = Mth.clamp(layers - (i - 1), 0, 1);
             if (f <= 0) break;
-            layer(c, centre, r, i, f, s, time);
+            layer(c, headZ, r, i, f, s, time);
         }
         if (crack > 0) {
-            cracksHead(c, MACE_CRACKS_HEAD, Math.min(1, crack), s, headZ, r * (1.04f + .07f * layers));
-            cracksShaft(c, MACE_CRACKS_HANDLE, Math.min(1, crack) * .8f, s, z0, z1, .9f * s, false);
+            cracksHead(c, MACE_CRACKS_HEAD, Math.min(1, crack), s, headZ, r * (1.04f + .07f * Math.min(6, layers)));
+            cracksShaft(c, MACE_CRACKS_HANDLE, Math.min(1, crack) * .8f, s, z0, z1, .82f * s, false);
         }
-    }
-    /** An uneven faceted ellipsoid round the axis (radius r across, half-length h along z). */
-    private static void ellipsoid(IceMesh.Ctx c, Vec3 centre, float r, float h, int sides, int seed, Mat mat, float alpha) {
-        if (r < .02f) return;
-        int rings = 6;
-        float[] prev = null;
-        for (int i = 0; i <= rings; i++) {
-            float k = -1 + 2f * i / rings;
-            float rr = r * Mth.sqrt(Math.max(.02f, 1 - k * k)), z = (float) centre.z + k * h;
-            float[] ring = IceMesh.ring((float) centre.x, (float) centre.y, z, X, Y, rr, rr, sides, .16f, seed + i * 5, seed * .3f);
-            if (prev != null) loft(c, prev, ring, mat, alpha, i == 1, i == rings);
-            prev = ring;
-        }
-    }
-    /** A flanged blade standing out of the head: a flat double-pointed crystal from inner to outer radius, its rims bright. */
-    private static void flange(IceMesh.Ctx c, Vec3 centre, Vec3 out, float inner, float outer, float width, float thick, float g) {
-        if (g <= .01f) return;
-        Vec3 side = new Vec3(-out.y, out.x, 0);
-        Vec3 base = centre.add(out.scale(inner)), tip = centre.add(out.scale(outer)), mid = centre.add(out.scale(Mth.lerp(.45f, inner, outer)));
-        Vec3 fwd = mid.add(0, 0, -width), aft = mid.add(0, 0, width * .8f), l = mid.add(side.scale(thick)), rr = mid.subtract(side.scale(thick));
-        Vec3[] ring = {fwd, l, aft, rr};
-        for (int i = 0; i < 4; i++) {
-            Vec3 a = ring[i], b = ring[(i + 1) % 4];
-            tri(c, a, b, tip, CLEAR, 1);
-            tri(c, b, a, base, MILKY, 1);
-        }
-        float k = g;
-        IceMesh.line(c, fwd, tip, .14f, .55f * k, .8f * k, k);
-        IceMesh.line(c, aft, tip, .12f, .45f * k, .7f * k, .9f * k);
-    }
-    private static void tri(IceMesh.Ctx c, Vec3 a, Vec3 b, Vec3 d, Mat mat, float alpha) {
-        IceMesh.tri(c, (float) a.x, (float) a.y, (float) a.z, (float) b.x, (float) b.y, (float) b.z, (float) d.x, (float) d.y, (float) d.z, mat, alpha);
     }
     /**
-     * One layer of the growing mace (i 1..6, f 0..1 how far it has formed): rime first (white, see-through), then the
-     * crystals of the layer standing out of it, then the shell of glacier ice thickening over everything under it.
+     * One block of the growing mace (i 1..6, f 0..1 how far it has formed): rime first (white, see-through), then the
+     * square spikes of the layer standing out of it, then the glacier ice thickening into a block over everything under it.
      */
-    private static void layer(IceMesh.Ctx c, Vec3 centre, float r, int i, float f, float s, float time) {
+    private static void layer(IceMesh.Ctx c, float headZ, float r, int i, float f, float s, float time) {
         float shell = r * (1.02f + .07f * i), under = r * (1.02f + .07f * (i - 1));
         float rime = Mth.clamp(f / .3f, 0, 1) * (1 - Mth.clamp((f - .5f) / .4f, 0, 1));
         float body = Mth.clamp((f - .25f) / .6f, 0, 1);
-        if (rime > .01f) ellipsoid(c, centre, Mth.lerp(.5f, under, shell), Mth.lerp(.5f, under, shell) * 1.12f, 8, 400 + i * 7, FROST.alpha(.45f * rime), 1);
-        if (body > .01f) {
-            float rr = Mth.lerp(body, under, shell);
-            ellipsoid(c, centre, rr, rr * 1.12f, 9, 410 + i * 7, GLACIER.alpha(.35f + .4f * body), 1);
+        // Each block turned its own way about the axis, tipped a little (uneven, piled up).
+        float roll = (float) (hash(i * 3.3) - .5) * .8f, tip = (float) (hash(i * 5.9) - .5) * .35f, yaw = (float) (hash(i * 8.1) - .5) * .35f;
+        float[] ax = IceParticles.turn(yaw, tip, roll, IceParticles.AX);
+        if (rime > .01f) {
+            float h = Mth.lerp(.5f, under, shell);
+            IceParticles.obox(c, 0, 0, headZ, ax, h, h, h * 1.08f, FROST.alpha(.45f * rime), 1);
         }
-        // The layer's own spikes, in new directions (uneven: some long, some stubs).
+        if (body > .01f) {
+            float h = Mth.lerp(body, under, shell);
+            IceParticles.obox(c, 0, 0, headZ, ax, h, h, h * 1.08f, GLACIER.alpha(.35f + .65f * body), 1);
+        }
+        // The layer's own square spikes, in new directions (uneven: some long, some stubs).
         float gs = Mth.clamp((f - .15f) / .7f, 0, 1);
         if (gs <= .01f) return;
         for (int k = 0; k < 5; k++) {
             double a = hash(i * 13 + k * 3.1) * Mth.TWO_PI, z = (hash(i * 7 + k * 5.7) - .5) * 1.8;
             Vec3 d = new Vec3(Math.cos(a), Math.sin(a), z).normalize();
             float len = (1.6f + 2.2f * (float) hash(i * 3 + k)) * s / (1 + .1f * i) * gs;
-            IceMesh.crystal(c, centre.add(d.scale(shell * .85f)), d, len, .45f * s * (.5f + .5f * gs) / (1 + .08f * i), 5, 430 + i * 9 + k, k % 2 == 0 ? CLEAR : MILKY, 1, .7f);
+            Vec3 b = new Vec3(0, 0, headZ).add(d.scale(shell * .85f));
+            IceParticles.spike(c, b, d, len, .5f * s * (.5f + .5f * gs) / (1 + .08f * i), (float) a, 1, k % 2 == 0 ? CLEAR : MILKY, 1);
         }
         // Sparkles where the new ice is still forming.
         if (f < 1) for (int k = 0; k < 4; k++) {
             double a = hash(i * 17 + k) * Mth.TWO_PI + time * .05, z = (hash(i * 19 + k) - .5) * 1.6;
             Vec3 d = new Vec3(Math.cos(a), Math.sin(a), z).normalize();
-            IceMesh.sparkle(c, centre.add(d.scale(shell)), 1.2f * s * .5f, .9f * (1 - f));
+            IceMesh.sparkle(c, new Vec3(0, 0, headZ).add(d.scale(shell)), 1.2f * s * .5f, .9f * (1 - f));
         }
     }
 
     // ------------------------------------------------------------------ the spear
     private static void spear(IceMesh.Ctx c, float size, float crack, float time) {
         float total = SPEAR_BLADE + 8 * size;
-        // The butt spike.
+        // The butt: a square spike.
         float gb = grown(-(SPEAR_BUTT + 2) / total);
-        if (gb > 0) IceMesh.crystal(c, new Vec3(0, 0, SPEAR_BUTT - .6f), BACK, 3.2f * gb, .62f * thick(gb), 6, 141, MILKY, 1, .5f);
-        // The shaft: long, faceted, a milky core, a few rime knots.
+        if (gb > 0) {
+            float h = .62f * thick(gb);
+            IceMesh.box(c, -h, -h, SPEAR_BUTT - 1.4f, h, h, SPEAR_BUTT - .2f, MILKY, 1);
+            point(c, SPEAR_BUTT - .2f, h, h, SPEAR_BUTT - .2f + 2.6f * gb, CLEAR, 1);
+        }
+        // The shaft: a long square bar with knots of frost.
         int segs = 6;
-        float z0 = SPEAR_BUTT, z1 = -SPEAR_BLADE + .6f;
+        float z0 = SPEAR_BUTT - .2f, z1 = -SPEAR_BLADE + .6f;
         for (int i = 0; i < segs; i++) {
             float a = Mth.lerp(i / (float) segs, z0, z1), b = Mth.lerp((i + 1) / (float) segs, z0, z1);
             float g = grown(Math.max(Math.abs(a), Math.abs(b)) / total * (a > 0 ? 1.3f : 1));
             if (g <= 0) continue;
             float bb = a + (b - a) * Math.min(1, g * 1.3f);
-            IceMesh.limb(c, new Vec3(0, 0, a), new Vec3(0, 0, bb), (i % 2 == 0 ? .5f : .58f) * thick(g), (i % 2 == 0 ? .58f : .5f) * thick(g), 6, 150 + i, CLEAR, MILKY, 1);
-            if (g >= 1 && i % 2 == 1) IceMesh.cube(c, 0, 0, b, 1.25f, 1.25f, .6f, FROST.alpha(.6f));
+            bar(c, a, bb, .52f * thick(g), CLEAR, 1);
+            if (g >= 1 && i % 2 == 1) IceMesh.cube(c, 0, 0, b, 1.3f, 1.3f, .7f, FROST.alpha(.75f));
         }
         float gl = grown((SPEAR_BLADE - 1) / total);
-        if (gl > 0) IceMesh.line(c, new Vec3(.45, .2, SPEAR_BUTT - 1), new Vec3(.45, .2, Mth.lerp(gl, SPEAR_BUTT, z1)), .07f, .3f * gl, .5f * gl, .65f * gl);
+        if (gl > 0) IceMesh.line(c, new Vec3(.53, .3, SPEAR_BUTT - 1), new Vec3(.53, .3, Mth.lerp(gl, SPEAR_BUTT, z1)), .06f, .35f * gl, .42f * gl, .5f * gl);
         if (crack >= 2) return;
-        // The collar: a flared ring with crystals swept forward.
+        // The collar: a square block with four small points swept forward.
         float gc = grown(SPEAR_BLADE / total);
         if (gc > 0) {
-            IceMesh.limb(c, new Vec3(0, 0, -SPEAR_BLADE + 1.2f), new Vec3(0, 0, -SPEAR_BLADE - .2f), .6f * thick(gc), 1.05f * thick(gc), 7, 160, CLEAR, MILKY, 1);
-            for (int i = 0; i < 5; i++) {
-                double a = i * Mth.TWO_PI / 5 + .3;
-                IceMesh.crystal(c, new Vec3(Math.cos(a) * .7, Math.sin(a) * .7, -SPEAR_BLADE + .5f), new Vec3(Math.cos(a) * .8, Math.sin(a) * .8, -1),
-                        1.7f * gc, .28f, 4, 161 + i, CLEAR, 1, .6f);
+            float h = 1.05f * thick(gc);
+            IceMesh.box(c, -h, -h, -SPEAR_BLADE - .2f, h, h, -SPEAR_BLADE + 1.2f, MILKY, 1);
+            for (int i = 0; i < 4; i++) {
+                float sx = i == 0 || i == 3 ? -1 : 1, sy = i < 2 ? -1 : 1;
+                IceParticles.spike(c, sx * h * .7f, sy * h * .7f, -SPEAR_BLADE + .4f, sx * .5, sy * .5, -1, 1.5f * gc, .3f, Mth.HALF_PI * .5f, 0, CLEAR, 1);
             }
         }
-        // The leaf blade, growing out of the collar to its point (longer as it is drawn back).
+        // The blade, growing out of the collar to its point (longer as it is drawn back): a flat block widening, a step, the point.
         float blade = 8 * size, w = 2.0f * (1 + .25f * (size - 1)), th = .5f;
         float gB = grown((SPEAR_BLADE + blade * .5f) / total);
         if (gB > 0) {
-            float reach = blade * Math.min(1, gB * 1.15f);
-            leaf(c, -SPEAR_BLADE - .1f, reach, w * thick(gB), th * thick(gB), .35f, 171, Math.max(0, gB * 1.1f - .1f));
-            IceMesh.limb(c, new Vec3(0, 0, -SPEAR_BLADE), new Vec3(0, 0, -SPEAR_BLADE - reach * .85f), .3f, .08f, 4, 175, MILKY, null, .9f);
+            float reach = blade * Math.min(1, gB * 1.15f), ww = w * thick(gB), tt = th * thick(gB), za = -SPEAR_BLADE - .1f;
+            float zb = za - reach * .4f, zc = za - reach * .68f, tip = za - reach;
+            slab(c, za, ww * .6f, tt, zb, ww, tt, CLEAR, 1);
+            slab(c, zb, ww, tt, zc, ww * .62f, tt * .85f, CLEAR, 1);
+            point(c, zc, ww * .5f, tt * .8f, tip, CLEAR, 1);
+            // The milky ridge down its middle.
+            IceMesh.box(c, -tt * 1.3f, -.28f, zc + reach * .05f, tt * 1.3f, .28f, za, MILKY, .95f);
+            float k = Math.max(0, gB * 1.1f - .1f);
+            if (k > .01f) edges(c, za, zb, zc, tip, ww * .6f, ww, ww * .62f, ww * .5f, .07f, k);
             // The tip still growing while he draws it back: frost glittering on the point.
             if (size > 1.01f) {
-                float k = Mth.clamp((size - 1) / .6f, 0, 1);
-                Vec3 tip = new Vec3(0, 0, -SPEAR_BLADE - reach);
-                IceMesh.sparkle(c, tip, 1.5f + .8f * Mth.sin(time * .8f), .6f * k);
-                IceMesh.glow(c, tip, 2.2f * k, .1f * k, .2f * k, .3f * k);
+                float kk = Mth.clamp((size - 1) / .6f, 0, 1);
+                Vec3 at = new Vec3(0, 0, tip);
+                IceMesh.sparkle(c, at, 1.5f + .8f * Mth.sin(time * .8f), .6f * kk);
+                IceMesh.glow(c, at, 2.2f * kk, .1f * kk, .2f * kk, .3f * kk);
             }
         }
-        if (crack > 0) {
-            cracksShaft(c, SPEAR_CRACKS, Math.min(1, crack), 1, z0, -SPEAR_BLADE - blade * .9f, .62f, false);
-        }
+        if (crack > 0) cracksShaft(c, SPEAR_CRACKS, Math.min(1, crack), 1, z0, -SPEAR_BLADE - blade * .9f, .56f, false);
     }
-    /**
-     * A flat faceted leaf (spear blade, sword blade) from z0 forward (toward -z) over len: half-width w along y, a ridge of
-     * half-thickness th along x; widest at widest (share of the length; 0 = a straight blade, see sword). Edges glint (k).
-     */
-    private static void leaf(IceMesh.Ctx c, float z0, float len, float w, float th, float widest, int seed, float k) {
-        int n = 7;
-        float[] prev = null;
-        Vec3 pl = null, pr = null;
-        for (int i = 0; i <= n; i++) {
-            float q = i / (float) n, z = z0 - q * len;
-            float ww = q < widest ? w * (.55f + .45f * Mth.sin(Mth.HALF_PI * q / widest)) : w * (1 - (float) Math.pow((q - widest) / (1 - widest), 1.5));
-            ww = Math.max(.02f, ww);
-            float tt = Math.max(.02f, th * (ww / w * .7f + .3f) * (1 - q * .6f));
-            float[] ring = {tt, 0, z, 0, ww, z, -tt, 0, z, 0, -ww, z};
-            if (prev != null) loft(c, prev, ring, CLEAR, 1, i == 1, false);
-            Vec3 l = new Vec3(0, ww, z), r = new Vec3(0, -ww, z);
-            if (k > .01f && pl != null) {
-                IceMesh.line(c, pl, l, .09f, .5f * k, .78f * k, k);
-                IceMesh.line(c, pr, r, .09f, .5f * k, .78f * k, k);
-            }
-            pl = l; pr = r; prev = ring;
+    /** A white glint along both edges of a blade: through its widths at four places (z0 widening to z1, stepping in to z2, the point at tip). */
+    private static void edges(IceMesh.Ctx c, float z0, float z1, float z2, float tip, float w0, float w1, float w2, float w3, float lw, float k) {
+        float r = .62f * k, g = .78f * k, b = .9f * k;
+        for (int sg = -1; sg <= 1; sg += 2) {
+            Vec3 a = new Vec3(0, sg * w0, z0), p1 = new Vec3(0, sg * w1, z1), p2 = new Vec3(0, sg * w2, z2), p3 = new Vec3(0, sg * w3, z2), t = new Vec3(0, 0, tip);
+            IceMesh.line(c, a, p1, lw, r, g, b);
+            IceMesh.line(c, p1, p2, lw, r, g, b);
+            IceMesh.line(c, p3, t, lw, r, g, b);
         }
     }
 
@@ -331,66 +335,54 @@ public final class IcemanArmory {
         float total = SWORD_TIP * size;
         float gp = grown(-(SWORD_POMMEL + 1.5f) / total);
         if (gp > 0) {
-            IceMesh.crystal(c, new Vec3(0, 0, SWORD_POMMEL - .3f), BACK, 2.2f * gp, .85f * thick(gp), 6, 241, MILKY, 1, .5f);
-            IceMesh.limb(c, new Vec3(0, 0, SWORD_POMMEL), new Vec3(0, 0, SWORD_POMMEL - 1), 1.0f * thick(gp), .75f * thick(gp), 7, 242, CLEAR, null, 1);
+            float h = 1.0f * thick(gp);
+            IceMesh.box(c, -h, -h, SWORD_POMMEL - 1, h, h, SWORD_POMMEL + .9f, MILKY, 1);
         }
-        // The grip, wrapped in ridges of ice.
+        // The grip: a square bar with bands of ice.
         for (int i = 0; i < 3; i++) {
             float a = SWORD_POMMEL - 1 - i * 2.1f, b = a - 2.1f;
             float g = grown(Math.max(Math.abs(a), Math.abs(b)) / total * (a > 0 ? 1.3f : 1));
             if (g <= 0) continue;
-            IceMesh.limb(c, new Vec3(0, 0, a), new Vec3(0, 0, a + (b - a) * Math.min(1, g * 1.3f)), (i % 2 == 0 ? .58f : .66f) * thick(g), (i % 2 == 0 ? .66f : .58f) * thick(g), 6, 250 + i, CLEAR, MILKY, 1);
+            bar(c, a, a + (b - a) * Math.min(1, g * 1.3f), (i % 2 == 0 ? .58f : .68f) * thick(g), i % 2 == 0 ? CLEAR : MILKY, 1);
         }
-        // The crossguard: a block of milky ice, two crystal arms out along the blade's width, swept a little forward.
+        // The crossguard: a bar of milky ice across the blade's width, a cube of clear ice at each end.
         float gg = grown(2.6f / total);
         if (gg > 0) {
-            IceMesh.cube(c, 0, 0, -2.4f, 1.3f * thick(gg), 1.7f * thick(gg), 1.1f, MILKY, 1);
-            for (int sd = -1; sd <= 1; sd += 2) {
-                IceMesh.crystal(c, new Vec3(0, sd * .6f, -2.4f), new Vec3(0, sd, -.28), 3.8f * gg, .55f * thick(gg), 5, 255 + sd, CLEAR, 1, .7f);
-                IceMesh.crystal(c, new Vec3(0, sd * 1.4f, -2.3f), new Vec3(0, sd * .5, 1), 1.0f * gg, .3f, 4, 258 + sd, MILKY, 1, .4f);
-            }
+            float reach = 1.0f + 3.0f * gg, t = .7f * thick(gg);
+            IceMesh.box(c, -t, -reach, -3.0f, t, reach, -1.8f, MILKY, 1);
+            float e = 1.25f * thick(gg);
+            for (int sd = -1; sd <= 1; sd += 2) IceMesh.cube(c, 0, sd * reach, -2.4f, e, e, e * 1.1f, CLEAR, 1);
         }
         if (crack >= 2) return;
-        // The blade: broad, straight, then the point; a milky core line down the ridge; glints running down its edges.
+        // The blade: a flat box, then a step in and a four-sided point; a milky ridge down its middle; glints on its edges.
         float len = (SWORD_TIP - 2.9f) * size;
         float gB = grown(.5f);
         if (gB > 0) {
-            float reach = len * Math.min(1, gB * 1.15f);
-            blade(c, -2.9f, reach, 1.3f * thick(gB), .42f * thick(gB), Math.max(0, gB * 1.1f - .1f), time);
-            IceMesh.limb(c, new Vec3(0, 0, -3.0f), new Vec3(0, 0, -2.9f - reach * .82f), .3f, .12f, 4, 275, MILKY, null, .95f);
+            float reach = len * Math.min(1, gB * 1.15f), w = 1.3f * thick(gB), th = .42f * thick(gB);
+            float za = -2.9f, zb = za - reach * .72f, zc = za - reach * .86f, tip = za - reach;
+            IceMesh.box(c, -th, -w, zb, th, w, za, CLEAR, 1);
+            slab(c, zb, w, th, zc, w * .62f, th * .9f, CLEAR, 1);
+            point(c, zc, w * .62f, th * .9f, tip, CLEAR, 1);
+            IceMesh.box(c, -th * 1.28f, -.26f, -2.9f - reach * .8f, th * 1.28f, .26f, -3.0f, MILKY, .95f);
+            float k = Math.max(0, gB * 1.1f - .1f);
+            if (k > .01f) {
+                edges(c, za, zb, zc, tip, w, w, w * .62f, w * .62f, .06f, k);
+                // The glint: a bright point sliding down the edge now and then.
+                float g = (time * .045f) % 1.6f;
+                if (k > .5f && g < 1) {
+                    float z = za - g * reach, ww = g < .72f ? w : g < .86f ? Mth.lerp((g - .72f) / .14f, w, w * .62f) : w * .62f * (1 - (g - .86f) / .14f);
+                    IceMesh.sparkle(c, new Vec3(0, ww, z), 1.6f, Mth.sin(Mth.PI * g) * k);
+                }
+            }
         }
         if (crack > 0) cracksShaft(c, SWORD_CRACKS, Math.min(1, crack), 1, -3.2f, -2.9f - len * .95f, 1.1f, true);
-    }
-    /** The sword's blade: straight edges to 72% of its length, then the point; a glint running down each edge. */
-    private static void blade(IceMesh.Ctx c, float z0, float len, float w, float th, float k, float time) {
-        float[] qs = {0, .25f, .5f, .72f, .86f, 1};
-        float[] ws = {.95f, 1, .97f, .92f, .55f, .02f};
-        float[] prev = null;
-        Vec3 pl = null, pr = null;
-        for (int i = 0; i < qs.length; i++) {
-            float z = z0 - qs[i] * len, ww = w * ws[i], tt = Math.max(.02f, th * (ws[i] * .7f + .3f));
-            float[] ring = {tt, 0, z, 0, ww, z, -tt, 0, z, 0, -ww, z};
-            if (prev != null) loft(c, prev, ring, CLEAR, 1, i == 1, false);
-            Vec3 l = new Vec3(0, ww, z), r = new Vec3(0, -ww, z);
-            if (k > .01f && pl != null) {
-                IceMesh.line(c, pl, l, .08f, .45f * k, .72f * k, .95f * k);
-                IceMesh.line(c, pr, r, .08f, .45f * k, .72f * k, .95f * k);
-            }
-            pl = l; pr = r; prev = ring;
-        }
-        // The glint: a bright point sliding down the edge now and then.
-        float g = (time * .045f) % 1.6f;
-        if (k > .5f && g < 1) {
-            float q = g, z = z0 - q * len;
-            float ww = w * (q < .72f ? 1 : Math.max(.02f, 1 - (q - .72f) / .28f));
-            IceMesh.sparkle(c, new Vec3(0, ww, z), 1.6f, Mth.sin(Mth.PI * g) * k);
-        }
     }
 
     // ------------------------------------------------------------------ cracks
     /**
      * Crack lines, generated once per shape: each a list of points {a, b} on the part's surface (head: a = angle round
-     * the axis, b = -1..1 along it; shaft/blade: a = angle, b = 0..1 from its start to its end) with the order they open in.
+     * the axis (onto the cube's square), b = -1..1 along it; shaft/blade: a = angle, b = 0..1 from its start to its end)
+     * with the order they open in.
      */
     private static final float[][] MACE_CRACKS_HEAD = crackSet(9, 101), MACE_CRACKS_HANDLE = crackSet(3, 131), SPEAR_CRACKS = crackSet(5, 151),
             SWORD_CRACKS = crackSet(6, 171);
@@ -438,12 +430,15 @@ public final class IcemanArmory {
         float q = Mth.clamp((b + 1) / 2, 0, 1);
         return new Vec3(Mth.cos(a) >= 0 ? .46f : -.46f, Mth.sin(a) * r * (1 - .6f * q * q), Mth.lerp(q, z0, z1));
     }
+    /** A point on the head's cube (half-size r about z0): round the axis by a (onto the square), along it by b (-1..1). */
     private static Vec3 onSphere(float a, float b, float z0, float r) {
-        float bb = Mth.clamp(b, -.95f, .95f), rr = r * Mth.sqrt(1 - bb * bb);
-        return new Vec3(Mth.cos(a) * rr, Mth.sin(a) * rr, z0 + bb * r * 1.12f);
+        float ca = Mth.cos(a), sa = Mth.sin(a), m = Math.max(Math.abs(ca), Math.abs(sa));
+        return new Vec3(ca / m * r * 1.02f, sa / m * r * 1.02f, z0 + Mth.clamp(b, -.95f, .95f) * r * 1.08f);
     }
+    /** A point on a square bar (half-width r) from z0 to z1. */
     private static Vec3 onShaft(float a, float b, float z0, float z1, float r) {
         float q = Mth.clamp((b + 1) / 2, 0, 1);
-        return new Vec3(Mth.cos(a) * r, Mth.sin(a) * r, Mth.lerp(q, z0, z1));
+        float ca = Mth.cos(a), sa = Mth.sin(a), m = Math.max(Math.abs(ca), Math.abs(sa));
+        return new Vec3(ca / m * r * 1.04f, sa / m * r * 1.04f, Mth.lerp(q, z0, z1));
     }
 }

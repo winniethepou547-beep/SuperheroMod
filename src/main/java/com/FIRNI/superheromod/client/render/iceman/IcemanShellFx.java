@@ -36,15 +36,16 @@ import static com.FIRNI.superheromod.heroes.iceman.IcemanAction.*;
  * closing from the feet to the crown while it forms (an organic ease, a little ahead at the legs), then whole, with a
  * slow cold shimmer; its cracks grow with the health it has lost; every blow flashes it; under the burst's stress it
  * glows and cracks all over until KRAAAK takes it away.</li>
- * <li>In the world: while it forms, frost mist creeping up from the ground, crystal nuclei sparkling just ahead of the
- * growth line, a disc of rime on the ground round him; while it holds, a few big crystals jutting out of the cocoon
- * (organic, never a box) and a faint cold glow inside. A blow: by its damage, light (chips, a sparkle, a little frost),
+ * <li>In the world: while it forms, frost mist creeping up from the ground, sparkles just ahead of the growth line,
+ * pixel frost on the ground round him; while it holds, blocks of deep glacier ice frozen onto the cocoon (chunky
+ * Minecraft blocks, turned and half sunk into it, never crystals), growing in with it, and a faint cold glow inside.
+ * A blow: by its damage, light (chips, a sparkle, a little frost),
  * heavy (a crack line flashing on the shell, a chunk breaking off the side hit and flying, a small shake for him), very
  * heavy (a big branching crack, shards, a burst of mist, a stronger shake).</li>
- * <li>Broken: great glacier slabs and the shatter, then while he drops into the landing loose chunks keep sliding off
- * his shoulders and back.</li>
- * <li>The burst: the inner light pulsing faster and faster, mist leaking from the cracks, the crystals trembling, cracks
- * snapping (local sounds); then the flash, a fast shock ring along the ground, a sphere of shards flying out 360 degrees
+ * <li>Broken: great blocks of glacier ice and the shatter, then while he drops into the landing loose chunks keep
+ * sliding off his shoulders and back.</li>
+ * <li>The burst: the inner light pulsing faster and faster, mist leaking from the cracks, the blocks trembling, cracks
+ * snapping (local sounds); then the flash, a fast shock ring along the ground, a sphere of ice chunks flying out 360 degrees
  * to about its radius, mist, the frost spreading out, a shake for everyone near by distance.</li>
  * </ul>
  */
@@ -159,7 +160,7 @@ public final class IcemanShellFx {
         Vec3 push = p.dir().lengthSqr() < 1e-4 ? Vec3.ZERO : new Vec3(p.dir().x, 0, p.dir().z).normalize().scale(-.05);
         Vec3 c = feet.add(0, .7, 0);
         IceParticles.shatter(c, push, 1.2f, IceMesh.GLACIER);
-        // The shell's great slabs, falling away round him (outward and down, not flung far).
+        // The shell's great blocks, falling away round him (outward and down, not flung far).
         int slabs = IceParticles.count(7, c);
         for (int i = 0; i < slabs; i++) {
             float a = Mth.TWO_PI * (i + IceParticles.rand() * .5f) / Math.max(1, slabs);
@@ -190,7 +191,7 @@ public final class IcemanShellFx {
         IceParticles.ring(feet.add(0, .06, 0), radius * 1.15f, .55f, IceParticles.COLD_LIGHT, .95f, 9, true);
         IceParticles.ring(feet.add(0, .04, 0), radius * .95f, .9f, IceParticles.SNOW_RGB, .55f, 18, false);
         IceParticles.ring(c, radius * .75f, .4f, IceParticles.COLD_LIGHT, .6f, 7, true);
-        // The shell flies apart: shards spread evenly over a sphere (a golden spiral), fast enough to carry about the
+        // The shell flies apart: chunks of ice spread evenly over a sphere (a golden spiral), fast enough to carry about the
         // radius against the air, the upper half a little favoured (the ground stops the rest).
         int n = IceParticles.count(70, c);
         float speed = radius / 30f;
@@ -400,8 +401,8 @@ public final class IcemanShellFx {
 
     // ------------------------------------------------------------------ drawing
     /**
-     * The crystals jutting out of the cocoon, in his frame (blocks: forward, to his right, up; the way they point; length,
-     * radius; the share of the shell's growth they wait for).
+     * The blocks of glacier ice frozen onto the cocoon, in his frame (blocks: forward, to his right, up; the way they stand
+     * out; size, (unused); the share of the shell's growth they wait for).
      */
     private static final float[][] CRYSTALS = {
             {.05f, -.30f, 1.02f, .05f, -.5f, 1f, .46f, .09f, .72f},
@@ -422,7 +423,7 @@ public final class IcemanShellFx {
             float partial = st.partial, now = st.time;
             IceMesh.Ctx c = st.ice();
             boolean any = false;
-            // ---- the ice: the rime discs, the cocoon's crystals, the blows' cracks
+            // ---- the ice: the frost on the ground, the cocoon's blocks, the blows' cracks
             for (var en : SHELLS.entrySet()) {
                 Shell sh = en.getValue();
                 if (sh.rimeAt != null) {
@@ -458,12 +459,23 @@ public final class IcemanShellFx {
                     Vec3 base = feet.add(fw.scale(k[0])).add(rt.scale(k[1])).add(0, k[2], 0);
                     if (own && base.distanceToSqr(st.cam) < .5) continue;
                     if (stress > 0) base = base.add(IceParticles.jitter(.012 * stress));
-                    Vec3 dir = fw.scale(k[3]).add(rt.scale(k[4])).add(0, k[5], 0);
-                    IceMesh.crystal(c, base, dir, k[6] * g, k[7] * (.5f + .5f * g), 5, en.getKey() * 13 + i, IceMesh.GLACIER, .9f, .6f + stress);
-                    IceMesh.crystal(c, base, dir, k[6] * g * .55f, k[7] * .45f * g, 4, en.getKey() * 13 + i + 50, IceMesh.CORE, .8f, 0);
+                    Vec3 dir = fw.scale(k[3]).add(rt.scale(k[4])).add(0, k[5], 0).normalize();
+                    // A block growing out of the cocoon, half sunk into it, turned along the way it stands out.
+                    float size = k[6] * .62f * g;
+                    Vec3 at = base.add(dir.scale(size * .2));
+                    float turn = IceParticles.yawOf(dir.x, dir.z) + (i % 3 - 1) * .3f, pitch = IceParticles.pitchOf(dir.y) * .5f;
+                    c.ox = (float) at.x; c.oy = (float) at.y; c.oz = (float) at.z;
+                    IceParticles.cube(c, at.x, at.y, at.z, size, size * (.8f + .1f * (i % 3)), size * 1.1f, turn, pitch, (i % 2 == 0 ? .2f : -.25f),
+                            i % 4 == 3 ? IceMesh.MILKY : IceMesh.GLACIER, .95f);
+                    // A smaller one frozen onto some of them.
+                    if (i % 2 == 0) {
+                        Vec3 on = at.add(dir.scale(size * .45)).add(0, size * .3, 0);
+                        IceParticles.cube(c, on.x, on.y, on.z, size * .45f, size * .45f, size * .45f, turn + .6f, pitch - .3f, .4f, IceMesh.CLEAR, .95f);
+                    }
                 }
+                c.ox = c.oy = c.oz = 0;
                 c.flash = 0;
-                // The nuclei: sparkles just ahead of the closing line.
+                // Sparkles just ahead of the closing line.
                 if (a == SHELL_FORM && t < SHELL_FORM_TICKS) {
                     float line = Mth.clamp(t / SHELL_FORM_TICKS, 0, 1) * 1.35f;
                     int tick = (int) t;

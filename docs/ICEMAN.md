@@ -47,28 +47,28 @@ Derin donmuş birine vurulursa buz kırılır ve o vuruş daha fazla hasar verir
 donmaz. Ekran hiçbir zaman tamamen kör olmaz; hep "buzlu camın arkasından bakmak" gibidir.
 
 ## Kriyojenik Fırça (sağ tık basılı)
-- **Düşmana:** iki el kalkar. Ellerinden düşmana sarmal dönen soğuk sis, kırağı ve kristal akışı gider; lazer değil, akan madde gibi.
-  Değdiği yerde kristaller oluşur. Don ölçer hızla dolar, düşmanın ekranı buzlanır, 100'de derin donar.
+- **Düşmana:** iki el kalkar. Ellerinden düşmana sarmal dönen soğuk sis, kırağı ve küçük buz küpleri akar; lazer değil, akan madde gibi.
+  Değdiği yerde küçük buz küpleri donar. Don ölçer hızla dolar, düşmanın ekranı buzlanır, 100'de derin donar.
 - **Boşluğa:** baktığın yerde, fareyi gezdirdiğin yol boyunca gerçek bir buz heykeli büyür: önce parlak bir çizgi, sonra kalınlaşır,
-  hacim kazanır, kristalleşir; kenarlarında kristaller, altında sarkıtlar. Blok değil, hazır duvar değil. Heykel bir süre durur
+  yol boyunca buz küpleri dizilir, küçükten büyüyüp buzlu beyazdan parlak maviye döner, altında köşeli sarkıtlar. İçinden geçilemez, üstüne çıkılır. Heykel bir süre durur
   (oklar ve mermiler ona çarpınca kırılır, kimse içinden geçemez), sonra çatlayıp parçalanır. Aynı anda en fazla 4 heykel; fazlası
   olursa en eskisi kırılır.
 
 ## Buz Kaydırağı (SHIFT)
 - **Basınca:** hemen koşmaz. Ağırlığı aşağı iner, dizleri bükülür, öne eğilir, bir kolu öne uzanır, öbürü dengeye açılır. Ayaklarının
-  altında kırağı oluşur, önünde küçük kristaller belirip birleşir ve buz yolu ayaklarından öne doğru büyür. Sonra yavaş başlayıp hızlanır.
+  altında kırağı oluşur, önünde küçük buz küpleri belirip büyür ve buz yolu ayaklarından öne doğru büyür. Sonra yavaş başlayıp hızlanır.
 - **Kayarken:** fareyle yön verirsin. Dönüşlerde beden tepki verir: içteki omuz iner, gövde içe yatar, dıştaki bacak açılır, kollar karşı
   tarafa açılır, baş gidiş yönüne döner. Uzun düz yolda en yüksek hıza çıkar, yokuş aşağı hızlanır, keskin dönüşte biraz yavaşlar.
 - **SHIFT + BOŞLUK:** buz yolu seninle birlikte yükselir (uçmak değil). Çapraz ya da kıvrılarak yükselebilirsin; yükselme açısının bir sınırı
   var. Çok dikleşince kollar dengeye açılır, dizler daha çok bükülür.
 - **BOŞLUK'u bırakınca:** hemen düşmezsin. Kısa bir tepeden sonra kendi buz yolundan aşağı kayarsın, hızlanırsın. Bu sırada daha öne eğilirsin,
   FOV hafif açılır ve rüzgâr sesi artar.
-- **Havadaki buz yolu:** düz değil. Kanalı ve kenar dudakları var, kalınlığı değişir. Kenarlarında kristaller, altında sarkıtlar var;
+- **Havadaki buz yolu:** düz kenarlı, dikdörtgen kesitli bir buz kirişi; dönüşlerde yatar. Kenarlarında ara ara küçük küpler, altında köşeli sarkıtlar ve küpler var;
   sütlü ve berrak buz karışık.
 - **SHIFT'i bırakınca:**
   - Yerde: ağırlığını verip bir ayağını kaldırır, öbürüyle fren yapar. Buz sıçrar, yolun ucu çatlar, birkaç kıymık kopar.
     Hızlıysa ayak sürüyerek, gövdesini döndürerek durur. Sonra dövüş duruşuna geçer.
-  - Havada: son bir momentumla ilerler, yolun ucu kristalleşir, buzdan ayrılıp düşer ve normal iner (düşme hasarı yok).
+  - Havada: son bir momentumla ilerler, yolun ucunda bir küp yığını donar, buzdan ayrılıp düşer ve normal iner (düşme hasarı yok).
     Aşağı inen bir yoldaysa hızının bir kısmını korur.
 - **Buzun kaybolması:** buz bir anda silinmez. En eski kısımdan başlayarak önce çatlar, sonra küçük parçalar kopar, en son kırağı olup dağılır.
 - **Kamera:** normal oyun kamerası, kontrol hep sende. Yükselirken hafif yukarı eğilir, hızlanınca FOV hafif açılır ve kenarlarda hafif hız
@@ -77,7 +77,7 @@ donmaz. Ekran hiçbir zaman tamamen kör olmaz; hep "buzlu camın arkasından ba
   köşeler buzlu, orta daha net, dünya (ve Iceman) buzun arkasından kırılarak görünür; çatlaklar ve damlalar var.
 
 ## Buz Silahları (sol tık; E ile seç)
-Silah elinde kristallerden oluşur (sis çekilir, kırağı, kristal çekirdekleri, büyüme). İlk iki vuruş sağdan sola, sonra soldan sağa.
+Silah elinde Minecraft eşyası gibi köşeli buz bloklarından oluşur (sis çekilir, kırağı küpleri, büyüme). İlk iki vuruş sağdan sola, sonra soldan sağa.
 Gürz ağır, mızrak hızlı, kılıç orta hızda.
 
 - **Gürz:** 3. vuruşta iki elle tepeden yere ezer: parlama, şok dalgası, yerde çatlaklar, toz, kıymıklar, sarsıntı, kısa duraklama; gürz kırılır.
@@ -116,7 +116,7 @@ seni önce Iceman yapar. Kurban tarafını (ekrandaki buz) herhangi bir kahraman
 | `/iceman test shift` | Kendi kendine kayma: hazırlık, buz oluşumu, hızlanma, sağa ve sola dönüşler, bırakış; önünde kuklalar |
 | `/iceman test shift_up` | Kayarken BOŞLUK basılıymış gibi çapraz yükseliş, tepe ve iniş |
 | `/iceman test shift_cancel` | Hızlanıp yerde SHIFT bırakma: fren, buz sıçraması, gövde dönüşü, yolun çatlaması |
-| `/iceman test shift_air` | Yükselip havada SHIFT bırakma: yolun ucu kristalleşir, düşüş, iniş |
+| `/iceman test shift_air` | Yükselip havada SHIFT bırakma: yolun ucunda küp yığını, düşüş, iniş |
 | `/iceman test shift_descend` | Yükselip BOŞLUK bırakma: kendi yolundan aşağı hızlanarak kayış |
 | `/iceman test shift_speed` | Uzun düz kayış: en yüksek hıza çıkış |
 | `/iceman test shift_slope` | Dalgalı yol: aralıklı yükselme ve inme |

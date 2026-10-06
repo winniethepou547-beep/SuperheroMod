@@ -37,14 +37,14 @@ import static com.FIRNI.superheromod.heroes.iceman.IcemanAction.*;
  * The two slides as everyone sees them (his own body is steered by IcemanSlideSteer).
  * <p>
  * The ice slide (SHIFT): the track of ice forming and growing under him (IcemanTrack); getting ready, frost breathing off
- * the ground under his feet; then snow spray and small shards thrown back off his feet, a light cold mist trailing low
+ * the ground under his feet; then snow spray and small chunks of ice thrown back off his feet, a light cold mist trailing low
  * behind (longer with speed), all thicker going down the track (behind and low, so he stays in plain view); a sliding
  * hiss (ICEMAN_SLIDE) following him that rises with his speed; in his own ears a wind rush rising on the way down and
  * falling off the ice; in his own view, thin wind streaks rushing past as the speed builds. Let go: on the ground, spray
- * thrown out from the braking foot (the track's end cracks); in the air, the track's last point crystallises.
+ * thrown out from the braking foot (the track's end cracks); in the air, the track's last point freezes into ice cubes.
  * <p>
  * The sub-zero slide (CTRL): a whoosh of mist bursting off his feet as it starts (FX_DASH), the ground freezing under
- * him as he goes (thin patches of ice with rime round them and tiny crystals standing up, growing in, then melting),
+ * him as he goes (thin slabs of ice with frost round them and tiny ice cubes on them, growing in, then melting),
  * spray thrown up to the sides; FX_DASH_HIT: a small cold flash, a frost burst and shards where it struck; FX_SLIDE_HIT:
  * frost bursting off a body the ice slide touched (the frost on the body and over their screen is FrostFx's).
  */
@@ -169,7 +169,7 @@ public final class IcemanSlideFx {
         double flat = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
         Vec3 dir = flat < 1e-3 ? new Vec3(-Mth.sin(who.getYRot() * Mth.DEG_TO_RAD), 0, Mth.cos(who.getYRot() * Mth.DEG_TO_RAD)) : new Vec3(vel.x / flat, 0, vel.z / flat);
         Vec3 side = new Vec3(dir.z, 0, -dir.x);
-        // The slide over: on the ground its end cracks; in the air its last point crystallises.
+        // The slide over: on the ground its end cracks; in the air its last point freezes into ice cubes.
         if (r.sliding && !slide) {
             boolean ground = who.onGround() || !level.noCollision(who, who.getBoundingBox().move(0, -.3, 0));
             IcemanTrack.stop(id, ground || dash ? 1 : 2);
@@ -301,8 +301,7 @@ public final class IcemanSlideFx {
             st.close();
         }
     }
-    private static final float[] PA = new float[8 * 3], PB = new float[8 * 3];
-    /** A thin sheet of ice frozen onto the ground, rime round its edge, tiny crystals standing up; growing in, melting. */
+    /** A thin slab of ice frozen onto the ground along the slide's way, frost round its edge, a couple of tiny ice cubes on it; growing in, melting. */
     private static void patchIce(IceStage st, IceMesh.Ctx c, Patch p) {
         if (p.at.distanceToSqr(st.cam) > 80 * 80) return;
         float age = st.time - p.born;
@@ -314,36 +313,22 @@ public final class IcemanSlideFx {
         if (s <= .01f || alpha <= .01f) return;
         c.light = p.light;
         float cy = Mth.cos(p.yaw), sy = Mth.sin(p.yaw);
-        // Rime under, a clear sheet over it (a hair higher).
-        sheet(p, s * 1.15f, .012f, cy, sy, PA);
-        fan(c, PA, p.at.add(0, .012, 0), IceMesh.FROST, .55f * alpha);
-        sheet(p, s, .03f, cy, sy, PB);
-        fan(c, PB, p.at.add(0, .03, 0), IceMesh.CLEAR, .9f * alpha);
+        // Its sides along the way (u across, w along).
+        float[] r = IceParticles.AX;
+        r[0] = cy; r[1] = 0; r[2] = sy; r[3] = 0; r[4] = 1; r[5] = 0; r[6] = -sy; r[7] = 0; r[8] = cy;
+        float hu = p.rx * s * .8f, hw = p.rz * s * .8f;
+        double x = p.at.x, y = p.at.y, z = p.at.z;
+        // Frost round it (a flat square a little bigger, just over the ground), the slab of clear ice on it.
+        float fu = hu * 1.18f, fw = hw * 1.12f;
+        IceMesh.quad(c, (float) (x - cy * fu + sy * fw), (float) y + .012f, (float) (z - sy * fu - cy * fw), (float) (x + cy * fu + sy * fw), (float) y + .012f, (float) (z + sy * fu - cy * fw),
+                (float) (x + cy * fu - sy * fw), (float) y + .012f, (float) (z + sy * fu + cy * fw), (float) (x - cy * fu - sy * fw), (float) y + .012f, (float) (z - sy * fu + cy * fw),
+                IceMesh.FROST, .55f * alpha);
+        IceParticles.obox(c, x, y + .02, z, r, hu, .014f, hw, IceMesh.CLEAR, .92f * alpha);
         if (!st.far(p.at)) for (int i = 0; i < 2; i++) {
-            double h = IceMesh.hash(p.seed + i * 3.7);
-            int k = (int) (h * 8) % 8;
-            Vec3 base = new Vec3(PB[k * 3], PB[k * 3 + 1], PB[k * 3 + 2]);
-            Vec3 out = base.subtract(p.at).multiply(1, 0, 1);
-            out = out.lengthSqr() < 1e-6 ? new Vec3(0, 1, 0) : out.normalize().scale(.5).add(0, 1, 0).normalize();
-            IceMesh.crystal(c, base, out, (.1f + .12f * (float) h) * s, .03f * s, 4, p.seed + i, IceMesh.CLEAR, alpha, .35f);
-        }
-    }
-    private static void sheet(Patch p, float s, float lift, float cy, float sy, float[] out) {
-        for (int i = 0; i < 8; i++) {
-            float a = Mth.TWO_PI * i / 8;
-            float j = .8f + .4f * (float) IceMesh.hash(p.seed + i * 1.31);
-            float lx = Mth.cos(a) * p.rx * s * j, lz = Mth.sin(a) * p.rz * s * j;
-            // Turned to lie along the slide's way (lz along it).
-            out[i * 3] = (float) (p.at.x + lx * cy - lz * sy);
-            out[i * 3 + 1] = (float) (p.at.y + lift);
-            out[i * 3 + 2] = (float) (p.at.z + lx * sy + lz * cy);
-        }
-    }
-    private static void fan(IceMesh.Ctx c, float[] ring, Vec3 mid, IceMesh.Mat mat, float a) {
-        int n = ring.length / 3;
-        for (int i = 0; i < n; i++) {
-            int j = (i + 1) % n;
-            IceMesh.tri(c, ring[i * 3], ring[i * 3 + 1], ring[i * 3 + 2], ring[j * 3], ring[j * 3 + 1], ring[j * 3 + 2], (float) mid.x, (float) mid.y, (float) mid.z, mat, a);
+            double h = IceMesh.hash(p.seed + i * 3.7), h2 = IceMesh.hash(p.seed + i * 5.1);
+            float size = (.06f + .06f * (float) h) * s, lu = (float) (h2 - .5) * 1.6f * hu, lw = (float) (h - .5) * 1.6f * hw;
+            IceParticles.cube(c, x + cy * lu - sy * lw, y + .034 + size * .35, z + sy * lu + cy * lw, size, size, size, p.yaw + (float) h * 3, (float) (h2 - .5) * .4f, 0,
+                    i == 0 ? IceMesh.CLEAR : IceMesh.MILKY, alpha);
         }
     }
 

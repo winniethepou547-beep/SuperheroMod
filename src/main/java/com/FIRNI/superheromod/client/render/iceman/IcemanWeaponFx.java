@@ -37,7 +37,7 @@ import static com.FIRNI.superheromod.heroes.iceman.IcemanAction.*;
  * middle and its tip, sampled from where the weapon was really drawn each frame, fading in a few ticks; snow shed off
  * the tip when it moves fast.</li>
  * <li>FX_FORM: the humidity drawn into his hand: mist streams spiralling in, sparkles, a small cold flash as it closes.</li>
- * <li>FX_HIT: a frost burst on the body: small crystals springing out of the impact and melting, shards, snow, a short
+ * <li>FX_HIT: a frost burst on the body: small ice cubes popping out of the impact and melting, chunks, snow, a short
  * cold flash; heavier for the mace (a ring, a shake). A short hit-stop for the swinging Iceman's pose.</li>
  * <li>FX_SLAM: the flash, a shock ring and a dust ring on the ground, cracks of light running out over the ground (they
  * follow its shape) and fading, frost on the ground, snow and shards thrown up, the camera shaken by distance and size,
@@ -584,17 +584,21 @@ public final class IcemanWeaponFx {
         double c = Math.cos(a), s = Math.sin(a);
         return hand.add((d.x * c - d.z * s) * r, d.y * r, (d.x * s + d.z * c) * r);
     }
-    /** A hit's frost burst: small crystals springing out of the impact, then melting away. */
+    /** A hit's frost burst: small ice cubes popping out of the impact (frozen on, a little apart), then melting away. */
     private static void impact(IceMesh.Ctx c, Impact m, float now) {
         float t = now - m.start;
         if (t < 0 || t > 12) return;
         float grow = 1 - (1 - Mth.clamp(t / 1.6f, 0, 1)) * (1 - Mth.clamp(t / 1.6f, 0, 1));
         float melt = Mth.clamp((t - 4) / 8, 0, 1);
         c.light = IceStage.light(m.at);
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < 5; i++) {
+            double h = IceMesh.hash(m.seed + i * 2.2);
             Vec3 d = new Vec3(IceMesh.hash(m.seed + i * 3.1) - .5, IceMesh.hash(m.seed + i * 5.3) - .3, IceMesh.hash(m.seed + i * 7.9) - .5).normalize().add(m.dir.scale(.7)).normalize();
-            float len = (.18f + .2f * (float) IceMesh.hash(m.seed + i * 2.2)) * m.size * grow * (1 - .7f * melt);
-            IceMesh.crystal(c, m.at.subtract(d.scale(.05)), d, len, len * .2f + .005f, 4, m.seed + i, i % 2 == 0 ? IceMesh.CLEAR : IceMesh.MILKY, 1 - melt, .6f);
+            float size = (.07f + .07f * (float) h) * m.size * grow * (1 - .6f * melt);
+            if (size <= .004f) continue;
+            Vec3 at = m.at.add(d.scale(size * .5 + .02));
+            IceParticles.cube(c, at.x, at.y, at.z, size, size, size, (float) (h * 6.3), (float) (IceMesh.hash(m.seed + i * 4.4) - .5) * 1.5f, (float) (h - .5) * 1.5f,
+                    i % 2 == 0 ? IceMesh.CLEAR : IceMesh.MILKY, 1 - melt);
         }
         if (t < 3) IceMesh.glow(c, m.at, .45f * m.size * (1 - t / 3), .25f, .4f, .55f);
     }

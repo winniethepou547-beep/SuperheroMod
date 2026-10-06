@@ -20,24 +20,25 @@ import java.util.Map;
 import static com.FIRNI.superheromod.heroes.iceman.IcemanAction.*;
 
 /**
- * The ice slide's track (Days of Future Past): physical 3D ice that grows out of the sliding Iceman's feet and follows
- * his real path (along the ground, up the ramps SPACE raises, over the crest and down), built on every client from where
- * it sees him each tick.
+ * The ice slide's track: a beam of bright blue Minecraft ice that grows out of the sliding Iceman's feet and follows his
+ * real path (along the ground, up the ramps SPACE raises, over the crest and down), built on every client from where it
+ * sees him each tick. After the user's reference (a blocky Iceman riding a straight-edged slide of ice blocks): it is
+ * NOT a crystal and not a round tube.
  * <p>
- * Forming (SHIFT pressed, while he gets ready): thin frost spreads on the ground under his feet, small crystal nuclei
- * appear one after another out ahead of him and grow, and the ice surface grows out from his feet over them, merging
- * them into one thickening track. Never a ready platform: everything grows in.
+ * The beam: a rectangular cross-section (a flat top as wide as the track, flat sides, a flat bottom), banking into the
+ * turns, built as a chain of six-faced blocks between consecutive cross-sections, textured like ice blocks (the texture
+ * keeps to the world's block grid). Bright clear ice with patches of milky and deep glacier ice, a thin white glint
+ * along its top edges. Here and there a small ice cube sits on an edge; under the raised stretches a few square
+ * icicles and ice cubes hang from its underside.
  * <p>
- * The track: a shallow channel with raised lips over a keel, banking into the turns, its width and thickness wandering
- * along it, a mix of clear, milky and deep glacier ice in patches. Along it, different pieces of ice rather than one
- * even ribbon: clusters of crystals breaking out of the lips, flat plates of milky ice lying on its surface, crystal
- * pinnacles pointing down and out under the raised stretches, icicles growing down from them; bright glints along the
- * lips, faint frost waves running over the surface just behind him.
+ * Forming (SHIFT pressed, while he gets ready): frost spreads on the ground under his feet (pixel frost), small ice cubes
+ * appear one after another out ahead of him and grow, and the beam grows out from his feet over them. Never a ready
+ * platform: everything grows in.
  * <p>
- * Ends: let go on the ground, its last stretch cracks at once and sheds a few small shards; let go in the air, its last
- * point crystallises into a cluster of crystals. Dissolving (never all at once, oldest first, from behind him): cracks,
- * then small shards breaking off (pieces dropping from the raised parts), then it turns to frost and dissipates.
- * Points are capped; far away it is drawn plainer.
+ * Ends: let go on the ground, its last stretch cracks at once and sheds a few small cubes of ice; let go in the air, its
+ * last point freezes into a cluster of ice cubes. Dissolving (never all at once, oldest first, from behind him): cracks
+ * (thin bright lines on its top), then cube chunks breaking off and falling (bigger ones from the raised parts), then it
+ * turns to frost and dissipates. Points are capped; far away it is drawn plainer (no pieces on it).
  */
 final class IcemanTrack {
     private static final float SPACING = .45f;
@@ -45,13 +46,15 @@ final class IcemanTrack {
 
     static final class Node {
         final Vec3 pos, tan, side, up;
-        final float born, width, thick, height, lip;
+        final float born, width, thick, height;
         final int seed, light;
-        /** Dissolving stage reached (0 none, 1 shards shed, 2 frost given off); cracked early (the ground exit). */
+        /** Which patch of ice it is in (clear, milky, glacier come in stretches of a couple of blocks). */
+        final int patch;
+        /** Dissolving stage reached (0 none, 1 chunks shed, 2 frost given off); cracked early (the ground exit). */
         int stage; float crackAt = -1;
-        Node(Vec3 pos, Vec3 tan, Vec3 side, Vec3 up, float born, float width, float thick, float height, int seed, int light) {
+        Node(Vec3 pos, Vec3 tan, Vec3 side, Vec3 up, float born, float width, float thick, float height, int seed, int light, int patch) {
             this.pos = pos; this.tan = tan; this.side = side; this.up = up; this.born = born; this.width = width; this.thick = thick;
-            this.height = height; this.seed = seed; this.light = light; lip = .06f + .05f * width;
+            this.height = height; this.seed = seed; this.light = light; this.patch = patch;
         }
         double h(double k) { return IceMesh.hash(seed * k + 1.7); }
     }
@@ -63,7 +66,7 @@ final class IcemanTrack {
     Vec3 lastTan;
     /** Forming: when, where his feet were, which way. */
     final float formAt; Vec3 formAt3, formDir;
-    /** How it ended: 0 still going, 1 on the ground (its end cracks), 2 in the air (its end crystallises); when. */
+    /** How it ended: 0 still going, 1 on the ground (its end cracks), 2 in the air (its end freezes into cubes); when. */
     int endKind; float endAt;
 
     private IcemanTrack(int owner, float now) { this.owner = owner; seed = IceParticles.rand() * 100; formAt = now; }
@@ -91,7 +94,7 @@ final class IcemanTrack {
         }
         t.add(e);
     }
-    /** He stopped sliding: the track stops growing; kind 1 on the ground (its end cracks), 2 in the air (its end crystallises). */
+    /** He stopped sliding: the track stops growing; kind 1 on the ground (its end cracks), 2 in the air (its end freezes into cubes). */
     static void stop(int id, int kind) {
         IcemanTrack t = LIVE.remove(id);
         if (t == null) return;
@@ -102,7 +105,7 @@ final class IcemanTrack {
         t.endKind = kind;
         t.endAt = now;
         if (kind == 1) {
-            // The last stretch cracks at once and a few small shards break off it.
+            // The last stretch cracks at once and a few small cubes of ice break off it.
             int n = t.nodes.size();
             for (int i = Math.max(0, n - 10); i < n; i++) t.nodes.get(i).crackAt = now + (n - 1 - i) * .6f;
             for (int i = Math.max(0, n - 6); i < n; i += 2) {
@@ -153,10 +156,12 @@ final class IcemanTrack {
         float height = (float) (feet.y - ground);
         Vec3 pos = height < .3f ? new Vec3(feet.x, Math.max(feet.y, ground) + .06, feet.z) : feet.add(0, -.03, 0);
         dist += prev == null ? 0 : SPACING;
-        float w = .95f * (.86f + .16f * Mth.sin(dist * .45f + seed) + .08f * Mth.sin(dist * 1.3f + seed * 2));
-        // Thicker and more uneven where it stands in the air.
-        float th = height < .3f ? .2f : .28f + .1f * Mth.sin(dist * .7f + seed) + .06f * Mth.sin(dist * 2.1f + seed) + Math.min(.14f, height * .02f);
-        Node n = new Node(pos, tan, s2, u2, born, w, th, height, (int) (seed * 1000) + nodes.size() * 7 + (int) (dist * 13), IceStage.light(pos));
+        // A straight-edged beam: the same width all along; thicker where it stands in the air (its bottom only
+        // wandering slowly, so it stays a flat-sided block).
+        float w = .98f;
+        float th = height < .3f ? .2f : .3f + .06f * Mth.sin(dist * .5f + seed) + Math.min(.14f, height * .02f);
+        Node n = new Node(pos, tan, s2, u2, born, w, th, height, (int) (seed * 1000) + nodes.size() * 7 + (int) (dist * 13), IceStage.light(pos),
+                (int) Math.floor(dist / 2.2f));
         nodes.add(n);
         // Frost spraying off both lips where it runs on the ground.
         if (height < .4f) {
@@ -184,7 +189,7 @@ final class IcemanTrack {
         return (float) at.y - 99;
     }
 
-    /** Dissolving: cracks (with the odd crack heard), then small shards shed, then frost given off; old points gone. */
+    /** Dissolving: cracks (with the odd crack heard), then cube chunks shed, then frost given off; old points gone. */
     static void tick() {
         var mc = Minecraft.getInstance();
         if (mc.level == null || ALL.isEmpty()) return;
@@ -206,14 +211,14 @@ final class IcemanTrack {
                     mc.level.playLocalSound(n.pos.x, n.pos.y, n.pos.z, ModSounds.ICEMAN_CRACK.get(), SoundSource.PLAYERS, .25f, 1.2f + IceParticles.rand() * .3f, false);
                 if (n.stage == 0 && m >= .3f) {
                     n.stage = 1;
-                    // Small shards breaking off; bigger pieces dropping from the raised stretches.
+                    // Small cubes breaking off its top; bigger chunks dropping from the raised stretches.
                     if (n.height > 1 && n.h(.91) < .34 && IceParticles.count(1, n.pos) > 0) {
                         for (int k = 0; k < 2; k++)
                             IceParticles.shard(n.pos.add(n.up.scale(-n.thick * .5)).add(n.side.scale((IceParticles.rand() - .5) * n.width)),
-                                    IceParticles.jitter(.03).add(0, -.02, 0), .12f + .12f * IceParticles.rand(), 40 + (int) (IceParticles.rand() * 20), k == 0 ? IceMesh.CLEAR : IceMesh.MILKY);
+                                    IceParticles.jitter(.03).add(0, -.02, 0), .16f + .14f * IceParticles.rand(), 40 + (int) (IceParticles.rand() * 20), k == 0 ? IceMesh.CLEAR : IceMesh.MILKY);
                     } else if (n.h(1.3) < .3 && IceParticles.count(1, n.pos) > 0)
                         IceParticles.shard(n.pos.add(n.side.scale((IceParticles.rand() - .5) * n.width)).add(0, .08, 0),
-                                IceParticles.jitter(.04).add(0, .06, 0), .04f + .04f * IceParticles.rand(), 26, IceMesh.FRESH);
+                                IceParticles.jitter(.04).add(0, .06, 0), .07f + .06f * IceParticles.rand(), 30, IceMesh.FRESH);
                 }
                 if (n.stage == 1 && m >= .6f) {
                     n.stage = 2;
@@ -230,13 +235,15 @@ final class IcemanTrack {
     }
 
     // ------------------------------------------------------------------ drawing
-    private static final float[] SS8 = new float[8], UU8 = new float[8], SS5 = new float[5], UU5 = new float[5];
-    private static final float[] RA8 = new float[24], RB8 = new float[24], RA5 = new float[15], RB5 = new float[15], CA = new float[15], CB = new float[15];
+    private static final float[] RA = new float[12], RB = new float[12];
 
     /** Draws every track, with the ice growing out ahead of his feet on the live ones. */
     static void draw(IceStage st, IceMesh.Ctx c) {
         var mc = Minecraft.getInstance();
+        if (mc.level == null) return;
         float now = st.time;
+        // The beam keeps to the world's block grid (its texture is not pinned to anything moving).
+        c.ox = c.oy = c.oz = 0;
         for (IcemanTrack t : ALL) {
             List<Node> list = t.nodes;
             if (list.isEmpty()) continue;
@@ -259,7 +266,7 @@ final class IcemanTrack {
             Node prev = null;
             for (int i = 0; i < n; i++) {
                 Node node = i < list.size() ? list.get(i) : i == list.size() ? feetNode : leadNode;
-                if (prev != null) segment(st, c, prev, node, now, i, t.live && i >= list.size() - 14);
+                if (prev != null) segment(st, c, t, prev, node, now, i, t.live && i >= list.size() - 14, i == 1, i == n - 1);
                 prev = node;
             }
             if (t.endKind == 2) crest(c, t, list.get(list.size() - 1), now);
@@ -269,11 +276,11 @@ final class IcemanTrack {
         Vec3 tan = feet.subtract(new Vec3(last.pos.x, feetY(last), last.pos.z));
         tan = tan.lengthSqr() < 1e-6 ? last.tan : tan.normalize();
         Vec3 pos = last.height < .3f ? new Vec3(feet.x, Math.max(feet.y, last.pos.y - .06) + .06, feet.z) : feet.add(0, -.03, 0);
-        return new Node(pos, tan, last.side, last.up, born, last.width, last.thick, last.height, last.seed + 3, last.light);
+        return new Node(pos, tan, last.side, last.up, born, last.width, last.thick, last.height, last.seed + 3, last.light, last.patch);
     }
     /**
-     * Forming, while he gets ready: thin frost spreading under his feet, crystal nuclei appearing one after another out
-     * ahead of him and growing, then sinking into the surface that grows over them.
+     * Forming, while he gets ready: pixel frost spreading under his feet, small ice cubes appearing one after another out
+     * ahead of him and growing, then sinking into the beam that grows over them.
      */
     private static void formation(IceStage st, IceMesh.Ctx c, IcemanTrack t, float now, float age) {
         if (age > SLIDE_PREP + 12 || t.formAt3 == null || st.far(t.formAt3)) return;
@@ -283,40 +290,37 @@ final class IcemanTrack {
         c.light = first.light;
         // The frost under his feet.
         float frost = PantherMotion.snap(age, 0, 3.5f) * (1 - PantherMotion.k(age, SLIDE_PREP + 4, SLIDE_PREP + 12));
-        if (frost > .01f) {
-            int k = 9;
-            float r = 1.0f * frost;
-            for (int i = 0; i < k; i++) {
-                float a0 = Mth.TWO_PI * i / k, a1 = Mth.TWO_PI * (i + 1) / k;
-                float j0 = .75f + .45f * (float) IceMesh.hash(t.seed + i), j1 = .75f + .45f * (float) IceMesh.hash(t.seed + (i + 1) % k);
-                IceMesh.tri(c, (float) o.x + Mth.cos(a0) * r * j0, y + .015f, (float) o.z + Mth.sin(a0) * r * j0,
-                        (float) o.x + Mth.cos(a1) * r * j1, y + .015f, (float) o.z + Mth.sin(a1) * r * j1, (float) o.x, y + .015f, (float) o.z, IceMesh.FROST, .6f * frost);
-            }
-        }
-        // The nuclei out ahead, appearing in turn, growing, then merging into the surface.
+        if (frost > .01f) IcemanGroundFx.rime(c, new Vec3(o.x, y, o.z), 1.0f * frost, .65f * frost, (int) (t.seed * 13));
+        // The cubes out ahead, appearing in turn, growing, then merging into the beam.
+        float yaw = IceParticles.yawOf(dir.x, dir.z);
         for (int i = 0; i < 9; i++) {
             float at = 1.5f + i * .45f;
             float g = PantherMotion.snap(age, at, at + 2.5f) * (1 - PantherMotion.k(age, SLIDE_PREP + 1 + i * .3f, SLIDE_PREP + 5 + i * .3f));
             if (g <= .01f) continue;
-            double h = IceMesh.hash(t.seed * 3 + i);
-            Vec3 base = o.add(dir.scale(.35 + i * .28)).add(side.scale((h - .5) * .5)).add(0, y - o.y, 0);
-            Vec3 up = new Vec3(0, 1, 0).add(dir.scale(.5)).add(side.scale((h - .5) * .8)).normalize();
-            IceMesh.crystal(c, base, up, (.14f + .14f * (float) h) * g, .05f * g + .01f, 5, (int) (t.seed * 7) + i, i % 3 == 0 ? IceMesh.MILKY : IceMesh.CLEAR, 1, .5f);
-            IceMesh.sparkle(c, base.add(up.scale(.1 * g)), .12f, .7f * g * (1 - g * .5f));
+            double h = IceMesh.hash(t.seed * 3 + i), h2 = IceMesh.hash(t.seed * 5 + i * 1.7);
+            float size = (.12f + .13f * (float) h) * g;
+            Vec3 base = o.add(dir.scale(.35 + i * .28)).add(side.scale((h - .5) * .5));
+            IceParticles.cube(c, base.x, y + size * .38f, base.z, size, size, size, yaw + (float) (h2 - .5) * .9f, (float) (h - .5) * .3f, (float) (h2 - .5) * .25f,
+                    i % 3 == 0 ? IceMesh.MILKY : IceMesh.CLEAR, .55f + .45f * g);
+            IceMesh.sparkle(c, new Vec3(base.x, y + size * .9f, base.z), .12f, .6f * g * (1 - g * .5f));
         }
     }
-    /** Let go in the air: the track's last point crystallises into a cluster. */
+    /** Let go in the air: the track's last point freezes into a cluster of ice cubes. */
     private static void crest(IceMesh.Ctx c, IcemanTrack t, Node n, float now) {
         float age = now - t.endAt;
         float g = PantherMotion.snap(age, 0, 6) * size(n, now);
         if (g <= .01f) return;
         c.light = n.light;
-        for (int i = 0; i < 6; i++) {
-            double h = IceMesh.hash(n.seed + i * 3.3);
+        float al = alpha(n, now), yaw = IceParticles.yawOf(n.tan.x, n.tan.z);
+        Vec3 o = n.pos.add(n.up.scale(-n.thick * .45));
+        for (int i = 0; i < 5; i++) {
+            double h = IceMesh.hash(n.seed + i * 3.3), h2 = IceMesh.hash(n.seed + i * 5.9);
             float a = (float) (h * Mth.TWO_PI);
-            Vec3 dir = n.tan.scale(.9).add(n.side.scale(Mth.cos(a) * .7)).add(n.up.scale(Mth.sin(a) * .7)).normalize();
-            IceMesh.crystal(c, n.pos.add(n.up.scale(-n.thick * .3)), dir, (.3f + .45f * (float) h) * g, .07f * g, 6, n.seed + i, i % 2 == 0 ? IceMesh.CLEAR : IceMesh.MILKY,
-                    alpha(n, now), .55f);
+            Vec3 dir = n.tan.scale(.7).add(n.side.scale(Mth.cos(a) * .7)).add(n.up.scale(Mth.sin(a) * .6));
+            float size = (.22f + .22f * (float) h2) * g;
+            Vec3 at = o.add(dir.scale((.12 + .22 * h) * g));
+            IceParticles.cube(c, at.x, at.y, at.z, size, size * (.8f + .3f * (float) h), size, yaw + (float) (h - .5) * 1.2f, (float) (h2 - .5) * .7f, (float) (h - .5) * .6f,
+                    i % 2 == 0 ? IceMesh.CLEAR : IceMesh.MILKY, al);
         }
     }
     /** How much of a point's ice there is (growing in, then shrinking as it dissolves), how opaque, how frosted. */
@@ -334,11 +338,12 @@ final class IcemanTrack {
         float m = (now - n.born - SLIDE_TRACK_LIFE) / SLIDE_TRACK_MELT;
         return PantherMotion.k(m, .45f, .8f);
     }
-    private static IceMesh.Mat patch(Node n) {
-        double h = n.h(.53);
-        return h < .6 ? IceMesh.CLEAR : h < .82 ? IceMesh.GLACIER : IceMesh.MILKY;
+    /** Mostly bright clear ice, with stretches of milky and of deep glacier ice. */
+    private static IceMesh.Mat patch(IcemanTrack t, Node n) {
+        double h = IceMesh.hash(t.seed * 7.3 + n.patch * 1.91);
+        return h < .74 ? IceMesh.CLEAR : h < .88 ? IceMesh.MILKY : IceMesh.GLACIER;
     }
-    private static void segment(IceStage st, IceMesh.Ctx c, Node a, Node b, float now, int index, boolean fresh) {
+    private static void segment(IceStage st, IceMesh.Ctx c, IcemanTrack t, Node a, Node b, float now, int index, boolean fresh, boolean first, boolean last) {
         double d2 = a.pos.distanceToSqr(st.cam);
         if (d2 > 110 * 110) return;
         float sa = size(a, now), sb = size(b, now);
@@ -350,22 +355,18 @@ final class IcemanTrack {
         c.light = a.light;
         float m = (now - a.born - SLIDE_TRACK_LIFE) / SLIDE_TRACK_MELT;
         c.flash = m > 0 && m < .35f ? .12f * Mth.sin(m / .35f * Mth.PI) : 0;
-        IceMesh.Mat mat = patch(a);
-        if (far) {
-            ring5(a, sa, 1, 0, RA5); ring5(b, sb, 1, 0, RB5);
-            IceMesh.loft(c, RA5, RB5, mat, al * (1 - fr), false, false);
-            if (fr > .01f) IceMesh.loft(c, RA5, RB5, IceMesh.FROST, al * fr, false, false);
-            c.flash = 0;
-            return;
-        }
-        ring8(a, sa, RA8); ring8(b, sb, RB8);
-        IceMesh.loft(c, RA8, RB8, mat, al * (1 - .7f * fr), false, false);
-        // The milky body inside it; frost taking over the surface as it dissolves.
-        ring5(a, sa, .5f, -.45f, CA); ring5(b, sb, .5f, -.45f, CB);
-        IceMesh.loft(c, CA, CB, IceMesh.MILKY, al * .9f * (1 - fr), false, false);
-        if (fr > .01f) IceMesh.loft(c, RA8, RB8, IceMesh.FROST, al * fr * .8f, false, false);
+        // The block between the two cross-sections (its ends closed where the beam begins and ends).
+        ring(a, sa, RA); ring(b, sb, RB);
+        IceMesh.Mat mat = patch(t, a);
+        float body = al * (1 - .7f * fr);
+        IceMesh.loft(c, RA, RB, mat, body, false, false);
+        if (first) end(c, RA, mat, body);
+        if (last) end(c, RB, mat, body);
+        // Frost taking over its surface as it dissolves.
+        if (fr > .01f && !far) IceMesh.loft(c, RA, RB, IceMesh.FROST, al * fr * .8f, false, false);
+        if (far) { c.flash = 0; return; }
         details(c, a, sa, al * (1 - fr), now, index);
-        // Cracks: on dissolving, or at once at the end where he braked.
+        // Cracks on its top: on dissolving, or at once at the end where he braked.
         float crack = m > 0 && m < .6f ? Mth.sin(Mth.clamp(m / .6f, 0, 1) * Mth.PI) : 0;
         if (a.crackAt >= 0 && now >= a.crackAt) crack = Math.max(crack, PantherMotion.k(now - a.crackAt, 0, 2) * (1 - fr));
         if (crack > .01f && (a.seed % 3 == 0 || a.crackAt >= 0)) {
@@ -373,87 +374,69 @@ final class IcemanTrack {
             Vec3 p0 = a.pos.add(a.side.scale((a.h(1) - .5) * a.width * .7 * sa)).add(a.up.scale(.012));
             Vec3 p1 = b.pos.add(b.side.scale((a.h(2) - .5) * b.width * .7 * sb)).add(b.up.scale(.012));
             Vec3 mid = p0.lerp(p1, .5).add(a.side.scale((a.h(3) - .5) * .25 * sa));
-            IceMesh.line(c, p0, mid, .018f, .6f * k, .85f * k, k);
-            IceMesh.line(c, mid, p1, .018f, .6f * k, .85f * k, k);
+            IceMesh.line(c, p0, mid, .016f, .6f * k, .85f * k, k);
+            IceMesh.line(c, mid, p1, .016f, .6f * k, .85f * k, k);
         }
-        // Faint frost waves running over the surface just behind him.
+        // Faint frost waves running over its top just behind him.
         if (fresh) {
             float wave = Mth.sin(index * .9f - now * .8f);
-            float k = (float) Math.pow(Math.max(0, wave), 6) * .35f * al * sa;
+            float k = (float) Math.pow(Math.max(0, wave), 6) * .3f * al * sa;
             if (k > .01f) {
-                Vec3 l = a.pos.add(a.side.scale(-a.width * .45 * sa)).add(a.up.scale(.02)), r = a.pos.add(a.side.scale(a.width * .45 * sa)).add(a.up.scale(.02));
-                IceMesh.line(c, l, r, .014f, .6f * k, .85f * k, k);
+                Vec3 l = a.pos.add(a.side.scale(-a.width * .48 * sa)).add(a.up.scale(.01)), r = a.pos.add(a.side.scale(a.width * .48 * sa)).add(a.up.scale(.01));
+                IceMesh.line(c, l, r, .012f, .8f * k, .92f * k, k);
             }
         }
         c.flash = 0;
     }
-    /** The pieces along it: crystal clusters out of the lips, milky plates on the surface, pinnacles and icicles under the raised parts, glints along the lips. */
+    /** Closes the beam's end (its cross-section). */
+    private static void end(IceMesh.Ctx c, float[] r, IceMesh.Mat mat, float a) {
+        IceMesh.quad(c, r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[10], r[11], mat, a);
+    }
+    /** The pieces on it: now and then a small ice cube on an edge; square icicles and cubes hanging under the raised parts; the white glint on its top edges. */
     private static void details(IceMesh.Ctx c, Node n, float s, float al, float now, int index) {
         if (s < .2f || al <= .02f) return;
         double h = n.h(.73), h2 = n.h(1.37), h3 = n.h(2.11);
-        float age = now - n.born;
-        if (h < .3) {
-            // A cluster of crystals breaking out of a lip.
-            float sg = h2 < .5 ? 1 : -1;
-            Vec3 base = n.pos.add(n.side.scale(sg * n.width * .48 * s)).add(n.up.scale(n.lip * s));
-            int count = 1 + (int) (h3 * 3);
-            for (int i = 0; i < count; i++) {
-                double hi = n.h(3.1 + i);
-                Vec3 dir = n.side.scale(sg * (.6 + .4 * hi)).add(n.up.scale(.5 + .4 * hi)).add(n.tan.scale(-.4 + .5 * hi)).normalize();
-                IceMesh.crystal(c, base.add(n.tan.scale((hi - .5) * .3)), dir, (.14f + .3f * (float) hi) * s, (.035f + .025f * (float) hi) * s, 5, n.seed + i,
-                        hi < .3 ? IceMesh.MILKY : IceMesh.CLEAR, al, .45f);
-            }
-        } else if (h < .42) {
-            // A flat plate of milky ice lying on the surface.
-            float sg = h2 < .5 ? 1 : -1;
-            Vec3 at = n.pos.add(n.side.scale(sg * n.width * .22 * s)).add(n.up.scale(.035));
-            IceMesh.shard(c, at, n.tan.add(n.side.scale((h3 - .5) * .6)), .16f * s, n.seed + 5, IceMesh.MILKY, al * .9f);
+        float age = now - n.born, yaw = IceParticles.yawOf(n.tan.x, n.tan.z);
+        float th = n.thick * s;
+        if (h < .085) {
+            // A small cube of ice frozen onto an edge, half sunk into it.
+            float sg = h2 < .5 ? 1 : -1, size = (.15f + .12f * (float) h3) * s;
+            Vec3 at = n.pos.add(n.side.scale(sg * (n.width * .5 * s - size * .3))).add(n.up.scale(size * .22));
+            IceParticles.cube(c, at.x, at.y, at.z, size, size, size, yaw + (float) (h3 - .5) * 1.1f, (float) (h2 - .5) * .4f, (float) (h3 - .5) * .4f,
+                    h3 < .35 ? IceMesh.MILKY : IceMesh.CLEAR, al);
         }
         if (n.height > 1.2f) {
-            if (h2 < .3) {
-                // Icicles growing down from the raised stretch.
+            if (h2 < .2) {
+                // A square icicle growing down from the raised stretch.
                 float g = PantherMotion.k(age, 4, 34) * s;
-                Vec3 base = n.pos.add(n.up.scale(-n.thick * .9 * s)).add(n.side.scale((h - .5) * n.width * .5));
-                Vec3 down = new Vec3((h - .5) * .15, -1, (h2 - .5) * .15).normalize();
-                IceMesh.crystal(c, base, down, (.25f + .75f * (float) h3) * g, .05f * Math.min(1, g * 2), 4, n.seed + 9, IceMesh.CLEAR, al, .3f);
-            } else if (h2 > .82) {
-                // A pinnacle pointing down and out from the keel.
-                float sg = h3 < .5 ? 1 : -1;
-                Vec3 base = n.pos.add(n.up.scale(-n.thick * .7 * s));
-                Vec3 dir = n.up.scale(-1).add(n.side.scale(sg * .7)).add(n.tan.scale(-.3)).normalize();
-                IceMesh.crystal(c, base, dir, (.3f + .4f * (float) h) * s, .09f * s, 6, n.seed + 11, IceMesh.GLACIER, al, .4f);
+                Vec3 base = n.pos.add(n.up.scale(-th * .97)).add(n.side.scale((h - .5) * n.width * .6));
+                IceParticles.spike(c, base.x, base.y, base.z, (h - .5) * .12, -1, (h2 - .5) * .12, (.22f + .55f * (float) h3) * g, .065f * Math.min(1, g * 2),
+                        yaw, 2, IceMesh.CLEAR, al);
+            } else if (h2 > .88) {
+                // An ice cube stuck under the keel.
+                float size = (.24f + .14f * (float) h) * s;
+                Vec3 at = n.pos.add(n.up.scale(-th - size * .22)).add(n.side.scale((h3 - .5) * n.width * .4));
+                IceParticles.cube(c, at.x, at.y, at.z, size, size * .85f, size, yaw + (float) (h - .5) * .8f, (float) (h3 - .5) * .3f, (float) (h - .5) * .3f,
+                        h3 < .5 ? IceMesh.GLACIER : IceMesh.CLEAR, al);
             }
         }
         if (index % 2 == 0) {
-            // The bright lips.
-            float k = .28f * al * s * (.6f + .4f * Mth.sin(now * .3f + index));
+            // The glint along its top edges (white, wet).
+            float k = .2f * al * s * (.6f + .4f * Mth.sin(now * .3f + index));
             for (int sg = -1; sg <= 1; sg += 2) {
-                Vec3 l0 = n.pos.add(n.side.scale(sg * n.width * .5 * s)).add(n.up.scale(n.lip * s));
-                IceMesh.line(c, l0, l0.add(n.tan.scale(SPACING)), .012f, .6f * k, .85f * k, k);
+                Vec3 l0 = n.pos.add(n.side.scale(sg * n.width * .5 * s)).add(n.up.scale(.004));
+                IceMesh.line(c, l0, l0.add(n.tan.scale(SPACING)), .01f, .8f * k, .92f * k, k);
             }
         }
     }
-    /** The full cross-section: a shallow channel with raised lips over a keel. */
-    private static void ring8(Node n, float s, float[] out) {
-        float w = n.width * s, th = n.thick * s, lip = n.lip * s;
-        float[] ss = SS8, uu = UU8;
-        ss[0] = -.5f * w; ss[1] = -.25f * w; ss[2] = .25f * w; ss[3] = .5f * w; ss[4] = .42f * w; ss[5] = .15f * w; ss[6] = -.15f * w; ss[7] = -.42f * w;
-        uu[0] = lip; uu[1] = -.015f * s; uu[2] = -.015f * s; uu[3] = lip; uu[4] = -.55f * th; uu[5] = -th; uu[6] = -th; uu[7] = -.55f * th;
-        put(n, ss, uu, out);
+    /** The cross-section: a rectangle, its top at the point (where his feet run), as wide as the track, thick below it. */
+    private static void ring(Node n, float s, float[] out) {
+        float w = n.width * s * .5f, th = n.thick * s;
+        put(n, 0, -w, 0, out); put(n, 1, w, 0, out); put(n, 2, w, -th, out); put(n, 3, -w, -th, out);
     }
-    /** A plainer cross-section (far away), or the milky body inside (scale k, lowered by drop of its thickness). */
-    private static void ring5(Node n, float s, float k, float drop, float[] out) {
-        float w = n.width * s * k, th = n.thick * s * k, lip = n.lip * s * k, o = drop * n.thick * s;
-        float[] ss = SS5, uu = UU5;
-        ss[0] = -.5f * w; ss[1] = .5f * w; ss[2] = .35f * w; ss[3] = 0; ss[4] = -.35f * w;
-        uu[0] = lip + o; uu[1] = lip + o; uu[2] = -.6f * th + o; uu[3] = -th + o; uu[4] = -.6f * th + o;
-        put(n, ss, uu, out);
-    }
-    private static void put(Node n, float[] ss, float[] uu, float[] out) {
-        for (int i = 0; i < ss.length; i++) {
-            out[i * 3] = (float) (n.pos.x + n.side.x * ss[i] + n.up.x * uu[i]);
-            out[i * 3 + 1] = (float) (n.pos.y + n.side.y * ss[i] + n.up.y * uu[i]);
-            out[i * 3 + 2] = (float) (n.pos.z + n.side.z * ss[i] + n.up.z * uu[i]);
-        }
+    private static void put(Node n, int i, float ss, float uu, float[] out) {
+        out[i * 3] = (float) (n.pos.x + n.side.x * ss + n.up.x * uu);
+        out[i * 3 + 1] = (float) (n.pos.y + n.side.y * ss + n.up.y * uu);
+        out[i * 3 + 2] = (float) (n.pos.z + n.side.z * ss + n.up.z * uu);
     }
 }

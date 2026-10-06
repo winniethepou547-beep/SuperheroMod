@@ -30,15 +30,19 @@ import static com.FIRNI.superheromod.heroes.iceman.IcemanAction.*;
  * R, shattered ground, as everyone sees it. Every crack line the server runs (its front sent every tick, FX_GROUND) is
  * followed here by its id:
  * <ul>
- * <li>where it sets off (under his hands) a disc of rime spreads over the ground with short frost lines radiating;</li>
- * <li>the crack travels along the very path of the front, hugging the ground: a bright zigzag of glinting crack lines
- * with branches forking off, hot at the front and cooling behind it; the ground bulges along it, a low ridge of milky ice
- * pushing up behind the front with shards poking through, snow and frost dust thrown up at the front, as if something
- * were growing under the ground toward the target; the trail frosts over, then melts away after a few seconds;</li>
- * <li>where it arrives (FX_GROUND_ERUPT) a cluster of great ice spikes bursts out of the ground in a few ticks, tilted
- * outward, the biggest in the middle (bigger and more of them the more frost the target had; a deep-frozen target gets
- * the biggest), with a flash, a ring, shards and snow thrown up and a shake by distance; they stand GROUND_SPIKE_LIFE
- * ticks, then glinting cracks run up them and they break (the big ones shatter, the small ones sink and melt away).</li>
+ * <li>where it sets off (under his hands) pixel frost spreads over the ground (square cells on the block grid, like
+ * Minecraft frost) with short frost lines radiating;</li>
+ * <li>the crack travels along the very path of the front, hugging the ground: a bright zigzag of crack lines with
+ * branches forking off, hot at the front and cooling behind it; the ground heaves along it, small blocks of ice
+ * pushing up out of it one after another behind the front with short square ice spikes breaking through, snow and frost
+ * dust thrown up at the front, as if something were growing under the ground toward the target; the trail frosts over,
+ * then melts away after a few seconds;</li>
+ * <li>where it arrives (FX_GROUND_ERUPT) a cluster of great square ice spikes (stepped square tiers closing to a
+ * four-sided point, blocky like Minecraft, never crystals) bursts out of the ground in a few ticks, tilted outward, the
+ * biggest in the middle (bigger and more of them the more frost the target had; a deep-frozen target gets the
+ * biggest), with ice blocks heaved up round their feet, a flash, a ring, chunks and snow thrown up and a shake by
+ * distance; they stand GROUND_SPIKE_LIFE ticks, then glinting cracks run up them and they break (the big ones shatter
+ * into ice cubes, the small ones sink and melt away).</li>
  * </ul>
  */
 @Mod.EventBusSubscriber(modid = SuperheroMod.MODID, value = Dist.CLIENT)
@@ -311,15 +315,13 @@ public final class IcemanGroundFx {
                     Vec3 d = new Vec3(Mth.cos(ang), 0, Mth.sin(ang));
                     Vec3 a = start.add(d.scale(r * .3)).add(0, .03, 0), b = start.add(d.scale(len)).add(0, .03, 0);
                     float br = .45f * rimeFade * (.6f + .4f * (float) Math.exp(-s0 / 8));
-                    IceMesh.line(c, a, b, .025f, .5f * br, .8f * br, br, 0, 0, 0);
+                    IceMesh.line(c, a, b, .022f, .75f * br, .88f * br, br, 0, 0, 0);
                 }
             }
         }
-        // ---- the trail: the crack lines, the frost, the ridge bulging up behind the front with shards through it
+        // ---- the trail: the crack lines, the frost, blocks of ice heaving up behind the front with spikes through them
         List<Sample> ss = k.samples;
         int n = ss.size();
-        List<Vec3> ridge = new ArrayList<>();
-        float[] radius = new float[n + 1];
         Vec3 prev = null;
         for (int i = 0; i < n; i++) {
             Sample s = ss.get(i);
@@ -351,28 +353,27 @@ public final class IcemanGroundFx {
                 IceMesh.line(c, m, q, .014f, .4f * br, .7f * br, .9f * br);
             }
             // Frost laid over the ground along it.
-            if (i % 2 == 0) rime(c, s.p.add(s.side.scale(off * 1.5)), (.3f + .25f * (float) IceMesh.hash(s.seed * 4.1)) * grow * frost, .38f * melt, s.seed);
-            // The bulge: a ridge of ice half out of the ground, rising behind the front and settling as it melts.
+            if (i % 3 == 0) rime(c, s.p.add(s.side.scale(off * 1.5)), (.32f + .25f * (float) IceMesh.hash(s.seed * 4.1)) * grow * frost, .4f * melt, s.seed);
+            // The heave: a block of ice pushed half out of the ground, rising behind the front and settling as it melts.
             float rise = rise(a / 3);
-            ridge.add(s.p.add(s.side.scale(off * .6)).add(0, -.06, 0));
-            radius[ridge.size() - 1] = (.09f + .05f * (float) IceMesh.hash(s.seed * 5.7)) * frost * rise * melt;
-            // Shards breaking through the ridge.
-            if (!far && IceMesh.hash(s.seed * 6.1) > .4) {
+            if (i % 2 == 0) {
+                float size = (.2f + .12f * (float) IceMesh.hash(s.seed * 5.7)) * frost * rise * melt;
+                if (size > .01f) {
+                    float yaw = IceParticles.yawOf(s.along.x, s.along.z) + (float) (IceMesh.hash(s.seed * 6.3) - .5) * .9f;
+                    Vec3 at = s.p.add(s.side.scale(off * .6)).add(0, size * .12 - .05, 0);
+                    IceParticles.cube(c, at.x, at.y, at.z, size, size * .8f, size * 1.15f, yaw, (float) (IceMesh.hash(s.seed * 7.7) - .5) * .5f,
+                            (float) (IceMesh.hash(s.seed * 8.3) - .5) * .5f, IceMesh.hash(s.seed * 9.1) > .7 ? IceMesh.MILKY : IceMesh.GLACIER, .9f * melt);
+                }
+            }
+            // Short square spikes breaking through.
+            if (!far && IceMesh.hash(s.seed * 6.1) > .55) {
                 float sgn = IceMesh.hash(s.seed * 6.9) > .5 ? 1 : -1;
                 Vec3 dir = new Vec3(0, 1, 0).add(s.side.scale(sgn * (.25 + .35 * IceMesh.hash(s.seed * 7.3)))).add(s.along.scale(.2));
                 float len = (.16f + .28f * (float) IceMesh.hash(s.seed * 8.9)) * frost * rise * melt;
-                IceMesh.crystal(c, p.add(s.side.scale(sgn * .06)).add(0, -.08, 0), dir, len, .05f + .03f * frost, 4, s.seed,
-                        IceMesh.hash(s.seed * 9.7) > .5 ? IceMesh.MILKY : IceMesh.CLEAR, .9f * melt, .4f * melt);
+                Vec3 b = p.add(s.side.scale(sgn * .08)).add(0, -.08, 0);
+                IceParticles.spike(c, b.x, b.y, b.z, dir.x, dir.y, dir.z, len, (.045f + .025f * frost) * Math.min(1, rise * melt * 1.5f), (float) IceMesh.hash(s.seed * 3.7) * 3,
+                        1, IceMesh.hash(s.seed * 9.7) > .5 ? IceMesh.MILKY : IceMesh.CLEAR, .9f * melt);
             }
-        }
-        // The ridge's tip at the moving front: tapered into the ground so it pushes on rather than ends.
-        if (!k.erupted && !ridge.isEmpty() && now - k.lastUpdate < 3) {
-            Vec3 h = head(k, now);
-            if (h.distanceToSqr(ridge.get(ridge.size() - 1)) > .01) { ridge.add(h.add(0, -.12, 0)); radius[ridge.size() - 1] = .01f; }
-        }
-        if (ridge.size() >= 2) {
-            c.light = IceStage.light(ridge.get(ridge.size() / 2).add(0, .5, 0));
-            IceMesh.tube(c, ridge, radius, ridge.size(), far ? 4 : 5, k.id * 31, IceMesh.GLACIER, .85f);
         }
         // ---- the spikes
         if (k.erupted) drawSpikes(st, c, k, now, far);
@@ -408,30 +409,35 @@ public final class IcemanGroundFx {
                 base = base.add(0, -.35 * m * s.len, 0);
             }
             Vec3 dir = s.dir.normalize();
-            IceMesh.crystal(c, base, dir, len, r, far ? 4 : 6, s.seed, IceMesh.GLACIER, .95f * alpha, .8f * alpha);
-            if (!far) IceMesh.crystal(c, base.add(dir.scale(.05)), dir, len * .72f, r * .45f, 5, s.seed + 7, IceMesh.CORE, .85f * alpha, 0);
-            // Ice heaved up round its foot.
+            float roll = (float) IceMesh.hash(s.seed * 1.9) * Mth.HALF_PI;
+            IceParticles.spike(c, base, dir, len, r, roll, s.big ? 2 : 1, IceMesh.hash(s.seed * 2.3) > .75 ? IceMesh.CLEAR : IceMesh.GLACIER, .95f * alpha);
+            // Blocks of ice heaved up round its foot.
             if (!far && s.big) {
                 for (int i = 0; i < 3; i++) {
                     float ang = (float) (Mth.TWO_PI * (i + IceMesh.hash(s.seed * 3 + i)) / 3);
-                    Vec3 at = base.add(Mth.cos(ang) * r * 1.4, .12, Mth.sin(ang) * r * 1.4);
-                    IceMesh.shard(c, at, new Vec3(Mth.cos(ang) * .5, 1, Mth.sin(ang) * .5), r * .9f * Math.min(1, g), s.seed + i * 3, IceMesh.FROST, .9f * alpha);
+                    float size = r * 1.1f * Math.min(1, g) * (.75f + .4f * (float) IceMesh.hash(s.seed * 5 + i));
+                    Vec3 at = base.add(Mth.cos(ang) * r * 1.5, .1 + size * .2, Mth.sin(ang) * r * 1.5);
+                    IceParticles.cube(c, at.x, at.y, at.z, size, size * .8f, size, ang, (float) (IceMesh.hash(s.seed * 7 + i) - .5) * .6f, .25f, IceMesh.FROST, .9f * alpha);
                 }
             }
-            // The cracks running up them before they break.
+            // The cracks running up them before they break (up the faces of the square spike).
             if (crack > 0 && t < life) {
                 Vec3[] fr = IceMesh.frame(dir);
+                // The spike's own faces (its frame turned by its roll).
+                Vec3 u = fr[0].scale(Mth.cos(roll)).add(fr[1].scale(Mth.sin(roll))), v = fr[1].scale(Mth.cos(roll)).subtract(fr[0].scale(Mth.sin(roll)));
                 for (int j = 0; j < (far ? 1 : 3); j++) {
-                    float ang = (float) (Mth.TWO_PI * IceMesh.hash(s.seed * 7 + j));
-                    Vec3 out = fr[0].scale(Mth.cos(ang)).add(fr[1].scale(Mth.sin(ang))).scale(r * .95);
-                    Vec3 p0 = base.add(out).add(dir.scale(len * .05));
+                    int face = (int) (IceMesh.hash(s.seed * 7 + j) * 4);
+                    Vec3 out = (face < 2 ? u : v).scale(face % 2 == 0 ? 1 : -1), along = face < 2 ? v : u;
+                    float w0 = (float) (IceMesh.hash(s.seed * 13 + j) - .5) * 1.2f;
+                    Vec3 p0 = base.add(out.scale(r * 1.03)).add(along.scale(w0 * r)).add(dir.scale(len * .05));
                     int segs = 4;
                     for (int q = 1; q <= segs; q++) {
-                        float u = crack * q / segs;
-                        float wob = (float) (IceMesh.hash(s.seed * 11 + j * 5 + q) - .5) * .6f;
-                        Vec3 p1 = base.add(dir.scale(len * .8f * u)).add(out.scale(1 - .7 * u)).add(fr[0].scale(wob * r)).add(fr[1].scale(-wob * r * .5));
+                        float uq = crack * q / segs;
+                        float wob = (float) (IceMesh.hash(s.seed * 11 + j * 5 + q) - .5) * .8f;
+                        float wid = r * (1 - .7f * uq);
+                        Vec3 p1 = base.add(dir.scale(len * .8f * uq)).add(out.scale(wid * 1.03)).add(along.scale(Mth.clamp(w0 + wob, -.9f, .9f) * wid));
                         float br = .6f + .6f * crack;
-                        IceMesh.line(c, p0, p1, Math.max(.012f, r * .07f), .6f * br, .85f * br, br);
+                        IceMesh.vein(c, p0, p1, Math.max(.012f, r * .06f), br);
                         p0 = p1;
                     }
                 }
@@ -441,36 +447,43 @@ public final class IcemanGroundFx {
 
     // ------------------------------------------------------------------ shared
     /**
-     * A disc of rime lying on the ground (irregular, its rim feathered out into points), centre at, radius r. For the
-     * shell's footing, the cracks' start and trail, the spikes' feet.
+     * Frost lying on the ground, centre at, radius r: pixel frost, Minecraft's way. Square cells on the world's block grid
+     * (a quarter block each), each row of the frosted patch one flat run of cells, its outline stepped and uneven; the
+     * last cell of every row fades in as the radius reaches into it (it spreads cell by cell, never pops). For the
+     * shell's footing, the cracks' start and trail, the spikes' feet, the slide's forming.
      */
     static void rime(IceMesh.Ctx c, Vec3 at, float r, float alpha, int seed) {
         if (r <= .01f || alpha <= .01f) return;
-        int n = 11;
-        float x = (float) at.x, y = (float) at.y + .018f + (seed % 7) * .0015f, z = (float) at.z;
-        float[] px = new float[n], pz = new float[n];
-        for (int i = 0; i < n; i++) {
-            float ang = Mth.TWO_PI * i / n + seed * .37f;
-            float j = .7f + .45f * (float) IceMesh.hash(seed * 13 + i);
-            px[i] = x + Mth.cos(ang) * r * j; pz[i] = z + Mth.sin(ang) * r * j;
-        }
+        final float cell = .25f;
+        float y = (float) at.y + .018f + (seed & 7) * .0015f;
+        // Static on the ground: the texture on the block grid.
+        float ox = c.ox, oy = c.oy, oz = c.oz;
+        c.ox = c.oy = c.oz = 0;
         IceMesh.Mat frost = IceMesh.FROST;
-        for (int i = 0; i < n; i++) {
-            int k = (i + 1) % n;
-            IceMesh.tri(c, x, y, z, px[i], y, pz[i], px[k], y, pz[k], frost, alpha * .55f);
-            // Feathers of frost growing out of the rim.
-            if (IceMesh.hash(seed * 7 + i) > .35) {
-                float mx = (px[i] + px[k]) / 2, mz = (pz[i] + pz[k]) / 2;
-                float tx = x + (mx - x) * 1.45f, tz = z + (mz - z) * 1.45f;
-                IceMesh.tri(c, px[i], y, pz[i], px[k], y, pz[k], tx, y, tz, frost, alpha * .32f);
+        int z0 = Mth.floor((at.z - r * 1.2f) / cell), z1 = Mth.floor((at.z + r * 1.2f) / cell);
+        for (int zi = z0; zi <= z1; zi++) {
+            float zc = (zi + .5f) * cell, dz = (float) (zc - at.z);
+            // Each row reaches its own way out (an uneven, stepped outline).
+            float j = .78f + .4f * (float) IceMesh.hash(seed * 13 + zi * 7.31);
+            float rr = r * j;
+            if (Math.abs(dz) >= rr) continue;
+            float half = Mth.sqrt(rr * rr - dz * dz);
+            float xa = (float) at.x - half, xb = (float) at.x + half;
+            int ia = Mth.ceil(xa / cell), ib = Mth.floor(xb / cell);
+            float za = zi * cell, zb = za + cell;
+            if (ib > ia) IceMesh.quad(c, ia * cell, y, za, ib * cell, y, za, ib * cell, y, zb, ia * cell, y, zb, frost, alpha * .6f);
+            // The cells at either end, fading in as the frost reaches into them.
+            if (ib < ia) {
+                // All inside one cell: that cell, as far as the frost covers it.
+                float f = Mth.clamp((xb - xa) / cell, 0, 1);
+                if (f > .02f) IceMesh.quad(c, ib * cell, y, za, ia * cell, y, za, ia * cell, y, zb, ib * cell, y, zb, frost, alpha * .6f * f);
+                continue;
             }
+            float fa = Mth.clamp((ia * cell - xa) / cell, 0, 1), fb = Mth.clamp((xb - ib * cell) / cell, 0, 1);
+            if (fa > .02f) IceMesh.quad(c, (ia - 1) * cell, y, za, ia * cell, y, za, ia * cell, y, zb, (ia - 1) * cell, y, zb, frost, alpha * .6f * fa);
+            if (fb > .02f) IceMesh.quad(c, ib * cell, y, za, (ib + 1) * cell, y, za, (ib + 1) * cell, y, zb, ib * cell, y, zb, frost, alpha * .6f * fb);
         }
-        // A cleaner, brighter patch in the middle.
-        float ir = r * .45f;
-        for (int i = 0; i < 6; i++) {
-            float a0 = Mth.TWO_PI * i / 6 + seed, a1 = Mth.TWO_PI * (i + 1) / 6 + seed;
-            IceMesh.tri(c, x, y + .004f, z, x + Mth.cos(a0) * ir, y + .004f, z + Mth.sin(a0) * ir, x + Mth.cos(a1) * ir, y + .004f, z + Mth.sin(a1) * ir, IceMesh.FRESH, alpha * .35f);
-        }
+        c.ox = ox; c.oy = oy; c.oz = oz;
     }
     /** The top of the ground under (or just over) a point, searching down; fallback when there is none. */
     static double groundY(Level level, double x, double y, double z, int down, double fallback) {

@@ -32,9 +32,9 @@ import static com.FIRNI.superheromod.heroes.iceman.IcemanAction.*;
  * The cryogenic brush as everyone sees it (right click held, both hands raised), and its sculptures (IcemanBrushSculpt).
  * <p>
  * On a body: cold matter flowing out of both hands to them, not a beam: from each hand a strand that winds round the
- * other (a double helix of sparkles, thin glints and small tumbling shards travelling along it), mist puffs carried
+ * other (a double helix of sparkles, thin glints and small tumbling ice cubes travelling along it), mist puffs carried
  * along a gently curving path and spreading as they go, a faint broken shimmer pulsing down its middle; where it lands
- * frost crystals keep forming, growing and dropping away, frost flecks and mist splash off (the frost on the body and
+ * small cubes of ice keep freezing on, growing and dropping away, frost flecks and mist splash off (the frost on the body and
  * their frosted screen are FrostFx's). Into the air: a lighter flow from the hands to the growing tip of the ice being
  * sculpted. The flow fades in and out (the mist thinning), its end eases from one target to the next; a hissing loop
  * (ICEMAN_BRUSH) follows him while he brushes and fades away when he stops.
@@ -211,7 +211,7 @@ public final class IcemanBrushFx {
             st.close();
         }
     }
-    /** The solid and bright parts: the strands' glints and sparkles, the tumbling shards, the crystals where it lands. */
+    /** The solid and bright parts: the strands' glints and sparkles, the tumbling cubes, the ice freezing on where it lands. */
     private static void flowIce(IceStage st, IceMesh.Ctx c, Flow f, float level, float time) {
         float body = f.body, light = .55f + .45f * body;
         boolean far = st.far(f.end) && st.far(f.mid);
@@ -236,35 +236,41 @@ public final class IcemanBrushFx {
                 IceMesh.sparkle(c, strand(f, i, u, time, spread), .07f + .07f * (float) IceMesh.hash(k * 3.1 + i), .75f * level * light * tw * edges(u));
             }
             if (far) continue;
-            // Small shards of ice tumbling along with it.
+            // Small cubes of ice tumbling along with it (each its texture riding with it).
             int sh = Mth.clamp((int) (f.len * (.8f + body)), 3, 24);
             for (int k = 0; k < sh; k++) {
                 float u = frac(k / (float) sh + time * .055f + (float) IceMesh.hash(k * 1.9 + i) * .3f);
                 Vec3 at = strand(f, i, u, time, spread * 1.3f).add(f.fu.scale(.06 * Mth.sin(k * 2.3f + time * .3f)));
-                Vec3 spin = new Vec3(Mth.sin(time * .5f + k), Mth.cos(time * .37f + k * 1.3f), Mth.sin(time * .29f + k * .7f));
-                IceMesh.shard(c, at, spin, (.035f + .04f * (float) IceMesh.hash(k * 5.3 + i)) * (.6f + .4f * body), k * 17 + i, k % 3 == 0 ? IceMesh.MILKY : IceMesh.CLEAR,
-                        level * edges(u) * .9f);
+                float size = (.04f + .04f * (float) IceMesh.hash(k * 5.3 + i)) * (.6f + .4f * body);
+                c.ox = (float) at.x; c.oy = (float) at.y; c.oz = (float) at.z;
+                IceParticles.cube(c, at.x, at.y, at.z, size, size, size, time * .5f + k, time * .37f + k * 1.3f, time * .29f + k * .7f,
+                        k % 3 == 0 ? IceMesh.MILKY : IceMesh.CLEAR, level * edges(u) * .9f);
             }
+            c.ox = c.oy = c.oz = 0;
         }
-        // Where it lands: frost crystals forming, growing, falling away, again and again.
+        // Where it lands: small cubes of ice freezing on, growing, then dropping away, again and again.
         if (body > .05f) {
             Vec3 back = f.mid.subtract(f.end).normalize();
             Vec3[] fr = IceMesh.frame(back);
-            for (int k = 0; k < (far ? 3 : 7); k++) {
+            for (int k = 0; k < (far ? 3 : 6); k++) {
                 float cyc = frac((time + k * 2.6f) / 18f);
                 float g = PantherMotion.snap(cyc, 0, .45f) * (1 - PantherMotion.k(cyc, .78f, 1));
                 if (g <= .01f) continue;
                 int gen = (int) Math.floor((time + k * 2.6f) / 18f);
                 double h = IceMesh.hash(k * 13.7 + gen * 3.3), h2 = IceMesh.hash(k * 5.1 + gen * 7.9);
                 float ang = (float) (h * Mth.TWO_PI), rr = (float) (.08 + .22 * h2);
-                Vec3 base = f.end.add(fr[0].scale(Mth.cos(ang) * rr)).add(fr[1].scale(Mth.sin(ang) * rr));
-                Vec3 dir = back.add(fr[0].scale(Mth.cos(ang) * .8)).add(fr[1].scale(Mth.sin(ang) * .8)).normalize();
-                IceMesh.crystal(c, base, dir, (.16f + .2f * (float) h2) * g, .045f * g + .01f, 5, k * 31 + gen, k % 2 == 0 ? IceMesh.CLEAR : IceMesh.FROST,
-                        level * body, .5f);
+                float size = (.08f + .08f * (float) h2) * g;
+                // Dropping away at the end of its turn.
+                float drop = PantherMotion.k(cyc, .62f, 1);
+                Vec3 at = f.end.add(fr[0].scale(Mth.cos(ang) * rr)).add(fr[1].scale(Mth.sin(ang) * rr)).add(back.scale(size * .4)).add(0, -.35 * drop * drop, 0);
+                c.ox = (float) at.x; c.oy = (float) at.y; c.oz = (float) at.z;
+                IceParticles.cube(c, at.x, at.y, at.z, size, size, size, ang, (float) (h2 - .5) * 1.2f + drop * 1.5f, (float) (h - .5) * 1.2f,
+                        k % 2 == 0 ? IceMesh.CLEAR : IceMesh.FROST, level * body);
             }
+            c.ox = c.oy = c.oz = 0;
             IceMesh.sparkle(c, f.end, .3f, .6f * level * body * (.7f + .3f * Mth.sin(time * 2.1f)));
         } else {
-            // Sculpting: crystal nuclei winking at the tip.
+            // Sculpting: the cold winking at the tip.
             for (int k = 0; k < 3; k++) {
                 float a = time * .4f + k * 2.1f;
                 Vec3 at = f.end.add(f.fu.scale(Mth.cos(a) * .18)).add(f.fv.scale(Mth.sin(a) * .18));

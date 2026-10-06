@@ -27,10 +27,11 @@ import static com.FIRNI.superheromod.heroes.iceman.IcemanAction.*;
 /**
  * The thrown ice spear and the spikes, on the clients: the spear flies with the server's own physics (gravity that
  * weakens the more it was drawn back, a little drag) with a cold streak and snow behind it, sticks (in a block, or in a
- * body it then rides with), cracks over its last SPEAR_CRACK ticks and bursts. The spikes burst out of the ground in a
- * ring round where it struck, leaning outward, in a fast wave from the middle out; they stand, crack (with the sound),
- * their tops break off in shards and the stumps sink and melt away into frost (nothing pops). The giant mace's slam uses
- * the same spikes ({@link #spikes}).
+ * body it then rides with), cracks over its last SPEAR_CRACK ticks and bursts into ice cubes. The spikes burst out of
+ * the ground in a ring round where it struck, leaning outward, in a fast wave from the middle out: square ice spikes
+ * (stepped square tiers closing to a four-sided point, blocky like Minecraft, never crystals); they stand, crack (with
+ * the sound), their tops break off in chunks of ice and the stumps sink and melt away into frost (nothing pops). The
+ * giant mace's slam uses the same spikes ({@link #spikes}).
  */
 final class IcemanSpearFx {
     private IcemanSpearFx() {}
@@ -46,7 +47,7 @@ final class IcemanSpearFx {
         }
         float size() { return 1 + .6f * charge; }
     }
-    private static final class Spike { Vec3 base, dir; float h, r, delay; int seed; boolean milky; }
+    private static final class Spike { Vec3 base, dir; float h, r, delay, roll; int seed; boolean milky; }
     private static final class Spikes { Vec3 at; float radius, start; Spike[] spikes; boolean cracked, broke; }
     private static final List<Spear> SPEARS = new ArrayList<>();
     private static final List<Spikes> SPIKES = new ArrayList<>();
@@ -116,6 +117,7 @@ final class IcemanSpearFx {
             s.r = s.h * (.13f + .05f * (float) IceMesh.hash(seed + i * 13));
             s.delay = d / sp.radius * 2.6f;
             s.seed = seed + i * 17;
+            s.roll = ang + (float) (IceMesh.hash(seed + i * 19) - .5) * .6f;
             s.milky = i % 4 == 1;
             sp.spikes[i] = s;
         }
@@ -183,7 +185,7 @@ final class IcemanSpearFx {
             if (!sp.broke && t >= BREAK) {
                 sp.broke = true;
                 level.playLocalSound(sp.at.x, sp.at.y, sp.at.z, ModSounds.ICEMAN_SHATTER.get(), SoundSource.PLAYERS, .45f, 1.35f, false);
-                // The tops break off: shards from the upper part of each spike, a short flash here and there.
+                // The tops break off: chunks of ice from the upper part of each spike, a short flash here and there.
                 for (int k = 0; k < sp.spikes.length; k++) {
                     Spike s = sp.spikes[k];
                     Vec3 top = s.base.add(s.dir.scale(s.h * .72));
@@ -206,7 +208,7 @@ final class IcemanSpearFx {
         float len = IcemanArmory.length(W_SPEAR, s.size()) / 16f;
         return s.stuck >= 0 ? at.subtract(s.dir.scale(len - .3f)) : at;
     }
-    /** The spear bursts: pieces all along it. */
+    /** The spear bursts: chunks of ice all along it. */
     private static void burst(Spear s, Vec3 at) {
         Vec3 g = grip(s, at), tip = g.add(s.dir.scale(IcemanArmory.length(W_SPEAR, s.size()) / 16f));
         for (int i = 0; i < 6; i++) {
@@ -265,19 +267,20 @@ final class IcemanSpearFx {
                     alpha = 1 - .6f * melt;
                 }
                 if (len <= .01f) continue;
-                IceMesh.crystal(c, base, s.dir, len, s.r * (.45f + .55f * g) * (t < BREAK ? 1 : 1 - .4f * melt), far ? 4 : 6, s.seed,
-                        s.milky ? IceMesh.MILKY : IceMesh.CLEAR, alpha, far ? 0 : .7f);
-                if (!far && t < BREAK) {
-                    // A milky heart inside the clear ones.
-                    if (!s.milky) IceMesh.crystal(c, base, s.dir, len * .8f, s.r * .45f, 4, s.seed + 3, IceMesh.CORE, .8f, 0);
-                    if (crackK > 0) {
-                        Vec3 a = base.add(s.dir.scale(len * .15)), b = base.add(s.dir.scale(len * (.15 + .7 * crackK)));
-                        Vec3 side = new Vec3(s.dir.z, 0, -s.dir.x).scale(s.r * .5);
-                        Vec3 m = a.lerp(b, .5).add(side.scale(IceMesh.hash(s.seed) - .5));
-                        float k = .5f + .5f * crackK;
-                        IceMesh.line(c, a, m, .02f, .55f * k, .85f * k, k);
-                        IceMesh.line(c, m, b, .018f, .55f * k, .85f * k, k);
-                    }
+                float r = s.r * (.45f + .55f * g) * (t < BREAK ? 1 : 1 - .4f * melt);
+                // Broken off, the stump is a plain square post (its top cut flat), not a point.
+                if (t < BREAK) IceParticles.spike(c, base, s.dir, len, r, s.roll, far ? 1 : 2, s.milky ? IceMesh.MILKY : IceMesh.CLEAR, alpha);
+                else IceParticles.post(c, base, s.dir, len, r, s.roll, s.milky ? IceMesh.MILKY : IceMesh.CLEAR, alpha);
+                if (!far && t < BREAK && crackK > 0) {
+                    // A crack climbing one face (it is breaking).
+                    Vec3 side = new Vec3(s.dir.z, 0, -s.dir.x);
+                    side = side.lengthSqr() < 1e-6 ? new Vec3(1, 0, 0) : side.normalize();
+                    Vec3 face = side.scale(r * 1.04);
+                    Vec3 a = base.add(s.dir.scale(len * .15)).add(face), b = base.add(s.dir.scale(len * (.15 + .5 * crackK))).add(face.scale(1 - .5 * crackK));
+                    Vec3 m = a.lerp(b, .5).add(s.dir.cross(side).scale(r * (IceMesh.hash(s.seed) - .5)));
+                    float k = .5f + .5f * crackK;
+                    IceMesh.vein(c, a, m, .02f, k);
+                    IceMesh.vein(c, m, b, .018f, k);
                 }
             }
         }

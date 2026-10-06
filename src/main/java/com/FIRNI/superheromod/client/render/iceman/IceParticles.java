@@ -23,7 +23,8 @@ import java.util.Random;
 /**
  * Iceman's loose matter, shared by every effect (client only, pooled and capped: never a flood):
  * <ul>
- * <li>shards: pieces of real ice (IceMesh) that fly, spin, bounce on the ground, then melt away into a little frost;</li>
+ * <li>shards: chunks of real ice, small textured ice CUBES (Minecraft's block-break bits, made 3D) that fly, tumble,
+ * bounce on the ground, then melt away into a little frost;</li>
  * <li>mist: cold vapour, soft puffs that swell and thin out (sinking a little: cold air);</li>
  * <li>snow: fine frost dust and snow spray, small bright flecks under gravity and drag;</li>
  * <li>flashes: short cold-white light at a break;</li>
@@ -32,6 +33,11 @@ import java.util.Random;
  * The break language every ice thing uses is {@link #shatter}: a short flash, the big pieces, the shards, mist and
  * dust (the crack before it is the caller's).
  * The amount follows the client's effects setting, and far from the camera there are fewer.
+ * <p>
+ * It also holds the block shapes every ice effect is built from (the user's direction: Minecraft's cube structure,
+ * never crystals or round tubes): {@link #obox} a turned box, {@link #cube} a box turned by yaw / pitch / roll,
+ * {@link #hexa} any six-faced block from its corners, {@link #spike} a square ice spike or icicle (stepped square tiers
+ * closing to a four-sided point, like pointed dripstone made of ice).
  */
 @Mod.EventBusSubscriber(modid = SuperheroMod.MODID, value = Dist.CLIENT)
 public final class IceParticles {
@@ -154,7 +160,7 @@ public final class IceParticles {
                 boolean floor = !solid(level, new Vec3(next.x, s.pos.y, next.z));
                 s.vel = floor ? new Vec3(s.vel.x * .45, -s.vel.y * .28, s.vel.z * .45) : new Vec3(-s.vel.x * .3, s.vel.y * .6, -s.vel.z * .3);
                 s.spin *= .5f;
-                if (floor && Math.abs(s.vel.y) < .05) { s.ground = true; s.vel = Vec3.ZERO; s.pos = new Vec3(next.x, Math.floor(next.y) + 1.0 + s.size * .25, next.z); continue; }
+                if (floor && Math.abs(s.vel.y) < .05) { s.ground = true; s.vel = Vec3.ZERO; s.pos = new Vec3(next.x, Math.floor(next.y) + 1.0 + s.size * .3, next.z); continue; }
             } else s.pos = next;
             s.vel = new Vec3(s.vel.x * .97, s.vel.y * .98 - .045, s.vel.z * .97);
             s.angle += s.spin;
@@ -192,14 +198,19 @@ public final class IceParticles {
             if (!SHARDS.isEmpty()) {
                 IceMesh.Ctx c = st.ice();
                 for (Shard s : SHARDS) {
-                    Vec3 at = s.prev.lerp(s.pos, partial);
+                    double x = Mth.lerp(partial, s.prev.x, s.pos.x), y = Mth.lerp(partial, s.prev.y, s.pos.y), z = Mth.lerp(partial, s.prev.z, s.pos.z);
                     float melt = Mth.clamp((s.life - s.age - partial) / 14f, 0, 1);
-                    float size = s.size * (.35f + .65f * melt);
-                    c.light = IceStage.light(at);
+                    float size = s.size * (.35f + .65f * melt) * .78f;
+                    c.light = IceStage.light(s.pos);
                     float ang = Mth.lerp(partial, s.angleO, s.angle);
-                    Vec3 dir = rotate(new Vec3(0, 1, 0), s.axis, ang);
-                    IceMesh.shard(c, at, dir, size, s.seed, s.mat, .4f + .6f * melt);
+                    // A tumbling chunk: a little uneven box (each its own proportions), its texture riding with it.
+                    axisAngle((float) s.axis.x, (float) s.axis.y, (float) s.axis.z, ang + s.seed % 7, AX);
+                    float hu = size * (.42f + .16f * ((s.seed >> 3) & 7) / 7f), hv = size * (.36f + .14f * ((s.seed >> 6) & 7) / 7f),
+                            hw = size * (.32f + .16f * ((s.seed >> 9) & 7) / 7f);
+                    c.ox = (float) x; c.oy = (float) y; c.oz = (float) z;
+                    obox(c, x, y, z, AX, hu, hv, hw, s.mat, .4f + .6f * melt);
                 }
+                c.ox = c.oy = c.oz = 0;
                 st.endIce();
             }
             FilmContext f = st.fx();
@@ -223,6 +234,144 @@ public final class IceParticles {
             st.close();
         }
     }
+    // ------------------------------------------------------------------ block shapes (every ice effect)
+    /** Scratch: a turned frame (u, v, w axes, 3 floats each) and a block's corners (render thread only). */
+    static final float[] AX = new float[9];
+    private static final float[] CORNERS = new float[24], RING = new float[12];
+
+    /**
+     * A six-faced block from its corners p (x, y, z each): 0..3 round one end, 4..7 round the other the same way round.
+     * The six faces are flat quads (IceMesh mapped like a block: the texture on the side each face looks to).
+     */
+    static void hexa(IceMesh.Ctx c, float[] p, IceMesh.Mat mat, float a) {
+        if (a <= .003f) return;
+        for (int i = 0; i < 4; i++) {
+            int j = (i + 1) & 3;
+            IceMesh.quad(c, p[i * 3], p[i * 3 + 1], p[i * 3 + 2], p[j * 3], p[j * 3 + 1], p[j * 3 + 2],
+                    p[j * 3 + 12], p[j * 3 + 13], p[j * 3 + 14], p[i * 3 + 12], p[i * 3 + 13], p[i * 3 + 14], mat, a);
+        }
+        IceMesh.quad(c, p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9], p[10], p[11], mat, a);
+        IceMesh.quad(c, p[12], p[13], p[14], p[15], p[16], p[17], p[18], p[19], p[20], p[21], p[22], p[23], mat, a);
+    }
+    /** A box centred on (x, y, z) along the frame r (u = r[0..2], v = r[3..5], w = r[6..8], unit), half-sizes hu, hv, hw. */
+    static void obox(IceMesh.Ctx c, double x, double y, double z, float[] r, float hu, float hv, float hw, IceMesh.Mat mat, float a) {
+        if (hu <= .0005f || hv <= .0005f || hw <= .0005f || a <= .003f) return;
+        float[] p = CORNERS;
+        for (int k = 0; k < 8; k++) {
+            int q = k & 3;
+            float su = q == 0 || q == 3 ? -hu : hu, sv = q < 2 ? -hv : hv, sw = k < 4 ? -hw : hw;
+            p[k * 3] = (float) (x + r[0] * su + r[3] * sv + r[6] * sw);
+            p[k * 3 + 1] = (float) (y + r[1] * su + r[4] * sv + r[7] * sw);
+            p[k * 3 + 2] = (float) (z + r[2] * su + r[5] * sv + r[8] * sw);
+        }
+        hexa(c, p, mat, a);
+    }
+    /** A box centred on at along the unit axes u, v, w. */
+    static void obox(IceMesh.Ctx c, Vec3 at, Vec3 u, Vec3 v, Vec3 w, float hu, float hv, float hw, IceMesh.Mat mat, float a) {
+        float[] r = AX;
+        r[0] = (float) u.x; r[1] = (float) u.y; r[2] = (float) u.z; r[3] = (float) v.x; r[4] = (float) v.y; r[5] = (float) v.z;
+        r[6] = (float) w.x; r[7] = (float) w.y; r[8] = (float) w.z;
+        obox(c, at.x, at.y, at.z, r, hu, hv, hw, mat, a);
+    }
+    /** A box of size (sx, sy, sz) centred on (x, y, z), turned by yaw (about up), pitch, roll (radians). */
+    static void cube(IceMesh.Ctx c, double x, double y, double z, float sx, float sy, float sz, float yaw, float pitch, float roll, IceMesh.Mat mat, float a) {
+        turn(yaw, pitch, roll, AX);
+        obox(c, x, y, z, AX, sx * .5f, sy * .5f, sz * .5f, mat, a);
+    }
+    /**
+     * The frame of a turn: roll about the forward axis, then pitch (positive tips the forward axis down), then yaw about
+     * up (0 = forward along +z, positive toward +x). Into o: u, v, w (the turned x, y, z axes).
+     */
+    static float[] turn(float yaw, float pitch, float roll, float[] o) {
+        float cy = Mth.cos(yaw), sy = Mth.sin(yaw), cp = Mth.cos(pitch), sp = Mth.sin(pitch), cr = Mth.cos(roll), sr = Mth.sin(roll);
+        for (int i = 0; i < 3; i++) {
+            float x = i == 0 ? cr : i == 1 ? -sr : 0, y = i == 0 ? sr : i == 1 ? cr : 0, z = i == 2 ? 1 : 0;
+            float y2 = y * cp - z * sp, z2 = y * sp + z * cp;
+            o[i * 3] = x * cy + z2 * sy;
+            o[i * 3 + 1] = y2;
+            o[i * 3 + 2] = -x * sy + z2 * cy;
+        }
+        return o;
+    }
+    /** The yaw and pitch that turn the forward axis (+z) onto the unit direction (dx, dy, dz) (see turn). */
+    static float yawOf(double dx, double dz) { return (float) Math.atan2(dx, dz); }
+    static float pitchOf(double dy) { return (float) -Math.asin(Mth.clamp(dy, -1, 1)); }
+    /** The frame turned by angle about the unit axis (ax, ay, az), into o (Rodrigues). */
+    static float[] axisAngle(float ax, float ay, float az, float angle, float[] o) {
+        float c = Mth.cos(angle), s = Mth.sin(angle), t = 1 - c;
+        o[0] = c + ax * ax * t; o[1] = ay * ax * t + az * s; o[2] = az * ax * t - ay * s;
+        o[3] = ax * ay * t - az * s; o[4] = c + ay * ay * t; o[5] = az * ay * t + ax * s;
+        o[6] = ax * az * t + ay * s; o[7] = ay * az * t - ax * s; o[8] = c + az * az * t;
+        return o;
+    }
+    /**
+     * A square ice spike (or icicle, pointing down): from base along the unit direction d, len long, half-width half at
+     * its foot, turned by roll about its axis; `tiers` square steps (each narrower, like pointed dripstone), then a
+     * four-sided point over the last part. 0 tiers: a plain square pyramid. Its foot is open (it stands in something).
+     */
+    static void spike(IceMesh.Ctx c, double bx, double by, double bz, double dx, double dy, double dz, float len, float half, float roll, int tiers,
+                      IceMesh.Mat mat, float a) {
+        spike(c, bx, by, bz, dx, dy, dz, len, half, roll, tiers, mat, a, true);
+    }
+    /** A square post: the spike's frame (the same roll lines up with it) as one flat-topped square prism (a broken spike's stump). */
+    static void post(IceMesh.Ctx c, Vec3 base, Vec3 d, float len, float half, float roll, IceMesh.Mat mat, float a) {
+        spike(c, base.x, base.y, base.z, d.x, d.y, d.z, len, half, roll, 1, mat, a, false);
+    }
+    private static void spike(IceMesh.Ctx c, double bx, double by, double bz, double dx, double dy, double dz, float len, float half, float roll, int tiers,
+                              IceMesh.Mat mat, float a, boolean point) {
+        if (len <= .002f || half <= .0005f || a <= .003f) return;
+        double l = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (l < 1e-8) { dx = 0; dy = 1; dz = 0; } else { dx /= l; dy /= l; dz /= l; }
+        // A frame round the axis: u = d x helper, v = d x u, turned by roll.
+        double hx = Math.abs(dy) < .9 ? 0 : 1, hy = Math.abs(dy) < .9 ? 1 : 0;
+        double ux = dy * 0 - dz * hy, uy = dz * hx - dx * 0, uz = dx * hy - dy * hx;
+        double ul = Math.sqrt(ux * ux + uy * uy + uz * uz);
+        ux /= ul; uy /= ul; uz /= ul;
+        double vx = dy * uz - dz * uy, vy = dz * ux - dx * uz, vz = dx * uy - dy * ux;
+        double cr = Math.cos(roll), sr = Math.sin(roll);
+        double Ux = ux * cr + vx * sr, Uy = uy * cr + vy * sr, Uz = uz * cr + vz * sr;
+        double Vx = vx * cr - ux * sr, Vy = vy * cr - uy * sr, Vz = vz * cr - uz * sr;
+        float body = !point ? 1 : tiers <= 0 ? 0 : Math.min(.72f, .5f + .08f * tiers);
+        float[] p = CORNERS;
+        float s0 = 0;
+        for (int t = 0; t < tiers; t++) {
+            float s1 = body * len * (t + 1) / tiers, w = half * (1 - .26f * t);
+            for (int k = 0; k < 8; k++) {
+                int q = k & 3;
+                double su = q == 0 || q == 3 ? -w : w, sv = q < 2 ? -w : w, sd = k < 4 ? s0 : s1;
+                p[k * 3] = (float) (bx + Ux * su + Vx * sv + dx * sd);
+                p[k * 3 + 1] = (float) (by + Uy * su + Vy * sv + dy * sd);
+                p[k * 3 + 2] = (float) (bz + Uz * su + Vz * sv + dz * sd);
+            }
+            // The sides and the step's top (its foot stays open).
+            for (int i = 0; i < 4; i++) {
+                int j = (i + 1) & 3;
+                IceMesh.quad(c, p[i * 3], p[i * 3 + 1], p[i * 3 + 2], p[j * 3], p[j * 3 + 1], p[j * 3 + 2],
+                        p[j * 3 + 12], p[j * 3 + 13], p[j * 3 + 14], p[i * 3 + 12], p[i * 3 + 13], p[i * 3 + 14], mat, a);
+            }
+            IceMesh.quad(c, p[12], p[13], p[14], p[15], p[16], p[17], p[18], p[19], p[20], p[21], p[22], p[23], mat, a);
+            s0 = s1;
+        }
+        if (!point) return;
+        // The point: a square pyramid off the last step (a little narrower than it, so the step shows).
+        float w = half * (tiers <= 0 ? 1 : (1 - .26f * (tiers - 1)) * .8f);
+        float[] r = RING;
+        for (int q = 0; q < 4; q++) {
+            double su = q == 0 || q == 3 ? -w : w, sv = q < 2 ? -w : w;
+            r[q * 3] = (float) (bx + Ux * su + Vx * sv + dx * s0);
+            r[q * 3 + 1] = (float) (by + Uy * su + Vy * sv + dy * s0);
+            r[q * 3 + 2] = (float) (bz + Uz * su + Vz * sv + dz * s0);
+        }
+        float tx = (float) (bx + dx * len), ty = (float) (by + dy * len), tz = (float) (bz + dz * len);
+        for (int i = 0; i < 4; i++) {
+            int j = (i + 1) & 3;
+            IceMesh.tri(c, r[i * 3], r[i * 3 + 1], r[i * 3 + 2], r[j * 3], r[j * 3 + 1], r[j * 3 + 2], tx, ty, tz, mat, a);
+        }
+    }
+    static void spike(IceMesh.Ctx c, Vec3 base, Vec3 d, float len, float half, float roll, int tiers, IceMesh.Mat mat, float a) {
+        spike(c, base.x, base.y, base.z, d.x, d.y, d.z, len, half, roll, tiers, mat, a);
+    }
+
     /** v turned about the unit axis by angle (Rodrigues). */
     static Vec3 rotate(Vec3 v, Vec3 axis, float angle) {
         double c = Math.cos(angle), s = Math.sin(angle);
