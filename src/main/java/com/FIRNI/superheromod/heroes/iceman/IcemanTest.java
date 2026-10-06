@@ -157,7 +157,9 @@ public final class IcemanTest {
         if (d == null) return null;
         d.moveTo(at.x, at.y, at.z, p.getYRot() + 180, 0);
         d.setYHeadRot(p.getYRot() + 180);
-        d.finalizeSpawn(level, level.getCurrentDifficultyAt(d.blockPosition()), MobSpawnType.COMMAND, null, null);
+        // An adult on its own feet (never a baby, never riding a chicken).
+        d.finalizeSpawn(level, level.getCurrentDifficultyAt(d.blockPosition()), MobSpawnType.COMMAND, new net.minecraft.world.entity.monster.Zombie.ZombieGroupData(false, false), null);
+        d.setBaby(false);
         d.setNoAi(true);
         d.setPersistenceRequired();
         d.setCustomName(Component.literal("Buz Kuklası"));

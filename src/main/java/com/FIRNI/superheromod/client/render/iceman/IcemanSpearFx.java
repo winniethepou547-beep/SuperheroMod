@@ -140,6 +140,8 @@ final class IcemanSpearFx {
     // ------------------------------------------------------------------ every tick
     static void tick(Level level) {
         var mc = Minecraft.getInstance();
+        // ClipContext needs a non-null entity (its collision context reads it).
+        if (mc.player == null) return;
         for (int i = SPEARS.size() - 1; i >= 0; i--) {
             Spear s = SPEARS.get(i);
             s.prev = s.pos; s.prevVel = s.vel;
