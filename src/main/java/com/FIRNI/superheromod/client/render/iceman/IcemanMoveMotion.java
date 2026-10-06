@@ -78,7 +78,7 @@ public final class IcemanMoveMotion {
         Pose push = held.copy();
         for (int side = 0; side < 2; side++) push.armAdd(side, SH_FWD, .6f).armAdd(side, ELBOW, -.12f).armAdd(side, CURL, -.05f);
         push.add(SPINE_PITCH, .05f);
-        Pose gather = base.copy().set(CROUCH, .6f).add(SPINE_PITCH, .04f);
+        Pose gather = base.copy().add(CROUCH, .5f).add(SPINE_PITCH, .04f);
         for (int side = 0; side < 2; side++)
             gather.arm(side, SH_FWD, .1f).arm(side, ARM_X, -.75f + aim * .4f).arm(side, ARM_Z, .25f).arm(side, ELBOW, 1.3f).arm(side, CURL, .55f).arm(side, WRIST_Z, .2f);
         Pose p = t >= BRUSH_RAISE + 3 ? held
@@ -88,8 +88,9 @@ public final class IcemanMoveMotion {
     /** On a body: both hands before him, palms out, fingers spread, braced and leaning into it. */
     private static Pose stream(Pose base, float time, float aim) {
         Pose p = base.copy();
-        p.set(CROUCH, 1.3f).set(SPINE_PITCH, .14f).set(CHEST_PITCH, .05f).set(HEAD_PITCH, -.05f).set(PELVIS_YAW, -.12f).set(CHEST_YAW, .06f).set(NECK, .45f);
-        p.leg(1, LEG_X, -.34f).leg(1, KNEE, .32f).leg(1, LEG_Z, .1f).leg(0, LEG_X, .22f).leg(0, KNEE, .2f).leg(0, LEG_Z, .12f).leg(0, LEG_Y, .25f);
+        p.add(CROUCH, 1.1f).set(SPINE_PITCH, .14f).set(CHEST_PITCH, .05f).set(HEAD_PITCH, -.05f).set(PELVIS_YAW, -.12f).set(CHEST_YAW, .06f).set(NECK, .45f);
+        // Braced (added over the stance and the walk under it): the left foot ahead, the right behind.
+        p.legAdd(1, LEG_X, -.24f).legAdd(1, KNEE, .2f).legAdd(0, LEG_X, .2f).legAdd(0, KNEE, .12f).legAdd(0, LEG_Y, .12f);
         for (int side = 0; side < 2; side++)
             p.arm(side, SH_FWD, 1.1f).arm(side, SH_UP, .3f).arm(side, ARM_X, -1.45f + aim * .85f).arm(side, ARM_Y, -.22f).arm(side, ARM_Z, .05f)
                     .arm(side, ELBOW, .28f).arm(side, WRIST_X, -.08f).arm(side, WRIST_Z, .85f).arm(side, CURL, .02f);
@@ -98,8 +99,8 @@ public final class IcemanMoveMotion {
     /** Sculpting: the right hand leads (drawing), the left supports it. */
     private static Pose sculpt(Pose base, float time, float aim) {
         Pose p = base.copy();
-        p.set(CROUCH, .8f).set(SPINE_PITCH, .1f).set(CHEST_YAW, -.2f).set(SPINE_YAW, -.06f).set(HEAD_PITCH, -.04f).set(HEAD_YAW, .1f).set(NECK, .4f);
-        p.leg(0, LEG_X, -.22f).leg(0, KNEE, .25f).leg(1, LEG_X, .18f).leg(1, KNEE, .15f).leg(1, LEG_Y, .3f);
+        p.add(CROUCH, .6f).set(SPINE_PITCH, .1f).set(CHEST_YAW, -.2f).set(SPINE_YAW, -.06f).set(HEAD_PITCH, -.04f).set(HEAD_YAW, .1f).set(NECK, .4f);
+        p.legAdd(0, LEG_X, -.18f).legAdd(0, KNEE, .15f).legAdd(1, LEG_X, .16f).legAdd(1, KNEE, .08f).legAdd(1, LEG_Y, .14f);
         p.arm(0, SH_FWD, 1.25f).arm(0, SH_UP, .2f).arm(0, ARM_X, -1.5f + aim * .9f).arm(0, ARM_Y, -.05f).arm(0, ARM_Z, .12f).arm(0, ELBOW, .15f)
                 .arm(0, WRIST_X, -.25f).arm(0, WRIST_Z, .3f).arm(0, CURL, .42f);
         p.arm(1, SH_FWD, .6f).arm(1, ARM_X, -.95f + aim * .4f).arm(1, ARM_Y, -.45f).arm(1, ARM_Z, .05f).arm(1, ELBOW, 1.15f)

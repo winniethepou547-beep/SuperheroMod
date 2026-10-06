@@ -54,7 +54,7 @@ public final class IcemanShellMotion {
         float low = lowest(v);
         if (low > GROUND_Y + .05f) v[LIFT] += low - GROUND_Y;
     }
-    private static final float GROUND_Y = 24.1f;
+    private static final float GROUND_Y = 24.45f;
     /** The lowest point of his legs (model y, larger = lower). */
     static float lowest(float[] v) {
         double[] m = translate(identity(), v[SHIFT_X], -v[LIFT], v[SHIFT_Z]);

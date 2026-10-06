@@ -21,7 +21,7 @@ W, H = 640, 360          # one frame
 SS = 2                   # supersampling for the dendrites
 COLS, ROWS, FRAMES = 4, 3, 12
 # How far in from the edge (pixels of the corner-weighted edge distance) the frost has reached in each frame.
-REACH = [7, 13, 20, 28, 37, 47, 58, 70, 83, 97, 111, 124]
+REACH = [6, 11, 17, 24, 32, 41, 51, 62, 74, 86, 98, 110]
 rng = random.Random(1963)
 np.random.seed(1963)
 
@@ -63,75 +63,68 @@ def edge_distance(w, h):
 def centre_mask(w, h):
     """1 in the middle of the view (an ellipse), 0 outside: the frost is held back there so the view stays readable."""
     ys, xs = np.mgrid[0:h, 0:w].astype(np.float64)
-    u, v = (xs / w - .5) / .30, (ys / h - .5) / .30
+    u, v = (xs / w - .5) / .36, (ys / h - .5) / .34
     r = np.sqrt(u * u + v * v)
-    return np.clip(1.25 - r, 0, 1) ** 1.5
+    return np.clip(1.35 - r, 0, 1) ** 1.2
 
 
 # ------------------------------------------------------------------ the dendrites (path, arrival time)
 def grow_dendrites():
-    """Stems from the edges inward; each segment's arrival time (the reach at which it appears) is its path length from
-    the edge, a little ahead of the film, so the crystal tips lead."""
+    """Fern-like frost feathers from the edges inward: a gently curving stem with short side barbs at about 60 degrees
+    on both sides (longest near the stem's base, shrinking to its tip), now and then a barb grows into a stem of its
+    own. Each segment's arrival time (the reach at which it appears) is its path length from the edge, so the
+    feathers grow outward from the edge, their tips a little ahead of the film."""
     segs = []  # (x0, y0, x1, y1, t0, t1, level)
 
-    def stem(x, y, ang, length, t, level, wob):
-        step = 2.6
-        n = int(length / step)
-        nxt = rng.uniform(6, 13) if level < 3 else 1e9
+    def feather(x, y, ang, length, t, level):
+        step = 2.2
+        n = max(2, int(length / step))
+        curl = math.radians(rng.uniform(-1.6, 1.6))
+        gap = rng.uniform(2.4, 4.2) * (1 + level * .5)
+        nxt = gap * rng.uniform(.5, 1.5)
         travelled = 0.0
-        side = rng.choice((-1, 1))
         for i in range(n):
-            ang += math.radians(rng.uniform(-wob, wob))
+            ang += curl + math.radians(rng.uniform(-3, 3))
             nx, ny = x + math.cos(ang) * step, y + math.sin(ang) * step
-            segs.append((x, y, nx, ny, t, t + step * .92, level))
-            x, y, t = nx, ny, t + step * .92
+            segs.append((x, y, nx, ny, t, t + step, level))
+            x, y, t = nx, ny, t + step
             travelled += step
-            if travelled >= nxt:
-                nxt = travelled + rng.uniform(5, 12) * (1 + level * .4)
-                left = length - travelled
-                for s in ((side,) if rng.random() < .55 else (1, -1)):
-                    blen = left * rng.uniform(.25, .55) / (1 + level * .35)
-                    if blen > 4:
-                        stem(x, y, ang + s * math.radians(60 + rng.uniform(-8, 8)), blen, t + rng.uniform(0, 3), level + 1, wob * 1.2)
-                side = -side
-
-    def edge_stems(count, place):
-        for _ in range(count):
-            x, y, ang, corner = place()
-            length = rng.uniform(26, 70) * (1 + 1.6 * corner) + rng.uniform(0, 30)
-            stem(x, y, ang, length, rng.uniform(-3, 6), 0, 5)
-
-    def along(n, a, b):
-        return a + (b - a) * rng.random()
+            if travelled >= nxt and level < 3:
+                nxt = travelled + gap * rng.uniform(.8, 1.25)
+                left = 1 - travelled / length
+                for sgn in (1, -1):
+                    if rng.random() < .12: continue
+                    blen = length * (.10 + .22 * left) * rng.uniform(.6, 1.2) / (1 + level * .9)
+                    if level == 0 and rng.random() < .045: blen *= 3.2      # a barb that becomes a feather of its own
+                    if blen < 2.2: continue
+                    feather(x, y, ang + sgn * math.radians(58 + rng.uniform(-9, 9)), blen, t + rng.uniform(0, 2), level + 1)
 
     def corner_of(x, y):
         dx, dy = min(x, W - x) / (W / 2), min(y, H - y) / (H / 2)
-        return max(0.0, 1 - max(dx, dy) * 1.6) if dx < .45 and dy < .45 else max(0.0, .35 - min(dx, dy))
+        return max(0.0, 1 - math.hypot(dx, dy) * 2.2)
 
-    # Along each edge (more near the corners), heading inward +/- 40 degrees.
     for edge in range(4):
         horizontal = edge < 2
         span = W if horizontal else H
-        count = int(span / 9)
-        def place(edge=edge, span=span):
-            t = rng.random()
-            t = t * t * (3 - 2 * t) if rng.random() < .35 else t        # bunch a few toward the corners
-            if rng.random() < .3: t = rng.choice((rng.uniform(0, .14), rng.uniform(.86, 1)))
-            p = t * span
-            jitter = math.radians(rng.uniform(-40, 40))
-            if edge == 0: return p, -1, math.pi / 2 + jitter, corner_of(p, 0)
-            if edge == 1: return p, H + 1, -math.pi / 2 + jitter, corner_of(p, H)
-            if edge == 2: return -1, p, 0 + jitter, corner_of(0, p)
-            return W + 1, p, math.pi + jitter, corner_of(W, p)
-        edge_stems(count, place)
-    # Long diagonal ferns out of each corner.
+        for _ in range(int(span / 13)):
+            q = rng.random()
+            if rng.random() < .3: q = rng.choice((rng.uniform(0, .15), rng.uniform(.85, 1)))
+            p = q * span
+            jitter = math.radians(rng.uniform(-45, 45))
+            if edge == 0: x, y, ang = p, -1, math.pi / 2 + jitter
+            elif edge == 1: x, y, ang = p, H + 1, -math.pi / 2 + jitter
+            elif edge == 2: x, y, ang = -1, p, jitter
+            else: x, y, ang = W + 1, p, math.pi + jitter
+            c = corner_of(x, y)
+            length = (rng.uniform(14, 52) + rng.expovariate(1 / 14)) * (1 + 1.8 * c)
+            feather(x, y, ang, length, rng.uniform(-2, 7), 0)
+    # Longer diagonal feathers out of each corner.
     for cx, cy in ((0, 0), (W, 0), (0, H), (W, H)):
-        for _ in range(9):
+        for _ in range(7):
             base = math.atan2(H / 2 - cy, W / 2 - cx)
-            off = rng.uniform(0, 30)
-            x = cx + (off if cx == 0 else -off) * rng.random()
-            y = cy + (off if cy == 0 else -off) * rng.random()
-            stem(x, y, base + math.radians(rng.uniform(-38, 38)), rng.uniform(80, 170), rng.uniform(0, 8), 0, 4)
+            x = cx + (1 if cx == 0 else -1) * rng.uniform(0, 40)
+            y = cy + (1 if cy == 0 else -1) * rng.uniform(0, 25)
+            feather(x, y, base + math.radians(rng.uniform(-42, 42)), rng.uniform(55, 120), rng.uniform(0, 8), 0)
     return segs
 
 
@@ -140,7 +133,7 @@ def arrival_image(segs):
     img = Image.new('F', (W * SS, H * SS), 1e9)
     lev = Image.new('L', (W * SS, H * SS), 255)
     d, dl = ImageDraw.Draw(img), ImageDraw.Draw(lev)
-    widths = {0: 2.3, 1: 1.6, 2: 1.15, 3: .9}
+    widths = {0: 1.5, 1: 1.0, 2: .8, 3: .6}
     for x0, y0, x1, y1, t0, t1, level in sorted(segs, key=lambda s: -s[4]):
         w = max(1, int(round(widths.get(level, .9) * SS)))
         d.line([(x0 * SS, y0 * SS), (x1 * SS, y1 * SS)], fill=float(t0), width=w)
@@ -172,13 +165,13 @@ def frost_atlas():
     prev = np.zeros((H, W))
     for k, reach in enumerate(REACH):
         cover = down((arrival < reach).astype(np.float64))
-        core = down(((arrival < reach) & (level < 90)).astype(np.float64))   # stems and first branches: brighter
+        core = down(((arrival < reach) & (level < 30)).astype(np.float64))   # the stems: brighter
         halo = blur(cover, 2.2)
         age = np.clip((reach - film_t) / 14, 0, 1)                           # the film fades in behind its front
         depth = np.clip((reach - film_t) / max(reach, 1), 0, 1)               # older frost (outer) is thicker
-        film = age * (.16 + .42 * depth) * (.55 + .45 * fine) + age * speck * .5
-        a = np.clip(film + cover * .78 + halo * .32, 0, 1)
-        a *= 1 - .78 * centre
+        film = age * (.10 + .34 * depth) * (.5 + .5 * fine) + age * speck * .45
+        a = np.clip(film + cover * .72 + halo * .26, 0, 1)
+        a *= 1 - .86 * centre
         a = np.minimum(np.maximum(a, prev), .965)
         frames_a.append(a)
         # Colour: bluish film, white crystals, whitest on the stems.
@@ -278,11 +271,11 @@ def lens_drops():
     dist = edge_distance(w, h)
     near = np.clip(1 - dist / (h * .5), 0, 1)
     drops = []
-    for count, r0, r1 in ((1700, 1.0, 2.6), (240, 3.5, 7.5), (46, 9, 17)):
+    for count, r0, r1 in ((1500, 1.0, 2.6), (200, 3.5, 7.5), (34, 9, 16)):
         placed = 0
         while placed < count:
             x, y = r.uniform(0, w), r.uniform(0, h)
-            if r.random() > .25 + .75 * near[int(y) % h, int(x) % w]: continue
+            if r.random() > .08 + .92 * near[int(y) % h, int(x) % w] ** 1.4: continue
             drops.append((x, y, r.uniform(r0, r1) * (1 if r.random() < .8 else .7), r.uniform(.85, 1.25)))
             placed += 1
     layer = Image.new('RGBA', img.size, (0, 0, 0, 0))
@@ -290,8 +283,8 @@ def lens_drops():
     for x, y, rad, stretch in sorted(drops, key=lambda q: q[2]):
         X, Y, R, RY = x * k, y * k, rad * k, rad * k * stretch
         # The body (faint, cool), the darker lower rim, the bright highlight up-left, a soft lit lower edge.
-        d.ellipse((X - R, Y - RY, X + R, Y + RY), fill=(200, 225, 245, 70))
-        d.chord((X - R, Y - RY, X + R, Y + RY), 20, 160, fill=(40, 62, 90, 95))
+        d.ellipse((X - R, Y - RY, X + R, Y + RY), fill=(200, 225, 245, 48))
+        d.chord((X - R, Y - RY, X + R, Y + RY), 20, 160, fill=(40, 62, 90, 72))
         d.ellipse((X - R * .82, Y - RY * .9, X + R * .82, Y + RY * .62), fill=(215, 236, 252, 55))
         hr = max(.6 * k, R * .26)
         d.ellipse((X - R * .45 - hr, Y - RY * .45 - hr, X - R * .45 + hr, Y - RY * .45 + hr), fill=(255, 255, 255, 230))

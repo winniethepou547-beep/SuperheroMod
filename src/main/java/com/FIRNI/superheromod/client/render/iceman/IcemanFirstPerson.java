@@ -58,6 +58,11 @@ public final class IcemanFirstPerson {
             float bob = Mth.sin(time * .08f) * .02f;
             pose.armAdd(0, ARM_X, bob);
         }
+        // In the shell his crossed forearms would cover the whole view: in his own view they stay low at the bottom edge.
+        if (action == SHELL_FORM || action == SHELL || action == SHELL_BURST && t < BURST_STRESS) {
+            for (int side = 0; side < 2; side++)
+                pose.arm(side, ARM_X, -.5f).arm(side, ARM_Y, -.35f).arm(side, ARM_Z, .15f).arm(side, ELBOW, 1.5f).arm(side, CURL, .8f).arm(side, WRIST_X, .2f);
+        }
         int key = action * 1000 + (action == STRIKE ? (s == null ? 0 : s.combo) + weapon * 10 : 0);
         if (key != lastKey) {
             from = last == null ? null : last.copy();
@@ -78,7 +83,8 @@ public final class IcemanFirstPerson {
             IcemanWeaponFx.hold(player.getId(), s, action, t, now);
             IcemanShellFx.body(player.getId(), s, action, t, now);
         }
-        float glow = action == BRUSH ? PantherMotion.k(t, 0, BRUSH_RAISE) : action == GROUND ? PantherMotion.k(t, GROUND_DOWN - 4, GROUND_DOWN) : 0;
+        float glow = action == BRUSH ? PantherMotion.k(t, 0, BRUSH_RAISE)
+                : action == GROUND ? PantherMotion.k(t, GROUND_DOWN - 4, GROUND_DOWN) * (1 - PantherMotion.k(t, GROUND_TICKS - 8, GROUND_TICKS)) : 0;
         IcemanBody.HAND_GLOW[0] = Math.max(glow, action == FORM ? 1 - PantherMotion.k(t, FORM_TICKS - 2, FORM_TICKS + 2) : 0);
         IcemanBody.HAND_GLOW[1] = glow;
 
