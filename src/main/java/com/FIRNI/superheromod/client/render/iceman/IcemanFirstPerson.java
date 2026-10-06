@@ -99,6 +99,9 @@ public final class IcemanFirstPerson {
         // The chest's own turn and lean from the pose (the swings turn the shoulders), half of it: the view stays steady.
         float[] v = pose.v;
         p.mulPose(Axis.YP.rotation((v[CHEST_YAW] + v[SPINE_YAW] + v[PELVIS_YAW]) * .5f));
+        // The sword's spin: his arms (and the blade) sweep round through his view with the whole body's turn.
+        boolean spin = weapon == W_SWORD && (action == CHARGE && t >= HOLD_TICKS || action == STRIKE && s != null && s.combo == 2);
+        if (spin) p.mulPose(Axis.YP.rotation(v[ROOT_YAW]));
         p.mulPose(Axis.XP.rotation((v[CHEST_PITCH] + v[SPINE_PITCH]) * .35f));
         IcemanBody.capture = true;
         try {

@@ -260,6 +260,7 @@ public final class IcemanWeaponMotion {
     private static final float SPIN_RAMP = 12;
     /** The last spin angle and speed drawn per Iceman (the release carries on from exactly there), and when. */
     private static final Map<Integer, float[]> SPIN = new HashMap<>();
+    static void clear() { SPIN.clear(); }
     /** The feet stepping round under a spin (the root turns the whole body; the legs shuffle with it). */
     private static void stepping(Pose p, float phi) {
         float s = Mth.sin(phi * 2), c = Mth.cos(phi * 2);
