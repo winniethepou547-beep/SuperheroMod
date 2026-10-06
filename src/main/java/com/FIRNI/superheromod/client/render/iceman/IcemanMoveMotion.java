@@ -22,9 +22,15 @@ import static com.FIRNI.superheromod.heroes.iceman.IcemanAction.*;
  * pushing the cold out of them. Aimed with his look (not in his own view, where the camera already turns with it).</li>
  * <li>BRUSH sculpting: the right hand leads, reaching out and drawing in small circles; the left supports it, open,
  * nearer the chest; the right shoulder forward.</li>
- * <li>SLIDE: a surfer's crouch on the ice (left foot ahead, right foot behind, knees bent, the hips turned across), the
- * left arm forward, the right back for balance; lower with speed and when diving, leaning back a little when climbing,
- * banking into the turns with the arms countering, never quite still.</li>
+ * <li>SLIDE: getting ready first (SLIDE_PREP: the weight down, knees bending, the torso forward, the left arm reaching
+ * forward, the right back and down, the eyes along the way), then a surfer's crouch on the ice (left foot ahead, right
+ * behind, the hips turned across, the left arm forward, the right back for balance), blended by how he moves: into a
+ * turn the inside shoulder drops, the body leans in, the hips follow, the outside leg opens and the inside one closes,
+ * the arms go out the other way, the head turns along; climbing he stays leaned forward with the front leg pressing,
+ * rising slowly with the steepness, and very steep both arms open, the knees bend more, the weight centred; going down
+ * he leans further forward, knees bent, arms open; lower with speed; never quite still.</li>
+ * <li>SLIDE_END (SHIFT let go on the ground): the weight forward, the front foot lifted, the back one dragged braking,
+ * fast enough a turn across the way like a hockey stop, back round into his ready stance.</li>
  * <li>DASH: dropped very low into an aggressive slide, the right leg forward and bent, the left folded under and behind,
  * the left hand trailing on the ground, the right fist forward; up again at the end.</li>
  * </ul>
@@ -40,13 +46,14 @@ public final class IcemanMoveMotion {
             case BRUSH -> brush(t, base, c);
             case SLIDE -> slide(t, base, c);
             case DASH -> dash(t, base, c);
+            case SLIDE_END -> slideEnd(t, base, c);
             default -> null;
         };
     }
 
     // ------------------------------------------------------------------ eased per body
     /** Per body: the brush's share of sculpting (0 on a body .. 1 sculpting), the slide's lean, and when last eased. */
-    private static final class Eased { float sculpt = -1, lean, dip, time = -1; }
+    private static final class Eased { float sculpt = -1, lean, dip, slope, exit, time = -1; }
     private static final Map<Integer, Eased> EASED = new HashMap<>();
     private static Eased eased(IcemanMotion.Ctx c) {
         if (EASED.size() > 64) EASED.clear();
@@ -152,36 +159,97 @@ public final class IcemanMoveMotion {
         hi.toward(lo, Mth.clamp(depth, 0, 1));
         return hi;
     }
+    /**
+     * Getting ready (SLIDE_PREP): the weight drops, the knees bend a little, the torso leans forward, the left arm reaches
+     * forward, the right opens back and down for balance, the head and the eyes along the way.
+     */
+    private static Pose prep(Pose base, float deeper) {
+        Pose p = base.copy().add(CROUCH, 2.2f + 1.0f * deeper).set(SPINE_PITCH, .3f + .1f * deeper).set(CHEST_PITCH, .08f).set(HEAD_PITCH, -.3f - .08f * deeper)
+                .set(NECK, .55f).set(PELVIS_YAW, .2f + .15f * deeper).set(CHEST_YAW, -.12f).set(HEAD_YAW, -.06f);
+        p.legAdd(1, LEG_X, -.22f).legAdd(1, KNEE, .12f).legAdd(0, LEG_X, .18f).legAdd(0, LEG_Y, .15f);
+        p.arm(1, SH_FWD, .7f).arm(1, SH_UP, .15f).arm(1, ARM_X, -1.05f - .15f * deeper).arm(1, ARM_Y, .1f).arm(1, ARM_Z, .25f).arm(1, ELBOW, .3f)
+                .arm(1, WRIST_X, -.2f).arm(1, WRIST_Z, .25f).arm(1, CURL, .12f);
+        p.arm(0, SH_FWD, -.3f).arm(0, ARM_X, .5f + .15f * deeper).arm(0, ARM_Y, 0).arm(0, ARM_Z, .45f).arm(0, ELBOW, .25f).arm(0, WRIST_X, .2f).arm(0, CURL, .3f);
+        return p;
+    }
+    /** His own slide as his own client steers it (exact), or another's from how his body moves. */
+    private static boolean mine(int entity) { return IcemanClient.isMe(entity) && IcemanSlideSteer.riding(); }
     static Pose slide(float t, Pose base, IcemanMotion.Ctx c) {
         Eased e = eased(c);
         float dt = step(e, c.time());
-        float speed = Mth.clamp(c.speed() / SLIDE_SPEED, 0, 1);
-        float pitch = Mth.clamp(c.lookPitch(), -1.2f, 1.2f);
-        // Smoothed: the bank into the turn, how low he rides.
-        float lean = Mth.clamp(c.turn() * 2.8f, -.45f, .45f);
-        float dip = Mth.clamp(speed * .6f + Math.max(0, pitch) * .8f, 0, 1);
-        float k = 1 - (float) Math.exp(-dt * .35f);
-        e.lean += (lean - e.lean) * k;
-        e.dip += (dip - e.dip) * k;
+        var mc = Minecraft.getInstance();
+        var en = mc.level == null ? null : mc.level.getEntity(c.entity());
+        boolean mine = mine(c.entity());
+        float speed, slope, turn;
+        if (mine) { speed = IcemanSlideSteer.speed(); slope = IcemanSlideSteer.pitch(); turn = IcemanSlideSteer.turn(); }
+        else {
+            double fx = en == null ? 0 : en.getX() - en.xo, fz = en == null ? 0 : en.getZ() - en.zo, fy = en == null ? 0 : en.getY() - en.yo;
+            double flat = Math.sqrt(fx * fx + fz * fz);
+            speed = (float) flat / SLIDE_SPEED;
+            slope = flat < .08 ? 0 : (float) Math.atan2(fy, flat);
+            turn = c.turn();
+        }
+        speed = Mth.clamp(speed, 0, 1.45f);
+        float k = 1 - (float) Math.exp(-dt * .3f);
+        e.lean += (Mth.clamp(turn * 2.8f, -.5f, .5f) - e.lean) * k;
+        e.slope += (Mth.clamp(slope, -SLIDE_DESCENT_MAX, SLIDE_ASCENT_MAX) - e.slope) * k;
+        float climb = Math.max(0, e.slope) / SLIDE_ASCENT_MAX, descent = Math.max(0, -e.slope) / SLIDE_DESCENT_MAX;
+        e.dip += (Mth.clamp(Math.min(1, speed) * .5f + descent * .7f + climb * .25f, 0, 1) - e.dip) * k;
+        e.exit = speed;
         Pose riding = ride(base, e.dip);
-        // Dropping onto the ice: a quick load into a deep crouch with the arms gathered, then up into the ride.
-        Pose load = riding.copy().add(LIFT, -1.6f).add(SPINE_PITCH, .15f);
-        load.arm(1, ARM_X, -.7f).arm(1, ELBOW, 1.1f).arm(0, ARM_X, .3f).arm(0, ELBOW, .9f);
-        Pose p = new Track(true).key(0, base).key(2.5f, load).key(7, riding).sample(Math.min(t, 7));
-        if (t >= 7) p = riding;
-        float on = PantherMotion.k(t, 3, 8);
-        float b = e.lean * on;
-        // Banking into the turn (leaning toward its inside), the arms countering it.
-        p.add(ROOT_ROLL, -b).add(SPINE_ROLL, -.25f * b).add(HEAD_ROLL, .5f * b);
-        p.armAdd(1, ARM_Z, .7f * Math.max(0, b)).armAdd(0, ARM_Z, .7f * Math.max(0, -b)).armAdd(1, ARM_X, -.2f * Math.abs(b));
-        // Climbing leans him back a little on the ramp, diving tips him forward.
-        p.add(ROOT_PITCH, .22f * pitch * on).add(HEAD_PITCH, -.15f * pitch * on);
-        // Never quite still: balancing.
+        Pose p = t >= SLIDE_PREP + 4 ? riding
+                : new Track(true).key(0, base).key(SLIDE_PREP * .6f, prep(base, 0)).key(SLIDE_PREP, prep(base, 1)).key(SLIDE_PREP + 4, riding).sample(t);
+        float on = PantherMotion.k(t, SLIDE_PREP, SLIDE_PREP + 5);
+        // ---- the turn (b > 0: to his right): the inside shoulder drops, the torso and the whole body lean into it, the
+        // hips follow the way, the outside leg opens, the inside one closes, the arms go out to the other side, the head
+        // turns along.
+        float b = e.lean * on, out = Math.abs(b);
+        int outside = b > 0 ? 1 : 0, inside = 1 - outside;
+        p.add(ROOT_ROLL, -.5f * b).add(SPINE_ROLL, -.3f * b).add(CHEST_ROLL, -.25f * b).add(PELVIS_YAW, .35f * b).add(HEAD_YAW, .45f * b).add(HEAD_ROLL, .35f * b);
+        p.legAdd(outside, LEG_Z, .4f * out).legAdd(inside, LEG_Z, -.2f * out).legAdd(inside, KNEE, .2f * out);
+        p.armAdd(outside, ARM_Z, .6f * out).armAdd(outside, ARM_X, -.15f * out).armAdd(inside, ARM_Z, -.2f * out).armAdd(inside, ARM_Y, -.25f * out);
+        // ---- climbing: still leaned forward, the front leg pressing up the ramp, the back one balancing, the torso rising
+        // slowly with the steepness; very steep: both arms open, the knees bend more, the weight centred over the ice.
+        float cl = climb * on, steep = PantherMotion.k(climb, .55f, .9f) * on;
+        p.legAdd(1, LEG_X, -.15f * cl).legAdd(0, LEG_X, .1f * cl).add(SPINE_PITCH, -.12f * cl).add(ROOT_PITCH, -.15f * e.slope * on);
+        for (int side = 0; side < 2; side++) p.armAdd(side, ARM_Z, .7f * steep).legAdd(side, KNEE, .3f * steep);
+        p.arm(0, ARM_X, Mth.lerp(steep, p.arm(0, ARM_X), -.3f)).arm(1, ARM_X, Mth.lerp(steep, p.arm(1, ARM_X), -.6f));
+        p.add(LIFT, -1.2f * steep).add(PELVIS_YAW, -.2f * steep).add(CHEST_YAW, .1f * steep);
+        // ---- going down: leaning further forward, the knees bent (the dip), the arms opening for balance.
+        float de = descent * on;
+        p.add(SPINE_PITCH, .2f * de).add(ROOT_PITCH, .12f * de).add(HEAD_PITCH, -.12f * de);
+        for (int side = 0; side < 2; side++) p.armAdd(side, ARM_Z, .45f * de);
+        // ---- never quite still: balancing.
         float time = c.time();
         p.add(ROOT_ROLL, .025f * Mth.sin(time * .17f) * on).add(LIFT, .25f * Mth.sin(time * .31f) * on);
         p.armAdd(1, ARM_X, .06f * Mth.sin(time * .23f)).armAdd(0, ARM_Z, .06f * Mth.sin(time * .19f + 1)).armAdd(0, ARM_X, .05f * Mth.sin(time * .27f + 2));
         p.armAdd(1, CURL, .08f * Mth.sin(time * .4f)).armAdd(0, CURL, .08f * Mth.sin(time * .37f + 1));
         return p;
+    }
+    /**
+     * SHIFT let go on the ground (SLIDE_END): the weight forward, the front foot lifted off the ice, the back one dragged
+     * out to the side braking (the spray is IcemanSlideFx's); coming in fast the whole body turns across the way like a
+     * hockey stop, then back round into his ready stance.
+     */
+    static Pose slideEnd(float t, Pose base, IcemanMotion.Ctx c) {
+        Eased e = eased(c);
+        step(e, c.time());
+        float fast = Mth.clamp((e.exit - .35f) / .5f, 0, 1);
+        Pose riding = ride(base, e.dip);
+        Pose lift = riding.copy().set(LIFT, -3.4f).set(SPINE_PITCH, .42f).set(PELVIS_YAW, .55f).set(HEAD_PITCH, -.4f);
+        lift.leg(1, LEG_X, -.95f).leg(1, KNEE, 1.6f).leg(1, ANKLE, .3f).leg(1, LEG_Z, .2f);
+        lift.leg(0, LEG_X, -.25f).leg(0, LEG_Z, .5f).leg(0, KNEE, .55f).leg(0, ANKLE, -.4f);
+        lift.arm(1, ARM_X, -1.0f).arm(1, ARM_Z, .6f).arm(1, ELBOW, .4f).arm(0, ARM_X, .35f).arm(0, ARM_Z, .9f).arm(0, ELBOW, .3f);
+        Pose drag = riding.copy().set(LIFT, -3.0f).set(SPINE_PITCH, .2f).set(PELVIS_YAW, .7f).set(CHEST_YAW, -.35f).set(HEAD_YAW, -.35f).set(HEAD_PITCH, -.25f)
+                .set(ROOT_YAW, .9f * fast).set(ROOT_ROLL, .12f * fast);
+        drag.leg(1, LEG_X, -.45f).leg(1, KNEE, .75f).leg(1, ANKLE, -.1f).leg(1, LEG_Z, .2f);
+        drag.leg(0, LEG_X, .1f).leg(0, LEG_Z, .55f).leg(0, KNEE, .6f).leg(0, ANKLE, -.3f);
+        drag.arm(1, ARM_X, -.8f).arm(1, ARM_Z, .75f).arm(1, ELBOW, .4f).arm(0, ARM_X, .2f).arm(0, ARM_Z, 1.0f).arm(0, ELBOW, .3f);
+        Pose turn = base.copy().set(PLANT, 1).add(CROUCH, 2.6f).set(SPINE_PITCH, .2f).set(ROOT_YAW, .3f * fast).set(HEAD_PITCH, -.15f);
+        for (int side = 0; side < 2; side++) turn.arm(side, ARM_X, -.8f).arm(side, ARM_Z, .3f).arm(side, ELBOW, 1.45f).arm(side, CURL, .8f);
+        Pose ready = base.copy().add(CROUCH, 1f).add(SPINE_PITCH, .06f);
+        for (int side = 0; side < 2; side++) ready.arm(side, ARM_X, -.45f).arm(side, ARM_Z, .25f).arm(side, ELBOW, 1.1f).arm(side, CURL, .7f);
+        return new Track(true).key(0, riding).key(2.5f, lift).key(6, drag).key(10, turn).key(SLIDE_END_TICKS, ready).sample(t);
     }
 
     // ------------------------------------------------------------------ CTRL: the sub-zero slide

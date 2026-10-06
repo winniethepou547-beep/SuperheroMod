@@ -11,6 +11,7 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.resources.sounds.AbstractTickableSoundInstance;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
 import net.minecraft.util.RandomSource;
@@ -26,20 +27,21 @@ import net.minecraftforge.fml.common.Mod;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static com.FIRNI.superheromod.heroes.iceman.IcemanAction.*;
 
 /**
  * The two slides as everyone sees them (his own body is steered by IcemanSlideSteer).
  * <p>
- * The ice slide (SHIFT): the track of ice growing under him (IcemanTrack), snow spray and small shards thrown back off
- * his feet, cold mist trailing low behind (behind and low, so he stays in plain view), a sliding hiss (ICEMAN_SLIDE)
- * following him that rises with his speed; in his own view, thin wind streaks rushing past as the speed builds.
+ * The ice slide (SHIFT): the track of ice forming and growing under him (IcemanTrack); getting ready, frost breathing off
+ * the ground under his feet; then snow spray and small shards thrown back off his feet, a light cold mist trailing low
+ * behind (longer with speed), all thicker going down the track (behind and low, so he stays in plain view); a sliding
+ * hiss (ICEMAN_SLIDE) following him that rises with his speed; in his own ears a wind rush rising on the way down and
+ * falling off the ice; in his own view, thin wind streaks rushing past as the speed builds. Let go: on the ground, spray
+ * thrown out from the braking foot (the track's end cracks); in the air, the track's last point crystallises.
  * <p>
  * The sub-zero slide (CTRL): a whoosh of mist bursting off his feet as it starts (FX_DASH), the ground freezing under
  * him as he goes (thin patches of ice with rime round them and tiny crystals standing up, growing in, then melting),
@@ -117,7 +119,7 @@ public final class IcemanSlideFx {
     private static final int PATCH_LIFE = 50, PATCH_MELT = 30, MAX_PATCHES = 160;
 
     /** One Iceman sliding: how fast (smoothed), where his feet were, his sound. */
-    private static final class Rider { float speed; Vec3 last, lastPatch; Loop loop; long seen; }
+    private static final class Rider { float speed; Vec3 last, lastPatch; Loop loop; long seen; boolean sliding; }
     private static final Map<Integer, Rider> RIDERS = new HashMap<>();
     private static ClientLevel lastLevel;
 
@@ -128,7 +130,6 @@ public final class IcemanSlideFx {
         if (mc.level != lastLevel) { clear(); lastLevel = mc.level; }
         if (mc.level == null || mc.isPaused()) return;
         long now = mc.level.getGameTime();
-        Set<Integer> sliding = new HashSet<>();
         for (var en : IcemanClient.states().entrySet()) {
             int id = en.getKey();
             IcemanClient.State s = en.getValue();
@@ -137,24 +138,24 @@ public final class IcemanSlideFx {
             boolean me = IcemanClient.isMe(id);
             boolean slide = me ? IcemanSlideSteer.riding() : s.action == SLIDE;
             boolean dash = me ? IcemanSlideSteer.dashing() : s.action == DASH;
-            ride(mc.level, who, slide, dash, now);
-            if (slide) sliding.add(id);
+            // How long he has been getting ready / sliding; the braking exit and its age.
+            float age = me ? IcemanSlideSteer.rideAge() : s.action == SLIDE ? IcemanClient.clock(s, 0) : -1;
+            float brake = me ? (IcemanSlideSteer.exitKind() == 1 ? IcemanSlideSteer.exitAge() : -1) : s.action == SLIDE_END ? IcemanClient.clock(s, 0) : -1;
+            ride(mc.level, who, slide, dash, age, brake, now);
         }
         // His own slide predicted before any state of his has arrived.
-        if (mc.player != null && IcemanClient.get(mc.player) == null && IcemanSlideSteer.riding()) {
-            ride(mc.level, mc.player, true, false, now);
-            sliding.add(mc.player.getId());
-        }
+        if (mc.player != null && IcemanClient.get(mc.player) == null && IcemanSlideSteer.riding())
+            ride(mc.level, mc.player, true, false, IcemanSlideSteer.rideAge(), -1, now);
         for (Iterator<Map.Entry<Integer, Rider>> it = RIDERS.entrySet().iterator(); it.hasNext(); ) {
             var en = it.next();
-            if (!sliding.contains(en.getKey())) IcemanTrack.stop(en.getKey());
-            if (now - en.getValue().seen > 40) { IcemanTrack.stop(en.getKey()); it.remove(); }
+            if (now - en.getValue().seen > 40) { IcemanTrack.stop(en.getKey(), 1); it.remove(); }
         }
+        wind(mc);
         IcemanTrack.tick();
         float t = now;
         PATCHES.removeIf(p -> t - p.born > PATCH_LIFE + PATCH_MELT);
     }
-    private static void ride(Level level, Entity who, boolean slide, boolean dash, long now) {
+    private static void ride(Level level, Entity who, boolean slide, boolean dash, float age, float brake, long now) {
         int id = who.getId();
         Rider r = RIDERS.get(id);
         if (r == null) {
@@ -165,28 +166,54 @@ public final class IcemanSlideFx {
         Vec3 pos = who.position();
         Vec3 vel = r.last == null ? Vec3.ZERO : pos.subtract(r.last);
         r.last = pos;
-        if (!slide && !dash) { r.speed *= .7f; if (r.loop != null) r.loop.end(); return; }
-        r.seen = now;
         double flat = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
-        r.speed += ((float) flat - r.speed) * .4f;
         Vec3 dir = flat < 1e-3 ? new Vec3(-Mth.sin(who.getYRot() * Mth.DEG_TO_RAD), 0, Mth.cos(who.getYRot() * Mth.DEG_TO_RAD)) : new Vec3(vel.x / flat, 0, vel.z / flat);
         Vec3 side = new Vec3(dir.z, 0, -dir.x);
-        float k = Mth.clamp(r.speed / SLIDE_SPEED, 0, 1);
+        // The slide over: on the ground its end cracks; in the air its last point crystallises.
+        if (r.sliding && !slide) {
+            boolean ground = who.onGround() || !level.noCollision(who, who.getBoundingBox().move(0, -.3, 0));
+            IcemanTrack.stop(id, ground || dash ? 1 : 2);
+        }
+        r.sliding = slide;
+        if (brake >= 0 && brake < 10) {
+            // Braking: a foot dragged across the ice, spray thrown out ahead and to the side.
+            float k = 1 - brake / 10f, sp = Math.max(r.speed, .2f);
+            Vec3 foot = pos.add(side.scale(-.25)).add(dir.scale(.2)).add(0, .06, 0);
+            int n = IceParticles.count(Math.round(5 * k * Math.min(1.5f, sp / .5f)), foot);
+            for (int i = 0; i < n; i++)
+                IceParticles.snow(foot.add(IceParticles.jitter(.1)), dir.scale(sp * (.25 + .3 * IceParticles.rand())).add(side.scale(-.05 - .1 * IceParticles.rand())).add(0, .08 + .1 * IceParticles.rand(), 0),
+                        .025f + .025f * IceParticles.rand(), 14 + (int) (IceParticles.rand() * 8));
+            if (brake < 6 && IceParticles.count(1, foot) > 0) IceParticles.mist(foot, dir.scale(.04), .3f, .03f, .25f * k, 22);
+            if (brake < 1.5f && sp > .45f && IceParticles.count(1, foot) > 0) IceParticles.shard(foot, dir.scale(.12).add(0, .12, 0), .05f, 24, IceMesh.FRESH);
+        }
+        if (!slide && !dash) { r.speed *= .7f; if (r.loop != null) r.loop.end(); return; }
+        r.seen = now;
+        r.speed += ((float) flat - r.speed) * .4f;
+        float k = Mth.clamp(r.speed / SLIDE_SPEED, 0, 1.45f);
         if (slide) {
             IcemanTrack.grow(who);
             if (r.loop == null || r.loop.isStopped() || r.loop.ended) { r.loop = new Loop(id, who); Minecraft.getInstance().getSoundManager().play(r.loop); }
-            // Snow spray and shards thrown back off his feet, mist trailing low behind.
             Vec3 feet = pos.subtract(dir.scale(.45)).add(0, .08, 0);
-            int n = IceParticles.count(Math.round(1 + 3 * k), feet);
+            if (age >= 0 && age < SLIDE_PREP) {
+                // Getting ready: frost breathing off the ground under his feet.
+                if (IceParticles.count(1, pos) > 0) IceParticles.frostDust(pos.add(0, .05, 0), Vec3.ZERO, .8f);
+                if (age > 3 && IceParticles.rand() < .5f) IceParticles.mist(pos.add(dir.scale(.8)).add(0, .05, 0), dir.scale(.03), .25f, .02f, .16f, 20);
+                return;
+            }
+            // Down the track (or faster than his top speed) the spray thickens.
+            float down = (float) Mth.clamp(-vel.y / Math.max(.1, flat), 0, 1);
+            float more = k + .6f * down;
+            // Snow spray and shards thrown back off his feet, mist trailing low behind (longer with speed).
+            int n = IceParticles.count(Math.round(1 + 3 * more), feet);
             for (int i = 0; i < n; i++) {
                 float sg = IceParticles.rand() < .5f ? 1 : -1;
                 Vec3 v = dir.scale(-.04 - .1 * IceParticles.rand() * k).add(side.scale(sg * (.03 + .07 * IceParticles.rand()))).add(0, .05 + .07 * IceParticles.rand(), 0);
                 IceParticles.snow(feet.add(IceParticles.jitter(.12)), v.add(vel.scale(.3)), .02f + .025f * IceParticles.rand(), 12 + (int) (IceParticles.rand() * 10));
             }
-            if (now % 3 == 0 && k > .3f && IceParticles.count(1, feet) > 0)
+            if (now % 3 == 0 && more > .3f && IceParticles.count(1, feet) > 0)
                 IceParticles.shard(feet, dir.scale(-.08).add(IceParticles.jitter(.05)).add(0, .1, 0), .04f + .04f * IceParticles.rand(), 22, IceMesh.CLEAR);
             if (now % 2 == 0 && IceParticles.count(1, feet) > 0)
-                IceParticles.mist(pos.subtract(dir.scale(.9)).add(0, .1, 0), dir.scale(-.02).add(vel.scale(.2)).add(0, .004, 0), .3f + .2f * k, .02f, .2f, 28);
+                IceParticles.mist(pos.subtract(dir.scale(.9)).add(0, .1, 0), dir.scale(-.02).add(vel.scale(.2)).add(0, .004, 0), .3f + .2f * k, .02f, .2f, 22 + Math.round(16 * k));
         } else if (r.loop != null) r.loop.end();
         if (dash) {
             // The ground freezing under him, spray to the sides.
@@ -207,6 +234,39 @@ public final class IcemanSlideFx {
             if (IceParticles.count(1, pos) > 0) IceParticles.mist(pos.subtract(dir.scale(.6)).add(0, .15, 0), dir.scale(-.03).add(0, .003, 0), .32f, .025f, .22f, 24);
         } else r.lastPatch = null;
     }
+    // ------------------------------------------------------------------ the wind rush (his own ears)
+    private static Wind windLoop;
+    /** The wind rising as he goes down the track, past his top speed, or falls off it. */
+    private static void wind(Minecraft mc) {
+        var p = mc.player;
+        float want = 0;
+        if (p != null && IcemanClient.isHero(p)) {
+            if (IcemanSlideSteer.riding()) want = .8f * Math.max(0, -IcemanSlideSteer.pitch()) / SLIDE_DESCENT_MAX + 1.4f * Math.max(0, IcemanSlideSteer.speed() - .85f);
+            else if (IcemanSlideSteer.exitKind() == 2 && !p.onGround()) want = Mth.clamp((float) -p.getDeltaMovement().y / 1.2f, 0, .8f);
+        }
+        windWant = Math.min(1, want);
+        if (windWant > .05f && p != null && (windLoop == null || windLoop.isStopped())) { windLoop = new Wind(p); mc.getSoundManager().play(windLoop); }
+    }
+    private static float windWant;
+    private static final class Wind extends AbstractTickableSoundInstance {
+        private float vol;
+        private final Entity who;
+        Wind(Entity who) {
+            super(SoundEvents.ELYTRA_FLYING, SoundSource.PLAYERS, RandomSource.create());
+            this.who = who;
+            looping = true; delay = 0; volume = .01f; pitch = 1;
+            x = who.getX(); y = who.getY(); z = who.getZ();
+        }
+        @Override public void tick() {
+            if (who.isRemoved() || windLoop != this) { stop(); return; }
+            vol += (windWant - vol) * (windWant > vol ? .12f : .2f);
+            if (windWant <= .05f && vol < .02f) { stop(); return; }
+            volume = Math.max(.01f, .35f * vol);
+            pitch = .85f + .3f * vol;
+            x = who.getX(); y = who.getY() + 1; z = who.getZ();
+        }
+    }
+
     private static void patch(Level level, Vec3 at, float yaw, float born) {
         float top = Float.NaN;
         BlockPos base = BlockPos.containing(at.x, at.y + .3, at.z);
@@ -346,6 +406,7 @@ public final class IcemanSlideFx {
     // ------------------------------------------------------------------ cleaning up
     private static void clear() {
         RIDERS.clear();
+        windLoop = null; windWant = 0;
         PATCHES.clear();
         IcemanTrack.clear();
     }

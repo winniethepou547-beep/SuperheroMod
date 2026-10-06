@@ -92,7 +92,7 @@ public final class IcemanFirstPerson {
         PoseStack p = e.getPoseStack();
         p.pushPose();
         // The view's own sway is in the stack already; the arms come in a little lower when crouching into the slide.
-        float low = action == SLIDE || action == DASH ? .06f : 0;
+        float low = action == SLIDE || action == DASH || action == SLIDE_END ? .06f : 0;
         p.translate(0, -.5f - low, .07f);
         p.mulPose(Axis.ZP.rotation(Mth.PI));
         p.scale(1 / 16f, 1 / 16f, 1 / 16f);
