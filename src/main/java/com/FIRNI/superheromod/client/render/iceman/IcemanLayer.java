@@ -185,7 +185,7 @@ public final class IcemanLayer extends RenderLayer<AbstractClientPlayer, PlayerM
             IcemanShellFx.body(e.getId(), s, action, t, now);
         } else {
             IcemanBody.WEAPON = armed ? weapon : -1;
-            IcemanBody.WEAPON_FORM = 1; IcemanBody.WEAPON_SIZE = 1; IcemanBody.WEAPON_CRACK = 0;
+            IcemanBody.WEAPON_FORM = action == FORM ? Mth.clamp(t / FORM_TICKS, 0, 1) : 1; IcemanBody.WEAPON_SIZE = 1; IcemanBody.WEAPON_CRACK = 0;
             IcemanBody.SHELL_COVER = 0;
         }
         float glow = 0;

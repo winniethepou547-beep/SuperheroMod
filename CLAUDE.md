@@ -1,6 +1,6 @@
 # SuperheroMod — notes for Claude
 
-Forge 1.20.1 mod (Java 17, package `com.FIRNI.superheromod`). Heroes: **Ghost Rider**, **Cyclops**, **Sandman**, **Thor**, **Hulk**, **Zed**, **Black Panther**, **Magneto**, **Batman**.
+Forge 1.20.1 mod (Java 17, package `com.FIRNI.superheromod`). Heroes: **Ghost Rider**, **Cyclops**, **Sandman**, **Thor**, **Hulk**, **Zed**, **Black Panther**, **Magneto**, **Batman**, **Iceman**.
 Older background and per-feature notes live in `docs/` (Turkish); `docs/PROJE_DEVIR_DOKUMANI.md` is the original handover.
 
 ## Working with the user
@@ -377,6 +377,32 @@ landing spot and the target to the crater.
   and pool, fog, rain round the camera, Batman via `BatmanBody` + `CapeCloth` on a dummy ArmorStand at y -4000 (model-space
   cape), the puppet turned about its middle, Batwing box mesh + lights + scan, bomb blast (cold shock), smoke trail, Batarang
   (`BatmanGear.batarang`), cracks and dust on the wall. `BatmanController.FILM_READY` is true.
+
+## Iceman (PvP hero, `heroes/iceman/`, `client/render/iceman/`) — X-Men Days of Future Past organic ice body
+- Id `iceman`. `IcemanAction` = ids, animation timings, FX kinds (`FX_*`, packet field meanings in the comments), input kinds;
+  `IcemanConfig` (`superheromod-iceman.toml`, `-client.toml`). `IcemanController` (server) routes keys and ticks the
+  subsystems: `IcemanWeapons` (mace/spear/sword, press -> CHARGE wind-up: released under `HOLD_TICKS` = a swing, held = the
+  hold; thrown spears), `IcemanBrush` (RMB stream on a body / sculptures from the aim path, solid: push bodies, stop
+  projectiles), `IcemanSlide` (SHIFT surf + CTRL sub-zero slide; his own client steers), `IcemanShell` (Q: shell HP absorbs,
+  heal, break -> tired landing, Q again = burst), `IcemanGround` (R: crack front sent every tick, eruption), `IcemanFrost`
+  (every body's frost meter 0..100, decay, slow modifier, DEEP FREEZE at 100: held, no attacks, a blow shatters it for
+  `shatterBonus`), `IcemanTest` (`/iceman test brush|frost [n]|slide|shell|shellhit [n]|shellbreak|shellburst|weapons|mace|spear|sword|shatteredground`,
+  training dummies = NoAI husks). Packets `IcemanStatePacket` / `IcemanFxPacket` / `IcemanInputPacket`.
+- Keys: LMB weapon, RMB brush, E held = Ice Armory wheel (E has NO other mechanic — user's rule), SHIFT held = ice slide,
+  CTRL = sub-zero slide, Q shell / burst, R shattered ground, X = "not designed yet" (do not invent an ultimate).
+- Look: `IceMesh` is THE ice material for everything (translucent `entityTranslucent` with per-vertex view-dependent rim:
+  clear facing faces, bright opaque edges, glint; `Mat` presets CLEAR/MILKY/CORE/FROST/DEEP/FRESH/GLACIER; shapes loft,
+  limb, crystal, shard, tube; `vein` = inner cracks drawn WITH the ice (additive light would be hidden by the ice's depth);
+  `line/sparkle/glow` = additive, gathered and emitted at `Ctx.end()`). Call `ctx.at(pose)` after every stack change.
+  `IcemanBody` (pixels; clear shell over a milky core per segment, milky muscle plates, crystal ridges, faceted skull with a
+  squarer face plane `faceZ`, glowing eyes, crest; hooks WEAPON*, SHELL_*, HAND_GLOW), `IcemanLayer`, `IcemanMotion`
+  (+ `IcemanMoveMotion`, `IcemanWeaponMotion`, `IcemanShellMotion`), `IcemanFirstPerson` (draws the real arms from the same
+  pose under the camera). World effects go through `IceStage` (AFTER_TRANSLUCENT_BLOCKS: ice, then FilmFx) and the shared
+  pooled `IceParticles` (`shatter()` = the one break language: flash, big pieces, shards, mist, dust, melting).
+  `FrostFx` = frost on bodies by stage + deep-freeze encasing + the victim's screen frost / slide lens.
+- Sounds group `iceman` (synth). Splash `tools/splash/iceman.py`. Docs for the user: `docs/ICEMAN.md`.
+- Body preview offline (no game needed): /tmp scratch harness renders IcemanBody with fake MC classes (see git history of this
+  note if you need to rebuild it: fakes for PoseStack/VertexConsumer/RenderType/Vec3/Mth + JOML, dump quads, painter render).
 
 ## Champion select (P)
 - `client/gui/ChampionSelectScreen` (key P; the dev Pose Studio moved to F8 under a new key id) + roster data

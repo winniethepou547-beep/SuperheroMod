@@ -81,8 +81,9 @@ public final class IcemanMoveMotion {
         Pose gather = base.copy().set(CROUCH, .6f).add(SPINE_PITCH, .04f);
         for (int side = 0; side < 2; side++)
             gather.arm(side, SH_FWD, .1f).arm(side, ARM_X, -.75f + aim * .4f).arm(side, ARM_Z, .25f).arm(side, ELBOW, 1.3f).arm(side, CURL, .55f).arm(side, WRIST_Z, .2f);
-        return new Track(true).key(0, base).key(BRUSH_RAISE * .45f, gather).key(BRUSH_RAISE, push).key(BRUSH_RAISE + 3, held).sample(Math.min(t, BRUSH_RAISE + 3))
-                .copyWork(t, held, c.time(), e.sculpt);
+        Pose p = t >= BRUSH_RAISE + 3 ? held
+                : new Track(true).key(0, base).key(BRUSH_RAISE * .45f, gather).key(BRUSH_RAISE, push).key(BRUSH_RAISE + 3, held).sample(t);
+        return work(p, t, c.time(), e.sculpt);
     }
     /** On a body: both hands before him, palms out, fingers spread, braced and leaning into it. */
     private static Pose stream(Pose base, float time, float aim) {
@@ -183,8 +184,6 @@ public final class IcemanMoveMotion {
     }
 
     // ------------------------------------------------------------------ CTRL: the sub-zero slide
-    private static Track dashTrack;
-    private static Pose dashBase;
     static Pose dash(float t, Pose base, IcemanMotion.Ctx c) {
         Pose drop = base.copy().set(PLANT, 1).set(CROUCH, 5f).set(SPINE_PITCH, .55f).set(CHEST_YAW, -.25f).set(HEAD_PITCH, -.5f).set(NECK, .6f);
         drop.leg(0, LEG_X, -.35f).leg(1, LEG_X, .25f);

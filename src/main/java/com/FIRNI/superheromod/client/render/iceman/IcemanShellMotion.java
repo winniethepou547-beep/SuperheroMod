@@ -37,9 +37,68 @@ public final class IcemanShellMotion {
             case GROUND -> ground(base, t, c.time());
             default -> null;
         };
-        if (p != null && (action == SHELL_FORM || action == SHELL)) flinch(p, c.entity());
+        if (p == null) return null;
+        if (action == SHELL_FORM || action == SHELL) flinch(p, c.entity());
+        floor(p);
         return p;
     }
+
+    // ------------------------------------------------------------------ the floor
+    /**
+     * Never into the ground: the blends between the planted crouch and the kneeling poses (whose legs are set by hand)
+     * would push a knee or a foot through it for a few ticks; the whole body is lifted by what sinks below the soles.
+     * The legs' chain as IcemanBody draws it (pixels, +y down, the soles at 24 when standing).
+     */
+    private static void floor(Pose pose) {
+        float[] v = pose.v;
+        float low = lowest(v);
+        if (low > GROUND_Y + .05f) v[LIFT] += low - GROUND_Y;
+    }
+    private static final float GROUND_Y = 24.1f;
+    /** The lowest point of his legs (model y, larger = lower). */
+    static float lowest(float[] v) {
+        double[] m = translate(identity(), v[SHIFT_X], -v[LIFT], v[SHIFT_Z]);
+        m = translate(m, 0, 11, 0);
+        m = mul(m, rx(v[ROOT_PITCH])); m = mul(m, ry(v[ROOT_YAW])); m = mul(m, rz(v[ROOT_ROLL]));
+        m = translate(m, 0, -11, 0);
+        float drop = Mth.clamp(v[CROUCH], -1, 9.5f);
+        float fold = (float) Math.acos(Mth.clamp(1 - Math.max(0, drop) / 10.8f, -1, 1));
+        float plant = Mth.clamp(v[PLANT], 0, 1);
+        m = translate(m, 0, 12 + drop, 0);
+        m = mul(m, ry(v[PELVIS_YAW])); m = mul(m, rx(v[PELVIS_PITCH])); m = mul(m, rz(v[PELVIS_ROLL]));
+        float low = -99;
+        for (int side = 0; side < 2; side++) {
+            int s = side == 0 ? -1 : 1, o = side == 0 ? RL : LL;
+            float legX = v[o + LEG_X] - fold * plant - v[PELVIS_PITCH] * plant, knee = v[o + KNEE] + 2 * fold * plant;
+            float ankle = v[o + ANKLE] - (legX + knee + v[PELVIS_PITCH]) * plant;
+            double[] a = translate(m, s * 2.1f, 0, 0);
+            a = mul(a, rz(s < 0 ? v[o + LEG_Z] : -v[o + LEG_Z])); a = mul(a, ry(s < 0 ? v[o + LEG_Y] : -v[o + LEG_Y])); a = mul(a, rx(legX));
+            a = translate(a, 0, 6, 0); a = mul(a, rx(knee));
+            low = Math.max(low, y(a, 0, .8f, -1.65f));
+            a = translate(a, 0, 4.8f, 0); a = mul(a, rx(ankle));
+            low = Math.max(low, Math.max(y(a, 0, 1.6f, -3.1f), Math.max(y(a, 0, 1.4f, 1.0f), y(a, 0, 1.6f, -.8f))));
+        }
+        return low;
+    }
+    // Small affine matrices (row-major 3x4) for the floor's chain; allocation is a few arrays per draw.
+    private static double[] identity() { return new double[]{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0}; }
+    private static double[] translate(double[] m, double x, double y, double z) {
+        double[] o = m.clone();
+        for (int r = 0; r < 3; r++) o[r * 4 + 3] = m[r * 4] * x + m[r * 4 + 1] * y + m[r * 4 + 2] * z + m[r * 4 + 3];
+        return o;
+    }
+    private static double[] mul(double[] a, double[] b) {
+        double[] o = new double[12];
+        for (int r = 0; r < 3; r++) {
+            for (int c = 0; c < 3; c++) o[r * 4 + c] = a[r * 4] * b[c] + a[r * 4 + 1] * b[4 + c] + a[r * 4 + 2] * b[8 + c];
+            o[r * 4 + 3] = a[r * 4 + 3];
+        }
+        return o;
+    }
+    private static double[] rx(float t) { double c = Math.cos(t), s = Math.sin(t); return new double[]{1, 0, 0, 0, 0, c, -s, 0, 0, s, c, 0}; }
+    private static double[] ry(float t) { double c = Math.cos(t), s = Math.sin(t); return new double[]{c, 0, s, 0, 0, 1, 0, 0, -s, 0, c, 0}; }
+    private static double[] rz(float t) { double c = Math.cos(t), s = Math.sin(t); return new double[]{c, -s, 0, 0, s, c, 0, 0, 0, 0, 1, 0}; }
+    private static float y(double[] m, float x, float y, float z) { return (float) (m[4] * x + m[5] * y + m[6] * z + m[7]); }
 
     // ------------------------------------------------------------------ Q: the shell
     /**
@@ -165,7 +224,7 @@ public final class IcemanShellMotion {
         p.leg(0, LEG_X, .18f).leg(0, KNEE, 1.62f).leg(0, ANKLE, .55f).leg(0, LEG_Z, .06f).leg(0, LEG_Y, .1f);
         p.leg(1, LEG_X, -1.35f).leg(1, KNEE, 1.42f).leg(1, ANKLE, -.05f).leg(1, LEG_Z, .12f).leg(1, LEG_Y, .1f);
         // The right arm straight down to the ground, the hand flat (fingers spread); the left forearm across the left knee.
-        p.arm(0, SH_FWD, 1.4f).arm(0, SH_UP, -.6f).arm(0, ARM_X, -1.25f).arm(0, ARM_Y, -.3f).arm(0, ARM_Z, .1f).arm(0, ELBOW, .05f).arm(0, CURL, .12f).arm(0, WRIST_X, -.35f).arm(0, WRIST_Z, 0);
+        p.arm(0, SH_FWD, 1.4f).arm(0, SH_UP, -.6f).arm(0, ARM_X, -1.25f).arm(0, ARM_Y, -.3f).arm(0, ARM_Z, .1f).arm(0, ELBOW, .12f).arm(0, CURL, .12f).arm(0, WRIST_X, -.45f).arm(0, WRIST_Z, 0);
         p.arm(1, SH_FWD, .9f).arm(1, SH_UP, -.1f).arm(1, ARM_X, -.2f).arm(1, ARM_Y, -.5f).arm(1, ARM_Z, .05f).arm(1, ELBOW, 1.55f).arm(1, CURL, .55f).arm(1, WRIST_X, .25f).arm(1, WRIST_Z, 0);
         return p;
     }
@@ -189,7 +248,7 @@ public final class IcemanShellMotion {
         slam.leg(1, LEG_X, -1.3f).leg(1, KNEE, 1.4f).leg(1, ANKLE, -.05f).leg(1, LEG_Z, .16f).leg(1, LEG_Y, .1f);
         for (int side = 0; side < 2; side++)
             slam.arm(side, SH_FWD, 1.5f).arm(side, SH_UP, -.3f).arm(side, ARM_X, -1.05f).arm(side, ARM_Y, -.1f).arm(side, ARM_Z, .16f)
-                    .arm(side, ELBOW, .32f).arm(side, CURL, .08f).arm(side, WRIST_X, -.4f).arm(side, WRIST_Z, 0);
+                    .arm(side, ELBOW, .45f).arm(side, CURL, .08f).arm(side, WRIST_X, -.6f).arm(side, WRIST_Z, 0);
         Pose impact = slam.copy().add(LIFT, -.4f).add(SPINE_PITCH, .07f).add(CHEST_PITCH, .04f);
         for (int side = 0; side < 2; side++) impact.armAdd(side, ELBOW, .3f).armAdd(side, SH_UP, -.4f);
         Pose press = slam.copy().add(SPINE_PITCH, .03f);
@@ -201,7 +260,7 @@ public final class IcemanShellMotion {
         // Pressing into the ground: the shoulders working as the cold pours out.
         float pour = k(t, GROUND_DOWN + 1, GROUND_DOWN + 3) * (1 - k(t, GROUND_TICKS - 9, GROUND_TICKS - 6));
         if (pour > 0) {
-            for (int side = 0; side < 2; side++) p.armAdd(side, SH_UP, .25f * pour * noise(time * 1.4f + side * 3));
+            for (int side = 0; side < 2; side++) p.armAdd(side, SH_UP, .15f * pour * noise(time * 1.4f + side * 3));
             p.add(CHEST_PITCH, .02f * pour * noise(time * 1.1f));
         }
         return p;

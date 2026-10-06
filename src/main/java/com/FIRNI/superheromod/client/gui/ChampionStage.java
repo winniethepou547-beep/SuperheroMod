@@ -98,6 +98,7 @@ final class ChampionStage {
             case "black_panther" -> 84;
             case "magneto" -> 80;
             case "batman" -> 74;
+            case "iceman" -> 66;
             default -> 40;
         };
     }
@@ -164,6 +165,14 @@ final class ChampionStage {
                 if (n == 33) play(s, SoundEvents.TRIDENT_HIT, 1.6f, .5f);
                 if (n == 41) play(s, com.FIRNI.superheromod.core.sound.ModSounds.FX_WHOOSH_LIGHT.get(), .9f, .5f);
                 if (n == 46) play(s, com.FIRNI.superheromod.core.sound.ModSounds.BATMAN_SMOKE.get(), 1f, .8f);
+            }
+            case "iceman" -> {
+                // Frost gathering, the sword forming in his hand, a cut, the spin, the sword shattering.
+                if (n == 0) { play(s, com.FIRNI.superheromod.core.sound.ModSounds.ICEMAN_FROST.get(), 1f, .9f); play(s, com.FIRNI.superheromod.core.sound.ModSounds.ICEMAN_FORM.get(), 1f, 1f); }
+                if (n == 12) play(s, com.FIRNI.superheromod.core.sound.ModSounds.ICEMAN_SWORD_SWING.get(), 1f, 1f);
+                if (n == 24) play(s, com.FIRNI.superheromod.core.sound.ModSounds.ICEMAN_SWORD_SPIN.get(), 1f, 1f);
+                if (n == 31 || n == 38 || n == 45) play(s, com.FIRNI.superheromod.core.sound.ModSounds.ICEMAN_SWORD_SWING.get(), 1.1f, .8f);
+                if (n == 50) { play(s, com.FIRNI.superheromod.core.sound.ModSounds.ICEMAN_SHATTER.get(), 1f, 1f); play(s, com.FIRNI.superheromod.core.sound.ModSounds.ICEMAN_CRACK.get(), .8f, .8f); }
             }
             case "magneto" -> {
                 // The scrap rising off the floor; the rods called down; the shield; its burst; the landing.
@@ -276,6 +285,7 @@ final class ChampionStage {
             case "sandman" -> new float[]{24, 58};
             case "magneto" -> new float[]{24, 27, 30, 54};
             case "batman" -> new float[]{33, 46};
+            case "iceman" -> new float[]{50};
             default -> new float[0];
         };
         for (float hit : hits) if (st > hit) shake += 3 * (float) Math.exp(-(st - hit) / 3.5) * Mth.sin(st * 3.7f);
@@ -313,6 +323,15 @@ final class ChampionStage {
                 else if (st < 66) { Showcase.play(actor, PantherAction.RELEASE, st - 58); Showcase.glow(1, 0); }
                 else if (st < 80) { Showcase.play(actor, PantherAction.RELEASE_RECOVER, st - 66); Showcase.glow(.1f, 0); }
                 else { Showcase.play(actor, PantherAction.IDLE, st); Showcase.glow(.1f, 0); }
+            }
+            case "iceman" -> {
+                float t = st;
+                Showcase.emptyHanded(t < 1);
+                if (t < 12) Showcase.play(actor, com.FIRNI.superheromod.heroes.iceman.IcemanAction.FORM, t);
+                else if (t < 24) Showcase.play(actor, com.FIRNI.superheromod.heroes.iceman.IcemanAction.STRIKE, t - 12);
+                else if (t < 50) { Showcase.play(actor, com.FIRNI.superheromod.heroes.iceman.IcemanAction.CHARGE, t - 24 + com.FIRNI.superheromod.heroes.iceman.IcemanAction.HOLD_TICKS); Showcase.glow(0, Math.min(1, (t - 24) / 26f)); }
+                else if (t < 58) { Showcase.play(actor, com.FIRNI.superheromod.heroes.iceman.IcemanAction.RELEASE, t - 50); Showcase.emptyHanded(true); }
+                else { Showcase.play(actor, com.FIRNI.superheromod.heroes.iceman.IcemanAction.IDLE, t); Showcase.emptyHanded(true); }
             }
             case "batman" -> {
                 float t = st;
@@ -428,6 +447,7 @@ final class ChampionStage {
             case "black_panther" -> panther(g, st, px, py, s, fx0, fy0, fx1, fy1);
             case "magneto" -> magnetoLight(g, st, px, py, s);
             case "batman" -> batman(g, st, px, py, s);
+            case "iceman" -> iceman(g, st, px, py, s);
             case "ghost_rider" -> { if (st > 12) { light(); glowDisc(g, px, py - s * .9f, s * 1.3f, 0xFFFF6A10, .25f * (1 - ease((st - 30) / 14f))); normal(); } }
             default -> {}
         }
@@ -457,6 +477,32 @@ final class ChampionStage {
                 float h1 = (float) FilmFxHash.h(i * 3 + 1), h2 = (float) FilmFxHash.h(i * 3 + 2);
                 float x = px + (h1 - .5f) * s * 3.2f * grow, y = py - s * (.1f + h2 * .9f) * grow;
                 glowDisc(g, x, y, s * (.5f + .5f * h2) * (.4f + .8f * grow), 0xFF8B9096, .5f * fade);
+            }
+        }
+    }
+    // ------------------------------------------------------------------ Iceman
+    /** Frost breath round him as the sword forms; snow and shards flung round in a disc through the spin; the sword's shards bursting out. */
+    private void iceman(GuiGraphics g, float st, float px, float py, float s) {
+        light();
+        if (st < 12) glowDisc(g, px + s * .35f, py - s * 1.05f, s * (.2f + .4f * ease(st / 10f)), 0xFF8FD8FF, .45f * (1 - span(st, 9, 12)));
+        normal();
+        if (st >= 24 && st < 52) {
+            float k = Math.min(1, (st - 24) / 8f) * (1 - span(st, 48, 52));
+            for (int i = 0; i < 26; i++) {
+                float a = (float) (FilmFxHash.h(i) * Math.PI * 2) + st * (.35f + .2f * (float) FilmFxHash.h(i + 40));
+                float r = s * (.6f + 1.3f * (float) FilmFxHash.h(i + 7));
+                float x = px + Mth.cos(a) * r, y = py - s * (.3f + .9f * (float) FilmFxHash.h(i + 13)) + Mth.sin(a) * r * .18f;
+                glowDisc(g, x, y, s * (.04f + .04f * (float) FilmFxHash.h(i + 3)), 0xFFEFF8FF, .8f * k);
+            }
+        }
+        float burst = st - 50;
+        if (burst >= 0 && burst < 14) {
+            float k = easeOut(burst / 10f), a = 1 - Mth.clamp((burst - 6) / 8f, 0, 1);
+            light(); glowDisc(g, px + s * .4f, py - s * 1.0f, s * (.3f + .8f * k), 0xFFBFE8FF, .6f * (1 - k)); normal();
+            for (int i = 0; i < 14; i++) {
+                float ang = (float) (FilmFxHash.h(i + 60) * Math.PI * 2);
+                float x = px + s * .4f + Mth.cos(ang) * s * 1.6f * k, y = py - s * 1.0f + Mth.sin(ang) * s * 1.2f * k + burst * burst * s * .004f;
+                line(g, x, y, x + Mth.cos(ang) * s * .12f, y + Mth.sin(ang) * s * .12f, s * .05f, 0xFFDDF3FF, a);
             }
         }
     }
