@@ -565,5 +565,163 @@
     "sounds": [
       "superheromod:batman/shock_unequip"
     ]
+  },
+  "iceman.crack": {
+    "subtitle": "subtitles.superheromod.iceman.crack",
+    "sounds": [
+      "superheromod:iceman/crack",
+      "superheromod:iceman/crack_1",
+      "superheromod:iceman/crack_2"
+    ]
+  },
+  "iceman.shatter": {
+    "subtitle": "subtitles.superheromod.iceman.shatter",
+    "sounds": [
+      "superheromod:iceman/shatter",
+      "superheromod:iceman/shatter_1"
+    ]
+  },
+  "iceman.form": {
+    "subtitle": "subtitles.superheromod.iceman.form",
+    "sounds": [
+      "superheromod:iceman/form"
+    ]
+  },
+  "iceman.form_big": {
+    "subtitle": "subtitles.superheromod.iceman.form_big",
+    "sounds": [
+      "superheromod:iceman/form_big"
+    ]
+  },
+  "iceman.sculpt": {
+    "subtitle": "subtitles.superheromod.iceman.sculpt",
+    "sounds": [
+      "superheromod:iceman/sculpt",
+      "superheromod:iceman/sculpt_1"
+    ]
+  },
+  "iceman.frost": {
+    "subtitle": "subtitles.superheromod.iceman.frost",
+    "sounds": [
+      "superheromod:iceman/frost"
+    ]
+  },
+  "iceman.deep_freeze": {
+    "subtitle": "subtitles.superheromod.iceman.deep_freeze",
+    "sounds": [
+      "superheromod:iceman/deep_freeze"
+    ]
+  },
+  "iceman.hit": {
+    "subtitle": "subtitles.superheromod.iceman.hit",
+    "sounds": [
+      "superheromod:iceman/hit",
+      "superheromod:iceman/hit_1",
+      "superheromod:iceman/hit_2"
+    ]
+  },
+  "iceman.slide_start": {
+    "subtitle": "subtitles.superheromod.iceman.slide_start",
+    "sounds": [
+      "superheromod:iceman/slide_start"
+    ]
+  },
+  "iceman.slide": {
+    "subtitle": "subtitles.superheromod.iceman.slide",
+    "sounds": [
+      "superheromod:iceman/slide"
+    ]
+  },
+  "iceman.dash": {
+    "subtitle": "subtitles.superheromod.iceman.dash",
+    "sounds": [
+      "superheromod:iceman/dash"
+    ]
+  },
+  "iceman.mace_swing": {
+    "subtitle": "subtitles.superheromod.iceman.mace_swing",
+    "sounds": [
+      "superheromod:iceman/mace_swing"
+    ]
+  },
+  "iceman.mace_slam": {
+    "subtitle": "subtitles.superheromod.iceman.mace_slam",
+    "sounds": [
+      "superheromod:iceman/mace_slam"
+    ]
+  },
+  "iceman.spear_thrust": {
+    "subtitle": "subtitles.superheromod.iceman.spear_thrust",
+    "sounds": [
+      "superheromod:iceman/spear_thrust",
+      "superheromod:iceman/spear_thrust_1"
+    ]
+  },
+  "iceman.spear_throw": {
+    "subtitle": "subtitles.superheromod.iceman.spear_throw",
+    "sounds": [
+      "superheromod:iceman/spear_throw"
+    ]
+  },
+  "iceman.spikes": {
+    "subtitle": "subtitles.superheromod.iceman.spikes",
+    "sounds": [
+      "superheromod:iceman/spikes"
+    ]
+  },
+  "iceman.sword_swing": {
+    "subtitle": "subtitles.superheromod.iceman.sword_swing",
+    "sounds": [
+      "superheromod:iceman/sword_swing",
+      "superheromod:iceman/sword_swing_1"
+    ]
+  },
+  "iceman.sword_spin": {
+    "subtitle": "subtitles.superheromod.iceman.sword_spin",
+    "sounds": [
+      "superheromod:iceman/sword_spin"
+    ]
+  },
+  "iceman.shell_form": {
+    "subtitle": "subtitles.superheromod.iceman.shell_form",
+    "sounds": [
+      "superheromod:iceman/shell_form"
+    ]
+  },
+  "iceman.shell_hit": {
+    "subtitle": "subtitles.superheromod.iceman.shell_hit",
+    "sounds": [
+      "superheromod:iceman/shell_hit"
+    ]
+  },
+  "iceman.shell_break": {
+    "subtitle": "subtitles.superheromod.iceman.shell_break",
+    "sounds": [
+      "superheromod:iceman/shell_break"
+    ]
+  },
+  "iceman.shell_stress": {
+    "subtitle": "subtitles.superheromod.iceman.shell_stress",
+    "sounds": [
+      "superheromod:iceman/shell_stress"
+    ]
+  },
+  "iceman.shell_burst": {
+    "subtitle": "subtitles.superheromod.iceman.shell_burst",
+    "sounds": [
+      "superheromod:iceman/shell_burst"
+    ]
+  },
+  "iceman.brush": {
+    "subtitle": "subtitles.superheromod.iceman.brush",
+    "sounds": [
+      "superheromod:iceman/brush"
+    ]
+  },
+  "iceman.ground_crack": {
+    "subtitle": "subtitles.superheromod.iceman.ground_crack",
+    "sounds": [
+      "superheromod:iceman/ground_crack"
+    ]
   }
 }

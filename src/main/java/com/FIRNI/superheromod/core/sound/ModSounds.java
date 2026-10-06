@@ -126,6 +126,31 @@ public final class ModSounds {
     public static final RegistryObject<SoundEvent> BATMAN_SHOCK_EMPTY = reg("batman.shock_empty");
     public static final RegistryObject<SoundEvent> BATMAN_SHOCK_READY = reg("batman.shock_ready");
     public static final RegistryObject<SoundEvent> BATMAN_SHOCK_UNEQUIP = reg("batman.shock_unequip");
+    public static final RegistryObject<SoundEvent> ICEMAN_CRACK = reg("iceman.crack");
+    public static final RegistryObject<SoundEvent> ICEMAN_SHATTER = reg("iceman.shatter");
+    public static final RegistryObject<SoundEvent> ICEMAN_FORM = reg("iceman.form");
+    public static final RegistryObject<SoundEvent> ICEMAN_FORM_BIG = reg("iceman.form_big");
+    public static final RegistryObject<SoundEvent> ICEMAN_SCULPT = reg("iceman.sculpt");
+    public static final RegistryObject<SoundEvent> ICEMAN_FROST = reg("iceman.frost");
+    public static final RegistryObject<SoundEvent> ICEMAN_DEEP_FREEZE = reg("iceman.deep_freeze");
+    public static final RegistryObject<SoundEvent> ICEMAN_HIT = reg("iceman.hit");
+    public static final RegistryObject<SoundEvent> ICEMAN_SLIDE_START = reg("iceman.slide_start");
+    public static final RegistryObject<SoundEvent> ICEMAN_SLIDE = reg("iceman.slide");
+    public static final RegistryObject<SoundEvent> ICEMAN_DASH = reg("iceman.dash");
+    public static final RegistryObject<SoundEvent> ICEMAN_MACE_SWING = reg("iceman.mace_swing");
+    public static final RegistryObject<SoundEvent> ICEMAN_MACE_SLAM = reg("iceman.mace_slam");
+    public static final RegistryObject<SoundEvent> ICEMAN_SPEAR_THRUST = reg("iceman.spear_thrust");
+    public static final RegistryObject<SoundEvent> ICEMAN_SPEAR_THROW = reg("iceman.spear_throw");
+    public static final RegistryObject<SoundEvent> ICEMAN_SPIKES = reg("iceman.spikes");
+    public static final RegistryObject<SoundEvent> ICEMAN_SWORD_SWING = reg("iceman.sword_swing");
+    public static final RegistryObject<SoundEvent> ICEMAN_SWORD_SPIN = reg("iceman.sword_spin");
+    public static final RegistryObject<SoundEvent> ICEMAN_SHELL_FORM = reg("iceman.shell_form");
+    public static final RegistryObject<SoundEvent> ICEMAN_SHELL_HIT = reg("iceman.shell_hit");
+    public static final RegistryObject<SoundEvent> ICEMAN_SHELL_BREAK = reg("iceman.shell_break");
+    public static final RegistryObject<SoundEvent> ICEMAN_SHELL_STRESS = reg("iceman.shell_stress");
+    public static final RegistryObject<SoundEvent> ICEMAN_SHELL_BURST = reg("iceman.shell_burst");
+    public static final RegistryObject<SoundEvent> ICEMAN_BRUSH = reg("iceman.brush");
+    public static final RegistryObject<SoundEvent> ICEMAN_GROUND_CRACK = reg("iceman.ground_crack");
 
     public static void register(IEventBus bus) { SOUNDS.register(bus); }
 }

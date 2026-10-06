@@ -80,7 +80,8 @@ public final class HeroArmPose {
                 || com.FIRNI.superheromod.client.render.zed.ZedClient.isHero(player)
                 || com.FIRNI.superheromod.client.render.panther.PantherClient.isHero(player)
                 || com.FIRNI.superheromod.client.render.magneto.MagnetoClient.isHero(player)
-                || com.FIRNI.superheromod.client.render.batman.BatmanClient.isHero(player)) {
+                || com.FIRNI.superheromod.client.render.batman.BatmanClient.isHero(player)
+                || com.FIRNI.superheromod.client.render.iceman.IcemanClient.isHero(player)) {
             elbow.remove(id);
             model.head.visible = model.hat.visible = model.body.visible = model.jacket.visible = false;
             model.rightArm.visible = model.leftArm.visible = model.rightSleeve.visible = model.leftSleeve.visible = false;

@@ -1069,6 +1069,307 @@ def s_shock_unequip():
     return mix(d, *layers)
 
 
+# ---------------------------------------------------------------- Iceman: ice
+def glass_ring(base, seed, dur=0.6, bright=1.0):
+    # Ice/glass: inharmonic partials of a thin plate, bright and quick, a little longer for the low ones.
+    return modal(dur, base, [1, 2.32, 4.25, 6.63, 9.38], [0.16, 0.09, 0.05, 0.03, 0.02],
+                 [1, .7 * bright, .5 * bright, .3 * bright, .2 * bright], strike=0.0006, seed=seed)
+
+
+def ice_tinkle(dur, count, seed, lo=2500, hi=9000, start=0.03):
+    # Small ice bits falling and touching: a scatter of high glassy pings, sparser over time.
+    r = np.random.default_rng(seed)
+    out = np.zeros(int(dur * SR))
+    for i in range(count):
+        at = start + (dur - start - 0.12) * (r.random() ** 1.6)
+        c = glass_ring(r.uniform(lo, hi) / 2.3, int(r.integers(0, 1e6)), 0.22) * r.uniform(0.1, 0.5)
+        s = int(at * SR)
+        seg = c[:len(out) - s]
+        out[s:s + len(seg)] += seg
+    return out
+
+
+def ice_creak(dur, f0, f1, seed, rough=0.5):
+    # Ice under stress: a slow stick-slip groan (a sawtooth whose pitch wobbles) through body resonances.
+    t = t_axis(dur)
+    r = np.random.default_rng(seed)
+    wob = 1 + 0.08 * np.sin(2 * np.pi * 3.3 * t + r.uniform(0, 6)) + 0.05 * np.sin(2 * np.pi * 7.1 * t)
+    f = f0 * (f1 / f0) ** (t / dur) * wob
+    saw = signal.sawtooth(2 * np.pi * np.cumsum(f) / SR)
+    jitter = (r.random(len(t)) < 0.002 * rough) * r.uniform(-1, 1, len(t))
+    x = resonator(saw + jitter * 8, f0 * 3, 6) + resonator(saw, f0 * 7.3, 9) * .6 + bandpass(saw, 300, 2500) * .3
+    return x
+
+
+def growth(dur, seed, lo=3000, hi=11000, rise=1.0, density=(200, 1600)):
+    # Crystals growing: a dense rising sparkle of tiny clicks, thickening as it grows.
+    r = np.random.default_rng(seed)
+    n = int(dur * SR)
+    x = np.zeros(n)
+    t = 0
+    while t < n:
+        k = (t / n) ** rise
+        rate = density[0] + (density[1] - density[0]) * k
+        x[t] = r.uniform(.3, 1) * r.choice([-1, 1])
+        t += max(1, int(SR / rate * r.exponential(1)))
+    x = bandpass(x, lo, hi, 2) * 5
+    return x
+
+
+def s_ice_crack():
+    # KRK: a sharp split, a glassy snap ringing, a short creak behind it.
+    d = 0.7
+    snap = mix(0.1, (highpass(noise(0.1, 2001), 2500) * env_ad(0.1, 0.0002, 0.006), 0, 1.3), (crack(0.05, 2002, 1500), 0.002, .8))
+    ring = glass_ring(1900, 2003, 0.5) * .5
+    tick = crackle(0.25, 260, 2500, 10000, seed=2004, decay=0.06)
+    return reverb(mix(d, (snap, 0, 1), (ring, 0.001, .45), (tick, 0.004, .5), (ice_creak(0.3, 90, 70, 2005) * env_ad(0.3, 0.01, 0.08), 0.01, .25)), 0.4, 0.6, 0.12)
+
+
+def s_ice_shatter():
+    # Ice breaking apart: crack, the burst of pieces, the tinkling of the fragments falling, a short airy flash.
+    d = 1.6
+    snap = mix(0.12, (highpass(noise(0.12, 2011), 2000) * env_ad(0.12, 0.0002, 0.01), 0, 1.4), (crack(0.06, 2012, 1200), 0, 1))
+    burst = bandpass(noise(0.4, 2013), 1500, 9000) * env_ad(0.4, 0.001, 0.06)
+    body = lowpass(noise(0.3, 2014), 900) * env_ad(0.3, 0.001, 0.05)
+    rings = sum(glass_ring(b, 2015 + i, 0.6) * g for i, (b, g) in enumerate(((1400, .6), (2300, .45), (3100, .35))))
+    fall = ice_tinkle(1.5, 46, 2016)
+    return reverb(mix(d, (snap, 0, 1), (burst, 0.001, .9), (body, 0, .6), (rings, 0.002, .5), (fall, 0.06, .9)), 0.5, 0.9, 0.18)
+
+
+def s_ice_form():
+    # A weapon of ice forming in the hand: moisture drawn in (a reversed hiss), crystals growing (rising sparkle and
+    # a shimmer gliding up), closing with a clear chime.
+    d = 0.75
+    t = t_axis(0.6)
+    draw = bandpass(noise(0.6, 2021), 2500, 9000) * (t / 0.6) ** 2.2 * .6
+    grow = growth(0.6, 2022, rise=1.3) * (t / 0.6) ** 1.2
+    shimmer = (sine_sweep(0.6, 2200, 5200, 1.4) + .5 * sine_sweep(0.6, 3300, 7100, 1.3)) * (t / 0.6) ** 2 * .12
+    chime = glass_ring(2600, 2023, 0.5) * .6
+    return reverb(mix(d, (draw, 0, 1), (grow, 0, .8), (shimmer, 0, 1), (chime, 0.56, 1), (crack(0.03, 2024, 3000), 0.56, .6)), 0.4, 0.7, 0.2)
+
+
+def s_ice_form_big():
+    # A big mass of ice forming: a low groan of ice under pressure, crunching growth, a deep settle.
+    d = 1.2
+    t = t_axis(1.0)
+    groan = ice_creak(1.0, 70, 52, 2031) * np.sin(np.pi * t / 1.0) ** 1.5
+    crunch = growth(1.0, 2032, 900, 6000, rise=0.8, density=(300, 1400)) * np.sin(np.pi * np.minimum(1, t / 0.9)) ** 0.8
+    settle = thump(0.4, 90, 45, 0.12)
+    return reverb(mix(d, (groan, 0, .5), (crunch, 0, .9), (settle, 0.8, .8), (crack(0.05, 2033, 1500), 0.82, .6), (glass_ring(900, 2034, 0.5), 0.82, .35)), 0.6, 1.0, 0.22)
+
+
+def s_ice_sculpt():
+    # Ice growing in the air along the brush: a short bright crystal growth chirp.
+    d = 0.4
+    t = t_axis(0.3)
+    g = growth(0.3, 2041, 3500, 12000, rise=0.6, density=(600, 2200)) * np.sin(np.pi * t / 0.3)
+    s = sine_sweep(0.3, 3000, 6000, 1.0) * np.sin(np.pi * t / 0.3) ** 2 * .08
+    return reverb(mix(d, (g, 0, 1), (s, 0, 1), (glass_ring(3400, 2042, 0.3), 0.18, .25)), 0.3, 0.5, 0.2)
+
+
+def s_frost():
+    # A breath of frost: a cold hiss and a few crisp ticks of rime forming.
+    d = 0.5
+    t = t_axis(0.45)
+    hiss = bandpass(noise(0.45, 2051), 3000, 11000) * np.sin(np.pi * t / 0.45) ** 1.5
+    return mix(d, (hiss, 0, .6), (crackle(0.4, 90, 4000, 11000, seed=2052, decay=0.2), 0.03, .5))
+
+
+def s_deep_freeze():
+    # Frozen solid in an instant: a rushing crackle closing in (fast growth), a thick glassy knock, a deep ring.
+    d = 1.3
+    t = t_axis(0.35)
+    rush = growth(0.35, 2061, 1200, 9000, rise=0.5, density=(800, 4000)) * (t / 0.35) ** 0.7
+    hiss = swept(noise(0.35, 2062), 1500, 9000, 1.5) * (t / 0.35) ** 2
+    knock = mix(0.4, (thump(0.4, 140, 60, 0.07), 0, 1.2), (lowpass(noise(0.4, 2063), 1500) * env_ad(0.4, 0.001, 0.03), 0, .6))
+    ring = glass_ring(620, 2064, 1.0, 0.7) + pad(glass_ring(1250, 2065, 0.8), 1.0) * .5
+    return reverb(mix(d, (rush, 0, .9), (hiss, 0, .5), (knock, 0.34, 1), (crack(0.05, 2066, 1500), 0.34, .9), (ring, 0.345, .45)), 0.7, 1.2, 0.25)
+
+
+def s_ice_hit():
+    # An ice weapon striking a body: a dull heavy knock, a crunch of ice, a short bright chip.
+    d = 0.5
+    knock = mix(0.3, (thump(0.3, 150, 60, 0.06), 0, 1.2), (lowpass(noise(0.3, 2071), 1200) * env_ad(0.3, 0.001, 0.025), 0, .8))
+    crunch = crackle(0.15, 900, 1500, 8000, seed=2072, decay=0.04)
+    return mix(d, (knock, 0, 1), (crunch, 0.002, .7), (glass_ring(2100, 2073, 0.3), 0.003, .3), (crack(0.03, 2074, 2500), 0, .6))
+
+
+def s_slide_start():
+    # Stepping onto the forming slide: a crisp rushing whoosh, the ice crunching into being under him.
+    d = 0.8
+    return reverb(mix(d, (whoosh(0.7, 500, 3800, 1.6, 0.3, seed=2081, body=0.3), 0, 1),
+                      (growth(0.5, 2082, 1500, 9000, rise=0.6, density=(500, 1800)), 0, .7),
+                      (glass_ring(1700, 2083, 0.5), 0.05, .3)), 0.5, 0.8, 0.18)
+
+
+def s_slide():
+    # Surfing on ice (a loop): a smooth hiss of the blade-like glide, a soft low rumble, sparse ice ticks.
+    d = 2.0
+    n = int(d * SR)
+    t = t_axis(d)
+    # Built to loop: the noises are circularly filtered (FFT band-limit) so the seam is clean.
+    def looped(lo, hi, seed):
+        x = np.random.default_rng(seed).standard_normal(n)
+        X = np.fft.rfft(x)
+        fr = np.fft.rfftfreq(n, 1 / SR)
+        X[(fr < lo) | (fr > hi)] = 0
+        y = np.fft.irfft(X, n)
+        return y / (np.max(np.abs(y)) + 1e-9)
+    glide = looped(2500, 7000, 2091) * (0.8 + 0.2 * np.sin(2 * np.pi * t / d * 4))
+    rumble_l = looped(40, 220, 2092)
+    ticks = np.zeros(n)
+    r = np.random.default_rng(2093)
+    for at in r.integers(0, n - 4000, 26):
+        c = glass_ring(r.uniform(1500, 3500), int(r.integers(0, 1e6)), 0.08)[:3500] * r.uniform(.1, .3)
+        ticks[at:at + len(c)] += c
+    return glide * .55 + rumble_l * .5 + ticks
+
+
+def s_dash():
+    # The sub-zero slide: a fast low whoosh, ice scraping along the ground.
+    d = 0.7
+    return mix(d, (whoosh(0.6, 250, 2500, 1.7, 0.25, seed=2101, body=0.5), 0, 1),
+               (bandpass(noise(0.55, 2102), 2000, 8000) * env_ad(0.55, 0.01, 0.2) * (1 + 0.5 * np.sin(2 * np.pi * 30 * t_axis(0.55))), 0.02, .45),
+               (growth(0.4, 2103, 2000, 9000, rise=0.3, density=(1500, 500)), 0.02, .4))
+
+
+def s_mace_swing():
+    # A heavy ice mace swung: a big low whoosh with weight.
+    d = 0.6
+    return mix(d, (whoosh(0.55, 120, 900, 1.5, 0.5, seed=2111, body=0.8), 0, 1), (crackle(0.3, 40, 3000, 9000, seed=2112, decay=0.1), 0.2, .15))
+
+
+def s_mace_slam():
+    # The mace into the ground: a deep boom, the ground cracking, ice bursting, pieces raining.
+    d = 2.0
+    boom = mix(0.9, (thump(0.9, 95, 32, 0.25), 0, 1.4), (lowpass(noise(0.9, 2121), 500) * env_ad(0.9, 0.002, 0.15), 0, 1))
+    split = mix(0.15, (highpass(noise(0.15, 2122), 1500) * env_ad(0.15, 0.0003, 0.015), 0, 1.2), (crack(0.06, 2123, 900), 0, 1))
+    return reverb(mix(d, (boom, 0, 1), (split, 0.003, .9), (rumble(1.4, 0.4, 140, 2124), 0.02, .7),
+                      (ice_tinkle(1.7, 40, 2125, 1500, 7000), 0.1, .7), (glass_ring(800, 2126, 0.8), 0.004, .4)), 0.8, 1.4, 0.24)
+
+
+def s_spear_thrust():
+    # A fast thrust: a short sharp swish, high and narrow.
+    d = 0.3
+    return mix(d, (whoosh(0.25, 1200, 5500, 2.5, 0.35, seed=2131), 0, 1), (glass_ring(3800, 2132, 0.2), 0.08, .12))
+
+
+def s_spear_throw():
+    # The spear thrown hard: a long tearing whoosh with a high whistle.
+    d = 0.8
+    t = t_axis(0.7)
+    whistle = sine_sweep(0.7, 2600, 1700, 1.0) * np.sin(np.pi * t / 0.7) ** 2 * .15
+    return mix(d, (whoosh(0.7, 300, 4200, 1.6, 0.3, seed=2141, body=0.4), 0, 1), (whistle, 0, 1))
+
+
+def s_spikes():
+    # Ice spikes bursting out of the ground: a rising crunch, a volley of cracks, pieces falling.
+    d = 1.4
+    t = t_axis(0.25)
+    rise = growth(0.25, 2151, 700, 7000, rise=0.4, density=(1500, 4000)) * (t / 0.25)
+    layers = [(rise, 0, .8), (thump(0.4, 120, 50, 0.1), 0.24, 1.1), (rumble(0.8, 0.25, 180, 2152), 0.2, .5)]
+    r = np.random.default_rng(2153)
+    for i in range(6):
+        layers.append((crack(0.06, 2154 + i, 1200 + 300 * i), 0.24 + r.uniform(0, 0.09), r.uniform(.5, .9)))
+    layers.append((ice_tinkle(1.1, 26, 2160, 2000, 8000), 0.3, .6))
+    return reverb(mix(d, *layers), 0.6, 1.0, 0.2)
+
+
+def s_sword_swing():
+    # An ice sword cut: a clean swish with a cold glassy ring in it.
+    d = 0.45
+    return mix(d, (whoosh(0.4, 700, 4500, 2.0, 0.4, seed=2171), 0, 1), (glass_ring(2900, 2172, 0.35) * env_ad(0.35, 0.05, 0.1), 0.08, .18))
+
+
+def s_sword_spin():
+    # The spin: whirling air, swishes coming round, snow and ice ticks thrown off.
+    d = 0.9
+    t = t_axis(0.85)
+    whirl = swept(noise(0.85, 2181), 500, 2600, 1.5) * (0.5 + 0.5 * np.sin(2 * np.pi * 9 * t) ** 2) * np.sin(np.pi * t / 0.85)
+    return mix(d, (whirl, 0, 1), (ice_tinkle(0.85, 12, 2182, 3000, 9000), 0.1, .4))
+
+
+def s_shell_form():
+    # The shell closing over him from the feet up: crunching growth rising from low to high, a heavy settle and a ring.
+    d = 1.4
+    t = t_axis(0.95)
+    crunch = growth(0.95, 2191, 600, 9000, rise=0.7, density=(400, 2600))
+    crunch = swept(crunch, 900, 6000, 1.2) * 3 * (t / 0.95) ** 0.6
+    groan = ice_creak(0.95, 60, 85, 2192) * np.sin(np.pi * t / 0.95) * .4
+    return reverb(mix(d, (crunch, 0, 1), (groan, 0, 1), (thump(0.4, 110, 50, 0.1), 0.9, 1), (glass_ring(700, 2193, 0.8), 0.9, .4)), 0.6, 1.1, 0.24)
+
+
+def s_shell_hit():
+    # A blow on the thick shell: a dull, dense knock of thick ice, a little crunch.
+    d = 0.6
+    return reverb(mix(d, (thump(0.4, 170, 75, 0.08), 0, 1.2), (lowpass(noise(0.3, 2201), 1000) * env_ad(0.3, 0.001, 0.03), 0, .8),
+                      (glass_ring(480, 2202, 0.5, 0.5), 0, .35), (crackle(0.15, 400, 1500, 6000, seed=2203, decay=0.05), 0.005, .4)), 0.4, 0.6, 0.15)
+
+
+def s_shell_break():
+    # The shell giving way: a long splitting crack, the whole mass bursting into big pieces, pieces raining down.
+    d = 2.2
+    split = mix(0.5, (ice_creak(0.35, 85, 50, 2211) * env_ad(0.35, 0.02, 0.15), 0, .6), (crackle(0.35, 600, 1200, 7000, seed=2212) * np.linspace(.3, 1, int(0.35 * SR)), 0, .8))
+    burst = mix(0.6, (highpass(noise(0.15, 2213), 1500) * env_ad(0.15, 0.0002, 0.02), 0, 1.3), (thump(0.6, 110, 40, 0.15), 0, 1.2),
+                (bandpass(noise(0.5, 2214), 800, 7000) * env_ad(0.5, 0.001, 0.09), 0, .8))
+    return reverb(mix(d, (split, 0, 1), (burst, 0.33, 1), (ice_tinkle(1.8, 60, 2215, 1200, 7000), 0.38, .9), (rumble(1.0, 0.3, 150, 2216), 0.33, .6)), 0.7, 1.3, 0.22)
+
+
+def s_shell_stress():
+    # Inside the shell before the burst: ice groaning under rising pressure, crackles multiplying, a swelling rumble.
+    d = 0.75
+    t = t_axis(0.7)
+    groan = ice_creak(0.7, 55, 120, 2221, rough=2.0) * (t / 0.7) ** 1.5
+    cr = crackle(0.7, 900, 1500, 9000, seed=2222) * (t / 0.7) ** 2
+    rum = lowpass(noise(0.7, 2223), 120, 4) * (t / 0.7) ** 1.8 * 3
+    return mix(d, (groan, 0, .7), (cr, 0, .6), (rum, 0, .9))
+
+
+def s_shell_burst():
+    # KRAAAK: the shell explodes outward: a huge crack, a boom, a wall of ice pieces flying and raining.
+    d = 2.6
+    krak = mix(0.25, (highpass(noise(0.25, 2231), 1200) * env_ad(0.25, 0.0002, 0.04), 0, 1.5), (crack(0.08, 2232, 700), 0, 1.2))
+    boom = mix(1.0, (thump(1.0, 100, 30, 0.3), 0, 1.5), (lowpass(noise(1.0, 2233), 600) * env_ad(1.0, 0.002, 0.18), 0, 1.1))
+    wall = bandpass(noise(0.8, 2234), 1000, 9000) * env_ad(0.8, 0.002, 0.2)
+    return reverb(mix(d, (krak, 0, 1), (boom, 0, 1), (wall, 0.005, .9), (ice_tinkle(2.4, 90, 2235, 1200, 8000), 0.12, 1),
+                      (rumble(1.8, 0.5, 130, 2236), 0.02, .8)), 0.9, 1.6, 0.26)
+
+
+def s_brush():
+    # The cryogenic stream (a loop): a steady cold rush of mist, crystalline sparkle riding on it.
+    d = 2.0
+    n = int(d * SR)
+    t = t_axis(d)
+    def looped(lo, hi, seed):
+        x = np.random.default_rng(seed).standard_normal(n)
+        X = np.fft.rfft(x)
+        fr = np.fft.rfftfreq(n, 1 / SR)
+        X[(fr < lo) | (fr > hi)] = 0
+        y = np.fft.irfft(X, n)
+        return y / (np.max(np.abs(y)) + 1e-9)
+    rush = looped(800, 6000, 2241) * (0.85 + 0.15 * np.sin(2 * np.pi * t / d * 6))
+    air = looped(150, 700, 2242)
+    sparkle = np.zeros(n)
+    r = np.random.default_rng(2243)
+    for at in r.integers(0, n - 3000, 120):
+        c = glass_ring(r.uniform(3000, 6000), int(r.integers(0, 1e6)), 0.06)[:2600] * r.uniform(.05, .18)
+        sparkle[at:at + len(c)] += c
+    return rush * .6 + air * .35 + sparkle
+
+
+def s_ground_crack():
+    # Shattered ground: hands to the ground, a low tearing rumble running away under the earth, cracks along it.
+    d = 1.6
+    t = t_axis(1.4)
+    rum = lowpass(noise(1.4, 2251), 160, 4) * np.sin(np.pi * np.minimum(1, t / 1.3)) * 3
+    tear = swept(noise(1.4, 2252), 300, 1800, 1.2) * np.sin(np.pi * np.minimum(1, t / 1.3)) ** 1.5
+    layers = [(rum, 0, .9), (tear, 0, .45), (thump(0.3, 120, 55, 0.08), 0, .8)]
+    r = np.random.default_rng(2253)
+    for i in range(9):
+        layers.append((crack(0.05, 2254 + i, 1000 + 200 * i), 0.05 + i * 0.13 + r.uniform(0, .05), r.uniform(.25, .55)))
+    return reverb(mix(d, *layers), 0.6, 1.0, 0.18)
+
+
 SOUNDS = {
     'fx': {'whoosh_light': s_whoosh_light, 'whoosh_heavy': s_whoosh_heavy, 'impact_heavy': s_impact_heavy, 'impact_metal': s_impact_metal,
            'electric_zap': s_electric_zap, 'electric_crackle': s_electric_crackle, 'energy_swell': s_energy_swell, 'energy_boom': s_energy_boom},
@@ -1095,9 +1396,15 @@ SOUNDS = {
                'shock_equip': s_shock_equip, 'shock_clap': s_shock_clap, 'shock_hum': s_shock_hum, 'shock_swing': s_shock_swing,
                'shock_hit': s_shock_hit, 'shock_miss': s_shock_miss, 'shock_empty': s_shock_empty, 'shock_ready': s_shock_ready,
                'shock_unequip': s_shock_unequip},
+    'iceman': {'crack': s_ice_crack, 'shatter': s_ice_shatter, 'form': s_ice_form, 'form_big': s_ice_form_big, 'sculpt': s_ice_sculpt,
+               'frost': s_frost, 'deep_freeze': s_deep_freeze, 'hit': s_ice_hit, 'slide_start': s_slide_start, 'slide': s_slide,
+               'dash': s_dash, 'mace_swing': s_mace_swing, 'mace_slam': s_mace_slam, 'spear_thrust': s_spear_thrust,
+               'spear_throw': s_spear_throw, 'spikes': s_spikes, 'sword_swing': s_sword_swing, 'sword_spin': s_sword_spin,
+               'shell_form': s_shell_form, 'shell_hit': s_shell_hit, 'shell_break': s_shell_break, 'shell_stress': s_shell_stress,
+               'shell_burst': s_shell_burst, 'brush': s_brush, 'ground_crack': s_ground_crack},
 }
 # A few sounds get pitch/time variants so repeats never sound identical.
-VARIANTS = {'bm_gun': 3, 'cannon_shot': 3, 'shock_hit': 3, 'shock_miss': 2, 'shock_swing': 2, 'punch': 3, 'batarang': 2, 'claw_slash': 3, 'blade_slash': 3, 'whoosh_light': 2, 'claw_hit': 2, 'hulk_punch': 2, 'shield_hit': 2, 'electric_zap': 2, 'metal_shing': 2}
+VARIANTS = {'crack': 3, 'shatter': 2, 'hit': 3, 'spear_thrust': 2, 'sword_swing': 2, 'sculpt': 2, 'bm_gun': 3, 'cannon_shot': 3, 'shock_hit': 3, 'shock_miss': 2, 'shock_swing': 2, 'punch': 3, 'batarang': 2, 'claw_slash': 3, 'blade_slash': 3, 'whoosh_light': 2, 'claw_hit': 2, 'hulk_punch': 2, 'shield_hit': 2, 'electric_zap': 2, 'metal_shing': 2}
 
 
 def resample(x, factor):
@@ -1106,7 +1413,7 @@ def resample(x, factor):
 
 
 # Looping sounds are written whole (no trimming or fades, which would leave a seam at the loop point).
-LOOPS = {'cannon_hum', 'sonic_hum', 'sonic_ring', 'shock_hum', 'flash_ring'}
+LOOPS = {'slide', 'brush', 'cannon_hum', 'sonic_hum', 'sonic_ring', 'shock_hum', 'flash_ring'}
 
 
 def write_ogg(path, x, loop=False):

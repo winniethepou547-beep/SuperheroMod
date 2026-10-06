@@ -277,5 +277,20 @@ public final class ModNetworking {
                 com.FIRNI.superheromod.network.packet.ChampionLockPacket::decode,
                 com.FIRNI.superheromod.network.packet.ChampionLockPacket::handle,
                 java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.IcemanStatePacket.class,
+                com.FIRNI.superheromod.network.packet.IcemanStatePacket::encode,
+                com.FIRNI.superheromod.network.packet.IcemanStatePacket::decode,
+                com.FIRNI.superheromod.network.packet.IcemanStatePacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.IcemanFxPacket.class,
+                com.FIRNI.superheromod.network.packet.IcemanFxPacket::encode,
+                com.FIRNI.superheromod.network.packet.IcemanFxPacket::decode,
+                com.FIRNI.superheromod.network.packet.IcemanFxPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_CLIENT));
+        CHANNEL.registerMessage(id++, com.FIRNI.superheromod.network.packet.IcemanInputPacket.class,
+                com.FIRNI.superheromod.network.packet.IcemanInputPacket::encode,
+                com.FIRNI.superheromod.network.packet.IcemanInputPacket::decode,
+                com.FIRNI.superheromod.network.packet.IcemanInputPacket::handle,
+                java.util.Optional.of(net.minecraftforge.network.NetworkDirection.PLAY_TO_SERVER));
     }
 }
