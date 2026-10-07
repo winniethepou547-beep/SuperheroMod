@@ -133,6 +133,8 @@ public final class IceMesh {
         /** Where the texture is pinned (in the stack's units): set it on a moving piece so its texture moves with it. */
         public float ox, oy, oz;
         float cx, cy, cz, ux, uy, uz, rx, ry, rz, autoTexel = 16;
+        /** The face being drawn: its own shade (broken facets never all catch the light the same). */
+        float facet = 1;
         private final Batch[] batches = {new Batch(), new Batch(), new Batch()};
         private float[] glints = new float[256];
         private int glintCount;
@@ -227,6 +229,7 @@ public final class IceMesh {
                 if (tex == T_SKIN) { r = mat.r(); g = mat.g(); b = mat.b(); }
                 else if (tex == T_FROST) { r = Math.min(1, mat.r() / FR); g = Math.min(1, mat.g() / FG); b = Math.min(1, mat.b() / FB); }
                 else { r = Math.min(1, mat.r() / IR); g = Math.min(1, mat.g() / IG); b = Math.min(1, mat.b() / IB); }
+                if (tex != T_SKIN) { k *= facet; b = Math.min(1, b * (1 + (1 - facet) * .6f)); }
                 r *= k; g *= k; b *= k;
                 add = gloss * .55f + rim2 * rim * mat.rim() * .14f;
             }
@@ -287,8 +290,11 @@ public final class IceMesh {
             c.gloss();
             return;
         }
-        // Mapped like a block: from the side the face looks to (16 texels a block, 1 a pixel).
+        // Mapped like a block: from the side the face looks to (16 texels a block, 1 a pixel). Each face its own shade
+        // (a little darker and bluer, or brighter, by which way it faces): broken facets, never one smooth surface.
         float k = c.texel() / TILE;
+        float hn = (float) hash(nx * 17.3 + ny * 31.7 + nz * 7.9);
+        c.facet = .86f + .18f * hn;
         float anx = Math.abs(nx), any = Math.abs(ny), anz = Math.abs(nz);
         int axis = any >= anx && any >= anz ? 1 : anx >= anz ? 0 : 2;
         c.vert(tex, ax, ay, az, nx, ny, nz, tu(c, axis, ax, az) * k, tv(c, axis, ay, az) * k, mat, a);
@@ -296,6 +302,7 @@ public final class IceMesh {
         c.vert(tex, qx, qy, qz, nx, ny, nz, tu(c, axis, qx, qz) * k, tv(c, axis, qy, qz) * k, mat, a);
         c.vert(tex, dx, dy, dz, nx, ny, nz, tu(c, axis, dx, dz) * k, tv(c, axis, dy, dz) * k, mat, a);
         c.gloss();
+        c.facet = 1;
     }
     private static float tu(Ctx c, int axis, float x, float z) { return axis == 0 ? z - c.oz : x - c.ox; }
     private static float tv(Ctx c, int axis, float y, float z) { return axis == 1 ? z - c.oz : y - c.oy; }

@@ -723,5 +723,43 @@
     "sounds": [
       "superheromod:iceman/ground_crack"
     ]
+  },
+  "iceman.crystal_ticks": {
+    "subtitle": "subtitles.superheromod.iceman.crystal_ticks",
+    "sounds": [
+      "superheromod:iceman/crystal_ticks",
+      "superheromod:iceman/crystal_ticks_1",
+      "superheromod:iceman/crystal_ticks_2"
+    ]
+  },
+  "iceman.grow_rumble": {
+    "subtitle": "subtitles.superheromod.iceman.grow_rumble",
+    "sounds": [
+      "superheromod:iceman/grow_rumble",
+      "superheromod:iceman/grow_rumble_1"
+    ]
+  },
+  "iceman.shard_rain": {
+    "subtitle": "subtitles.superheromod.iceman.shard_rain",
+    "sounds": [
+      "superheromod:iceman/shard_rain",
+      "superheromod:iceman/shard_rain_1",
+      "superheromod:iceman/shard_rain_2"
+    ]
+  },
+  "iceman.cold_whoosh": {
+    "subtitle": "subtitles.superheromod.iceman.cold_whoosh",
+    "sounds": [
+      "superheromod:iceman/cold_whoosh",
+      "superheromod:iceman/cold_whoosh_1",
+      "superheromod:iceman/cold_whoosh_2"
+    ]
+  },
+  "iceman.frost_hiss": {
+    "subtitle": "subtitles.superheromod.iceman.frost_hiss",
+    "sounds": [
+      "superheromod:iceman/frost_hiss",
+      "superheromod:iceman/frost_hiss_1"
+    ]
   }
 }

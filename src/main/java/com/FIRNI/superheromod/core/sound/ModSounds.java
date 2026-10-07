@@ -151,6 +151,12 @@ public final class ModSounds {
     public static final RegistryObject<SoundEvent> ICEMAN_SHELL_BURST = reg("iceman.shell_burst");
     public static final RegistryObject<SoundEvent> ICEMAN_BRUSH = reg("iceman.brush");
     public static final RegistryObject<SoundEvent> ICEMAN_GROUND_CRACK = reg("iceman.ground_crack");
+    /** The new ice language (layered with the others): tiny crystal ticks of ice forming, the low cold rumble of a big growth, many shards landing, cold air pulled by a swing, a soft frost hiss. */
+    public static final RegistryObject<SoundEvent> ICEMAN_CRYSTAL_TICKS = reg("iceman.crystal_ticks");
+    public static final RegistryObject<SoundEvent> ICEMAN_GROW_RUMBLE = reg("iceman.grow_rumble");
+    public static final RegistryObject<SoundEvent> ICEMAN_SHARD_RAIN = reg("iceman.shard_rain");
+    public static final RegistryObject<SoundEvent> ICEMAN_COLD_WHOOSH = reg("iceman.cold_whoosh");
+    public static final RegistryObject<SoundEvent> ICEMAN_FROST_HISS = reg("iceman.frost_hiss");
 
     public static void register(IEventBus bus) { SOUNDS.register(bus); }
 }

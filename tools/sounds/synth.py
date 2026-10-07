@@ -4,6 +4,7 @@ mono Ogg Vorbis into src/main/resources/assets/superheromod/sounds/<group>/<name
 
     python3 tools/sounds/synth.py            # every sound
     python3 tools/sounds/synth.py magneto    # one group
+    python3 tools/sounds/synth.py iceman.frost_hiss    # one sound (several may be given)
 
 Building blocks: noise through swept filters (air, whooshes, fire, sand), modal synthesis (metal: inharmonic partials
 that ring and decay at their own rates), pitch-dropping sine thumps (body blows, booms), impulse crackle through
@@ -1225,7 +1226,7 @@ def s_slide():
     return glide * .55 + rumble_l * .5 + ticks
 
 
-def s_dash():
+def s_ice_dash():
     # The sub-zero slide: a fast low whoosh, ice scraping along the ground.
     d = 0.7
     return mix(d, (whoosh(0.6, 250, 2500, 1.7, 0.25, seed=2101, body=0.5), 0, 1),
@@ -1370,6 +1371,125 @@ def s_ground_crack():
     return reverb(mix(d, *layers), 0.6, 1.0, 0.18)
 
 
+# ---------------------------------------------------------------- Iceman: the real-ice layer (cold, not magical)
+def ice_tick(base, seed, dur=0.1, ring=1.0):
+    # One tiny crystal snapping: a dry click and a very short glassy ping (decays far quicker than glass_ring, so
+    # it reads as a tick of ice, not a chime).
+    r = np.random.default_rng(seed)
+    ping = modal(dur, base, [1, 2.41, 3.93, 6.1], np.array([0.03, 0.018, 0.011, 0.007]) * ring, [1, .6, .4, .25],
+                 strike=0.0003, seed=seed)
+    click = highpass(r.standard_normal(int(dur * SR)), 3500) * env_ad(dur, 0.0001, 0.0012)
+    return ping * .7 + click * .5
+
+
+def tick_times(dur, count, seed, start=0.0, tight=0.4):
+    # Irregular moments: uneven gaps (exponential), now and then two or three ticks almost on top of each other.
+    r = np.random.default_rng(seed)
+    out, t = [], start
+    while t < dur and len(out) < count:
+        out.append(t)
+        t += r.uniform(0.003, 0.014) if r.random() < tight else r.exponential((dur - start) / count * 1.4)
+    return out
+
+
+def stick_slip(dur, rate0, rate1, seed, res=(260, 640, 1500)):
+    # A creak of ice under load: a stuttering train of micro-slips (rate gliding, jittered) ringing a few body
+    # resonances, the way a frozen sheet groans before it gives.
+    r = np.random.default_rng(seed)
+    n = int(dur * SR)
+    x = np.zeros(n)
+    t = 0.0
+    while t < dur:
+        k = t / dur
+        rate = rate0 + (rate1 - rate0) * k
+        i = int(t * SR)
+        if i < n:
+            x[i] = r.uniform(.5, 1)
+        t += (1 / rate) * r.uniform(0.7, 1.3)
+    y = sum(resonator(x, f, 7) * g for f, g in zip(res, (1, .6, .35)))
+    return y * np.sin(np.pi * t_axis(dur) / dur) ** 1.2
+
+
+def s_crystal_ticks():
+    # Ice forming: a soft frost crackle, then a cluster of tiny crystals snapping as they grow, irregular.
+    d = 0.6
+    t = t_axis(0.3)
+    frost = bandpass(noise(0.3, 2301), 3500, 11000) * np.sin(np.pi * t / 0.3) ** 2 * .12
+    fine = crackle(0.3, 160, 4000, 12000, seed=2302, decay=0.1) * .18
+    out = mix(d, (frost, 0, 1), (fine, 0.01, 1))
+    r = np.random.default_rng(2303)
+    for i, at in enumerate(tick_times(0.54, 20, 2304, start=0.07)):
+        g = r.uniform(.12, .4) * (1 - 0.5 * at / 0.52)
+        out = mix(d, (out, 0, 1), (ice_tick(r.uniform(2400, 5200), 2310 + i, 0.09), at, g))
+    return fade(pad(reverb(out, 0.25, 0.35, 0.12, bright=7000), 0.64), 0.08)
+
+
+def s_grow_rumble():
+    # A big formation: a low cold rumble of ice under stress with slow creaks, crystal crackles rising over it.
+    d = 1.25
+    t = t_axis(d)
+    swell = np.minimum(1, t / 0.35) ** 1.5 * np.exp(-np.maximum(0, t - 0.8) / 0.18)
+    rum = bandpass(noise(d, 2321), 35, 170, 3) * swell * (0.8 + 0.2 * np.sin(2 * np.pi * 2.3 * t)) * 3
+    groan = ice_creak(d, 48, 40, 2322, rough=1.0) * swell * .18
+    creaks = [(stick_slip(0.4, 18, 45, 2323), 0.12, 1.4), (stick_slip(0.32, 35, 14, 2324, (210, 520, 1250)), 0.5, 1.2),
+              (stick_slip(0.25, 22, 60, 2325, (300, 760, 1700)), 0.82, 1.0)]
+    layers = [(rum, 0, 1), (groan, 0, 1)] + creaks
+    # Crystal-forming crackles, each one higher and denser than the last.
+    for i, (at, lo, hi) in enumerate(((0.1, 900, 5000), (0.33, 1400, 7000), (0.55, 2000, 9000), (0.78, 2800, 11000))):
+        ln = 0.3
+        tt = t_axis(ln)
+        g = growth(ln, 2330 + i, lo, hi, rise=0.6, density=(120, 600)) * np.sin(np.pi * tt / ln) ** 1.3
+        layers.append((g, at, .45 + .1 * i))
+    r = np.random.default_rng(2335)
+    for i, at in enumerate(tick_times(0.35, 7, 2336)):
+        layers.append((ice_tick(r.uniform(1800, 4200), 2340 + i, 0.12), 0.85 + at, r.uniform(.1, .25)))
+    layers.append((crack(0.05, 2349, 1600), 0.86, .35))
+    out = reverb(mix(d, *layers), 0.6, 0.6, 0.2, bright=3500)
+    return fade(pad(out, 1.35), 0.12)
+
+
+def s_shard_rain():
+    # Many ice shards and chunks landing: hard little clinks and dull thuds, dense at first, thinning out.
+    d = 0.95
+    r = np.random.default_rng(2361)
+    layers = []
+    for i in range(70):
+        at = 0.85 * r.random() ** 2.2
+        late = 1 - 0.75 * at / 0.85
+        if r.random() < 0.3:
+            # a chunk: a short dull knock of ice on ground
+            ln = 0.08
+            k = (thump(ln, r.uniform(160, 260), r.uniform(90, 130), 0.012) * .8
+                 + lowpass(noise(ln, 2400 + i), 1800) * env_ad(ln, 0.0003, 0.006) * .8
+                 + ice_tick(r.uniform(900, 1800), 2500 + i, ln, 0.6) * .5)
+            layers.append((k, at, r.uniform(.35, .7) * late))
+        else:
+            # a shard: a hard bright clink
+            layers.append((ice_tick(r.uniform(1800, 5000), 2600 + i, 0.1, r.uniform(.6, 1.1)), at, r.uniform(.15, .45) * late))
+    grit = bandpass(noise(0.6, 2362), 2500, 9000) * env_ad(0.6, 0.002, 0.12) * .08
+    out = reverb(mix(d, (grit, 0, 1), *layers), 0.4, 0.4, 0.14, bright=6000)
+    return fade(pad(out, 1.0), 0.1)
+
+
+def s_cold_whoosh():
+    # A swing through freezing air: a short soft airy rush, a faint glassy tick as it ends.
+    d = 0.4
+    w = fade(whoosh(0.32, 700, 3200, 1.3, 0.45, seed=2381), 0.08)
+    air = bandpass(noise(0.32, 2382), 4000, 10000) * np.sin(np.pi * t_axis(0.32) / 0.32) ** 2 * .25
+    return mix(d, (w, 0, 1), (air, 0, 1), (ice_tick(3600, 2383, 0.08), 0.27, .15))
+
+
+def s_frost_hiss():
+    # Frost spreading and fading: a gentle airy hiss, a faint fine crackle of rime in it.
+    d = 0.85
+    t = t_axis(d)
+    e = np.minimum(1, t / 0.12) ** 2 * np.exp(-np.maximum(0, t - 0.2) / 0.22)
+    hiss = swept(noise(d, 2391), 6500, 4200, 1.2) * e
+    hiss += bandpass(noise(d, 2392), 2000, 6000) * e * .3
+    fine = crackle(d, 60, 5000, 12000, seed=2393) * np.exp(-t / 0.3) * .2
+    return mix(d, (hiss, 0, 1), (fine, 0.02, 1))
+
+
 SOUNDS = {
     'fx': {'whoosh_light': s_whoosh_light, 'whoosh_heavy': s_whoosh_heavy, 'impact_heavy': s_impact_heavy, 'impact_metal': s_impact_metal,
            'electric_zap': s_electric_zap, 'electric_crackle': s_electric_crackle, 'energy_swell': s_energy_swell, 'energy_boom': s_energy_boom},
@@ -1398,13 +1518,16 @@ SOUNDS = {
                'shock_unequip': s_shock_unequip},
     'iceman': {'crack': s_ice_crack, 'shatter': s_ice_shatter, 'form': s_ice_form, 'form_big': s_ice_form_big, 'sculpt': s_ice_sculpt,
                'frost': s_frost, 'deep_freeze': s_deep_freeze, 'hit': s_ice_hit, 'slide_start': s_slide_start, 'slide': s_slide,
-               'dash': s_dash, 'mace_swing': s_mace_swing, 'mace_slam': s_mace_slam, 'spear_thrust': s_spear_thrust,
+               'dash': s_ice_dash, 'mace_swing': s_mace_swing, 'mace_slam': s_mace_slam, 'spear_thrust': s_spear_thrust,
                'spear_throw': s_spear_throw, 'spikes': s_spikes, 'sword_swing': s_sword_swing, 'sword_spin': s_sword_spin,
                'shell_form': s_shell_form, 'shell_hit': s_shell_hit, 'shell_break': s_shell_break, 'shell_stress': s_shell_stress,
-               'shell_burst': s_shell_burst, 'brush': s_brush, 'ground_crack': s_ground_crack},
+               'shell_burst': s_shell_burst, 'brush': s_brush, 'ground_crack': s_ground_crack,
+               'crystal_ticks': s_crystal_ticks, 'grow_rumble': s_grow_rumble, 'shard_rain': s_shard_rain,
+               'cold_whoosh': s_cold_whoosh, 'frost_hiss': s_frost_hiss},
 }
 # A few sounds get pitch/time variants so repeats never sound identical.
-VARIANTS = {'crack': 3, 'shatter': 2, 'hit': 3, 'spear_thrust': 2, 'sword_swing': 2, 'sculpt': 2, 'bm_gun': 3, 'cannon_shot': 3, 'shock_hit': 3, 'shock_miss': 2, 'shock_swing': 2, 'punch': 3, 'batarang': 2, 'claw_slash': 3, 'blade_slash': 3, 'whoosh_light': 2, 'claw_hit': 2, 'hulk_punch': 2, 'shield_hit': 2, 'electric_zap': 2, 'metal_shing': 2}
+VARIANTS = {'crack': 3, 'shatter': 2, 'hit': 3, 'spear_thrust': 2, 'sword_swing': 2, 'sculpt': 2, 'bm_gun': 3, 'cannon_shot': 3, 'shock_hit': 3, 'shock_miss': 2, 'shock_swing': 2, 'punch': 3, 'batarang': 2, 'claw_slash': 3, 'blade_slash': 3, 'whoosh_light': 2, 'claw_hit': 2, 'hulk_punch': 2, 'shield_hit': 2, 'electric_zap': 2, 'metal_shing': 2,
+            'crystal_ticks': 3, 'grow_rumble': 2, 'shard_rain': 3, 'cold_whoosh': 3, 'frost_hiss': 2}
 
 
 def resample(x, factor):
@@ -1416,8 +1539,9 @@ def resample(x, factor):
 LOOPS = {'slide', 'brush', 'cannon_hum', 'sonic_hum', 'sonic_ring', 'shock_hum', 'flash_ring'}
 
 
-def write_ogg(path, x, loop=False):
+def write_ogg(path, x, loop=False, gain_db=0.0):
     x = normalise(x, -3) if loop else fade(trim(normalise(soft(normalise(x, 0), 1.2))), 0.03)
+    x = x * 10 ** (gain_db / 20)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
         wav = tmp.name
@@ -1428,8 +1552,13 @@ def write_ogg(path, x, loop=False):
     os.remove(wav)
 
 
+# Sounds that keep a quiet character: scaled down after normalising (dB).
+GAIN = {'crystal_ticks': -3.0, 'cold_whoosh': -5.0, 'frost_hiss': -4.0}
+
+
 def main():
-    groups = sys.argv[1:] or list(SOUNDS)
+    # Arguments: whole groups ('iceman') or single sounds ('iceman.frost_hiss'); none = every sound.
+    picked = sys.argv[1:] or list(SOUNDS)
     manifest_path = os.path.join(ROOT, 'src', 'main', 'resources', 'assets', 'superheromod', 'sounds.json')
     manifest = {}
     for group, sounds in SOUNDS.items():
@@ -1437,12 +1566,12 @@ def main():
             n = VARIANTS.get(name, 1)
             files = [f'superheromod:{group}/{name}' + ('' if i == 0 else f'_{i}') for i in range(n)]
             manifest[f'{group}.{name}'] = {'subtitle': f'subtitles.superheromod.{group}.{name}', 'sounds': files}
-            if group not in groups:
+            if group not in picked and f'{group}.{name}' not in picked:
                 continue
             base = fn()
             for i in range(n):
                 x = base if i == 0 else resample(base, 1 + (0.06 if i == 1 else -0.05))
-                write_ogg(os.path.join(OUT, group, name + ('' if i == 0 else f'_{i}') + '.ogg'), x, name in LOOPS)
+                write_ogg(os.path.join(OUT, group, name + ('' if i == 0 else f'_{i}') + '.ogg'), x, name in LOOPS, GAIN.get(name, 0.0))
             print(group, name, f'{len(base) / SR:.2f}s', 'x' + str(n))
     with open(manifest_path, 'w') as f:
         json.dump(manifest, f, indent=2)

@@ -186,13 +186,13 @@ public final class IcemanBody {
             line(c, new Vec3(mx, my, zf), new Vec3(x1 + th * .5f, y1, zf), .06f, .5f * cr * g, .8f * cr * g, cr * g);
         }
     }
-    /** An ice spike out of the ice (base, direction, length, half width): four-sided, blunt-based, sharp. */
+    /** An ice crystal grown out of the ice (base, direction, length, half width): uneven, leaning, its top broken (IceGrowth). */
     private static void spike(float x, float y, float z, float dx, float dy, float dz, float len, float r, int seed, Mat mat) {
-        crystal(c, new Vec3(x, y, z), new Vec3(dx, dy, dz), len, r, 4, seed, mat, 1, 0);
+        IceGrowth.crystal(c, x, y, z, dx, dy, dz, len, r * 1.1f, seed * 7919, mat, 1, 1);
     }
-    /** An icicle hanging from a point along +y (toward the end of the limb), a little askew. */
+    /** An icicle hanging from a point along +y (toward the end of the limb), a little askew: a thin crystal. */
     private static void icicle(float x, float y, float z, float len, float r, int seed) {
-        crystal(c, new Vec3(x, y, z), new Vec3(.12 * (hash(seed) - .5), 1, .12 * (hash(seed + 3) - .5)), len, r, 4, seed, CLEAR, 1, 0);
+        IceGrowth.crystal(c, x, y - .2f, z, .12 * (hash(seed) - .5), 1, .12 * (hash(seed + 3) - .5), len + .2f, r, seed * 6151, CLEAR, 1, 1);
     }
     /** Pale glossy ice for the spikes (the reference's bright shards), and the ice of the hair. */
     static final Mat SPIKE = new Mat(.6f, .86f, 1f, 1, 1, .05f, .7f, 1f), HAIR = new Mat(.56f, .85f, 1f, 1, 1, .05f, .6f, .9f);

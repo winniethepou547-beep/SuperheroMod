@@ -44,7 +44,7 @@ public final class IceParticles {
     private IceParticles() {}
 
     private static final class Shard {
-        Vec3 pos, prev, vel, axis; float spin, angle, angleO, size; final int seed; final IceMesh.Mat mat;
+        Vec3 pos, prev, vel, axis; float spin, angle, angleO, size, grav = .045f; final int seed; final IceMesh.Mat mat;
         int age, life, rest; boolean ground;
         Shard(Vec3 pos, Vec3 vel, float size, int life, int seed, IceMesh.Mat mat) {
             this.pos = pos; prev = pos; this.vel = vel; this.size = size; this.life = life; this.seed = seed; this.mat = mat;
@@ -54,19 +54,20 @@ public final class IceParticles {
         }
     }
     private static final class Puff {
-        Vec3 pos, prev, vel; float size, grow, alpha; int rgb, age, life; final int kind;
+        Vec3 pos, prev, vel; float size, grow, alpha, swirl; int rgb, age, life; final int kind;
         Puff(int kind, Vec3 pos, Vec3 vel, float size, float grow, int rgb, float alpha, int life) {
             this.kind = kind; this.pos = pos; prev = pos; this.vel = vel; this.size = size; this.grow = grow; this.rgb = rgb; this.alpha = alpha; this.life = life;
         }
     }
     private record Ring(Vec3 at, float radius, float width, int rgb, float alpha, float start, float life, boolean light) {}
-    private static final int MIST = 0, SNOW = 1, FLASH = 2;
+    private static final int MIST = 0, SNOW = 1, FLASH = 2, DUST = 3;
     private static final List<Shard> SHARDS = new ArrayList<>();
     private static final List<Puff> PUFFS = new ArrayList<>();
     private static final List<Ring> RINGS = new ArrayList<>();
     private static final int MAX_SHARDS = 360, MAX_PUFFS = 900;
     private static final Random RNG = new Random();
-    public static final int MIST_RGB = 0xdcecff, SNOW_RGB = 0xf4faff, COLD_LIGHT = 0x9fd8ff;
+    /** Cold vapour is blue-white (never smoke grey), snow and ice dust white with a blue cast, cold light. */
+    public static final int MIST_RGB = 0xc4defc, SNOW_RGB = 0xeef7ff, ICE_DUST_RGB = 0xb8dcff, COLD_LIGHT = 0x9fd8ff;
 
     /** How many of something to make here: the effects setting, fewer far from the camera. */
     public static int count(int n, Vec3 at) {
@@ -84,15 +85,24 @@ public final class IceParticles {
     public static Vec3 jitter(double s) { return new Vec3(RNG.nextGaussian() * s, RNG.nextGaussian() * s, RNG.nextGaussian() * s); }
 
     // ------------------------------------------------------------------ making
-    public static void shard(Vec3 at, Vec3 vel, float size, int life, IceMesh.Mat mat) {
+    public static void shard(Vec3 at, Vec3 vel, float size, int life, IceMesh.Mat mat) { shard(at, vel, size, life, mat, .045f); }
+    /** A piece with its own gravity (a light crystal fragment floats in the cold plume: small grav). */
+    public static void shard(Vec3 at, Vec3 vel, float size, int life, IceMesh.Mat mat, float grav) {
         if (SHARDS.size() >= MAX_SHARDS) SHARDS.remove(0);
-        SHARDS.add(new Shard(at, vel, size, life, RNG.nextInt(1 << 20), mat));
+        Shard sh = new Shard(at, vel, size, life, RNG.nextInt(1 << 20), mat);
+        sh.grav = grav;
+        SHARDS.add(sh);
     }
     public static void mist(Vec3 at, Vec3 vel, float size, float grow, float alpha, int life) {
         puff(MIST, at, vel, size, grow, MIST_RGB, alpha, life);
     }
     public static void snow(Vec3 at, Vec3 vel, float size, int life) {
         puff(SNOW, at, vel, size, 0, SNOW_RGB, .9f, life);
+    }
+    /** A tiny ice crystal in the air that drifts, spirals round its way (swirl: radians a tick, 0 straight) and glints out. */
+    public static void crystalDust(Vec3 at, Vec3 vel, float size, float swirl, int life) {
+        puff(DUST, at, vel, size, 0, RNG.nextFloat() < .55f ? SNOW_RGB : ICE_DUST_RGB, .95f, life);
+        PUFFS.get(PUFFS.size() - 1).swirl = swirl;
     }
     public static void flash(Vec3 at, float size, float alpha, int life) {
         puff(FLASH, at, Vec3.ZERO, size, size * .04f, COLD_LIGHT, alpha, life);
@@ -137,6 +147,106 @@ public final class IceParticles {
         if (RNG.nextFloat() < amount * .25f) mist(at, vel.scale(.2).add(0, -.004, 0), .12f, .015f, .12f, 22);
     }
 
+    // ------------------------------------------------------------------ the cold (the air itself freezing)
+    /**
+     * The cryogenic plume (the reference's hand effect): the air freezing out of a point toward dir (unit) with power
+     * (about .3 a puff .. 1 a full blast .. 2 a huge one). Five layers, never a flood: (1) soft blue-white vapour rolling
+     * out and swelling, slowed by the air; (2) tiny ice crystals, some shot fast, some floating, some spiralling, glinting
+     * out; (3) crystal fragments, little broken pieces that barely fall; (4) the ice itself is the caller's, growing
+     * inside this cloud; (5) frost residue (the caller's ground frost, and the vapour sinking as it thins).
+     * spread = how wide it opens (0 a jet .. 1 a burst all round).
+     */
+    public static void cryo(Vec3 at, Vec3 dir, float power, float spread) {
+        Vec3 d = dir.lengthSqr() < 1e-8 ? new Vec3(0, 1, 0) : dir.normalize();
+        int mist = count(Math.round(2 + power * 5), at), dust = count(Math.round(6 + power * 16), at), frag = count(Math.round(1 + power * 4), at);
+        for (int i = 0; i < mist; i++) {
+            Vec3 v = d.scale(.04 + .14 * RNG.nextFloat() * (.6 + power * .5)).add(jitter(.03 + .05 * spread));
+            mist(at.add(jitter(.12 * power)), v, .22f + .3f * power * (.6f + .4f * RNG.nextFloat()), .022f + .012f * power, .2f + .06f * power, 26 + RNG.nextInt(22));
+        }
+        for (int i = 0; i < dust; i++) {
+            float kind = RNG.nextFloat();
+            Vec3 cone = d.add(jitter(.25 + .7 * spread)).normalize();
+            Vec3 v = kind < .35f ? cone.scale(.3 + .35 * RNG.nextFloat() * (.7 + .3 * power))        // shot out fast
+                    : kind < .7f ? cone.scale(.06 + .08 * RNG.nextFloat()).add(0, .01, 0)            // floating
+                    : cone.scale(.12 + .12 * RNG.nextFloat());                                       // spiralling
+            float swirl = kind >= .7f ? (RNG.nextBoolean() ? 1 : -1) * (.25f + .35f * RNG.nextFloat()) : 0;
+            crystalDust(at.add(jitter(.08 * power)), v, .018f + .022f * RNG.nextFloat(), swirl, 14 + RNG.nextInt(24));
+        }
+        for (int i = 0; i < frag; i++) {
+            Vec3 cone = d.add(jitter(.3 + .6 * spread)).normalize();
+            shard(at.add(jitter(.06)), cone.scale(.12 + .2 * RNG.nextFloat()), .05f + .05f * RNG.nextFloat() * Math.min(2, power), 14 + RNG.nextInt(12),
+                    RNG.nextFloat() < .4f ? IceMesh.FRESH : IceMesh.CLEAR, .012f);
+        }
+    }
+    /**
+     * Cold air rolling out low along the ground round a point (a big formation, a slam, the shell): vapour spreading
+     * outward to radius, hugging the ground, thinning, with a little ice dust in it.
+     */
+    public static void coldMist(Vec3 at, float radius, float power) {
+        int n = count(Math.round(4 + radius * 3 * power), at);
+        for (int i = 0; i < n; i++) {
+            float a = RNG.nextFloat() * Mth.TWO_PI;
+            Vec3 out = new Vec3(Mth.cos(a), 0, Mth.sin(a));
+            Vec3 v = out.scale(radius * (.025 + .03 * RNG.nextFloat())).add(0, .004, 0);
+            mist(at.add(out.scale(radius * .2 * RNG.nextFloat())).add(0, .15, 0), v, .35f + .25f * radius * .3f, .025f, .16f + .08f * power, 40 + RNG.nextInt(30));
+        }
+        int d = count(Math.round(4 + radius * 2 * power), at);
+        for (int i = 0; i < d; i++) {
+            float a = RNG.nextFloat() * Mth.TWO_PI;
+            crystalDust(at.add(Mth.cos(a) * radius * .3, .2 + .4 * RNG.nextFloat(), Mth.sin(a) * radius * .3),
+                    new Vec3(Mth.cos(a) * .05, .015, Mth.sin(a) * .05), .016f + .016f * RNG.nextFloat(), (RNG.nextFloat() - .5f) * .5f, 20 + RNG.nextInt(20));
+        }
+    }
+    /**
+     * The air freezing behind something moving fast and cold (a weapon's edge, a spear's tip, a fist): a breath of vapour
+     * and a few ice crystals left where it passed, dragged a little after it (vel), k = how much (0..1+).
+     */
+    public static void freezeTrail(Vec3 at, Vec3 vel, float k) {
+        if (RNG.nextFloat() < .35f * k) mist(at, vel.scale(.08).add(0, .002, 0), .12f + .1f * k, .012f, .1f + .05f * k, 18 + RNG.nextInt(10));
+        int n = count(Math.round(k * 2), at);
+        for (int i = 0; i < n; i++) crystalDust(at.add(jitter(.05)), vel.scale(.15).add(jitter(.015)), .014f + .014f * RNG.nextFloat(), (RNG.nextFloat() - .5f) * .4f, 10 + RNG.nextInt(10));
+    }
+
+    /**
+     * A big piece of ice breaking (the user's ten steps): a small crack, a deeper one, the heavy fracture zone by zone
+     * (zones break one after another over spread ticks, not all at once: the first chunks fall, others hold a moment,
+     * then the rest collapses), shards and frost dust thrown, cold vapour left behind, the shards landing (heard).
+     * at = its middle, axis = its long way (zones are laid along it, length long), size = how big, push = where the
+     * pieces are flung. The cracks drawn on the object itself are the caller's.
+     */
+    public static void breakApart(Vec3 at, Vec3 axis, float length, float size, Vec3 push, int zones, int spread, IceMesh.Mat mat) {
+        var mc = Minecraft.getInstance();
+        if (mc.level == null) return;
+        Vec3 ax = axis.lengthSqr() < 1e-8 ? Vec3.ZERO : axis.normalize();
+        sound(at, com.FIRNI.superheromod.core.sound.ModSounds.ICEMAN_CRACK.get(), .7f, 1.4f);
+        zones = Math.max(1, zones);
+        int[] order = new int[zones];
+        for (int i = 0; i < zones; i++) order[i] = i;
+        for (int i = zones - 1; i > 0; i--) { int j = RNG.nextInt(i + 1), t = order[i]; order[i] = order[j]; order[j] = t; }
+        for (int k = 0; k < zones; k++) {
+            int z = order[k];
+            Vec3 p = at.add(ax.scale(length * ((z + .5) / zones - .5)));
+            int when = k == 0 ? 2 : 3 + (int) ((spread - 3) * (k / (float) Math.max(1, zones - 1)) * (.7 + .3 * RNG.nextFloat()));
+            float piece = size / (float) Math.sqrt(zones) * (.8f + .5f * RNG.nextFloat());
+            later(when, () -> {
+                if (k0(z)) sound(p, com.FIRNI.superheromod.core.sound.ModSounds.ICEMAN_SHATTER.get(), .9f, .85f + .3f * RNG.nextFloat());
+                shatter(p, push.add(jitter(.04)), piece, mat);
+                coldMist(p, .8f + piece, .6f);
+            });
+        }
+        later(spread + 8, () -> sound(at, com.FIRNI.superheromod.core.sound.ModSounds.ICEMAN_SHARD_RAIN.get(), .8f, 1f));
+        later(spread + 14, () -> sound(at, com.FIRNI.superheromod.core.sound.ModSounds.ICEMAN_FROST_HISS.get(), .45f, 1f));
+    }
+    private static boolean k0(int z) { return z % 2 == 0; }
+    private static void sound(Vec3 at, net.minecraft.sounds.SoundEvent ev, float vol, float pitch) {
+        var level = Minecraft.getInstance().level;
+        if (level != null) level.playLocalSound(at.x, at.y, at.z, ev, net.minecraft.sounds.SoundSource.PLAYERS, vol, pitch, false);
+    }
+    /** Something to do a few ticks from now (the stages of a break). */
+    public static void later(int ticks, Runnable r) { LATER.add(new Later(ticks, r)); }
+    private static final class Later { int left; final Runnable r; Later(int left, Runnable r) { this.left = left; this.r = r; } }
+    private static final List<Later> LATER = new ArrayList<>();
+
     // ------------------------------------------------------------------ living
     @SubscribeEvent public static void tick(TickEvent.ClientTickEvent e) {
         if (e.phase != TickEvent.Phase.END) return;
@@ -144,6 +254,10 @@ public final class IceParticles {
         if (mc.level == null) { clear(); return; }
         if (mc.isPaused()) return;
         Level level = mc.level;
+        for (int i = LATER.size() - 1; i >= 0; i--) {
+            Later l = LATER.get(i);
+            if (--l.left <= 0) { LATER.remove(i); l.r.run(); }
+        }
         for (int i = SHARDS.size() - 1; i >= 0; i--) {
             Shard s = SHARDS.get(i);
             s.prev = s.pos; s.angleO = s.angle;
@@ -162,7 +276,7 @@ public final class IceParticles {
                 s.spin *= .5f;
                 if (floor && Math.abs(s.vel.y) < .05) { s.ground = true; s.vel = Vec3.ZERO; s.pos = new Vec3(next.x, Math.floor(next.y) + 1.0 + s.size * .3, next.z); continue; }
             } else s.pos = next;
-            s.vel = new Vec3(s.vel.x * .97, s.vel.y * .98 - .045, s.vel.z * .97);
+            s.vel = new Vec3(s.vel.x * .97, s.vel.y * .98 - s.grav, s.vel.z * .97);
             s.angle += s.spin;
         }
         for (int i = PUFFS.size() - 1; i >= 0; i--) {
@@ -173,7 +287,21 @@ public final class IceParticles {
             if (p.kind == SNOW) {
                 p.vel = new Vec3(p.vel.x * .92, p.vel.y * .95 - .012, p.vel.z * .92);
                 if (solid(level, p.pos)) { p.vel = Vec3.ZERO; p.pos = p.prev; }
-            } else if (p.kind == MIST) p.vel = new Vec3(p.vel.x * .93, p.vel.y * .93 - .0008, p.vel.z * .93);
+            } else if (p.kind == MIST) {
+                // Cold air: slowed, sinking a little, a slow turbulent roll (never a straight drift).
+                float tn = (level.getGameTime() + p.age) * .09f;
+                double wx = Math.sin(p.pos.z * 1.7 + tn) * .0035, wz = Math.cos(p.pos.x * 1.7 - tn) * .0035;
+                p.vel = new Vec3(p.vel.x * .93 + wx, p.vel.y * .93 - .0008, p.vel.z * .93 + wz);
+            } else if (p.kind == DUST) {
+                // A tiny crystal: drag, hardly any weight, spiralling round its way when it spins.
+                Vec3 v = p.vel;
+                if (p.swirl != 0) {
+                    float cs = Mth.cos(p.swirl), sn = Mth.sin(p.swirl);
+                    v = new Vec3(v.x * cs - v.z * sn, v.y, v.x * sn + v.z * cs);
+                }
+                p.vel = new Vec3(v.x * .9, v.y * .92 - .0025, v.z * .9);
+                if (solid(level, p.pos)) { p.vel = Vec3.ZERO; p.pos = p.prev; }
+            }
         }
         float now = level.getGameTime();
         RINGS.removeIf(r -> now - r.start() > r.life() + 1);
@@ -203,12 +331,10 @@ public final class IceParticles {
                     float size = s.size * (.35f + .65f * melt) * .78f;
                     c.light = IceStage.light(s.pos);
                     float ang = Mth.lerp(partial, s.angleO, s.angle);
-                    // A tumbling chunk: a little uneven box (each its own proportions), its texture riding with it.
+                    // A tumbling piece of broken ice (every one its own uneven shape), its texture riding with it.
                     axisAngle((float) s.axis.x, (float) s.axis.y, (float) s.axis.z, ang + s.seed % 7, AX);
-                    float hu = size * (.42f + .16f * ((s.seed >> 3) & 7) / 7f), hv = size * (.36f + .14f * ((s.seed >> 6) & 7) / 7f),
-                            hw = size * (.32f + .16f * ((s.seed >> 9) & 7) / 7f);
                     c.ox = (float) x; c.oy = (float) y; c.oz = (float) z;
-                    obox(c, x, y, z, AX, hu, hv, hw, s.mat, .4f + .6f * melt);
+                    IceGrowth.chip(c, x, y, z, AX, size * 1.15f, s.seed, s.mat, .4f + .6f * melt);
                 }
                 c.ox = c.oy = c.oz = 0;
                 st.endIce();
@@ -220,6 +346,11 @@ public final class IceParticles {
                 Vec3 at = p.prev.lerp(p.pos, partial);
                 switch (p.kind) {
                     case SNOW -> FilmFx.puff(f, at, p.size, p.rgb, p.alpha * (1 - k * k));
+                    case DUST -> {
+                        // A glint: it catches the light now and then as it turns.
+                        float tw = .55f + .45f * Mth.sin((p.age + partial) * 1.3f + p.rgb % 7);
+                        FilmFx.glow(f, at, p.size * 1.6f, p.rgb, p.alpha * tw * (1 - k));
+                    }
                     case FLASH -> FilmFx.glow(f, at, p.size + p.grow * p.age, p.rgb, p.alpha * (1 - k) * (1 - k));
                     default -> FilmFx.puff(f, at, p.size + p.grow * (p.age + partial), p.rgb, p.alpha * Math.min(1, k * 6) * (1 - k));
                 }
@@ -377,6 +508,6 @@ public final class IceParticles {
         double c = Math.cos(angle), s = Math.sin(angle);
         return v.scale(c).add(axis.cross(v).scale(s)).add(axis.scale(axis.dot(v) * (1 - c)));
     }
-    public static void clear() { SHARDS.clear(); PUFFS.clear(); RINGS.clear(); }
+    public static void clear() { SHARDS.clear(); PUFFS.clear(); RINGS.clear(); LATER.clear(); }
     @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) { clear(); }
 }

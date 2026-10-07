@@ -133,5 +133,10 @@
   "subtitles.superheromod.iceman.shell_stress": "Ice shell strains",
   "subtitles.superheromod.iceman.shell_burst": "Ice shell bursts",
   "subtitles.superheromod.iceman.brush": "Cold stream",
-  "subtitles.superheromod.iceman.ground_crack": "Ground cracks with ice"
+  "subtitles.superheromod.iceman.ground_crack": "Ground cracks with ice",
+  "subtitles.superheromod.iceman.crystal_ticks": "Ice crystals crackle",
+  "subtitles.superheromod.iceman.grow_rumble": "Ice groans as it grows",
+  "subtitles.superheromod.iceman.shard_rain": "Ice shards rain down",
+  "subtitles.superheromod.iceman.cold_whoosh": "Cold air swishes",
+  "subtitles.superheromod.iceman.frost_hiss": "Frost hisses softly"
 }
