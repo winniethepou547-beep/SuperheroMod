@@ -5,8 +5,10 @@ import com.FIRNI.superheromod.client.render.film.FilmFx;
 import com.FIRNI.superheromod.client.render.panther.PantherMotion;
 import com.FIRNI.superheromod.core.sound.ModSounds;
 import net.minecraft.client.Minecraft;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
@@ -15,28 +17,48 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.FIRNI.superheromod.client.render.iceman.IceGrowth.grow;
+import static com.FIRNI.superheromod.client.render.iceman.IceGrowth.h;
 import static com.FIRNI.superheromod.heroes.iceman.IcemanAction.*;
 
 /**
- * The ice sculpted into the air by the brush (FX_SCULPT_POINT / END / BREAK), on every client.
+ * The ice sculpted into the air by the brush (FX_SCULPT_POINT / END / BREAK), on every client: the AIR ITSELF FREEZING
+ * along the mouse's path into one irregular mass of grown crystal (the Days of Future Past reference), never a row of
+ * blocks.
  * <p>
- * Minecraft ice, built of blocks: each stretch of the mouse's path gets a cube of ice 2 x radius on a side, laid where
- * the server lays its solid box (one every radius x 1.1 along the path, so what you see is what you bump into), turned
- * a little toward the way the path runs; smaller cubes are frozen in at some of the joints, so it reads as one chunky
- * body of ice blocks. Each point the server lays arrives with its time, a little after the one before it, so the ice
- * grows along the mouse's path: first a bright thin line of cold, then each block forms: a small frosted cube that grows
- * to full size and clears into bright blue ice; a few square icicles grow down from its underside. Humidity is drawn in
- * to where it is forming (mist moving in), sparkles run over the growing blocks. No round tubes, no crystals.
+ * Where it stands: one NODE where the server lays each of its solid boxes (a cube 2 x radius on a side, one every
+ * radius x 1.1 along the path; the tip's own when it is let go), so what you bump into is what you see. Each node grows
+ * its own ice out of a cold cloud:
+ * <ol>
+ * <li>cold air: the moment a point arrives, the cryogenic plume bursts there, fed from his hand's direction
+ * (IceParticles.cryo): vapour, ice crystals spiralling, fragments;</li>
+ * <li>frost (0 .. .15 of the node's formation): a frosted ghost of the mass appears in the cloud;</li>
+ * <li>nuclei (.05 .. .2): three small milky crystals start in it, glinting;</li>
+ * <li>growth (.15 .. .3): a cluster of crystals pushes out of the path (up, sideways, now and then down like icicles),
+ * plus single crystals along and out of the path, each its own delay, size and lean: some tall, some stay small;</li>
+ * <li>interlock (.3 .. .45): a long uneven prism of ice grows along the path through the node, overlapping its
+ * neighbours' so the whole path is one body;</li>
+ * <li>body (.45 .. .7): a second lump from the other way and a deeper keel under it thicken the mass, the frost
+ * clears into blue ice;</li>
+ * <li>settle: cold mist sinks off it, a hiss as it settles.</li>
+ * </ol>
+ * A node takes FORM ticks (0.7 s); nodes are laid one after another, so the ice grows along the path. Sounds: crystal
+ * ticks every few points, a deep growing rumble once on a long sculpture, frost hiss as the mist settles.
  * <p>
- * Breaking (FX_SCULPT_BREAK): glowing cracks run over the blocks' faces from the middle outward for SCULPT_CRACK ticks
- * while it brightens, then it falls apart along its whole length into chunks of ice (cubes tumbling), a short flash,
- * mist; the small pieces melt into frost (IceParticles). A sculpture whose end never comes (its maker gone) breaks by
- * itself after a while.
+ * Breaking (FX_SCULPT_BREAK): a small crack sounds and glowing cracks start at a few places, branch and spread over the
+ * whole mass while it brightens (a deeper crack halfway); after SCULPT_CRACK ticks (when the server drops its solids)
+ * it comes apart ZONE BY ZONE in a random order over a few ticks: each zone vanishes into big falling chunks, shards,
+ * a frost-dust burst and cold mist, the first and some later ones with a heavy fracture; the shards landing are heard,
+ * then the frost hisses away. A sculpture whose end never comes (its maker gone) breaks by itself after a while.
  */
 final class IcemanBrushSculpt {
     private IcemanBrushSculpt() {}
 
     private static final int MAX = 24;
+    /** How long one node takes to form (ticks). */
+    private static final float FORM = 14;
+    /** Per node: centre, path direction, two directions across it (v the most upward), the cluster's way out, birth, crack distance. */
+    private static final int STRIDE = 17, X = 0, D = 3, UU = 6, V = 9, O = 12, BORN = 15, CRACK = 16;
 
     private static final class Sculpture {
         final int id, owner;
@@ -44,11 +66,13 @@ final class IcemanBrushSculpt {
         final float[] born = new float[SCULPT_POINTS + 8];
         float radius = .62f, lastPoint, endAt = -1, crackAt = -1, lost = -1;
         int life = -1;
-        /** The blocks (rebuilt when a point arrives or it is let go): centre, birth, half-size, frame, joint or not. */
-        final List<Vec3> blocks = new ArrayList<>();
-        float[] bBorn = new float[0], bHalf = new float[0], bFrame = new float[0];
-        boolean[] bJoint = new boolean[0];
-        int built = -1; boolean builtEnd;
+        /** The nodes (rebuilt when a point arrives or it is let go), STRIDE floats each. */
+        float[] n = new float[0];
+        int m, built = -1; boolean builtEnd;
+        /** The break: zones along the path, when each goes (game time, -1 not yet), whether it went. */
+        int zones; float[] zoneAt; boolean[] zoneGone; int[] zoneOf = new int[0];
+        boolean deeper, hissed, rumbled, rained;
+        float lastCryo = -1;
         double loX, loY, loZ, hiX, hiY, hiZ;
         Vec3 mid = Vec3.ZERO;
         int light = IceMesh.FULL;
@@ -62,6 +86,10 @@ final class IcemanBrushSculpt {
         return mc.level == null ? 0 : mc.level.getGameTime() + mc.getFrameTime();
     }
     private static long gameTick() { var mc = Minecraft.getInstance(); return mc.level == null ? 0 : mc.level.getGameTime(); }
+    private static void sound(Vec3 at, SoundEvent ev, float vol, float pitch) {
+        var level = Minecraft.getInstance().level;
+        if (level != null) level.playLocalSound(at.x, at.y, at.z, ev, SoundSource.PLAYERS, vol, pitch, false);
+    }
 
     // ------------------------------------------------------------------ from the server
     static void point(int id, int owner, int index, Vec3 at, float radius) {
@@ -88,6 +116,21 @@ final class IcemanBrushSculpt {
         sc.pts.add(at);
         sc.lastPoint = t;
         sc.lost = -1;
+        // The cold first: the plume bursting where the ice will grow, fed from his hand (at most one a tick: a fast flick
+        // lays several points at once).
+        if (t - sc.lastCryo >= .9f) {
+            sc.lastCryo = t;
+            var level = Minecraft.getInstance().level;
+            Entity who = level == null ? null : level.getEntity(owner);
+            Vec3 hand = IcemanLayer.hand(owner, 0);
+            if (hand == null && who != null) hand = who.getEyePosition();
+            Vec3 dir = hand == null ? new Vec3(0, 0, 1) : at.subtract(hand);
+            dir = dir.lengthSqr() < 1e-6 ? new Vec3(0, 0, 1) : dir.normalize();
+            IceParticles.cryo(at.subtract(dir.scale(sc.radius * .5)), dir, .4f, .6f);
+        }
+        // Ice forming ticks every few points, a deep growing once it gets long.
+        if (index % 4 == 3) sound(at, ModSounds.ICEMAN_CRYSTAL_TICKS.get(), .35f, .9f + .3f * IceParticles.rand());
+        if (index >= 18 && !sc.rumbled) { sc.rumbled = true; sound(sc.mid, ModSounds.ICEMAN_GROW_RUMBLE.get(), .5f, .95f + .1f * IceParticles.rand()); }
     }
     static void end(int id, int life) {
         Sculpture sc = ALL.get(id);
@@ -104,10 +147,35 @@ final class IcemanBrushSculpt {
         }
         crack(sc);
     }
+    /**
+     * The break begins: a small crack heard, crack origins picked (a few nodes; every node's distance from the nearest,
+     * so the cracks spread from there), the zones laid out along the path.
+     */
     private static void crack(Sculpture sc) {
         if (sc.crackAt >= 0) return;
+        build(sc);
         sc.crackAt = now();
-        if (sc.pts.size() < 2) sc.crackAt -= SCULPT_CRACK;
+        int m = sc.m;
+        if (sc.pts.size() < 2 || m == 0) sc.crackAt -= SCULPT_CRACK;
+        else sound(sc.mid, ModSounds.ICEMAN_CRACK.get(), .45f, 1.5f + .2f * IceParticles.rand());
+        int origins = Math.max(1, Math.min(4, m / 8 + 1));
+        float maxD = 1;
+        for (int k = 0; k < m; k++) {
+            float best = 1e9f;
+            for (int q = 0; q < origins; q++) {
+                int o = Math.min(m - 1, (int) ((q + .2f + .6f * h(sc.id, 900 + q)) / origins * m));
+                best = Math.min(best, Math.abs(k - o));
+            }
+            sc.n[k * STRIDE + CRACK] = best;
+            maxD = Math.max(maxD, best);
+        }
+        for (int k = 0; k < m; k++) sc.n[k * STRIDE + CRACK] /= maxD;
+        sc.zones = Mth.clamp(m / 4, 1, 8);
+        sc.zoneAt = new float[sc.zones];
+        sc.zoneGone = new boolean[sc.zones];
+        java.util.Arrays.fill(sc.zoneAt, -1);
+        if (sc.zoneOf.length < m) sc.zoneOf = new int[m];
+        for (int k = 0; k < m; k++) sc.zoneOf[k] = Math.min(sc.zones - 1, k * sc.zones / Math.max(1, m));
     }
 
     // ------------------------------------------------------------------ living
@@ -119,7 +187,7 @@ final class IcemanBrushSculpt {
             Sculpture sc = it.next();
             if (sc.pts.isEmpty()) { if (t - sc.lastPoint > 40) it.remove(); continue; }
             if (sc.crackAt >= 0) {
-                if (t - sc.crackAt >= SCULPT_CRACK) { shatter(sc); it.remove(); }
+                if (breaking(sc, t)) it.remove();
                 continue;
             }
             // Its maker gone or its end never come: it breaks by itself after a while.
@@ -132,229 +200,276 @@ final class IcemanBrushSculpt {
             } else if (making) sc.lost = -1;
             if (sc.endAt >= 0 && t - sc.endAt > sc.life + 40 || owner == null && sc.endAt >= 0 && t - sc.lastPoint > 60 * 20) {
                 crack(sc);
-                mc.level.playLocalSound(sc.mid.x, sc.mid.y, sc.mid.z, ModSounds.ICEMAN_CRACK.get(), SoundSource.PLAYERS, .8f, .9f, false);
                 continue;
             }
-            // Humidity drawn in to where it is still forming, frost dust off the fresh ice now and then.
-            int n = sc.pts.size();
-            for (int i = Math.max(0, n - 12); i < n; i++) {
-                float a = t - sc.born[i];
-                if (a < 0 || a > SCULPT_VOLUME) continue;
-                if (IceParticles.rand() > .22f || IceParticles.count(1, sc.pts.get(i)) == 0) continue;
-                Vec3 out = IceParticles.jitter(1).normalize().scale(sc.radius * 2.2);
-                IceParticles.mist(sc.pts.get(i).add(out), out.scale(-.06), .25f + sc.radius * .3f, -.004f, .18f, 14);
+            build(sc);
+            // The mist settling off the fresh ice (sinking: cold air), frost dust off it now and then, the hiss once.
+            for (int k = Math.max(0, sc.m - 14); k < sc.m; k++) {
+                float a = (t - sc.n[k * STRIDE + BORN]) / FORM;
+                if (a < .45f || a > 1.3f || IceParticles.rand() > .14f) continue;
+                Vec3 at = node(sc, k).add(IceParticles.jitter(sc.radius * .5));
+                if (IceParticles.count(1, at) == 0) continue;
+                IceParticles.mist(at, new Vec3(0, -.007, 0).add(IceParticles.jitter(.004)), .25f + sc.radius * .35f, .022f, .16f, 30);
             }
-            if (IceParticles.rand() < .15f) {
-                int i = Math.min(n - 1, (int) (IceParticles.rand() * n));
-                if (t - sc.born[i] > SCULPT_THICK) IceParticles.frostDust(sc.pts.get(i).add(0, -sc.radius, 0), Vec3.ZERO, .4f);
+            if (IceParticles.rand() < .12f && sc.m > 0) {
+                int k = Math.min(sc.m - 1, (int) (IceParticles.rand() * sc.m));
+                if ((t - sc.n[k * STRIDE + BORN]) / FORM > 1) IceParticles.frostDust(node(sc, k).add(0, -sc.radius * .7, 0), Vec3.ZERO, .4f);
+            }
+            if (!sc.hissed && sc.pts.size() >= 3 && t - sc.lastPoint > FORM + 4) {
+                sc.hissed = true;
+                sound(sc.mid, ModSounds.ICEMAN_FROST_HISS.get(), .4f, .95f + .1f * IceParticles.rand());
             }
         }
     }
-    /** Falls apart along its whole length: chunks of ice off every block, the flash, the small pieces, mist. */
-    private static void shatter(Sculpture sc) {
-        int n = sc.pts.size();
-        if (n == 0) return;
-        build(sc);
+    /** One tick of the break; true when it is all gone. */
+    private static boolean breaking(Sculpture sc, float t) {
+        float a = t - sc.crackAt;
+        if (sc.m == 0 || sc.zones == 0) return a >= SCULPT_CRACK;
+        // The deeper crack halfway.
+        if (!sc.deeper && a >= SCULPT_CRACK * .55f) { sc.deeper = true; sound(sc.mid, ModSounds.ICEMAN_CRACK.get(), .85f, .85f + .1f * IceParticles.rand()); }
+        if (a < SCULPT_CRACK) return false;
+        // The zones, one after another in a random order (the first right away, the rest over a few ticks).
+        if (sc.zoneAt[0] < 0) {
+            int z = sc.zones, spread = 3 + Math.round(z * 1.2f);
+            int[] order = new int[z];
+            for (int i = 0; i < z; i++) order[i] = i;
+            for (int i = z - 1; i > 0; i--) { int j = (int) (IceParticles.rand() * (i + 1)) % (i + 1), tmp = order[i]; order[i] = order[j]; order[j] = tmp; }
+            for (int k = 0; k < z; k++) {
+                float when = k == 0 ? 0 : 1 + (spread - 1) * (k / (float) Math.max(1, z - 1)) * (.7f + .3f * IceParticles.rand());
+                sc.zoneAt[order[k]] = sc.crackAt + SCULPT_CRACK + when;
+            }
+        }
+        boolean all = true;
+        float last = 0;
+        for (int z = 0; z < sc.zones; z++) {
+            last = Math.max(last, sc.zoneAt[z]);
+            if (sc.zoneGone[z]) continue;
+            if (t >= sc.zoneAt[z]) { sc.zoneGone[z] = true; breakZone(sc, z); }
+            else all = false;
+        }
+        if (all && !sc.rained) {
+            sc.rained = true;
+            Vec3 mid = sc.mid;
+            IceParticles.later(5, () -> sound(mid, ModSounds.ICEMAN_SHARD_RAIN.get(), .75f, 1));
+            IceParticles.later(12, () -> sound(mid, ModSounds.ICEMAN_FROST_HISS.get(), .45f, 1));
+        }
+        return all && t > last + 1;
+    }
+    /** A zone comes away: its big chunks fall, shards and frost dust burst, cold mist rolls off it. */
+    private static void breakZone(Sculpture sc, int z) {
         float r = sc.radius;
-        int breaks = Math.min(5, 1 + n / 10);
-        for (int k = 0; k < breaks; k++) {
-            Vec3 at = sc.pts.get(Math.min(n - 1, (int) ((k + .5f) / breaks * n)));
-            IceParticles.shatter(at, IceParticles.jitter(.04), r * 1.1f, k % 2 == 0 ? IceMesh.CLEAR : IceMesh.MILKY);
+        double cx = 0, cy = 0, cz = 0;
+        int count = 0;
+        for (int k = 0; k < sc.m; k++) {
+            if (sc.zoneOf[k] != z) continue;
+            int b = k * STRIDE;
+            cx += sc.n[b]; cy += sc.n[b + 1]; cz += sc.n[b + 2]; count++;
+            // Big chunks off every node (as many as the effects allow), falling.
+            int chunks = IceParticles.count(2, node(sc, k));
+            for (int q = 0; q < chunks; q++) {
+                Vec3 at = node(sc, k).add(IceParticles.jitter(r * .35));
+                Vec3 v = IceParticles.jitter(.05).add(0, .02 + .05 * IceParticles.rand(), 0);
+                IceParticles.shard(at, v, r * (.55f + .4f * IceParticles.rand()), 45 + (int) (IceParticles.rand() * 35),
+                        q == 0 ? IceMesh.CLEAR : IceParticles.rand() < .5f ? IceMesh.GLACIER : IceMesh.MILKY);
+            }
         }
-        // Every block comes apart into a few big cubes of ice (as many as the effects allow).
-        int m = sc.blocks.size();
-        int chunks = IceParticles.count(Math.min(30, m * 2), sc.mid);
-        for (int k = 0; k < chunks && m > 0; k++) {
-            int b = Math.min(m - 1, (int) ((k + IceParticles.rand()) / Math.max(1, chunks) * m));
-            Vec3 at = sc.blocks.get(b).add(IceParticles.jitter(sc.bHalf[b] * .35));
-            Vec3 v = IceParticles.jitter(.05).add(0, .04 + .05 * IceParticles.rand(), 0);
-            IceParticles.shard(at, v, sc.bHalf[b] * (.9f + .5f * IceParticles.rand()), 50 + (int) (IceParticles.rand() * 35),
-                    k % 3 == 0 ? IceMesh.MILKY : IceMesh.CLEAR);
-        }
-        for (int k = 0; k < Math.min(8, n / 4 + 1); k++)
-            IceParticles.mist(sc.pts.get((int) (IceParticles.rand() * n)), new Vec3(0, -.004, 0), .4f + r * .4f, .02f, .25f, 30);
+        if (count == 0) return;
+        Vec3 at = new Vec3(cx / count, cy / count, cz / count);
+        float size = r * (.8f + .35f * (float) Math.sqrt(count));
+        IceParticles.shatter(at, IceParticles.jitter(.03).add(0, -.02, 0), size, z % 2 == 0 ? IceMesh.CLEAR : IceMesh.MILKY);
+        IceParticles.coldMist(at.add(0, -r, 0), .8f + size, .6f);
+        if (z == 0 || IceParticles.rand() < .4f) sound(at, ModSounds.ICEMAN_SHATTER.get(), .85f, .85f + .3f * IceParticles.rand());
     }
+    private static Vec3 node(Sculpture sc, int k) { int b = k * STRIDE; return new Vec3(sc.n[b], sc.n[b + 1], sc.n[b + 2]); }
 
-    // ------------------------------------------------------------------ the blocks
+    // ------------------------------------------------------------------ the nodes
     /**
-     * Lays the blocks along the points the way the server lays its solid boxes: one on the first point, then one on
-     * every point at least radius x 1.1 from the last block, and (once let go) one on the tip if it is radius x .5 from
-     * the last. Each turned a little toward the way the path runs (a fraction of its yaw, half its pitch, a hint of roll);
-     * a smaller cube, turned its own way, frozen into some of the joints.
+     * Lays the nodes along the points the way the server lays its solid boxes: one on the first point, then one on every
+     * point at least radius x 1.1 from the last node, and (once let go) one on the tip if it is radius x .5 from the
+     * last. Each gets the way the path runs there (from the point before: it never changes once laid), two ways across
+     * it (v the most upward) and the way its crystal cluster pushes out (mostly up or sideways, now and then down).
      */
     private static void build(Sculpture sc) {
-        int n = sc.pts.size();
+        int np = sc.pts.size();
         boolean ended = sc.endAt >= 0;
-        if (sc.built == n && sc.builtEnd == ended) return;
-        sc.built = n; sc.builtEnd = ended;
-        sc.blocks.clear();
+        if (sc.built == np && sc.builtEnd == ended || sc.crackAt >= 0 && sc.built >= 0) return;
+        sc.built = np; sc.builtEnd = ended;
         float r = sc.radius;
-        int cap = n + n + 2;
-        if (sc.bBorn.length < cap) { sc.bBorn = new float[cap]; sc.bHalf = new float[cap]; sc.bFrame = new float[cap * 9]; sc.bJoint = new boolean[cap]; }
-        int lastBlock = -1;
-        float lastBorn = 0;
+        if (sc.n.length < (np + 1) * STRIDE) sc.n = java.util.Arrays.copyOf(sc.n, (np + 8) * STRIDE);
+        int m = 0;
         Vec3 last = null;
-        for (int i = 0; i < n; i++) {
+        for (int i = 0; i < np; i++) {
             Vec3 p = sc.pts.get(i);
             boolean normal = last == null || last.distanceTo(p) >= r * 1.1;
-            boolean tip = !normal && ended && i == n - 1 && n >= 2 && last.distanceTo(p) > r * .5;
+            boolean tip = !normal && ended && i == np - 1 && np >= 2 && last.distanceTo(p) > r * .5;
             if (!normal && !tip) continue;
-            // Laid when its point arrived; the tip's own block (added when it is let go) grows in from then.
             float born = tip ? Math.max(sc.born[i], sc.endAt) : sc.born[i];
-            // A joint block between this one and the last (now and then).
-            if (lastBlock >= 0 && IceMesh.hash(sc.id * 3.7 + i * 1.3) < .55) {
-                double h = IceMesh.hash(sc.id * 5.1 + i * 2.9);
-                int k = sc.blocks.size();
-                sc.blocks.add(last.lerp(p, .5).add((h - .5) * r * .3, (IceMesh.hash(sc.id + i * 4.3) - .5) * r * .3, 0));
-                sc.bBorn[k] = Math.max(lastBorn, born) + 1;
-                sc.bHalf[k] = r * (.55f + .15f * (float) h);
-                sc.bJoint[k] = true;
-                IceParticles.turn((float) (h * 6.3), (float) (IceMesh.hash(sc.id + i * 6.1) - .5) * .9f, (float) (IceMesh.hash(sc.id + i * 7.7) - .5) * .9f, IceParticles.AX);
-                System.arraycopy(IceParticles.AX, 0, sc.bFrame, k * 9, 9);
-            }
-            int k = sc.blocks.size();
-            sc.blocks.add(p);
-            sc.bBorn[k] = born;
-            sc.bHalf[k] = r;
-            sc.bJoint[k] = false;
-            // The way the path runs here (from the point before: it never changes once laid).
-            Vec3 d = i > 0 ? p.subtract(sc.pts.get(i - 1)) : n > 1 ? sc.pts.get(1).subtract(p) : new Vec3(0, 0, 1);
-            if (d.lengthSqr() < 1e-8) d = new Vec3(0, 0, 1); else d = d.normalize();
-            float yaw = IceParticles.yawOf(d.x, d.z);
-            // Only part of the way round (a cube looks the same every quarter turn): it leans toward the path, no more.
-            yaw -= Math.round(yaw / Mth.HALF_PI) * Mth.HALF_PI;
-            float pitch = Mth.clamp(IceParticles.pitchOf(d.y) * .5f, -.35f, .35f);
-            float roll = (float) (IceMesh.hash(sc.id * 9.3 + i * 1.7) - .5) * .2f;
-            IceParticles.turn(yaw * .6f, pitch, roll, IceParticles.AX);
-            System.arraycopy(IceParticles.AX, 0, sc.bFrame, k * 9, 9);
-            last = p; lastBlock = i; lastBorn = born;
+            Vec3 d = i > 0 ? p.subtract(sc.pts.get(i - 1)) : np > 1 ? sc.pts.get(1).subtract(p) : new Vec3(0, 0, 1);
+            d = d.lengthSqr() < 1e-8 ? new Vec3(0, 0, 1) : d.normalize();
+            // Across: v = the world's up with the path's part taken out (or any side when the path runs up or down).
+            Vec3 v = new Vec3(0, 1, 0).subtract(d.scale(d.y));
+            if (v.lengthSqr() < .04) v = new Vec3(1, 0, 0).subtract(d.scale(d.x));
+            v = v.normalize();
+            Vec3 u = d.cross(v);
+            int sd = sc.id * 977 + m * 131;
+            float a = h(sd, 1) < .18f ? Mth.PI + (h(sd, 2) - .5f) * 1.2f : (h(sd, 2) - .5f) * 2.3f;
+            Vec3 o = v.scale(Mth.cos(a)).add(u.scale(Mth.sin(a)));
+            int b = m * STRIDE;
+            float[] n = sc.n;
+            n[b] = (float) p.x; n[b + 1] = (float) p.y; n[b + 2] = (float) p.z;
+            n[b + D] = (float) d.x; n[b + D + 1] = (float) d.y; n[b + D + 2] = (float) d.z;
+            n[b + UU] = (float) u.x; n[b + UU + 1] = (float) u.y; n[b + UU + 2] = (float) u.z;
+            n[b + V] = (float) v.x; n[b + V + 1] = (float) v.y; n[b + V + 2] = (float) v.z;
+            n[b + O] = (float) o.x; n[b + O + 1] = (float) o.y; n[b + O + 2] = (float) o.z;
+            n[b + BORN] = born; n[b + CRACK] = 0;
+            m++;
+            last = p;
         }
+        sc.m = m;
     }
     /** The newest point of a sculpture (where the brush's flow goes while it is being made), or null. */
     static Vec3 tip(int id) {
         Sculpture sc = ALL.get(id);
         return sc == null || sc.pts.isEmpty() ? null : sc.pts.get(sc.pts.size() - 1);
     }
-    private static final float[] FR = new float[9];
 
     // ------------------------------------------------------------------ drawing
     static void drawIce(IceStage st, IceMesh.Ctx c) {
         float now = st.time;
-        // Standing still: the blocks keep the world's block grid for their texture.
+        // Standing still: the ice keeps the world's grid for its texture.
         c.ox = c.oy = c.oz = 0;
         for (Sculpture sc : ALL.values()) {
-            int n = sc.pts.size();
-            if (n == 0) continue;
+            if (sc.pts.isEmpty()) continue;
             build(sc);
+            if (st.distance(sc.mid) > 160) continue;
             boolean far = st.far(sc.mid);
             float crack = sc.crackAt < 0 ? 0 : Mth.clamp((now - sc.crackAt) / SCULPT_CRACK, 0, 1);
-            float r0 = sc.radius;
             c.light = sc.light;
-            c.flash = .35f * crack * crack;
-            // The line of cold first, ahead of the blocks.
-            for (int j = 0; j + 1 < n; j++) {
-                float a = now - sc.born[j + 1];
-                float k = PantherMotion.k(a, 0, .8f) * (1 - PantherMotion.k(a, SCULPT_LINE, SCULPT_THICK + 1));
-                if (k <= .01f) continue;
-                IceMesh.line(c, sc.pts.get(j), sc.pts.get(j + 1), .03f, .72f * k, .88f * k, k);
+            c.flash = .3f * crack * crack;
+            for (int k = 0; k < sc.m; k++) {
+                if (sc.crackAt >= 0 && sc.zoneGone != null && sc.zoneGone[sc.zoneOf[k]]) continue;
+                node(c, sc, k, (now - sc.n[k * STRIDE + BORN]) / FORM, far);
             }
-            int m = sc.blocks.size();
-            for (int b = 0; b < m; b++) {
-                float a = now - sc.bBorn[b];
-                if (a < 0) continue;
-                // A small frosted cube growing to full size, clearing into bright ice.
-                float g = .15f + .85f * PantherMotion.ease(PantherMotion.k(a, 0, SCULPT_VOLUME));
-                float solid = .45f + .55f * PantherMotion.k(a, 0, SCULPT_THICK);
-                float rime = 1 - PantherMotion.k(a, SCULPT_LINE, SCULPT_VOLUME + 2);
-                float h = sc.bHalf[b] * g;
-                Vec3 p = sc.blocks.get(b);
-                System.arraycopy(sc.bFrame, b * 9, FR, 0, 9);
-                double hm = IceMesh.hash(sc.id * 2.3 + b * 3.1);
-                IceMesh.Mat mat = sc.bJoint[b] ? (hm < .5 ? IceMesh.MILKY : IceMesh.CLEAR) : hm < .16 ? IceMesh.MILKY : hm > .9 ? IceMesh.GLACIER : IceMesh.CLEAR;
-                IceParticles.obox(c, p.x, p.y, p.z, FR, h, h, h, mat, solid);
-                if (rime > .01f && !far) IceParticles.obox(c, p.x, p.y, p.z, FR, h * 1.03f, h * 1.03f, h * 1.03f, IceMesh.FROST, .75f * rime);
-                if (far || sc.bJoint[b]) continue;
-                // A square icicle hanging from its underside (where it runs about level).
-                if (Math.abs(FR[7]) < .5f && IceMesh.hash(sc.id * 4.9 + b * 2.1) < .3) {
-                    float gi = PantherMotion.k(a, SCULPT_VOLUME, SCULPT_CRYSTAL + 12);
-                    if (gi > .01f) {
-                        double ho = IceMesh.hash(sc.id * 6.7 + b * 1.9) - .5, hz = IceMesh.hash(sc.id * 8.3 + b) - .5;
-                        IceParticles.spike(c, p.x + ho * h, p.y - h * .96, p.z + hz * h, ho * .1, -1, hz * .1, r0 * (.6f + 1.1f * (float) IceMesh.hash(sc.id + b * 5.3)) * gi,
-                                r0 * .16f * Math.min(1, gi * 2), (float) hm * 3, 2, IceMesh.CLEAR, 1);
-                    }
-                }
-                // Sparkles over the blocks still forming.
-                if (a >= SCULPT_LINE && a <= SCULPT_CRYSTAL) {
-                    float tw = .5f + .5f * Mth.sin(now * 1.3f + b * 2.7f);
-                    float sx = (b & 1) == 0 ? 1 : -1, sy = (b & 2) == 0 ? 1 : -1;
-                    Vec3 at = new Vec3(p.x + (FR[0] * sx + FR[3] * sy + FR[6]) * h, p.y + (FR[1] * sx + FR[4] * sy + FR[7]) * h, p.z + (FR[2] * sx + FR[5] * sy + FR[8]) * h);
-                    IceMesh.sparkle(c, at, .1f + r0 * .12f, .8f * tw * (1 - a / SCULPT_CRYSTAL));
-                }
-            }
-            // The cracks running over the blocks' faces, from the middle outward.
-            if (crack > 0 && m > 0) cracks(c, sc, crack, far);
             c.flash = 0;
-        }
-    }
-    /** Glowing cracks over each block's faces (two faces each), opening from the middle block outward. */
-    private static void cracks(IceMesh.Ctx c, Sculpture sc, float crack, boolean far) {
-        int m = sc.blocks.size();
-        float shown = PantherMotion.ease(Math.min(1, crack * 1.35f));
-        float k = .6f + .4f * crack;
-        for (int b = 0; b < m; b++) {
-            if (sc.bJoint[b]) continue;
-            float from = Math.abs(b - (m - 1) * .5f) / Math.max(1, m * .5f);
-            float open = Mth.clamp((shown - from * .7f) / .3f, 0, 1);
-            if (open <= 0) continue;
-            System.arraycopy(sc.bFrame, b * 9, FR, 0, 9);
-            Vec3 p = sc.blocks.get(b);
-            float h = sc.bHalf[b];
-            for (int f = 0; f < (far ? 1 : 2); f++) {
-                int seed = sc.id * 131 + b * 17 + f * 7;
-                int face = (int) (IceMesh.hash(seed) * 6);
-                // A zigzag from inside the face out to one of its edges.
-                float s0 = (float) (IceMesh.hash(seed * 1.3) - .5) * .6f, t0 = (float) (IceMesh.hash(seed * 2.1) - .5) * .6f;
-                float ds = (float) (IceMesh.hash(seed * 3.7) - .5) * 2, dt = (float) (IceMesh.hash(seed * 4.3) - .5) * 2;
-                float dl = Math.max(.3f, Mth.sqrt(ds * ds + dt * dt));
-                ds /= dl; dt /= dl;
-                Vec3 a = onFace(p, h, face, s0, t0);
-                for (int q = 1; q <= 3; q++) {
-                    float u = Math.min(open * 3 - (q - 1), 1);
-                    if (u <= 0) break;
-                    float wob = (float) (IceMesh.hash(seed * 5.9 + q) - .5) * .5f;
-                    float s1 = Mth.clamp(s0 + (ds + wob * dt) * .35f * q, -.98f, .98f), t1 = Mth.clamp(t0 + (dt - wob * ds) * .35f * q, -.98f, .98f);
-                    Vec3 e = onFace(p, h, face, s1, t1);
-                    e = a.lerp(e, u);
-                    IceMesh.vein(c, a, e, .02f + .015f * crack, k);
-                    a = e;
-                }
+            if (crack > 0) for (int k = 0; k < sc.m; k++) {
+                if (sc.zoneGone != null && sc.zoneGone[sc.zoneOf[k]]) continue;
+                cracks(c, sc, k, crack, far);
             }
         }
     }
-    /** A point on a face of a block (centre p, half-size h, frame FR): face 0..5 = -u, +u, -v, +v, -w, +w; s, t across it (-1..1). */
-    private static Vec3 onFace(Vec3 p, float h, int face, float s, float t) {
-        int ax = face >> 1;
-        float sg = (face & 1) == 0 ? -1 : 1;
-        int a1 = (ax + 1) % 3, a2 = (ax + 2) % 3;
-        double x = p.x + (FR[ax * 3] * sg + FR[a1 * 3] * s + FR[a2 * 3] * t) * h * 1.01;
-        double y = p.y + (FR[ax * 3 + 1] * sg + FR[a1 * 3 + 1] * s + FR[a2 * 3 + 1] * t) * h * 1.01;
-        double z = p.z + (FR[ax * 3 + 2] * sg + FR[a1 * 3 + 2] * s + FR[a2 * 3 + 2] * t) * h * 1.01;
-        return new Vec3(x, y, z);
+    /** One node of ice at its formation's clock T (0 .. 1 formed): frost, nuclei, crystals, the interlocking body. */
+    private static void node(IceMesh.Ctx c, Sculpture sc, int k, float T, boolean far) {
+        if (T <= 0) return;
+        float[] n = sc.n;
+        int b = k * STRIDE, sd = sc.id * 977 + k * 131;
+        float r = sc.radius;
+        double x = n[b], y = n[b + 1], z = n[b + 2];
+        float dx = n[b + D], dy = n[b + D + 1], dz = n[b + D + 2];
+        float ux = n[b + UU], uy = n[b + UU + 1], uz = n[b + UU + 2];
+        float vx = n[b + V], vy = n[b + V + 1], vz = n[b + V + 2];
+        float ox = n[b + O], oy = n[b + O + 1], oz = n[b + O + 2];
+        // Frost: a frosted ghost of the mass in the cold cloud, fading as the clear body grows through it.
+        float rime = grow(T, 0, .15f) * (1 - grow(T, .5f, .35f));
+        if (rime > .02f && !far)
+            IceGrowth.crystal(c, x - dx * r * .95, y - dy * r * .95, z - dz * r * .95, dx, dy, dz, r * 1.9f, r * .8f, sd + 10, IceMesh.FROST, .4f + .5f * grow(T, 0, .3f), .5f * rime);
+        // Nuclei: three small milky crystals, the first ice in the cloud (later swallowed by the body).
+        if (T < .75f && !far) for (int q = 0; q < 3; q++) {
+            float a = h(sd, 20 + q) * Mth.TWO_PI, rr = r * .35f * h(sd, 23 + q);
+            double bx = x + (ux * Mth.cos(a) + vx * Mth.sin(a)) * rr, by = y + (uy * Mth.cos(a) + vy * Mth.sin(a)) * rr, bz = z + (uz * Mth.cos(a) + vz * Mth.sin(a)) * rr;
+            float e1 = h(sd, 26 + q) - .5f, e2 = h(sd, 29 + q) - .5f, e3 = h(sd, 32 + q) - .5f;
+            IceGrowth.crystal(c, bx, by, bz, e1 + ox * .5f, e2 + oy * .5f, e3 + oz * .5f, r * (.32f + .2f * h(sd, 35 + q)), r * (.09f + .04f * h(sd, 38 + q)),
+                    sd + 40 + q, IceMesh.MILKY, grow(T, .05f + .04f * q, .12f), 1);
+        }
+        // The cluster pushing out of the path (on most nodes), its crystals each their own size, lean and time.
+        if (h(sd, 3) < .8f) {
+            float t = (T - .12f) / .55f;
+            int count = far ? 3 : 3 + (int) (h(sd, 4) * 2.99f);
+            IceGrowth.cluster(c, x + ox * r * .3, y + oy * r * .3, z + oz * r * .3, ox, oy, oz, r * (.5f + .55f * h(sd, 5)), sd + 50, count,
+                    h(sd, 6) < .15f ? IceMesh.GLACIER : IceMesh.CLEAR, t, 1);
+        }
+        // Single crystals along and out of the path, some tall, some small.
+        if (!far) for (int q = 0; q < 2; q++) {
+            if (h(sd, 60 + q) > .6f) continue;
+            float phi = h(sd, 62 + q) * Mth.TWO_PI, th = (h(sd, 64 + q) - .5f) * 2.1f;
+            float sx = ux * Mth.cos(phi) + vx * Mth.sin(phi), sy = uy * Mth.cos(phi) + vy * Mth.sin(phi), sz = uz * Mth.cos(phi) + vz * Mth.sin(phi);
+            float cs = Mth.cos(th), sn = Mth.sin(th);
+            IceGrowth.crystal(c, x + sx * r * .4, y + sy * r * .4, z + sz * r * .4, sx * cs + dx * sn, sy * cs + dy * sn, sz * cs + dz * sn,
+                    r * (.5f + 1f * h(sd, 66 + q) * h(sd, 66 + q)), r * (.12f + .09f * h(sd, 68 + q)), sd + 70 + q,
+                    h(sd, 72 + q) < .3f ? IceMesh.GLACIER : IceMesh.CLEAR, grow(T, .15f + .2f * h(sd, 74 + q), .22f), 1);
+        }
+        // The body: a long uneven prism through the node along the path (overlapping its neighbours': one mass) ...
+        float j1 = (h(sd, 80) - .5f) * .3f, j2 = (h(sd, 81) - .5f) * .3f;
+        IceGrowth.crystal(c, x - dx * r * .95 + (ux * j1 + vx * j2) * r * .3, y - dy * r * .95 + (uy * j1 + vy * j2) * r * .3, z - dz * r * .95 + (uz * j1 + vz * j2) * r * .3,
+                dx + ux * j1 + vx * j2, dy + uy * j1 + vy * j2, dz + uz * j1 + vz * j2, r * (1.8f + .25f * h(sd, 82)), r * (.66f + .12f * h(sd, 83)), sd + 10,
+                IceMesh.CLEAR, grow(T, .28f, .2f), 1);
+        // ... a second lump grown from the other way, and on some a deeper keel under it.
+        float j3 = (h(sd, 84) - .5f) * .35f, j4 = (h(sd, 85) - .5f) * .35f;
+        IceGrowth.crystal(c, x + dx * r * .85 + (ux * j3 - vx * .1f) * r * .3, y + dy * r * .85 + (uy * j3 - vy * .1f) * r * .3, z + dz * r * .85 + (uz * j3 - vz * .1f) * r * .3,
+                -dx + ux * j3 + vx * j4, -dy + uy * j3 + vy * j4, -dz + uz * j3 + vz * j4, r * (1.5f + .3f * h(sd, 86)), r * (.55f + .12f * h(sd, 87)), sd + 11,
+                h(sd, 88) < .4f ? IceMesh.GLACIER : IceMesh.CLEAR, grow(T, .42f, .24f), 1);
+        if (h(sd, 89) < .55f && !far)
+            IceGrowth.crystal(c, x - vx * r * .3 - dx * r * .6, y - vy * r * .3 - dy * r * .6, z - vz * r * .3 - dz * r * .6,
+                    dx - vx * .3f, dy - vy * .3f, dz - vz * .3f, r * 1.3f, r * .5f, sd + 12, IceMesh.GLACIER, grow(T, .5f, .2f), 1);
+        // Glints over the nuclei while they start.
+        if (T > .04f && T < .45f && !far) {
+            float tw = .5f + .5f * Mth.sin(c.time * 1.4f + k * 2.3f);
+            IceMesh.sparkle(c, new Vec3(x + ox * r * .45, y + oy * r * .45, z + oz * r * .45), .1f + r * .14f, .75f * tw * (1 - T / .45f));
+        }
     }
-    /** The cold breath round the blocks still forming, a glow while it cracks. */
+    /**
+     * The cracks on one node: from where they started they spread node by node (crack 0..1 over the crack time), each a
+     * zigzag running over the body's surface, branching once it has opened, wider and brighter as it deepens.
+     */
+    private static void cracks(IceMesh.Ctx c, Sculpture sc, int k, float crack, boolean far) {
+        float[] n = sc.n;
+        int b = k * STRIDE;
+        float open = Mth.clamp((crack * 1.4f - n[b + CRACK] * .9f) / .35f, 0, 1);
+        if (open <= 0) return;
+        float r = sc.radius, w = .012f + .02f * crack, bright = .45f + .55f * crack;
+        for (int f = 0; f < (far ? 1 : 2); f++) {
+            int seed = sc.id * 131 + k * 17 + f * 7;
+            float th = h(seed, 1) * Mth.TWO_PI, turn = (h(seed, 2) - .5f) * 2f, s0 = -.7f + .2f * h(seed, 3);
+            Vec3 a = onBody(n, b, r, th, s0);
+            for (int q = 1; q <= 4; q++) {
+                float u = Math.min(open * 4 - (q - 1), 1);
+                if (u <= 0) break;
+                float wob = (h(seed, 10 + q) - .5f) * .8f;
+                Vec3 e = onBody(n, b, r, th + turn * q * .25f + wob, s0 + .38f * q);
+                e = a.lerp(e, u);
+                IceMesh.vein(c, a, e, w, bright);
+                // A branch off the second step once it is open.
+                if (q == 2 && u >= 1 && open > .55f && h(seed, 20) < .7f) {
+                    float bu = Mth.clamp((open - .55f) / .45f, 0, 1);
+                    Vec3 be = onBody(n, b, r, th + turn * .5f + (h(seed, 21) < .5f ? .9f : -.9f), s0 + .76f + .15f);
+                    IceMesh.vein(c, e, e.lerp(be, bu), w * .7f, bright * .8f);
+                }
+                a = e;
+            }
+        }
+    }
+    /** A point on the body's surface round node b: angle th round the path, s along it (-1..1 of the radius). */
+    private static Vec3 onBody(float[] n, int b, float r, float th, float s) {
+        float cs = Mth.cos(th) * r * .8f, sn = Mth.sin(th) * r * .8f;
+        return new Vec3(n[b] + n[b + D] * s * r + n[b + UU] * cs + n[b + V] * sn,
+                n[b + 1] + n[b + D + 1] * s * r + n[b + UU + 1] * cs + n[b + V + 1] * sn,
+                n[b + 2] + n[b + D + 2] * s * r + n[b + UU + 2] * cs + n[b + V + 2] * sn);
+    }
+    /** The cold breath round the nodes still forming (thick at first, thinning as it settles), a glow while it cracks. */
     static void drawFx(IceStage st, FilmContext f) {
         float now = st.time;
         for (Sculpture sc : ALL.values()) {
-            int m = sc.blocks.size();
-            for (int b = 0; b < m; b += 2) {
-                float a = now - sc.bBorn[b];
-                if (a < 0 || a > SCULPT_CRYSTAL) continue;
-                float k = PantherMotion.k(a, 0, 2) * (1 - PantherMotion.k(a, SCULPT_VOLUME, SCULPT_CRYSTAL));
-                FilmFx.puff(f, sc.blocks.get(b), sc.radius * 1.6f, IceParticles.MIST_RGB, .12f * k);
+            if (st.distance(sc.mid) > 160) continue;
+            for (int k = 0; k < sc.m; k++) {
+                float T = (now - sc.n[k * STRIDE + BORN]) / FORM;
+                if (T <= 0 || T > 1.2f) continue;
+                if (sc.crackAt >= 0 && sc.zoneGone != null && sc.zoneGone[sc.zoneOf[k]]) continue;
+                float a = PantherMotion.k(T, 0, .1f) * (1 - PantherMotion.k(T, .45f, 1.2f));
+                int b = k * STRIDE;
+                FilmFx.puff(f, new Vec3(sc.n[b], sc.n[b + 1] - sc.radius * .15f * T, sc.n[b + 2]), sc.radius * (1.4f + .8f * T), IceParticles.MIST_RGB, .14f * a);
             }
             if (sc.crackAt >= 0) {
                 float crack = Mth.clamp((now - sc.crackAt) / SCULPT_CRACK, 0, 1);
-                FilmFx.glow(f, sc.mid, sc.radius * 3 + crack, IceParticles.COLD_LIGHT, .25f * crack * crack);
+                FilmFx.glow(f, sc.mid, sc.radius * 3 + crack, IceParticles.COLD_LIGHT, .2f * crack * crack);
             }
         }
     }

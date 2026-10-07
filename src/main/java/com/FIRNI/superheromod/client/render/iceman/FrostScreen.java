@@ -55,6 +55,9 @@ import static com.FIRNI.superheromod.heroes.iceman.IcemanAction.*;
  *     through it (the frame drawn back on a grid with small offsets: refraction), a few cracks, condensation drops;
  *     it melts away at the end.</li>
  * </ul>
+ * From medium frost on, ice crystals grow in on the glass from the corners (textures/gui/iceman/frost_crystals.png, scaled
+ * out from each corner, never reaching the middle), and the picture at the edges wavers a little with a faint cyan
+ * fringe (the cold glass bending the light). The middle of the view is always left readable.
  * Strength follows IcemanConfig.SCREEN_FROST.
  */
 @Mod.EventBusSubscriber(modid = SuperheroMod.MODID, value = Dist.CLIENT)
@@ -64,7 +67,8 @@ public final class FrostScreen {
 
     private static final ResourceLocation ATLAS = new ResourceLocation(SuperheroMod.MODID, "textures/gui/iceman/frost_atlas.png"),
             NET = new ResourceLocation(SuperheroMod.MODID, "textures/gui/iceman/crack_net.png"),
-            DROPS = new ResourceLocation(SuperheroMod.MODID, "textures/gui/iceman/lens_drops.png");
+            DROPS = new ResourceLocation(SuperheroMod.MODID, "textures/gui/iceman/lens_drops.png"),
+            CRYSTALS = new ResourceLocation(SuperheroMod.MODID, "textures/gui/iceman/frost_crystals.png");
     /** The atlas: 12 frames of growing frost, 4 x 3 cells; how far in each frame's frost reaches (pixels of 360). */
     private static final int COLS = 4, ROWS = 3, FRAMES = 12;
     private static final float[] REACH = {6, 11, 17, 24, 32, 41, 51, 62, 74, 86, 98, 110};
@@ -184,6 +188,12 @@ public final class FrostScreen {
         boolean breaking = shards != null && bt >= 0 && bt < 24;
         float ft = now - flashAt, flashK = ft >= 0 && ft < flashLife ? flashPower * (1 - ft / flashLife) * (1 - ft / flashLife) : 0;
         if (S <= .001f || (cover < .01f && lp < .01f && !breaking && flashK < .01f && !frozen)) return;
+        // The crystals in the corners: from medium frost, full while frozen over, a little with the slide's lens; falling
+        // away as the deep freeze's ice breaks.
+        float crystals = Math.max(Math.max(.75f * FilmFx.ease((m - 40) / 55), frozen ? .75f + .25f * FilmFx.ease(deepAge / DEEP_CLOSE) : 0), .45f * Mth.clamp(lp, 0, 1));
+        float crystalsOut = 0;
+        if (!frozen && shards != null && bt >= 0 && bt < 10) { crystalsOut = FilmFx.ease(bt / 8); crystals = Math.max(crystals, 1 - crystalsOut); }
+        float cold = S * FilmFx.ease((m - 35) / 45);
         float drawCover = Math.max(cover, lensCover);
 
         int sw = mc.getWindow().getWidth(), sh = mc.getWindow().getHeight();
@@ -203,7 +213,7 @@ public final class FrostScreen {
         RenderSystem.enableBlend();
         try {
             // 1) The world seen through the ice: refraction (the lens, the deep freeze), softness at the edges.
-            float refr = S * (lp * .011f + (frozen ? .004f : 0) + brushK * .003f * meterPres);
+            float refr = S * (lp * .011f + (frozen ? .004f : 0) + brushK * .003f * meterPres) + .0025f * cold;
             float blur = S * Math.max(Math.max(FilmFx.ease((m - 22) / 50) * .85f, frozen ? 1 : 0), lp * .6f);
             if ((refr > .0005f || blur > .02f) && copyFrame(mc)) {
                 RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
@@ -220,10 +230,23 @@ public final class FrostScreen {
                         U[i] = .5f + dx * z + ox;
                         V[i] = 1 - (.5f + dy * z + oy);
                         R[i] = .94f; G[i] = .98f; B[i] = 1;
-                        A[i] = Math.min(1, lp * (.55f + .45f * c) + (frozen ? .5f * EDGE[i] : 0) + brushK * .4f * EDGE[i]);
+                        A[i] = Math.min(1, lp * (.55f + .45f * c) + (frozen ? .5f * EDGE[i] : 0) + brushK * .4f * EDGE[i] + .45f * cold * EDGE[i]);
                     }
                     RenderSystem.setShaderTexture(0, half.getColorTextureId());
                     draw(true);
+                    // The cyan fringe: the same picture a hair further out, added faintly in cold blue at the edges.
+                    float fringe = Math.min(.35f, .22f * cold + .12f * lp * S + (frozen ? .12f * Math.min(1, S) : 0));
+                    if (fringe > .01f) {
+                        for (int i = 0; i < NV; i++) {
+                            float dx = GXS[i] - .5f, dy = GYS[i] - .5f;
+                            U[i] += dx * .012f; V[i] -= dy * .012f;
+                            R[i] = 0; G[i] = .5f; B[i] = .75f;
+                            A[i] = fringe * EDGE[i] * EDGE[i];
+                        }
+                        RenderSystem.blendFunc(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE);
+                        draw(true);
+                        RenderSystem.defaultBlendFunc();
+                    }
                 }
                 if (blur > .02f) {
                     float p = 3 - 2 * Math.min(1, blur);
@@ -265,6 +288,7 @@ public final class FrostScreen {
                 }
                 sparkles(now, drawCover, asp, sw, sh, S * Math.max(meterPres, lp));
             }
+            if (crystals > .01f) crystals(crystals, crystalsOut, asp, Math.min(1, S));
             // 4) The crack network over the ice near the end of a deep freeze.
             float net = frozen ? .9f * FilmFx.ease((deepAge - lateFrom()) / Math.max(4, deepTotal - lateFrom())) * Math.min(1, S) : 0;
             if (net > .01f) {
@@ -320,6 +344,34 @@ public final class FrostScreen {
             RenderSystem.applyModelViewMatrix();
             RenderSystem.restoreProjectionMatrix();
         }
+    }
+    /**
+     * The ice crystals grown in the four corners (the one texture mirrored into each), scaled out from the corner by how
+     * far they have grown (each corner its own size), going clear and sliding off as they fall away (out 0..1).
+     */
+    private static void crystals(float grow, float out, float asp, float k) {
+        RenderSystem.setShader(GameRenderer::getPositionTexColorShader);
+        texture(CRYSTALS);
+        RenderSystem.defaultBlendFunc();
+        BufferBuilder buf = Tesselator.getInstance().getBuilder();
+        buf.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
+        float[] own = {1f, .86f, .93f, .8f};
+        float a = Math.min(1, grow * 2.2f) * (1 - out) * k;
+        for (int corner = 0; corner < 4; corner++) {
+            // The share of the screen's height the corner's square reaches: up to about 0.4, never the middle.
+            float size = .42f * own[corner] * (.25f + .75f * FilmFx.ease(grow)) * (1 + .12f * out);
+            float sx = size * 2 / asp, sy = size * 2;
+            boolean right = (corner & 1) == 1, bottom = (corner & 2) != 0;
+            float x0 = right ? 1 : -1, y0 = bottom ? -1 : 1;
+            float dx = right ? -sx : sx, dy = bottom ? sy : -sy;
+            float drop = -.15f * out;
+            // Corner, along the top/bottom edge, the far corner, along the side edge (uv: the texture's own corner at 0, 0).
+            buf.vertex(x0, y0 + drop, 0).uv(0, 0).color(1f, 1f, 1f, a).endVertex();
+            buf.vertex(x0 + dx, y0 + drop, 0).uv(1, 0).color(1f, 1f, 1f, a).endVertex();
+            buf.vertex(x0 + dx, y0 + dy + drop, 0).uv(1, 1).color(1f, 1f, 1f, a).endVertex();
+            buf.vertex(x0, y0 + dy + drop, 0).uv(0, 1).color(1f, 1f, 1f, a).endVertex();
+        }
+        BufferUploader.drawWithShader(buf.end());
     }
     private static float lateFrom() { return Math.max(DEEP_CLOSE + 4, deepTotal * .62f); }
 

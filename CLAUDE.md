@@ -410,6 +410,15 @@ landing spot and the target to the crater.
   `FrostFx` = frost on bodies by stage + deep-freeze encasing + the victim's screen frost / slide lens.
 - Sounds group `iceman` (synth). Splash `tools/splash/iceman.py` (composes `tools/splash/iceman_model.png`, the in-game model
   rendered by the offline preview harness below; re-render it when the body changes). Docs for the user: `docs/ICEMAN.md`.
+- ICE LANGUAGE (the user's latest spec, DoFP reference): ice is grown by the cold, never spawned finished and never "mathematical"
+  (no perfect cubes/ramps/tubes/glass). `IceGrowth` = the shared shapes (uneven leaning `crystal` with a broken top, `cluster` with
+  per-crystal growth delays, irregular walkable `section`/`slab`, broken-off `chip`, `grow(t, delay, dur)`); `IceParticles` layered cold
+  (`cryo` plume, `coldMist`, `crystalDust`, `freezeTrail`) and staged breaking (`breakApart` zone by zone + crack/shatter/shard-rain/
+  frost-hiss sounds, `later`). Mostly blue, white only as frost; each ice face its own shade. New sounds `crystal_ticks`, `grow_rumble`,
+  `shard_rain`, `cold_whoosh`, `frost_hiss`. Weapons form per weapon (mace branches, spear line, sword layers); the sword HOLD now
+  plants the sword in the ground (`PLANT_*`, `FX_SWORD_PLANT`, a server-fixed point that pulls bodies in within `swordPullRadius`, his
+  speed pinned; `IcemanWeaponReach` solves both hands onto a weapon); any other power (SHIFT/CTRL/Q/R/RMB) breaks the weapon in hand
+  (not the E wheel). E = a frozen shrine (`IcemanWheel`: mace left, spear middle, sword right). `/iceman test swordplant`.
 - Left-behind ice is SOLID: `heroes/iceman/IceSolidEntity` (invisible synced box, `canBeCollidedWith`, soft until no body is
   in it, never saved, dies with its owner/time) under the raised slide track (`IcemanSlide`) and along sculptures
   (`IcemanBrush`); `/iceman test solid` builds a test bar and ramp.

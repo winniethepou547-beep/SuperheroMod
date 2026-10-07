@@ -7,7 +7,8 @@ package com.FIRNI.superheromod.heroes.iceman;
  * in IcemanConfig.
  * <p>
  * Keys: left click swings the ice weapon in hand (two swings, right to left then left to right, then the weapon's own
- * finisher; held: the mace grows, the spear is drawn back for a throw, the sword spins him round); right click held is
+ * finisher; held: the mace grows, the spear is drawn back for a throw, the sword is driven into the ground and pulls
+ * everyone near toward it); right click held is
  * the cryogenic brush (on a body: a stream of cold that frosts them; into the air: ice sculpted along the mouse's path);
  * E held opens the Ice Armory wheel (mace, spear, sword; nothing else is on E); SHIFT held surfs on an ice slide that
  * grows under him; CTRL is the short sub-zero slide; Q the cryogenic shell (Q again bursts it); R shattered ground;
@@ -30,9 +31,9 @@ public final class IcemanAction {
             FORM = 4,
             /** A swing of the combo (State.combo 0, 1 = the two swings, 2 = the weapon's finisher). */
             STRIKE = 5,
-            /** LMB held: the mace grows / the spear is drawn back / the sword spins (State.charge 0..1). */
+            /** LMB held: the mace grows / the spear is drawn back / the sword is planted in the ground (State.charge 0..1). */
             CHARGE = 6,
-            /** Let go after a hold: the giant mace's slam / the spear's throw / the sword breaking out of the spin. */
+            /** Let go after a hold: the giant mace's slam / the spear's throw / the planted sword cracking and shattering. */
             RELEASE = 7,
             /** Q: the shell forming (feet to head), holding, broken (he drops into the tired landing and rises), bursting. */
             SHELL_FORM = 8, SHELL = 9, SHELL_BREAK = 10, SHELL_BURST = 11,
@@ -114,8 +115,8 @@ public final class IcemanAction {
     // ------------------------------------------------------------------ LMB: the weapons
     /** A tap shorter than HOLD_TICKS swings; held longer it charges. */
     public static final int HOLD_TICKS = 6;
-    /** The weapon forms in his hand (crystals gathering, growing, closing over it). */
-    public static final int FORM_TICKS = 10;
+    /** The weapon forms in his hand (cold gathering, crystal nuclei, the crystals growing and joining into it). */
+    public static final int FORM_TICKS = 14;
     /** A click within COMBO_CHAIN ticks of the end of a swing keeps the combo going. */
     public static final int COMBO_CHAIN = 12;
     /** Swings: [weapon][combo] length (ticks) and when it lands (ticks). Mace heavy, spear fast, sword between. */
@@ -124,16 +125,29 @@ public final class IcemanAction {
     /** The spear's flurry (its finisher): thrusts at these ticks. */
     public static final int[] SPEAR_FLURRY = {6, 9, 12, 14, 16, 18};
     /** The sword's finisher spin: hits everyone round him at SWING_HIT, the spin lasts its whole swing. */
-    /** Holds: the mace grows to full over MACE_GROW ticks; the spear is fully drawn at SPEAR_DRAW; the sword spins at most SPIN_MAX ticks. */
+    /** Holds: the mace grows to full over MACE_GROW ticks; the spear is fully drawn at SPEAR_DRAW; the sword stays planted at most SPIN_MAX ticks of the hold. */
     public static final int MACE_GROW = 60, SPEAR_DRAW = 28, SPIN_MAX = 90;
     /** The mace at full size is MACE_MAX times its plain size (about three times his height). */
     public static final float MACE_MAX = 4.2f;
-    /** Releases: the giant mace's slam lands at MACE_SLAM_HIT of MACE_SLAM_TICKS; the spear leaves the hand at SPEAR_THROW_AT; the sword breaks over SWORD_BREAK_TICKS. */
-    public static final int MACE_SLAM_TICKS = 28, MACE_SLAM_HIT = 14, SPEAR_THROW_TICKS = 12, SPEAR_THROW_AT = 4, SWORD_BREAK_TICKS = 12;
+    /** Releases: the giant mace's slam lands at MACE_SLAM_HIT of MACE_SLAM_TICKS; the spear leaves the hand at SPEAR_THROW_AT. */
+    public static final int MACE_SLAM_TICKS = 28, MACE_SLAM_HIT = 14, SPEAR_THROW_TICKS = 12, SPEAR_THROW_AT = 4;
     /** The thrown spear stays stuck SPEAR_STUCK ticks (the spikes burst at once), cracking for the last SPEAR_CRACK. */
     public static final int SPEAR_STUCK = 46, SPEAR_CRACK = 14;
-    /** Spins of the sword hold: one full turn every SPIN_TURN ticks at full speed; hits round him every SPIN_HIT ticks. */
-    public static final int SPIN_TURN = 7, SPIN_HIT = 5;
+    /**
+     * The sword held (counted in ticks of the hold, after HOLD_TICKS): the sword turns point down in his hand over
+     * PLANT_TURN, comes up before him by PLANT_RAISE, and is driven into the ground at PLANT_AT while he drops into a
+     * kneel; then it stays planted (the pull) until LMB is let go or SPIN_MAX.
+     */
+    public static final int PLANT_TURN = 4, PLANT_RAISE = 5, PLANT_AT = 9;
+    /** Where the planted sword stands: PLANT_REACH blocks ahead of his feet; its grip PLANT_GRIP blocks over the ground. */
+    public static final float PLANT_REACH = .56f, PLANT_GRIP = .67f;
+    /** While planted: a blow every PLANT_HIT ticks to anyone dragged within PLANT_HURT blocks of the sword. */
+    public static final int PLANT_HIT = 10;
+    public static final float PLANT_HURT = 1.7f;
+    /** Let go: the planted sword cracks for SWORD_CRACK_TICKS, then shatters; the release lasts SWORD_BREAK_TICKS (he rises). */
+    public static final int SWORD_CRACK_TICKS = 5, SWORD_BREAK_TICKS = 22;
+    /** A weapon broken in his hand (another weapon picked, another power used, the mace's handle after a slam) cracks this long before it falls apart. */
+    public static final int WEAPON_CRACK_TICKS = 6;
 
     // ------------------------------------------------------------------ Q: the shell
     public static final int SHELL_FORM_TICKS = 18;
@@ -167,13 +181,15 @@ public final class IcemanAction {
             FX_SPEAR = 15,                          // the spear thrown (pos, dir = velocity, power = charge, id)
             FX_SPEAR_STUCK = 16,                    // the spear stuck (pos, dir = way it flew, entity = body or -1, id)
             FX_SPEAR_SPIKES = 17,                   // the spikes bursting round the spear (pos, power = radius)
-            FX_SPIN = 18,                           // a blow of the sword spin (power: 0 finisher, 1 hold)
-            FX_SWORD_BREAK = 19,                    // the sword breaking at the end of the spin
+            FX_SPIN = 18,                           // the sword's finisher spin (power 0)
+            FX_SWORD_BREAK = 19,                    // the planted sword cracks then shatters (pos = where it stands, dir = his facing, power = charge, id = 1 planted, 0 still in hand)
             FX_SHELL_HIT = 20,                      // the shell struck (power = damage, dir = from)
             FX_SHELL_BREAK = 21,                    // the shell broken to pieces
             FX_SHELL_BURST = 22,                    // the shell's burst
             FX_GROUND = 23,                         // shattered ground: the cracks set off (pos = from, dir = to, power = frost bonus, id)
             FX_GROUND_ERUPT = 24,                   // the spikes burst (pos, power = size, id)
             FX_BRUSH_FROST = 25,                    // a burst of frost on a body from the brush (entity)
-            FX_AUTO_SLIDE = 26;                     // to Iceman only (the test): his client rides the slide by itself (id = AUTO_* mode)
+            FX_AUTO_SLIDE = 26,                     // to Iceman only (the test): his client rides the slide by itself (id = AUTO_* mode)
+            FX_SWORD_PLANT = 27,                    // the sword driven into the ground (pos = the ground point it stands in, dir = his facing, entity = Iceman, id)
+            FX_WEAPON_BREAK = 28;                   // the weapon in his hand breaks (pos = hand, dir = push, power = size, entity = Iceman, id = weapon | how << 4: 0 whole, 1 the mace's handle left after a slam)
 }

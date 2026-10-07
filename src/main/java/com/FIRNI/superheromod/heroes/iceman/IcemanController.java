@@ -55,6 +55,8 @@ public final class IcemanController {
         boolean lmb; float charge;
         /** The weapon to form as soon as he is free (picked while busy). */
         boolean formPending;
+        /** The sword held: where it stands planted in the ground (null when not), where he kneels, its id. */
+        Vec3 plant, kneel; int plantId;
         // the brush
         boolean rmb; int brushTarget = -1, brushAge; IcemanBrush.Sculpture sculpture;
         // the slides
@@ -94,11 +96,12 @@ public final class IcemanController {
         if (!isHero(p)) return;
         State s = state(p);
         if (FilmSessions.busy(p.getUUID())) return;
+        int was = s.action, wasAge = s.age; float wasCharge = s.charge;
         switch (slot) {
             case LMB -> { s.lmb = down; if (down) IcemanWeapons.press(p, s); else IcemanWeapons.release(p, s); }
-            case RMB -> { s.rmb = down; if (down) IcemanBrush.press(p, s); else IcemanBrush.release(p, s); }
-            case ULTIMATE -> { if (down) IcemanShell.press(p, s); }
-            case SKILL_E -> { if (down) IcemanGround.press(p, s); }
+            case RMB -> { s.rmb = down; if (down) { IcemanBrush.press(p, s); conflict(p, s, was, wasAge, wasCharge, BRUSH); } else IcemanBrush.release(p, s); }
+            case ULTIMATE -> { if (down) { IcemanShell.press(p, s); conflict(p, s, was, wasAge, wasCharge, SHELL_FORM); } }
+            case SKILL_E -> { if (down) { IcemanGround.press(p, s); conflict(p, s, was, wasAge, wasCharge, GROUND); } }
             case SKILL_X -> { if (down) tell(p, "Iceman X: ultimate henüz tasarlanmadı"); }
             default -> {}
         }
@@ -112,11 +115,19 @@ public final class IcemanController {
             case IN_WHEEL_OPEN -> { s.wheel = true; if (s.action == IDLE) set(s, WHEEL); }
             case IN_WHEEL_CLOSE -> { s.wheel = false; if (s.action == WHEEL) set(s, IDLE); }
             case IN_WEAPON_SELECT -> IcemanWeapons.select(p, s, Mth.clamp(value, 0, WEAPONS - 1));
-            case IN_SLIDE_ON -> IcemanSlide.start(p, s);
+            case IN_SLIDE_ON -> { int was = s.action, wasAge = s.age; float wasCharge = s.charge; IcemanSlide.start(p, s); conflict(p, s, was, wasAge, wasCharge, SLIDE); }
             case IN_SLIDE_OFF -> IcemanSlide.stop(p, s);
-            case IN_DASH -> IcemanSlide.dash(p, s, amount);
+            case IN_DASH -> { int was = s.action, wasAge = s.age; float wasCharge = s.charge; IcemanSlide.dash(p, s, amount); conflict(p, s, was, wasAge, wasCharge, DASH); }
             default -> {}
         }
+    }
+    /**
+     * A power that cannot be used with a weapon in hand (the slides, the shell, shattered ground, the brush) has just
+     * started (the action is now `started`, fresh): the weapon in his hand breaks. Opening the wheel never does this.
+     */
+    private static void conflict(ServerPlayer p, State s, int was, int wasAge, float wasCharge, int started) {
+        if (s.action != started || s.age != 0 || was == started && wasAge == 0) return;
+        IcemanWeapons.abandon(p, s, was, wasCharge);
     }
 
     // ------------------------------------------------------------------ every tick
@@ -124,7 +135,7 @@ public final class IcemanController {
         if (e.phase != TickEvent.Phase.END || !(e.player instanceof ServerPlayer p)) return;
         if (!isHero(p)) {
             State gone = STATES.remove(p.getUUID());
-            if (gone != null) { IcemanBrush.clear(p, gone); send(p, new State()); }
+            if (gone != null) { IcemanBrush.clear(p, gone); IcemanWeapons.pin(p, false); send(p, new State()); }
             return;
         }
         State s = state(p);
@@ -143,6 +154,9 @@ public final class IcemanController {
             case WHEEL -> { if (!s.wheel) set(s, IDLE); }
             default -> {}
         }
+        // The planted sword lives only while the hold does (anything that cut it short breaks it where it stands).
+        if (s.plant != null && !(s.action == CHARGE && s.weapon == W_SWORD)) IcemanWeapons.unplant(p, s);
+        IcemanWeapons.pin(p, s.plant != null);
         // A weapon picked while busy forms as soon as he is free.
         if (s.formPending && s.action == IDLE && s.cooldowns[CD_WEAPON] <= 0) IcemanWeapons.form(p, s);
         if (p.level().getGameTime() < s.noFallUntil || s.airFall) p.fallDistance = 0;
@@ -176,7 +190,7 @@ public final class IcemanController {
     @SubscribeEvent public static void respawned(PlayerEvent.Clone e) {
         State s = STATES.get(e.getEntity().getUUID());
         if (s == null) return;
-        s.lmb = s.rmb = false; s.charge = 0; s.weaponOut = false; s.brushTarget = -1; s.sculpture = null; set(s, IDLE);
+        s.lmb = s.rmb = false; s.charge = 0; s.weaponOut = false; s.brushTarget = -1; s.sculpture = null; s.plant = s.kneel = null; set(s, IDLE);
     }
     @SubscribeEvent public static void logout(PlayerEvent.PlayerLoggedOutEvent e) {
         State s = STATES.remove(e.getEntity().getUUID());

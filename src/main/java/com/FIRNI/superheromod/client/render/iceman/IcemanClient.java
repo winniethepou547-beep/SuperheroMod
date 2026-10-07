@@ -77,9 +77,13 @@ public final class IcemanClient {
     // his own input
     private static boolean eDown, ctrlDown, slideSent;
     private static boolean wheelOpen;
-    private static float wheelX, wheelY, lockYaw, lockPitch, wheelShown;
+    private static float wheelX, wheelY, lockYaw, lockPitch;
     private static int hovered = -1;
     private static long dashStart = -100, wheelOpenedAt;
+    /** The wheel's closing: when (game time; far in the past = none playing), what was picked (-1 nothing: it melts), the shatter's sound. */
+    private static double wheelClosedAt = -1000;
+    private static int wheelChose = -1;
+    private static long shatterSoundAt = -1;
     private static float dashWorldYaw;
     private static float fovKick, fovSpeed;
 
@@ -153,7 +157,7 @@ public final class IcemanClient {
         if (wheelOpen) {
             boolean pick = false;
             while (mc.options.keyAttack.consumeClick()) pick = true;
-            if (pick && hovered >= 0) { send(IN_WEAPON_SELECT, hovered, 0); closeWheel(false); }
+            if (pick && hovered >= 0) closeWheel(true);
         }
         // SHIFT held: the ice slide (read off the key itself: the hero sneak suppressor may clear the input's flag).
         autoTick(p);
@@ -221,14 +225,29 @@ public final class IcemanClient {
 
     private static void openWheel(Player p) {
         wheelOpen = true; wheelX = wheelY = 0; hovered = -1;
+        wheelClosedAt = -1000; wheelChose = -1; shatterSoundAt = -1;
         lockYaw = p.getYRot(); lockPitch = p.getXRot();
+        IcemanWheel.opened();
         send(IN_WHEEL_OPEN, 0, 0);
-        p.playSound(net.minecraft.sounds.SoundEvents.UI_BUTTON_CLICK.get(), .25f, 1.9f);
+        // The shrine freezing into the air: a soft click and the ticking of ice forming.
+        ui(net.minecraft.sounds.SoundEvents.UI_BUTTON_CLICK.get(), 1.9f, .2f);
+        ui(com.FIRNI.superheromod.core.sound.ModSounds.ICEMAN_CRYSTAL_TICKS.get(), 1.25f, .35f);
     }
+    /** Closes the wheel; pick = take what the cursor is on (it then freezes over and shatters), else it melts away. */
     private static void closeWheel(boolean pick) {
-        if (pick && hovered >= 0) send(IN_WEAPON_SELECT, hovered, 0);
+        int chose = pick && hovered >= 0 ? hovered : -1;
+        if (chose >= 0) send(IN_WEAPON_SELECT, chose, 0);
         wheelOpen = false;
+        wheelChose = chose;
+        wheelClosedAt = now() + (double) Minecraft.getInstance().getFrameTime();
         send(IN_WHEEL_CLOSE, 0, 0);
+        if (chose >= 0) {
+            ui(com.FIRNI.superheromod.core.sound.ModSounds.ICEMAN_FROST.get(), 1.5f, .3f);
+            shatterSoundAt = now() + IcemanWheel.FREEZE_TICKS;
+        } else ui(com.FIRNI.superheromod.core.sound.ModSounds.ICEMAN_FROST_HISS.get(), 1.3f, .2f);
+    }
+    private static void ui(net.minecraft.sounds.SoundEvent sound, float pitch, float volume) {
+        Minecraft.getInstance().getSoundManager().play(net.minecraft.client.resources.sounds.SimpleSoundInstance.forUI(sound, pitch, volume));
     }
     /** While the wheel is open the mouse moves its cursor, not the view. */
     @SubscribeEvent public static void camera(ViewportEvent.ComputeCameraAngles e) {
@@ -239,11 +258,10 @@ public final class IcemanClient {
         wheelX = Mth.clamp(wheelX + dy, -30, 30); wheelY = Mth.clamp(wheelY + dp, -30, 30);
         float len = Mth.sqrt(wheelX * wheelX + wheelY * wheelY);
         if (len > 30) { wheelX *= 30 / len; wheelY *= 30 / len; }
-        if (len > 6) {
-            // Clockwise from the top: mace, spear, sword.
-            double a = Math.atan2(wheelX, -wheelY);
-            hovered = Math.floorMod((int) Math.round(a / (Math.PI * 2 / WEAPONS)), WEAPONS);
-        }
+        // Left the mace, the middle the spear, right the sword (the shrine's three crystals); a little tick on each change.
+        int was = hovered;
+        hovered = IcemanWheel.pick(wheelX, wheelY, hovered);
+        if (hovered != was && hovered >= 0) ui(com.FIRNI.superheromod.core.sound.ModSounds.ICEMAN_CRYSTAL_TICKS.get(), 1.7f + .1f * hovered, .16f);
         p.setYRot(lockYaw); p.yRotO = lockYaw; p.setXRot(lockPitch); p.xRotO = lockPitch; p.yHeadRot = lockYaw;
         e.setYaw(lockYaw); e.setPitch(lockPitch);
     }
@@ -287,6 +305,11 @@ public final class IcemanClient {
         if (mc.level == null) { STATES.clear(); return; }
         fovKick *= .86f;
         fovSpeed *= .9f;
+        if (shatterSoundAt >= 0 && mc.level.getGameTime() >= shatterSoundAt) {
+            shatterSoundAt = -1;
+            ui(com.FIRNI.superheromod.core.sound.ModSounds.ICEMAN_SHATTER.get(), 1.55f, .32f);
+            ui(net.minecraft.sounds.SoundEvents.AMETHYST_BLOCK_BREAK, 1.3f, .35f);
+        }
         if (STATES.size() > 64) STATES.entrySet().removeIf(en -> mc.level.getEntity(en.getKey()) == null);
     }
     @SubscribeEvent public static void fov(ComputeFovModifierEvent e) {
@@ -296,6 +319,7 @@ public final class IcemanClient {
     }
     @SubscribeEvent public static void logout(ClientPlayerNetworkEvent.LoggingOut e) {
         STATES.clear(); wheelOpen = false; eDown = ctrlDown = slideSent = false; autoMode = -1;
+        wheelClosedAt = -1000; wheelChose = -1; shatterSoundAt = -1;
     }
 
     // ------------------------------------------------------------------ HUD
@@ -312,7 +336,6 @@ public final class IcemanClient {
         GuiGraphics g = e.getGuiGraphics();
         Font font = mc.font;
         int h = e.getWindow().getGuiScaledHeight(), w = e.getWindow().getGuiScaledWidth();
-        float time = mc.level.getGameTime() + e.getPartialTick();
         HudStyle.caption(g, font, "ICEMAN", 10, h - 46, ICE, -1);
         int row = h - 136;
         String weapon = WEAPON_NAMES[Mth.clamp(s.weapon, 0, WEAPONS - 1)];
@@ -335,8 +358,13 @@ public final class IcemanClient {
             HudStyle.bar(g, w / 2 - 40, h / 2 + 32, 80, s.shell, ICE);
         }
         if (s.action == SLIDE) HudStyle.bar(g, w / 2 - 30, h / 2 + 26, 60, s.slide, ICE_PALE);
-        wheelShown = Mth.clamp(wheelShown + (wheelOpen ? .25f : -.25f), 0, 1);
-        if (wheelShown > 0) IcemanWheel.draw(g, font, s, w / 2f, h / 2f, wheelShown, hovered, wheelX, wheelY, time);
+        // The Ice Armory: grows in while open, then shatters (a pick) or melts (none) after closing.
+        // (Its clocks in double: a float of the game time loses the partial tick in an old world.)
+        double exact = mc.level.getGameTime() + (double) e.getPartialTick();
+        float close = wheelOpen ? -1 : (float) (exact - wheelClosedAt);
+        if (wheelOpen || close < IcemanWheel.closeLength(wheelChose >= 0))
+            IcemanWheel.draw(g, font, s, w, h, (float) Math.max(0, exact - wheelOpenedAt), close, wheelOpen ? -1 : wheelChose, wheelOpen ? hovered : -1,
+                    wheelX, wheelY, (float) (mc.level.getGameTime() % 72000L) + e.getPartialTick());
     }
     private static int hint(GuiGraphics g, Font font, KeyMapping key, String what, int cooldown, boolean active, int x, int y) {
         return hintRaw(g, font, key.getTranslatedKeyMessage().getString().toUpperCase(Locale.ROOT), what, cooldown, active, x, y);

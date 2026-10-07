@@ -30,13 +30,17 @@ import static com.FIRNI.superheromod.heroes.iceman.IcemanAction.*;
  * Iceman himself, drawn in place of the player model (which is hidden for him): the move's pose (IcemanMotion)
  * crossfaded out of whatever his body was doing, the walk and the air under it (BatmanMotion), his look spread from the
  * chest to the head, the slides turning his whole body along their way; what his hand holds (IcemanWeaponFx.hold), the
- * shell on him (IcemanShellFx.body), the cold gathering in his hands. Frost dust falls off him as he moves. Each draw
- * reports where his hands, eyes, chest and weapon are (for the effects: the brush's stream leaves his hands).
+ * shell on him (IcemanShellFx.body), the cold gathering in his hands. The cold he gives off moving is very slight
+ * (ambient): rime puffs at his feet as they come down, a breath of cold air on a quick turn, a little frost left where he
+ * stops; never a cloud round him. Each draw reports where his hands, eyes, chest and weapon are (for the effects: the
+ * brush's stream leaves his hands).
  */
 public final class IcemanLayer extends RenderLayer<AbstractClientPlayer, PlayerModel<AbstractClientPlayer>> {
     private static final class Blend {
         int key = -1, previous = IDLE; float changed, fade = 2; Pose from, last;
         float at = -1, run, align, airSince = -1, landAt = -100, landPower, turn, heading; boolean ground = true; long dust;
+        /** The cold he gives off moving: the walk's last footfall, his body's turn a tick ago, his speed then, the last turn/stop puffs. */
+        int step = Integer.MIN_VALUE; float bodyYawO = Float.NaN; double flatO; long moved = -100, turnPuff = -100, stopPuff = -100;
     }
     private static final Map<Integer, Blend> BLENDS = new HashMap<>();
     /** The points as last drawn (world), and when. */
@@ -212,16 +216,60 @@ public final class IcemanLayer extends RenderLayer<AbstractClientPlayer, PlayerM
             var mc = Minecraft.getInstance();
             boolean own = e == mc.player && mc.options.getCameraType().isFirstPerson();
             if (!own) store(e.getId(), hr, IcemanBody.handLeft, IcemanBody.eyes, IcemanBody.chest, IcemanBody.weaponBase, IcemanBody.weaponTip);
-            // Frost dust off him as he moves (now and then, never a stream).
-            long tick = level.getGameTime();
-            if (flat > .06 && tick != blend.dust && !shown) {
-                blend.dust = tick;
-                if (IceParticles.rand() < .35f + flat) {
-                    Vec3 at = IceParticles.rand() < .5f ? hr : e.getPosition(partial).add(IceParticles.jitter(.25)).add(0, .1 + IceParticles.rand() * 1.4, 0);
-                    IceParticles.frostDust(at, vel, (float) Math.min(1.5, .5 + flat * 2));
+            ambient(e, blend, walk, amount, flat, ground, sliding || action == SHELL || action == SHELL_FORM, partial, level.getGameTime());
+        }
+    }
+
+    /**
+     * The cold he gives off moving, very slight (never a cloud round him; fewer far away, IceParticles.count):
+     * a footfall leaves a few tiny ice crystals and now and then a breath of rime at that foot; a quick turn stirs a
+     * small breath of cold air round him, swept the way he turned; stopping from a run leaves a little frost at his feet.
+     * The slides, the shell and the weapons have their own.
+     */
+    private static void ambient(AbstractClientPlayer e, Blend blend, float walk, float amount, double flat, boolean ground, boolean busy, float partial, long tick) {
+        Vec3 feet = e.getPosition(partial);
+        float yaw = Mth.rotLerp(partial, e.yBodyRotO, e.yBodyRot) * Mth.DEG_TO_RAD;
+        Vec3 fwd = new Vec3(-Mth.sin(yaw), 0, Mth.cos(yaw)), right = new Vec3(-Mth.cos(yaw), 0, -Mth.sin(yaw));
+        // Footfalls: the walk's phase passing a half turn is a foot coming down (odd: the right, even: the left).
+        int step = Mth.floor(walk * .6662f / Mth.PI);
+        if (step != blend.step) {
+            boolean first = blend.step == Integer.MIN_VALUE;
+            blend.step = step;
+            if (!first && ground && !busy && amount > .25f && flat > .03) {
+                Vec3 foot = feet.add(right.scale((step & 1) != 0 ? .16 : -.16)).add(fwd.scale(.1)).add(0, .05, 0);
+                int n = IceParticles.count(blend.run > .5f ? 3 : 2, foot);
+                for (int i = 0; i < n; i++) {
+                    float a = IceParticles.rand() * Mth.TWO_PI;
+                    IceParticles.crystalDust(foot.add(Mth.cos(a) * .07, 0, Mth.sin(a) * .07), new Vec3(Mth.cos(a) * .03, .01 + .012 * IceParticles.rand(), Mth.sin(a) * .03),
+                            .012f + .01f * IceParticles.rand(), (IceParticles.rand() - .5f) * .4f, 10 + (int) (IceParticles.rand() * 10));
                 }
+                if (IceParticles.rand() < .25f + .2f * blend.run && IceParticles.count(1, foot) > 0)
+                    IceParticles.mist(foot, fwd.scale(-.004).add(0, .002, 0), .1f + .05f * blend.run, .012f, .09f, 18);
             }
         }
+        if (tick == blend.dust) return;
+        blend.dust = tick;
+        // A quick turn: a breath of cold air at his middle, swept round the way he turned.
+        float bodyYaw = e.yBodyRot;
+        float turn = Float.isNaN(blend.bodyYawO) ? 0 : Mth.wrapDegrees(bodyYaw - blend.bodyYawO);
+        blend.bodyYawO = bodyYaw;
+        if (!busy && Math.abs(turn) > 28 && tick - blend.turnPuff > 12) {
+            blend.turnPuff = tick;
+            Vec3 at = e.position().add(0, e.getBbHeight() * .45, 0);
+            Vec3 sweep = right.scale(Math.signum(turn) * -.02);
+            if (IceParticles.count(1, at) > 0) IceParticles.mist(at.add(fwd.scale(-.2)), sweep.add(0, -.002, 0), .22f, .018f, .1f, 22);
+            IceParticles.frostDust(at, sweep.scale(2), .5f);
+        }
+        // Stopping after moving a while: a little frost left at his feet.
+        if (flat > .1) blend.moved = tick;
+        if (!busy && ground && blend.flatO >= .02 && flat < .02 && tick - blend.moved < 8 && tick - blend.stopPuff > 20) {
+            blend.stopPuff = tick;
+            Vec3 at = e.position().add(fwd.scale(.15)).add(0, .06, 0);
+            int n = IceParticles.count(3, at);
+            for (int i = 0; i < n; i++) IceParticles.snow(at.add(IceParticles.jitter(.15).multiply(1, 0, 1)), new Vec3(0, .03, 0).add(IceParticles.jitter(.02)), .016f + .01f * IceParticles.rand(), 14);
+            if (n > 0) IceParticles.mist(at, fwd.scale(.01).add(0, .001, 0), .2f, .015f, .1f, 26);
+        }
+        blend.flatO = flat;
     }
 
     public static void clear() { BLENDS.clear(); POINTS.clear(); }

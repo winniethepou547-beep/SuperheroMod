@@ -26,18 +26,24 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
+import static com.FIRNI.superheromod.client.render.iceman.IceGrowth.h;
 import static com.FIRNI.superheromod.heroes.iceman.IcemanAction.*;
 
 /**
  * The cryogenic brush as everyone sees it (right click held, both hands raised), and its sculptures (IcemanBrushSculpt).
  * <p>
- * On a body: cold matter flowing out of both hands to them, not a beam: from each hand a strand that winds round the
- * other (a double helix of sparkles, thin glints and small tumbling ice cubes travelling along it), mist puffs carried
- * along a gently curving path and spreading as they go, a faint broken shimmer pulsing down its middle; where it lands
- * small cubes of ice keep freezing on, growing and dropping away, frost flecks and mist splash off (the frost on the body and
- * their frosted screen are FrostFx's). Into the air: a lighter flow from the hands to the growing tip of the ice being
- * sculpted. The flow fades in and out (the mist thinning), its end eases from one target to the next; a hissing loop
- * (ICEMAN_BRUSH) follows him while he brushes and fades away when he stops.
+ * Never a clean beam: the AIR FREEZING out of his hands. Every tick a cryogenic plume leaves one hand or the other
+ * (IceParticles.cryo: dense cold vapour, tiny ice crystals shot out, floating and spiralling, little fragments), and a
+ * drawn stream of it rolls on to where it is aimed, widening as it goes: (1) soft blue-white vapour churning along a
+ * turbulent path, denser and whiter at the hands; (2) snow and ice flecks carried in it; (3) glinting ice crystals;
+ * (4) crystal nuclei that grow into small crystals and broken fragments as they travel, tumbling. The flow fades in and
+ * out (the mist thinning), its end eases from one target to the next.
+ * <p>
+ * On a body: where it lands small clusters of ice crystals freeze onto them at points on the side facing him (each its
+ * own place, size and time: growing out of a nucleus, holding, then breaking off and falling as chips with a breath of
+ * mist, again and again), frost flecks and mist splash off; the frost on the body and their frosted screen are FrostFx's.
+ * Into the air: the flow runs to the growing tip of the ice being sculpted. A hissing loop (ICEMAN_BRUSH) follows him
+ * while he brushes and fades away when he stops; crystals forming on a body tick now and then.
  */
 @Mod.EventBusSubscriber(modid = SuperheroMod.MODID, value = Dist.CLIENT)
 public final class IcemanBrushFx {
@@ -52,16 +58,23 @@ public final class IcemanBrushFx {
         }
     }
 
+    /** Crystals frozen onto the body at once (at most). */
+    private static final int GROWTHS = 6;
     /** One Iceman's flow: how strong (eased in and out), how much of it is on a body, where it ends (eased), its sound. */
     private static final class Flow {
         float level, levelO, want, body = -1, frame = -1;
-        int target = -1;
+        int target = -1, hand;
         long seen;
         Vec3 end, endWant;
         // this frame's geometry
         Vec3 h0, h1, mid, ctrl, fu, fv;
         double len;
         Loop loop;
+        // the crystals on the body: when each began (game time; -1 none), how long it lasts, where on them, its way out, size
+        final float[] gBorn = new float[GROWTHS], gLife = new float[GROWTHS], gSize = new float[GROWTHS];
+        final Vec3[] gOff = new Vec3[GROWTHS], gUp = new Vec3[GROWTHS];
+        final int[] gSeed = new int[GROWTHS], gOn = new int[GROWTHS];
+        Flow() { java.util.Arrays.fill(gBorn, -1); }
     }
     private static final Map<Integer, Flow> FLOWS = new HashMap<>();
     private static ClientLevel lastLevel;
@@ -93,13 +106,36 @@ public final class IcemanBrushFx {
             if (on) f.target = s.brushTarget;
             f.levelO = f.level;
             f.level += (f.want - f.level) * (f.want > f.level ? .35f : .22f);
-            if (!on && f.level < .01f || who == null && now - f.seen > 20) { it.remove(); continue; }
+            growths(f, now, on);
+            if (!on && f.level < .01f || who == null && now - f.seen > 20) { dropAll(f); it.remove(); continue; }
             if (on && (f.loop == null || f.loop.isStopped())) { f.loop = new Loop(id, who); mc.getSoundManager().play(f.loop); }
-            if (on && f.end != null && f.mid != null) splash(f, s, who);
+            if (on) plume(f, id, who);
+            if (on && f.end != null && f.mid != null) splash(f);
         }
     }
-    /** Where it lands: frost flecks and mist splashing off, now and then a small shard; mist left drifting along it. */
-    private static void splash(Flow f, IcemanClient.State s, Entity who) {
+    /**
+     * The plume leaving his hands, one hand a tick in turn (modest: a steady cold breath, never a flood); from his own
+     * hands in his own view a thinner one, started a little ahead so it never fogs his eyes.
+     */
+    private static void plume(Flow f, int id, Entity who) {
+        f.hand ^= 1;
+        Vec3 hand = IcemanLayer.hand(id, f.hand);
+        Vec3 look = who.getLookAngle();
+        if (hand == null) {
+            float yaw = who.getYRot() * Mth.DEG_TO_RAD;
+            Vec3 right = new Vec3(-Mth.cos(yaw), 0, -Mth.sin(yaw));
+            hand = who.getEyePosition().add(look.scale(.6)).add(right.scale(f.hand == 0 ? .36 : -.36)).add(0, -.32, 0);
+        }
+        Vec3 dir = f.end != null ? f.end.subtract(hand) : look;
+        dir = dir.lengthSqr() < 1e-6 ? look : dir.normalize();
+        var mc = Minecraft.getInstance();
+        boolean own = who == mc.player && mc.options.getCameraType().isFirstPerson();
+        float body = f.body < 0 ? 0 : f.body;
+        if (own) IceParticles.cryo(hand.add(dir.scale(.55)), dir, .16f, .2f);
+        else IceParticles.cryo(hand.add(dir.scale(.12)), dir, .28f + .08f * body, .22f);
+    }
+    /** Where it lands: frost flecks and mist splashing off, now and then a chip; vapour left drifting along it. */
+    private static void splash(Flow f) {
         Vec3 end = f.end, dir = end.subtract(f.mid);
         double len = dir.length();
         if (len < .1) return;
@@ -111,13 +147,65 @@ public final class IcemanBrushFx {
             IceParticles.snow(end.add(IceParticles.jitter(.12)), out, .02f + .025f * IceParticles.rand(), 12 + (int) (IceParticles.rand() * 10));
         }
         if (IceParticles.rand() < (body ? .5f : .25f) && IceParticles.count(1, end) > 0)
-            IceParticles.mist(end.add(IceParticles.jitter(.15)), dir.scale(-.01).add(IceParticles.jitter(.01)), .25f, .025f, body ? .26f : .16f, 22);
-        if (body && IceParticles.rand() < .22f && IceParticles.count(1, end) > 0)
-            IceParticles.shard(end, dir.scale(-.06).add(IceParticles.jitter(.06)).add(0, .08, 0), .05f + .04f * IceParticles.rand(), 26, IceMesh.FRESH);
-        // Cold vapour left hanging along the way.
-        if (IceParticles.rand() < .6f && IceParticles.count(1, f.mid) > 0) {
-            float u = .15f + .7f * IceParticles.rand();
-            IceParticles.mist(axis(f, u), dir.scale(.02).add(IceParticles.jitter(.006)), .16f, .018f, body ? .14f : .09f, 26);
+            IceParticles.mist(end.add(IceParticles.jitter(.15)), dir.scale(-.01).add(IceParticles.jitter(.01)), .25f, .025f, body ? .24f : .15f, 22);
+        // Cold vapour left hanging along the way, sinking.
+        if (IceParticles.rand() < .5f && f.ctrl != null && IceParticles.count(1, f.mid) > 0) {
+            float u = .2f + .7f * IceParticles.rand();
+            IceParticles.mist(axis(f, u), dir.scale(.015).add(IceParticles.jitter(.006)).add(0, -.003, 0), .18f + .12f * u, .02f, body ? .12f : .08f, 28);
+        }
+    }
+
+    // ------------------------------------------------------------------ crystals freezing onto the body
+    /** Starts new crystals on the body now and then, breaks off the ones whose time is up. */
+    private static void growths(Flow f, long now, boolean on) {
+        var level = Minecraft.getInstance().level;
+        Entity t = on && f.target >= 0 ? level.getEntity(f.target) : null;
+        for (int i = 0; i < GROWTHS; i++) {
+            if (f.gBorn[i] < 0) continue;
+            Entity on2 = level.getEntity(f.gOn[i]);
+            if (on2 == null || on2.isRemoved()) { f.gBorn[i] = -1; continue; }
+            if (now - f.gBorn[i] >= f.gLife[i] || f.gOn[i] != f.target || !on) drop(f, i, on2);
+        }
+        if (t == null || f.mid == null || IceParticles.rand() > .4f) return;
+        int free = -1;
+        for (int i = 0; i < GROWTHS && free < 0; i++) if (f.gBorn[i] < 0) free = i;
+        if (free < 0) return;
+        // A point on the side facing him, somewhere up their body; it grows out of them toward him, a little upward.
+        Vec3 c = t.position().add(0, t.getBbHeight() * .5, 0);
+        Vec3 n = f.mid.subtract(c);
+        n = new Vec3(n.x, 0, n.z);
+        n = n.lengthSqr() < 1e-6 ? new Vec3(0, 0, 1) : n.normalize();
+        Vec3 side = new Vec3(-n.z, 0, n.x);
+        float w = t.getBbWidth(), hh = t.getBbHeight();
+        float across = (IceParticles.rand() - .5f) * .85f, up = .12f + .8f * IceParticles.rand();
+        Vec3 off = n.scale(w * .5 * (1 - Math.abs(across) * .6)).add(side.scale(across * w)).add(0, hh * up, 0);
+        Vec3 out = n.scale(.8).add(side.scale(across * 1.2)).add(IceParticles.jitter(.35)).add(0, .25, 0).normalize();
+        f.gBorn[free] = now; f.gLife[free] = 16 + (int) (IceParticles.rand() * 18);
+        f.gOff[free] = off; f.gUp[free] = out; f.gSize[free] = (.16f + .2f * IceParticles.rand()) * Math.min(1.6f, Math.max(.7f, hh / 1.8f));
+        f.gSeed[free] = (int) (IceParticles.rand() * 100000); f.gOn[free] = t.getId();
+        if (IceParticles.rand() < .3f) {
+            Vec3 at = t.position().add(off);
+            level.playLocalSound(at.x, at.y, at.z, ModSounds.ICEMAN_CRYSTAL_TICKS.get(), SoundSource.PLAYERS, .22f, 1.2f + .3f * IceParticles.rand(), false);
+        }
+    }
+    /** A crystal breaks off the body: a few chips falling, a fleck of frost, a breath of mist. */
+    private static void drop(Flow f, int i, Entity on) {
+        Vec3 at = on.position().add(f.gOff[i]);
+        float s = f.gSize[i];
+        int chips = IceParticles.count(2, at);
+        for (int k = 0; k < chips; k++)
+            IceParticles.shard(at.add(IceParticles.jitter(s * .3)), f.gUp[i].scale(.05).add(IceParticles.jitter(.03)).add(0, .04, 0), s * (.35f + .3f * IceParticles.rand()), 22 + (int) (IceParticles.rand() * 14),
+                    k == 0 ? IceMesh.CLEAR : IceMesh.MILKY);
+        IceParticles.frostDust(at, f.gUp[i].scale(.05), .6f);
+        if (IceParticles.rand() < .5f) IceParticles.mist(at, f.gUp[i].scale(.01).add(0, -.004, 0), .18f, .02f, .16f, 20);
+        f.gBorn[i] = -1;
+    }
+    private static void dropAll(Flow f) {
+        var level = Minecraft.getInstance().level;
+        for (int i = 0; i < GROWTHS; i++) {
+            if (f.gBorn[i] < 0) continue;
+            Entity on = level == null ? null : level.getEntity(f.gOn[i]);
+            if (on != null) drop(f, i, on); else f.gBorn[i] = -1;
         }
     }
 
@@ -173,15 +261,20 @@ public final class IcemanBrushFx {
         float a = (1 - u) * (1 - u), b = 2 * u * (1 - u), c = u * u;
         return new Vec3(f.mid.x * a + f.ctrl.x * b + f.end.x * c, f.mid.y * a + f.ctrl.y * b + f.end.y * c, f.mid.z * a + f.ctrl.z * b + f.end.z * c);
     }
-    /** Strand i (the hand it leaves) at u: leaving the hand, winding round the middle line, closing in toward the end. */
-    private static Vec3 strand(Flow f, int i, float u, float time, float spread) {
-        Vec3 off = (i == 0 ? f.h0 : f.h1).subtract(f.mid).scale(Math.pow(1 - u, 1.3));
-        float turns = (float) Math.min(6, f.len * .45);
-        float ang = i * Mth.PI + u * turns * Mth.TWO_PI - time * .45f;
-        float rho = spread * (.15f + .12f * Mth.sin(Mth.PI * u)) * (1 - .55f * u * u * u) * Math.min(1, u * 6 + .2f);
-        return axis(f, u).add(off).add(f.fu.scale(Mth.cos(ang) * rho)).add(f.fv.scale(Mth.sin(ang) * rho));
+    /**
+     * Something carried in the stream at u (its own index i): leaving one hand or the other, swept toward the middle
+     * line, thrown about by churning air that opens wider the further it goes (the plume's volume); open = how far out.
+     */
+    private static Vec3 carried(Flow f, int i, float u, float time, float open) {
+        Vec3 hand = (i & 1) == 0 ? f.h0 : f.h1;
+        Vec3 off = hand.subtract(f.mid).scale(Math.pow(1 - u, 1.6));
+        float p = h(i, 1) * Mth.TWO_PI, q = h(i, 2) * Mth.TWO_PI;
+        float wide = open * (.05f + .42f * u) * (.4f + .6f * h(i, 3));
+        float a = p + u * (3 + 4 * h(i, 4)) - time * (.08f + .1f * h(i, 5));
+        float tu = Mth.cos(a) + .35f * Mth.sin(u * 9.1f + time * .23f + q), tv = Mth.sin(a) + .35f * Mth.cos(u * 7.3f - time * .19f + p);
+        return axis(f, u).add(off).add(f.fu.scale(tu * wide)).add(f.fv.scale(tv * wide));
     }
-    private static float edges(float u) { return Math.min(1, u / .06f) * Math.min(1, (1 - u) / .06f); }
+    private static float edges(float u) { return Math.min(1, u / .06f) * Math.min(1, (1 - u) / .08f); }
 
     // ------------------------------------------------------------------ drawing
     @SubscribeEvent public static void render(RenderLevelStageEvent e) {
@@ -196,6 +289,7 @@ public final class IcemanBrushFx {
                 Flow f = en.getValue();
                 float level = Mth.lerp(partial, f.levelO, f.level);
                 f.mid = null;
+                bodyIce(st, c, f);
                 if (level <= .01f || !geom(en.getKey(), f, partial, time)) { f.mid = null; continue; }
                 c.light = IceStage.light(f.mid);
                 flowIce(st, c, f, level, time);
@@ -211,102 +305,89 @@ public final class IcemanBrushFx {
             st.close();
         }
     }
-    /** The solid and bright parts: the strands' glints and sparkles, the tumbling cubes, the ice freezing on where it lands. */
-    private static void flowIce(IceStage st, IceMesh.Ctx c, Flow f, float level, float time) {
-        float body = f.body, light = .55f + .45f * body;
-        boolean far = st.far(f.end) && st.far(f.mid);
-        float spread = .7f + .3f * body;
-        int n = Mth.clamp((int) (f.len * 6), 12, 60);
-        for (int i = 0; i < 2; i++) {
-            // The strand's thin glint, pulsing as matter runs down it.
-            Vec3 prev = strand(f, i, 0, time, spread);
-            for (int k = 1; k <= n; k++) {
-                float u = k / (float) n;
-                Vec3 q = strand(f, i, u, time, spread);
-                float pulse = .35f + .65f * Math.max(0, Mth.sin(u * 26 - time * 1.7f + i * 2));
-                float b = level * light * pulse * edges(u) * .5f;
-                if (b > .01f) IceMesh.line(c, prev, q, .018f + .01f * body, .45f * b, .75f * b, b);
-                prev = q;
-            }
-            // Sparkles travelling along it.
-            int m = Mth.clamp((int) (f.len * (far ? 2 : 4)), 6, 48);
-            for (int k = 0; k < m; k++) {
-                float u = frac(k / (float) m + time * .045f + i * .37f);
-                float tw = .55f + .45f * Mth.sin(time * 1.9f + k * 3.7f + i);
-                IceMesh.sparkle(c, strand(f, i, u, time, spread), .07f + .07f * (float) IceMesh.hash(k * 3.1 + i), .75f * level * light * tw * edges(u));
-            }
-            if (far) continue;
-            // Small cubes of ice tumbling along with it (each its texture riding with it).
-            int sh = Mth.clamp((int) (f.len * (.8f + body)), 3, 24);
-            for (int k = 0; k < sh; k++) {
-                float u = frac(k / (float) sh + time * .055f + (float) IceMesh.hash(k * 1.9 + i) * .3f);
-                Vec3 at = strand(f, i, u, time, spread * 1.3f).add(f.fu.scale(.06 * Mth.sin(k * 2.3f + time * .3f)));
-                float size = (.04f + .04f * (float) IceMesh.hash(k * 5.3 + i)) * (.6f + .4f * body);
-                c.ox = (float) at.x; c.oy = (float) at.y; c.oz = (float) at.z;
-                IceParticles.cube(c, at.x, at.y, at.z, size, size, size, time * .5f + k, time * .37f + k * 1.3f, time * .29f + k * .7f,
-                        k % 3 == 0 ? IceMesh.MILKY : IceMesh.CLEAR, level * edges(u) * .9f);
-            }
-            c.ox = c.oy = c.oz = 0;
+    /** The crystals frozen onto the body: each a little cluster grown out of a nucleus, loosening just before it breaks off. */
+    private static void bodyIce(IceStage st, IceMesh.Ctx c, Flow f) {
+        var level = Minecraft.getInstance().level;
+        for (int i = 0; i < GROWTHS; i++) {
+            if (f.gBorn[i] < 0) continue;
+            Entity on = level.getEntity(f.gOn[i]);
+            if (on == null) continue;
+            float age = st.time - f.gBorn[i];
+            if (age < 0) continue;
+            float loose = PantherMotion.k(age, f.gLife[i] - 4, f.gLife[i]);
+            Vec3 up = f.gUp[i];
+            Vec3 at = on.getPosition(st.partial).add(f.gOff[i]).add(up.scale(.05 * loose)).add(0, -.12 * loose * loose, 0);
+            c.light = IceStage.light(at);
+            c.ox = (float) at.x; c.oy = (float) at.y; c.oz = (float) at.z;
+            int count = st.far(at) ? 3 : 4 + (f.gSeed[i] & 1);
+            IceGrowth.cluster(c, at.x, at.y, at.z, up.x, up.y, up.z, f.gSize[i], f.gSeed[i], count, (f.gSeed[i] & 2) == 0 ? IceMesh.CLEAR : IceMesh.GLACIER, age / 9f, 1);
         }
-        // Where it lands: small cubes of ice freezing on, growing, then dropping away, again and again.
-        if (body > .05f) {
-            Vec3 back = f.mid.subtract(f.end).normalize();
-            Vec3[] fr = IceMesh.frame(back);
-            for (int k = 0; k < (far ? 3 : 6); k++) {
-                float cyc = frac((time + k * 2.6f) / 18f);
-                float g = PantherMotion.snap(cyc, 0, .45f) * (1 - PantherMotion.k(cyc, .78f, 1));
-                if (g <= .01f) continue;
-                int gen = (int) Math.floor((time + k * 2.6f) / 18f);
-                double h = IceMesh.hash(k * 13.7 + gen * 3.3), h2 = IceMesh.hash(k * 5.1 + gen * 7.9);
-                float ang = (float) (h * Mth.TWO_PI), rr = (float) (.08 + .22 * h2);
-                float size = (.08f + .08f * (float) h2) * g;
-                // Dropping away at the end of its turn.
-                float drop = PantherMotion.k(cyc, .62f, 1);
-                Vec3 at = f.end.add(fr[0].scale(Mth.cos(ang) * rr)).add(fr[1].scale(Mth.sin(ang) * rr)).add(back.scale(size * .4)).add(0, -.35 * drop * drop, 0);
-                c.ox = (float) at.x; c.oy = (float) at.y; c.oz = (float) at.z;
-                IceParticles.cube(c, at.x, at.y, at.z, size, size, size, ang, (float) (h2 - .5) * 1.2f + drop * 1.5f, (float) (h - .5) * 1.2f,
-                        k % 2 == 0 ? IceMesh.CLEAR : IceMesh.FROST, level * body);
-            }
-            c.ox = c.oy = c.oz = 0;
-            IceMesh.sparkle(c, f.end, .3f, .6f * level * body * (.7f + .3f * Mth.sin(time * 2.1f)));
-        } else {
-            // Sculpting: the cold winking at the tip.
-            for (int k = 0; k < 3; k++) {
-                float a = time * .4f + k * 2.1f;
-                Vec3 at = f.end.add(f.fu.scale(Mth.cos(a) * .18)).add(f.fv.scale(Mth.sin(a) * .18));
-                IceMesh.sparkle(c, at, .14f, .7f * level * (.6f + .4f * Mth.sin(time * 2.3f + k)));
-            }
-        }
+        c.ox = c.oy = c.oz = 0;
     }
-    /** The soft parts: mist carried along it, a faint broken shimmer down its middle, the cold glow at the hands and the end. */
-    private static void flowFx(IceStage st, FilmContext fx, Flow f, float level, float time) {
-        float body = f.body, k = .6f + .4f * body;
-        int puffs = Mth.clamp((int) (f.len * 2.2f * k), 6, 30);
-        for (int i = 0; i < puffs; i++) {
-            float u = frac(i / (float) puffs + time * .03f);
-            float a = i * 2.4f + time * .2f, rho = .1f + .12f * u;
-            Vec3 at = axis(f, u).add(f.fu.scale(Mth.cos(a) * rho)).add(f.fv.scale(Mth.sin(a) * rho));
-            FilmFx.puff(fx, at, .16f + .42f * u * k, IceParticles.MIST_RGB, .17f * level * k * edges(u));
+    /** The hard bits carried in it: crystal nuclei growing into little crystals and broken fragments as they travel, glints. */
+    private static void flowIce(IceStage st, IceMesh.Ctx c, Flow f, float level, float time) {
+        float body = f.body, open = .75f + .35f * body;
+        boolean far = st.far(f.end) && st.far(f.mid);
+        Vec3 d = f.end.subtract(f.mid).scale(1 / f.len);
+        // Glinting ice crystals.
+        int m = Mth.clamp((int) (f.len * (far ? 2 : 4.5f)), 8, 44);
+        for (int k = 0; k < m; k++) {
+            float u = frac(k / (float) m + time * (.04f + .02f * h(k, 9)) + h(k, 10) * .4f);
+            float tw = .5f + .5f * Mth.sin(time * (1.4f + .8f * h(k, 11)) + k * 3.7f);
+            IceMesh.sparkle(c, carried(f, 100 + k, u, time, open), .045f + .06f * h(k, 12), .7f * level * tw * tw * edges(u));
         }
-        // The shimmer: short pulses running down the middle, never a solid line.
-        int n = Mth.clamp((int) (f.len * 4), 8, 40);
-        Vec3 prev = axis(f, 0);
-        for (int i = 1; i <= n; i++) {
-            float u = i / (float) n, u0 = (i - 1) / (float) n;
-            Vec3 q = axis(f, u);
-            float p0 = pulse(u0, f.len, time), p1 = pulse(u, f.len, time);
-            FilmFx.streak(fx, prev, q, .11f * k, IceParticles.COLD_LIGHT, .13f * level * k * p0 * edges(u0), .13f * level * k * p1 * edges(u), true);
-            prev = q;
+        if (far) return;
+        // Nuclei growing as they go: needles of ice along the flow, broken chips tumbling.
+        int n = Mth.clamp((int) (f.len * (2 + body)), 4, 26);
+        for (int k = 0; k < n; k++) {
+            float u = frac(k / (float) n + time * (.05f + .015f * h(k, 20)) + h(k, 21) * .3f);
+            float a = level * edges(u);
+            if (a <= .02f) continue;
+            Vec3 at = carried(f, 200 + k, u, time, open * 1.1f);
+            float size = (.03f + .05f * h(k, 22)) * (.35f + 1.1f * u) * (.75f + .35f * body);
+            c.ox = (float) at.x; c.oy = (float) at.y; c.oz = (float) at.z;
+            if ((k & 1) == 0) {
+                IceGrowth.crystal(c, at.x, at.y, at.z, d.x + (h(k, 23) - .5f) * .6f, d.y + (h(k, 24) - .5f) * .6f, d.z + (h(k, 25) - .5f) * .6f,
+                        size * 2.4f, size * .45f, 300 + k, IceMesh.CLEAR, Math.min(1, .2f + u * 1.4f), a);
+            } else {
+                float ax = h(k, 26) - .5f, ay = h(k, 27) - .2f, az = h(k, 28) - .5f, al = Mth.sqrt(ax * ax + ay * ay + az * az) + 1e-4f;
+                IceParticles.axisAngle(ax / al, ay / al, az / al, time * (.2f + .3f * h(k, 29)) + k, IceParticles.AX);
+                IceGrowth.chip(c, at.x, at.y, at.z, IceParticles.AX, size * 1.4f, 400 + k, (k % 3) == 1 ? IceMesh.MILKY : IceMesh.FRESH, a);
+            }
+        }
+        c.ox = c.oy = c.oz = 0;
+        if (body > .05f) IceMesh.sparkle(c, f.end, .26f, .5f * level * body * (.7f + .3f * Mth.sin(time * 2.1f)));
+    }
+    /**
+     * The soft parts: the vapour churning along it (dense and whiter at the hands, opening and thinning further on),
+     * snow flecks carried in it, a faint cold glow at the hands and the end.
+     */
+    private static void flowFx(IceStage st, FilmContext fx, Flow f, float level, float time) {
+        float body = f.body, k = .6f + .4f * body, open = .8f + .35f * body;
+        int puffs = Mth.clamp((int) (f.len * 3.4f * k), 10, 40);
+        for (int i = 0; i < puffs; i++) {
+            float u = frac(i / (float) puffs + time * (.03f + .012f * h(i, 40)));
+            Vec3 at = carried(f, 500 + i, u, time, open * .8f);
+            float size = .14f + .5f * u * k * (.7f + .5f * h(i, 41));
+            FilmFx.puff(fx, at, size, IceParticles.MIST_RGB, .15f * level * k * edges(u) * (1 - .35f * u));
+        }
+        // Dense cold at the hands: whiter vapour boiling off them.
+        for (int i = 0; i < 6; i++) {
+            float u = frac(i / 6f + time * .07f) * .25f;
+            Vec3 at = carried(f, 600 + i, u, time, open);
+            FilmFx.puff(fx, at, .1f + .5f * u, 0xdcecff, .2f * level * Math.min(1, u * 20) * (1 - u * 4));
+        }
+        // Snow flecks.
+        int flecks = Mth.clamp((int) (f.len * 5), 10, 48);
+        for (int i = 0; i < flecks; i++) {
+            float u = frac(i / (float) flecks + time * (.045f + .03f * h(i, 50)) + h(i, 51) * .5f);
+            FilmFx.puff(fx, carried(f, 700 + i, u, time, open * 1.2f), .022f + .02f * h(i, 52), IceParticles.SNOW_RGB, .75f * level * edges(u));
         }
         float flick = .85f + .15f * Mth.sin(time * 1.3f);
-        FilmFx.glow(fx, f.h0, .3f, IceParticles.COLD_LIGHT, .22f * level * flick);
-        FilmFx.glow(fx, f.h1, .3f, IceParticles.COLD_LIGHT, .22f * level * flick);
-        FilmFx.glow(fx, f.end, .35f + .4f * body, IceParticles.COLD_LIGHT, (.12f + .2f * body) * level * flick);
-        FilmFx.puff(fx, f.end, .4f + .3f * body, IceParticles.MIST_RGB, .14f * level);
-    }
-    private static float pulse(float u, double len, float time) {
-        float s = Math.max(0, Mth.sin((float) (u * len * 2.3 - time * .9f)));
-        return s * s;
+        FilmFx.glow(fx, f.h0, .22f, IceParticles.COLD_LIGHT, .14f * level * flick);
+        FilmFx.glow(fx, f.h1, .22f, IceParticles.COLD_LIGHT, .14f * level * flick);
+        FilmFx.glow(fx, f.end, .3f + .3f * body, IceParticles.COLD_LIGHT, (.08f + .12f * body) * level * flick);
+        FilmFx.puff(fx, f.end, .4f + .35f * body, IceParticles.MIST_RGB, .16f * level);
     }
     private static float frac(float x) { return x - (float) Math.floor(x); }
 

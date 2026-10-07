@@ -20,8 +20,9 @@ import static com.FIRNI.superheromod.heroes.iceman.IcemanAction.*;
 /**
  * Iceman's own view: the vanilla hand is gone; his own arms of ice, from the shoulders down, hung just under the camera
  * and moved by the very same poses as his body (IcemanMotion), so every move (the brush's raised hands, a swing of the
- * mace, the spear drawn back, the slide's arms, the hands to the ground) shows in his view as it does on him. Standing,
- * the right hand (and what it holds) is kept a little forward so it shows at the lower right.
+ * mace, the spear drawn back, both hands on the spear in the flurry, the slide's arms, the hands to the ground) shows in
+ * his view as it does on him. Standing, the right hand (and what it holds) is kept a little forward so it shows at the
+ * lower right. While the sword stands planted his arms go down to its hilt in the world itself (IcemanWeaponFx), not here.
  */
 @Mod.EventBusSubscriber(modid = SuperheroMod.MODID, value = Dist.CLIENT)
 public final class IcemanFirstPerson {
@@ -36,6 +37,9 @@ public final class IcemanFirstPerson {
         if (mc.player == null || mc.level == null || !IcemanClient.isHero(mc.player) || FilmDirector.playing()) return;
         e.setCanceled(true);
         if (e.getHand() != InteractionHand.MAIN_HAND) return;
+        // The sword standing planted: his arms are drawn in the world onto its hilt (IcemanWeaponFx.ownArms), in the
+        // world's own projection so the hands meet the hilt exactly; nothing here.
+        if (IcemanWeaponFx.ownArmsInWorld()) { last = null; return; }
         var player = mc.player;
         IcemanClient.State s = IcemanClient.get(player);
         int action = s == null ? IDLE : s.action;
@@ -99,8 +103,8 @@ public final class IcemanFirstPerson {
         // The chest's own turn and lean from the pose (the swings turn the shoulders), half of it: the view stays steady.
         float[] v = pose.v;
         p.mulPose(Axis.YP.rotation((v[CHEST_YAW] + v[SPINE_YAW] + v[PELVIS_YAW]) * .5f));
-        // The sword's spin: his arms (and the blade) sweep round through his view with the whole body's turn.
-        boolean spin = weapon == W_SWORD && (action == CHARGE && t >= HOLD_TICKS || action == STRIKE && s != null && s.combo == 2);
+        // The sword's finisher spin: his arms (and the blade) sweep round through his view with the whole body's turn.
+        boolean spin = weapon == W_SWORD && action == STRIKE && s != null && s.combo == 2;
         if (spin) p.mulPose(Axis.YP.rotation(v[ROOT_YAW]));
         p.mulPose(Axis.XP.rotation((v[CHEST_PITCH] + v[SPINE_PITCH]) * .35f));
         IcemanBody.capture = true;

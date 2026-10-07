@@ -20,7 +20,7 @@ public final class IcemanFx {
             case FX_FROST, FX_DEEP_FREEZE, FX_DEEP_BREAK, FX_LENS, FX_BRUSH_FROST -> FrostFx.receive(p);
             case FX_SCULPT_POINT, FX_SCULPT_END, FX_SCULPT_BREAK -> IcemanBrushFx.receive(p);
             case FX_SLIDE_HIT, FX_DASH, FX_DASH_HIT -> IcemanSlideFx.receive(p);
-            case FX_HIT, FX_FORM, FX_SLAM, FX_SPEAR, FX_SPEAR_STUCK, FX_SPEAR_SPIKES, FX_SPIN, FX_SWORD_BREAK -> IcemanWeaponFx.receive(p);
+            case FX_HIT, FX_FORM, FX_SLAM, FX_SPEAR, FX_SPEAR_STUCK, FX_SPEAR_SPIKES, FX_SPIN, FX_SWORD_BREAK, FX_SWORD_PLANT, FX_WEAPON_BREAK -> IcemanWeaponFx.receive(p);
             case FX_SHELL_HIT, FX_SHELL_BREAK, FX_SHELL_BURST -> IcemanShellFx.receive(p);
             case FX_GROUND, FX_GROUND_ERUPT -> IcemanGroundFx.receive(p);
             case FX_SHATTER -> shatter(p);

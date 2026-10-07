@@ -45,6 +45,8 @@ import static com.FIRNI.superheromod.heroes.iceman.IcemanAction.*;
  *   shellburst       the shell bursts (the 360 degree explosion)
  *   weapons          the next weapon of the wheel, and three dummies
  *   mace|spear|sword that weapon in hand, and a dummy
+ *   swordplant       the sword in hand and three dummies round about 4 to 6 blocks ahead: hold left click, the sword goes
+ *                    into the ground and pulls them toward it (the dummies are moved straight, they have no AI)
  *   shatteredground  a dummy 11 blocks ahead, the cracks run to it
  *   solid            solid ice to try for 20 seconds: a bar of sculpted ice across your way at head height (walk into it),
  *                    and to your right a raised stretch of track rising like a ramp (walk up it and stand on it)
@@ -58,7 +60,7 @@ public final class IcemanTest {
 
     @SubscribeEvent public static void register(RegisterCommandsEvent event) {
         LiteralArgumentBuilder<CommandSourceStack> test = Commands.literal("test");
-        for (String what : new String[]{"shift", "shift_up", "shift_cancel", "shift_air", "shift_descend", "shift_speed", "shift_slope", "brush", "slide", "shell", "shellbreak", "shellburst", "weapons", "mace", "spear", "sword", "shatteredground", "solid"})
+        for (String what : new String[]{"shift", "shift_up", "shift_cancel", "shift_air", "shift_descend", "shift_speed", "shift_slope", "brush", "slide", "shell", "shellbreak", "shellburst", "weapons", "mace", "spear", "sword", "swordplant", "shatteredground", "solid"})
             test.then(Commands.literal(what).executes(ctx -> run(ctx, what, -1)));
         test.then(Commands.literal("frost").executes(ctx -> run(ctx, "frost", 50))
                 .then(Commands.argument("amount", FloatArgumentType.floatArg(0, 100)).executes(ctx -> run(ctx, "frost", FloatArgumentType.getFloat(ctx, "amount")))));
@@ -127,8 +129,20 @@ public final class IcemanTest {
                 say(p, switch (w) {
                     case W_MACE -> "Gürz: ağır. 3. vuruş iki elle tepeden ezme (gürz kırılır). Basılı tut: katman katman büyür (3 kat), bırak: dev ezme.";
                     case W_SPEAR -> "Mızrak: hızlı. 3. vuruş seri dürtme. Basılı tut: geri çekip fırlat (ne kadar uzun, o kadar düz), saplandığı yerde buz dikenleri.";
-                    default -> "Kılıç: orta hız. 3. vuruş hızlı dönüş. Basılı tut: Garen gibi dönerek çevrendekileri içeri çeker, sonunda kılıç kırılır.";
+                    default -> "Kılıç: orta hız. 3. vuruş hızlı dönüş. Basılı tut: kılıcı yere saplar, diz çöker; çevredekileri kılıca doğru çeker. Bırakınca kılıç çatlar ve kırılır.";
                 });
+            }
+            case "swordplant" -> {
+                ensure(p);
+                var s = IcemanController.state(p);
+                s.cooldowns[CD_WEAPON] = 0;
+                if (s.weapon == W_SWORD) { s.weaponOut = false; s.weapon = W_MACE; }
+                IcemanWeapons.select(p, s, W_SWORD);
+                dummy(p, 4.5, -2.2);
+                dummy(p, 5.5, 2.0);
+                dummy(p, 6.2, 0);
+                say(p, "Kılıç elinde oluşuyor. Sol tıkı BASILI TUT: kılıcı ucu aşağı çevirir, önüne yere saplar ve diz çöker; zemin donar, "
+                        + "kristaller kılıca doğru büyür, sis içeri akar ve kuklalar kılıca doğru sürüklenir (yaklaştıkça daha hızlı). Bırakınca kılıç önce çatlar, sonra parçalanır. F5 ile dışarıdan da izle.");
             }
             case "shatteredground" -> {
                 ensure(p);

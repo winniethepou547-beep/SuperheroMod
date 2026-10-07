@@ -25,13 +25,18 @@ import java.util.List;
 import static com.FIRNI.superheromod.heroes.iceman.IcemanAction.*;
 
 /**
- * The thrown ice spear and the spikes, on the clients: the spear flies with the server's own physics (gravity that
- * weakens the more it was drawn back, a little drag) with a cold streak and snow behind it, sticks (in a block, or in a
- * body it then rides with), cracks over its last SPEAR_CRACK ticks and bursts into ice cubes. The spikes burst out of
- * the ground in a ring round where it struck, leaning outward, in a fast wave from the middle out: square ice spikes
- * (stepped square tiers closing to a four-sided point, blocky like Minecraft, never crystals); they stand, crack (with
- * the sound), their tops break off in chunks of ice and the stumps sink and melt away into frost (nothing pops). The
- * giant mace's slam uses the same spikes ({@link #spikes}).
+ * The thrown ice spear and the ice that erupts where it strikes, on the clients.
+ * <ul>
+ * <li>The spear flies with the server's own physics (gravity that weakens the more it was drawn back, a little drag),
+ * the air freezing behind it (a strong but controlled streak of cold vapour, ice crystals left in the air).</li>
+ * <li>Stuck (in a block, or in a body it then rides with): a burst of frost where it went in, then it cracks and
+ * shatters in stages into long shards (SHATTER_AT), the eruption already standing round it.</li>
+ * <li>The eruption ({@link #erupt}, also the mace's slams): a natural cluster of ice crystals bursting out of the ground,
+ * one big central growth (2 to 3 blocks for a full throw) with crystals interlocking round its foot, several medium
+ * clusters leaning outward, small shards round about; each crystal its own size, lean and growth time (the middle first,
+ * outward after), in a cloud of freezing vapour rolling out low. It stands, cracks (the cracks running up the big
+ * crystals), breaks zone by zone (the big growth heavily, the others after it), the stumps sink and melt into frost.</li>
+ * </ul>
  */
 final class IcemanSpearFx {
     private IcemanSpearFx() {}
@@ -39,7 +44,7 @@ final class IcemanSpearFx {
     private static final class Spear {
         final int id; final float charge, gravity;
         Vec3 pos, prev, vel, prevVel, dir, offset;
-        int age, stuck = -1, body = -1; boolean held;
+        int age, stuck = -1, body = -1; boolean held, shattered;
         Spear(int id, Vec3 pos, Vec3 vel, float charge) {
             this.id = id; this.pos = pos; prev = pos; this.vel = vel; prevVel = vel; this.charge = charge;
             gravity = .055f * (1 - .85f * charge);
@@ -47,25 +52,29 @@ final class IcemanSpearFx {
         }
         float size() { return 1 + .6f * charge; }
     }
-    private static final class Spike { Vec3 base, dir; float h, r, delay, roll; int seed; boolean milky; }
-    private static final class Spikes { Vec3 at; float radius, start; Spike[] spikes; boolean cracked, broke; }
+    /** One crystal of an eruption: its foot (world), its way, length, half width, growth delay and time, when it breaks. */
+    private static final class Piece {
+        Vec3 base, dir; float len, r, delay, dur, breakAt; int seed, group; IceMesh.Mat mat; boolean broke;
+    }
+    private static final class Eruption { Vec3 at; float radius, start, gone; Piece[] pieces; boolean cracked; }
     private static final List<Spear> SPEARS = new ArrayList<>();
-    private static final List<Spikes> SPIKES = new ArrayList<>();
-    /** Spikes: they grow over GROW ticks, crack from CRACK, break at BREAK, the stumps melt until GONE. */
-    private static final float GROW = 3, CRACK = 16, BREAK = 24, GONE = 44;
+    private static final List<Eruption> ERUPTIONS = new ArrayList<>();
+    /** The stuck spear cracks from SHATTER_AT - 8 and shatters at SHATTER_AT (ticks after it struck). */
+    private static final int SHATTER_AT = 16;
+    /** An eruption: its cracks open at CRACK, the pieces break from BREAK (zone by zone), the stumps are gone by MELT after their break. */
+    private static final float CRACK = 32, BREAK = 40, MELT = 26;
 
-    static boolean idle() { return SPEARS.isEmpty() && SPIKES.isEmpty(); }
-    static void clear() { SPEARS.clear(); SPIKES.clear(); }
+    static boolean idle() { return SPEARS.isEmpty() && ERUPTIONS.isEmpty(); }
+    static void clear() { SPEARS.clear(); ERUPTIONS.clear(); }
 
     // ------------------------------------------------------------------ packets
     static void thrown(IcemanFxPacket p) {
         SPEARS.removeIf(s -> s.id == p.id());
         if (SPEARS.size() > 24) SPEARS.remove(0);
         SPEARS.add(new Spear(p.id(), p.pos(), p.dir(), Mth.clamp(p.power(), 0, 1)));
-        // The release: a breath of cold off the hand.
-        IceParticles.flash(p.pos(), .35f, .5f, 3);
-        for (int i = 0, n = IceParticles.count(6, p.pos()); i < n; i++)
-            IceParticles.snow(p.pos().add(IceParticles.jitter(.1)), p.dir().scale(.15).add(IceParticles.jitter(.05)), .03f, 14);
+        // The release: the cold torn off the hand with it.
+        Vec3 d = p.dir().lengthSqr() < 1e-6 ? new Vec3(0, 0, 1) : p.dir().normalize();
+        IceParticles.cryo(p.pos(), d, .5f + .4f * p.power(), .25f);
     }
     static void stuck(IcemanFxPacket p) {
         Spear s = null;
@@ -80,63 +89,97 @@ final class IcemanSpearFx {
         var level = Minecraft.getInstance().level;
         Entity e = s.body >= 0 && level != null ? level.getEntity(s.body) : null;
         if (e != null) s.offset = p.pos().subtract(e.position()); else s.body = -1;
-        // The strike: a burst of frost where it went in.
+        // The strike: frost bursting back out of where it went in, broken ice thrown.
         Vec3 at = p.pos();
-        IceParticles.flash(at, .5f, .7f, 4);
-        for (int i = 0, n = IceParticles.count(9, at); i < n; i++) {
+        IceParticles.flash(at, .4f + .2f * s.charge, .55f, 4);
+        IceParticles.cryo(at, d.scale(-1).add(0, .4, 0), .8f + .5f * s.charge, .8f);
+        for (int i = 0, n = IceParticles.count(8, at); i < n; i++) {
             Vec3 out = IceParticles.jitter(1).normalize().subtract(d.scale(.8));
-            IceParticles.shard(at, out.scale(.12 + .1 * IceParticles.rand()).add(0, .08, 0), .04f + .05f * IceParticles.rand(), 25 + (int) (IceParticles.rand() * 20), i % 2 == 0 ? IceMesh.FRESH : IceMesh.CLEAR);
+            IceParticles.shard(at, out.scale(.12 + .1 * IceParticles.rand()).add(0, .08, 0), .05f + .06f * IceParticles.rand(), 25 + (int) (IceParticles.rand() * 20),
+                    i % 2 == 0 ? IceMesh.FRESH : IceMesh.CLEAR);
         }
-        for (int i = 0, n = IceParticles.count(16, at); i < n; i++)
-            IceParticles.snow(at, IceParticles.jitter(.12).subtract(d.scale(.1)).add(0, .05, 0), .025f + .02f * IceParticles.rand(), 16 + (int) (IceParticles.rand() * 14));
-        for (int i = 0, n = IceParticles.count(3, at); i < n; i++) IceParticles.mist(at.add(IceParticles.jitter(.15)), IceParticles.jitter(.02), .25f, .02f, .3f, 26);
-        IcemanWeaponFx.shakeAt(at, .14f + .1f * s.charge, 10);
+        IcemanWeaponFx.shakeAt(at, .16f + .12f * s.charge, 12);
     }
-    /** The ring of spikes bursting out of the ground round at (radius blocks); scale sizes them; for the spear and the giant slam. */
+    /** The eruption round a thrown spear (radius blocks); scale sizes it (kept for older callers: the same as erupt). */
     static void spikes(Vec3 at, float radius, float scale) {
+        erupt(at, radius, (1.6f + .35f * radius) * scale, Math.round(4 + radius * .6f), Math.round(7 + radius * 1.6f));
+    }
+    /**
+     * A cluster of ice crystals erupting out of the ground at (on the ground there) over radius: a central growth whose
+     * biggest crystal is central long (blocks), mediums medium clusters, smalls small shards round about.
+     */
+    static void erupt(Vec3 at, float radius, float central, int mediums, int smalls) {
         var level = Minecraft.getInstance().level;
         if (level == null) return;
-        if (SPIKES.size() > 12) SPIKES.remove(0);
-        Spikes sp = new Spikes();
-        sp.at = at; sp.radius = Math.max(.8f, radius); sp.start = IcemanWeaponFx.gameTime();
-        int n = Math.max(6, Math.min(26, IceParticles.count(Math.round(7 + sp.radius * 3.4f), at)));
-        sp.spikes = new Spike[n];
-        float hScale = Mth.sqrt(sp.radius / 3.2f) * scale;
-        int seed = (int) (IceParticles.rand() * 10000);
-        for (int i = 0; i < n; i++) {
-            Spike s = new Spike();
-            boolean inner = i % 3 == 0;
-            float ang = (float) (i * Mth.TWO_PI / n + (IceMesh.hash(seed + i) - .5) * .5);
-            float d = sp.radius * (inner ? .35f + .2f * (float) IceMesh.hash(seed + i * 3) : .62f + .38f * (float) IceMesh.hash(seed + i * 5));
-            double x = at.x - Mth.sin(ang) * d, z = at.z + Mth.cos(ang) * d;
-            s.base = new Vec3(x, groundY(level, x, at.y, z) - .1, z);
-            float tilt = (inner ? .2f : .45f) + .25f * (float) IceMesh.hash(seed + i * 7);
-            Vec3 out = new Vec3(-Mth.sin(ang), 0, Mth.cos(ang));
-            s.dir = out.scale(Mth.sin(tilt)).add(0, Mth.cos(tilt), 0).normalize();
-            s.h = (inner ? 1.5f : 1.0f) * (.75f + .5f * (float) IceMesh.hash(seed + i * 11)) * hScale;
-            s.r = s.h * (.13f + .05f * (float) IceMesh.hash(seed + i * 13));
-            s.delay = d / sp.radius * 2.6f;
-            s.seed = seed + i * 17;
-            s.roll = ang + (float) (IceMesh.hash(seed + i * 19) - .5) * .6f;
-            s.milky = i % 4 == 1;
-            sp.spikes[i] = s;
+        if (ERUPTIONS.size() > 10) ERUPTIONS.remove(0);
+        Eruption er = new Eruption();
+        er.at = at; er.radius = Math.max(.8f, radius); er.start = IcemanWeaponFx.gameTime();
+        int seed = (int) (IceParticles.rand() * 100000);
+        mediums = Math.max(2, Math.min(mediums, IceParticles.count(mediums, at)));
+        smalls = Math.max(3, Math.min(smalls, IceParticles.count(smalls, at)));
+        List<Piece> list = new ArrayList<>();
+        // The central growth: a squat foot, the big crystal a little off upright, crystals interlocking round it.
+        float lean = (IceGrowth.h(seed, 1) - .5f) * .35f, lean2 = (IceGrowth.h(seed, 2) - .5f) * .35f;
+        list.add(piece(level, at, 0, 0, new Vec3(lean * .5, 1, lean2 * .5), central * .32f, central * .3f, seed + 1, 0, 0, 3, IceMesh.GLACIER));
+        list.add(piece(level, at, 0, 0, new Vec3(lean, 1, lean2), central, central * .17f, seed + 2, 0, .5f, 7, IceMesh.CLEAR));
+        int around = 4;
+        for (int i = 0; i < around; i++) {
+            float a = i * Mth.TWO_PI / around + (IceGrowth.h(seed, 10 + i) - .5f) * 1.2f, tilt = .35f + .5f * IceGrowth.h(seed, 20 + i);
+            Vec3 d = new Vec3(-Mth.sin(a) * Mth.sin(tilt), Mth.cos(tilt), Mth.cos(a) * Mth.sin(tilt));
+            float len = central * (.35f + .4f * IceGrowth.h(seed, 30 + i));
+            list.add(piece(level, at, -Mth.sin(a) * central * .12f, Mth.cos(a) * central * .12f, d, len, len * .2f, seed + 40 + i, 0, 1 + 2.5f * IceGrowth.h(seed, 40 + i), 5 + 3 * IceGrowth.h(seed, 50 + i),
+                    i % 3 == 0 ? IceMesh.MILKY : IceMesh.CLEAR));
         }
-        SPIKES.add(sp);
-        // The ground bursting: a cold flash low down, snow and mist thrown out, a ring of frost running out.
-        IceParticles.flash(at.add(0, .3, 0), .8f + .3f * sp.radius, .6f, 5);
-        IceParticles.ring(at.add(0, .05, 0), sp.radius * 1.15f, .3f + .08f * sp.radius, IceParticles.COLD_LIGHT, .7f, 8, true);
-        IceParticles.ring(at.add(0, .04, 0), sp.radius * 1.3f, .45f + .12f * sp.radius, 0xeef6ff, .45f, 14, false);
-        for (int i = 0, k = IceParticles.count(Math.round(18 + sp.radius * 8), at); i < k; i++) {
-            double a = IceParticles.rand() * Mth.TWO_PI, r = sp.radius * IceParticles.rand();
+        // The medium clusters leaning outward, the later the further out.
+        for (int i = 0; i < mediums; i++) {
+            float a = i * Mth.TWO_PI / mediums + (IceGrowth.h(seed, 60 + i) - .5f) * .9f;
+            float dist = er.radius * (.35f + .35f * IceGrowth.h(seed, 70 + i));
+            float x = -Mth.sin(a) * dist, z = Mth.cos(a) * dist;
+            float size = central * (.32f + .22f * IceGrowth.h(seed, 80 + i));
+            float delay = 1.5f + 5 * dist / er.radius;
+            for (int k = 0; k < 2; k++) {
+                float tilt = (.3f + .45f * IceGrowth.h(seed, 90 + i * 3 + k)) * (k == 0 ? 1 : 1.5f), aa = a + (k == 0 ? 0 : (IceGrowth.h(seed, 100 + i) - .5f) * 1.4f);
+                Vec3 d = new Vec3(-Mth.sin(aa) * Mth.sin(tilt), Mth.cos(tilt), Mth.cos(aa) * Mth.sin(tilt));
+                float len = size * (k == 0 ? 1 : .55f);
+                list.add(piece(level, at, x, z, d, len, len * .2f, seed + 110 + i * 3 + k, 1, delay + k * 1.5f, 5 + 3 * IceGrowth.h(seed, 120 + i),
+                        IceGrowth.h(seed, 130 + i * 2 + k) < .25f ? IceMesh.GLACIER : IceGrowth.h(seed, 140 + i * 2 + k) < .3f ? IceMesh.MILKY : IceMesh.CLEAR));
+            }
+        }
+        // Small shards round about, every one its own way.
+        for (int i = 0; i < smalls; i++) {
+            float a = IceGrowth.h(seed, 200 + i) * Mth.TWO_PI, dist = er.radius * (.45f + .6f * IceGrowth.h(seed, 210 + i));
+            float tilt = .2f + .9f * IceGrowth.h(seed, 220 + i), aa = a + (IceGrowth.h(seed, 230 + i) - .5f) * 1.5f;
+            Vec3 d = new Vec3(-Mth.sin(aa) * Mth.sin(tilt), Mth.cos(tilt), Mth.cos(aa) * Mth.sin(tilt));
+            float len = Math.min(.6f, central * (.1f + .14f * IceGrowth.h(seed, 240 + i)));
+            list.add(piece(level, at, -Mth.sin(a) * dist, Mth.cos(a) * dist, d, len, len * .22f, seed + 250 + i, 2, 3 + 6 * dist / er.radius, 3 + 3 * IceGrowth.h(seed, 260 + i),
+                    i % 4 == 0 ? IceMesh.MILKY : IceMesh.CLEAR));
+        }
+        // When each breaks: the big growth first, then the mediums one by one, the small ones melting with them.
+        for (Piece pc : list) pc.breakAt = BREAK + (pc.group == 0 ? IceGrowth.h(pc.seed, 7) * 2 : pc.group == 1 ? 2 + 8 * IceGrowth.h(pc.seed, 8) : 4 + 10 * IceGrowth.h(pc.seed, 9));
+        er.pieces = list.toArray(new Piece[0]);
+        er.gone = BREAK + 14 + MELT + 2;
+        ERUPTIONS.add(er);
+        // The air freezing round it: the plume up out of the middle, the cold rolling out low, a frost front on the ground.
+        Vec3 mid = at.add(0, .2, 0);
+        IceParticles.cryo(mid, new Vec3(0, 1, 0), 1 + .25f * er.radius, .9f);
+        IceParticles.coldMist(at, er.radius, 1.1f);
+        IceParticles.ring(at.add(0, .05, 0), er.radius * 1.2f, .4f + .12f * er.radius, 0xeef6ff, .4f, 16, false);
+        for (int i = 0, k = IceParticles.count(Math.round(10 + er.radius * 5), at); i < k; i++) {
+            double a = IceParticles.rand() * Mth.TWO_PI, r = er.radius * IceParticles.rand();
             Vec3 o = new Vec3(Math.cos(a), 0, Math.sin(a));
-            IceParticles.snow(at.add(o.scale(r)).add(0, .1, 0), o.scale(.08 + .1 * IceParticles.rand()).add(0, .12 + .14 * IceParticles.rand(), 0), .03f + .03f * IceParticles.rand(), 18 + (int) (IceParticles.rand() * 16));
+            IceParticles.snow(at.add(o.scale(r)).add(0, .1, 0), o.scale(.06 + .08 * IceParticles.rand()).add(0, .1 + .12 * IceParticles.rand(), 0), .03f + .03f * IceParticles.rand(), 18 + (int) (IceParticles.rand() * 16));
         }
-        for (int i = 0, k = IceParticles.count(Math.round(4 + sp.radius * 1.5f), at); i < k; i++) {
-            double a = IceParticles.rand() * Mth.TWO_PI;
-            Vec3 o = new Vec3(Math.cos(a), 0, Math.sin(a));
-            IceParticles.mist(at.add(o.scale(sp.radius * .6)).add(0, .3, 0), o.scale(.05).add(0, .01, 0), .4f + .1f * sp.radius, .03f, .3f, 34);
-        }
-        IcemanWeaponFx.shakeAt(at, .18f + .04f * sp.radius, sp.radius * 3);
+        IcemanWeaponFx.shakeAt(at, .18f + .05f * er.radius, er.radius * 3 + 6);
+    }
+    private static Piece piece(Level level, Vec3 at, double dx, double dz, Vec3 dir, float len, float r, int seed, int group, float delay, float dur, IceMesh.Mat mat) {
+        Piece pc = new Piece();
+        double x = at.x + dx, z = at.z + dz;
+        double y = Math.abs(dx) + Math.abs(dz) < 1e-3 ? at.y : groundY(level, x, at.y + .6, z);
+        if (Math.abs(y - at.y) > 1.5) y = at.y;
+        pc.base = new Vec3(x, y - .06, z);
+        pc.dir = dir.normalize();
+        pc.len = len; pc.r = r; pc.seed = seed; pc.group = group; pc.delay = delay; pc.dur = dur; pc.mat = mat;
+        return pc;
     }
 
     // ------------------------------------------------------------------ every tick
@@ -154,9 +197,9 @@ final class IcemanSpearFx {
                     Entity e = level.getEntity(s.body);
                     if (e != null && e.isAlive()) s.pos = e.position().add(s.offset); else s.body = -1;
                 }
-                // The frost it sheds while it stands.
-                if (s.stuck % 6 == 0) IceParticles.frostDust(grip(s, s.pos).lerp(s.pos, .5), Vec3.ZERO, .6f);
-                if (s.stuck >= SPEAR_STUCK) { burst(s, s.pos); SPEARS.remove(i); }
+                if (s.stuck == SHATTER_AT - 8) sound(level, s.pos, ModSounds.ICEMAN_CRACK.get(), .5f, 1.5f);
+                if (!s.shattered && s.stuck >= SHATTER_AT) { burst(s, s.pos); s.shattered = true; }
+                if (s.stuck >= SHATTER_AT + 2) SPEARS.remove(i);
                 continue;
             }
             if (s.age > 95) { SPEARS.remove(i); continue; }
@@ -165,75 +208,72 @@ final class IcemanSpearFx {
             // Our own copy stops at a wall too and waits there for the server's word (FX_SPEAR_STUCK).
             BlockHitResult hit = level.clip(new ClipContext(s.pos, next, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player));
             if (hit.getType() != HitResult.Type.MISS) { s.pos = hit.getLocation(); s.held = true; continue; }
-            // The trail: snow off the shaft, now and then a breath of mist.
-            Vec3 along = s.pos;
-            for (int k = 0, n = IceParticles.count(3, along); k < n; k++)
-                IceParticles.snow(along.lerp(next, IceParticles.rand()).add(IceParticles.jitter(.06)), s.vel.scale(.08).add(IceParticles.jitter(.02)), .025f, 12 + (int) (IceParticles.rand() * 10));
-            if (s.age % 2 == 0) IceParticles.mist(along, s.vel.scale(.05), .16f, .02f, .2f, 18);
+            // The air freezing behind it along the whole step, a breath of vapour now and then.
+            for (int k = 0; k < 3; k++) IceParticles.freezeTrail(s.pos.lerp(next, k / 3.0), s.vel.scale(.4), .55f + .35f * s.charge);
+            if (s.age % 2 == 0) IceParticles.mist(s.pos, s.vel.scale(.04), .14f + .06f * s.charge, .018f, .17f, 22);
             s.pos = next;
             s.vel = s.vel.add(0, -s.gravity, 0).scale(.995);
             if (s.vel.lengthSqr() > 1e-6) s.dir = s.vel.normalize();
         }
         float now = IcemanWeaponFx.gameTime();
-        for (int i = SPIKES.size() - 1; i >= 0; i--) {
-            Spikes sp = SPIKES.get(i);
-            float t = now - sp.start;
-            if (!sp.cracked && t >= CRACK) {
-                sp.cracked = true;
-                level.playLocalSound(sp.at.x, sp.at.y, sp.at.z, ModSounds.ICEMAN_CRACK.get(), SoundSource.PLAYERS, .55f, 1.25f, false);
+        for (int i = ERUPTIONS.size() - 1; i >= 0; i--) {
+            Eruption er = ERUPTIONS.get(i);
+            float t = now - er.start;
+            if (!er.cracked && t >= CRACK) {
+                er.cracked = true;
+                sound(level, er.at, ModSounds.ICEMAN_CRACK.get(), .6f, 1.05f);
             }
-            if (!sp.broke && t >= BREAK) {
-                sp.broke = true;
-                level.playLocalSound(sp.at.x, sp.at.y, sp.at.z, ModSounds.ICEMAN_SHATTER.get(), SoundSource.PLAYERS, .45f, 1.35f, false);
-                // The tops break off: chunks of ice from the upper part of each spike, a short flash here and there.
-                for (int k = 0; k < sp.spikes.length; k++) {
-                    Spike s = sp.spikes[k];
-                    Vec3 top = s.base.add(s.dir.scale(s.h * .72));
-                    int n = IceParticles.count(3, top);
-                    for (int m = 0; m < n; m++)
-                        IceParticles.shard(top.add(s.dir.scale(s.h * .2 * IceParticles.rand())), s.dir.scale(.06).add(IceParticles.jitter(.08)).add(0, .06, 0),
-                                s.r * (.5f + .5f * IceParticles.rand()), 30 + (int) (IceParticles.rand() * 25), m == 0 ? IceMesh.FRESH : s.milky ? IceMesh.MILKY : IceMesh.CLEAR);
-                    if (k % 3 == 0) IceParticles.flash(top, .3f + s.h * .25f, .5f, 4);
-                }
+            boolean first = true;
+            for (Piece pc : er.pieces) {
+                if (pc.broke || t < pc.breakAt) continue;
+                pc.broke = true;
+                Vec3 mid = pc.base.add(pc.dir.scale(pc.len * .5));
+                if (pc.group == 0 && pc.len > .8f) {
+                    // The big growth: the staged fracture, zone by zone up its length (its own sounds).
+                    if (first) { IceParticles.breakApart(mid, pc.dir, pc.len * .85f, pc.len * .5f, pc.dir.scale(.03).add(0, .04, 0), 4, 10, pc.mat); first = false; }
+                    else IceParticles.shatter(mid, pc.dir.scale(.04), pc.len * .35f, pc.mat);
+                } else if (pc.group < 2) {
+                    IceParticles.shatter(mid, pc.dir.scale(.05).add(0, .03, 0), pc.len * .45f, pc.mat);
+                    if (IceParticles.rand() < .5f) sound(level, mid, ModSounds.ICEMAN_SHATTER.get(), .35f, 1.1f + .3f * IceParticles.rand());
+                } else if (IceParticles.rand() < .5f) IceParticles.frostDust(mid, Vec3.ZERO, 1);
             }
-            if (sp.broke && t < GONE && (int) t % 4 == 0) {
-                Spike s = sp.spikes[(int) (IceParticles.rand() * sp.spikes.length)];
-                IceParticles.mist(s.base.add(0, .2, 0), new Vec3(0, .006, 0), .3f, .015f, .2f, 24);
-            }
-            if (t > GONE + 2) SPIKES.remove(i);
+            if (t > er.gone) ERUPTIONS.remove(i);
         }
+    }
+    private static void sound(Level level, Vec3 at, net.minecraft.sounds.SoundEvent ev, float vol, float pitch) {
+        level.playLocalSound(at.x, at.y, at.z, ev, SoundSource.PLAYERS, vol, pitch, false);
     }
     /** Where a stuck or flying spear's grip is, its point at (or past) tip. */
     private static Vec3 grip(Spear s, Vec3 at) {
         float len = IcemanArmory.length(W_SPEAR, s.size()) / 16f;
         return s.stuck >= 0 ? at.subtract(s.dir.scale(len - .3f)) : at;
     }
-    /** The spear bursts: chunks of ice all along it. */
+    /** The spear shatters: the staged fracture along it, long shards flying. */
     private static void burst(Spear s, Vec3 at) {
         Vec3 g = grip(s, at), tip = g.add(s.dir.scale(IcemanArmory.length(W_SPEAR, s.size()) / 16f));
-        for (int i = 0; i < 6; i++) {
-            Vec3 p = g.lerp(tip, i / 5.0);
-            for (int k = 0, n = IceParticles.count(2, p); k < n; k++)
-                IceParticles.shard(p, IceParticles.jitter(.08).add(0, .08, 0), .05f + .04f * IceParticles.rand(), 30 + (int) (IceParticles.rand() * 20), k == 0 ? IceMesh.FRESH : IceMesh.CLEAR);
-            IceParticles.snow(p, IceParticles.jitter(.06), .03f, 16);
+        Vec3 mid = g.lerp(tip, .45);
+        IceParticles.breakApart(mid, s.dir, (float) g.distanceTo(tip) * .9f, .3f, s.dir.scale(-.03).add(0, .04, 0), 5, 8, IceMesh.CLEAR);
+        for (int i = 0, n = IceParticles.count(5, mid); i < n; i++) {
+            Vec3 p = g.lerp(tip, .15 + .7 * IceParticles.rand());
+            IceParticles.shard(p, IceParticles.jitter(.06).add(0, .07, 0), .12f + .07f * IceParticles.rand(), 34 + (int) (IceParticles.rand() * 20), i % 2 == 0 ? IceMesh.FRESH : IceMesh.CLEAR);
         }
-        IceParticles.flash(g.lerp(tip, .5), .5f, .6f, 4);
     }
 
     // ------------------------------------------------------------------ drawing
     private static final Vector3f AXIS = new Vector3f(0, 0, -1);
-    /** The spears and the spikes, as ice (the stage's ice context). */
+    /** The spears and the eruptions, as ice (the stage's ice context). */
     static void drawIce(IceStage st, IceMesh.Ctx c) {
         var level = Minecraft.getInstance().level;
         if (level == null) return;
         float partial = st.partial;
         PoseStack pose = st.pose;
         for (Spear s : SPEARS) {
+            if (s.shattered) continue;
             Vec3 at = position(s, level, partial);
             Vec3 d = s.stuck >= 0 || s.held ? s.dir : s.prevVel.lerp(s.vel, partial);
             if (d.lengthSqr() < 1e-6) d = s.dir;
             d = d.normalize();
-            float crack = s.stuck < 0 ? 0 : Mth.clamp((s.stuck + partial - (SPEAR_STUCK - SPEAR_CRACK)) / SPEAR_CRACK, 0, 1);
+            float crack = s.stuck < 0 ? 0 : Mth.clamp((s.stuck + partial - (SHATTER_AT - 8)) / 8, 0, 1);
             float size = s.size();
             pose.pushPose();
             pose.translate(at.x, at.y, at.z);
@@ -243,73 +283,69 @@ final class IcemanSpearFx {
             if (s.stuck >= 0) pose.translate(0, 0, IcemanArmory.length(W_SPEAR, size) - 5);
             c.light = IceStage.light(at.subtract(d.scale(.5)));
             c.at(pose);
+            IcemanArmory.TURN = 0;
             IcemanArmory.inHand(c, pose, W_SPEAR, 1, size, crack, st.time);
             pose.popPose();
             c.at(pose);
         }
         float now = st.time;
-        for (Spikes sp : SPIKES) {
-            float t = now - sp.start;
+        for (Eruption er : ERUPTIONS) {
+            float t = now - er.start;
+            boolean far = st.far(er.at);
+            c.light = IceStage.light(er.at.add(0, .5, 0));
             float crackK = Mth.clamp((t - CRACK) / (BREAK - CRACK), 0, 1);
-            float melt = Mth.clamp((t - BREAK) / (GONE - BREAK), 0, 1);
-            boolean far = st.far(sp.at);
-            c.light = IceStage.light(sp.at.add(0, .5, 0));
-            for (Spike s : sp.spikes) {
-                float g = snap(t - s.delay, GROW);
-                if (g <= 0) continue;
-                float len, alpha = 1;
-                Vec3 base = s.base;
-                if (t < BREAK) len = s.h * g;
-                else {
-                    // The stump left after the top broke away, sinking and melting into frost.
-                    len = s.h * .42f * (1 - melt);
-                    base = base.subtract(0, .25 * melt, 0);
-                    alpha = 1 - .6f * melt;
-                }
-                if (len <= .01f) continue;
-                float r = s.r * (.45f + .55f * g) * (t < BREAK ? 1 : 1 - .4f * melt);
-                // Broken off, the stump is a plain square post (its top cut flat), not a point.
-                if (t < BREAK) IceParticles.spike(c, base, s.dir, len, r, s.roll, far ? 1 : 2, s.milky ? IceMesh.MILKY : IceMesh.CLEAR, alpha);
-                else IceParticles.post(c, base, s.dir, len, r, s.roll, s.milky ? IceMesh.MILKY : IceMesh.CLEAR, alpha);
-                if (!far && t < BREAK && crackK > 0) {
-                    // A crack climbing one face (it is breaking).
-                    Vec3 side = new Vec3(s.dir.z, 0, -s.dir.x);
-                    side = side.lengthSqr() < 1e-6 ? new Vec3(1, 0, 0) : side.normalize();
-                    Vec3 face = side.scale(r * 1.04);
-                    Vec3 a = base.add(s.dir.scale(len * .15)).add(face), b = base.add(s.dir.scale(len * (.15 + .5 * crackK))).add(face.scale(1 - .5 * crackK));
-                    Vec3 m = a.lerp(b, .5).add(s.dir.cross(side).scale(r * (IceMesh.hash(s.seed) - .5)));
-                    float k = .5f + .5f * crackK;
-                    IceMesh.vein(c, a, m, .02f, k);
-                    IceMesh.vein(c, m, b, .018f, k);
+            for (Piece pc : er.pieces) {
+                if (far && pc.group == 2) continue;
+                if (t < pc.breakAt) {
+                    float g = IceGrowth.grow(t, pc.delay, pc.dur);
+                    if (g <= 0) continue;
+                    IceGrowth.crystal(c, pc.base.x, pc.base.y, pc.base.z, pc.dir.x, pc.dir.y, pc.dir.z, pc.len, pc.r, pc.seed, pc.mat, g, 1);
+                    if (!far && crackK > 0 && pc.group < 2) {
+                        // The cracks running up it before it goes.
+                        Vec3 side = pc.dir.cross(new Vec3(0, 1, 0));
+                        side = side.lengthSqr() < 1e-6 ? new Vec3(1, 0, 0) : side.normalize();
+                        Vec3 face = side.scale(pc.r * .9);
+                        Vec3 a = pc.base.add(pc.dir.scale(pc.len * .1)).add(face), b = pc.base.add(pc.dir.scale(pc.len * (.1 + .55 * crackK))).add(face.scale(.6));
+                        Vec3 m = a.lerp(b, .5).add(pc.dir.cross(side).scale(pc.r * (IceGrowth.h(pc.seed, 77) - .5)));
+                        float k = .45f + .55f * crackK;
+                        IceMesh.vein(c, a, m, .025f + .01f * pc.len, k);
+                        IceMesh.vein(c, m, b, .02f + .01f * pc.len, k);
+                    }
+                } else {
+                    // The stump left, sinking and melting into frost.
+                    float melt = Mth.clamp((t - pc.breakAt) / MELT, 0, 1);
+                    if (melt >= 1) continue;
+                    Vec3 base = pc.base.subtract(0, .2 * melt * Math.max(.3, pc.len * .3), 0);
+                    IceGrowth.crystal(c, base.x, base.y, base.z, pc.dir.x, pc.dir.y, pc.dir.z, pc.len * .28f * (1 - .5f * melt), pc.r * (1 - .3f * melt), pc.seed + 1,
+                            IceMesh.MILKY, 1, 1 - melt);
                 }
             }
         }
     }
-    /** The light and matter round them: the flying spear's cold streak and glow; a frost patch under the spikes. */
+    /** The cold round them: the flying spear's streak of vapour; the frost on the ground under an eruption. */
     static void drawFx(IceStage st, FilmContext f) {
         var level = Minecraft.getInstance().level;
         if (level == null) return;
         float partial = st.partial;
         for (Spear s : SPEARS) {
-            if (s.stuck >= 0) continue;
+            if (s.stuck >= 0 || s.shattered) continue;
             Vec3 at = position(s, level, partial);
             Vec3 v = s.held ? Vec3.ZERO : s.prevVel.lerp(s.vel, partial);
             float speed = (float) v.length();
             float tipLen = IcemanArmory.length(W_SPEAR, s.size()) / 16f;
             Vec3 tip = at.add(s.dir.scale(tipLen));
             if (speed > .05f) {
-                Vec3 tail = at.subtract(v.scale(1.6));
-                FilmFx.streak(f, tail, tip, .1 + .06 * s.charge, IceParticles.COLD_LIGHT, 0, .55f, true);
-                FilmFx.streak(f, tail, at, .16, 0xf2f8ff, 0, .25f, false);
+                // Cold vapour streaming off it (pale, soft), a thin cold line along its path: no glowing trail.
+                Vec3 tail = at.subtract(v.scale(2.2));
+                FilmFx.streak(f, tail, tip, .16 + .06 * s.charge, 0xeef6ff, 0, .32f, false);
+                FilmFx.streak(f, at.subtract(v.scale(1.2)), tip, .035, IceParticles.COLD_LIGHT, 0, .22f + .1f * s.charge, true);
             }
-            FilmFx.glow(f, tip, .25 + .2 * s.charge, IceParticles.COLD_LIGHT, .45f + .2f * Mth.sin(st.time * 1.3f));
         }
         float now = st.time;
-        for (Spikes sp : SPIKES) {
-            float t = now - sp.start;
-            float a = Mth.clamp(t / 3, 0, 1) * (1 - Mth.clamp((t - BREAK) / (GONE - BREAK), 0, 1));
-            FilmFx.ring(f, sp.at.add(0, .03, 0), sp.radius * .55, sp.radius * .55, 0xeef6ff, .28f * a, false);
-            if (t < 6) FilmFx.ring(f, sp.at.add(0, .06, 0), sp.radius * (.4 + .7 * t / 6), .25, IceParticles.COLD_LIGHT, .6f * (1 - t / 6), true);
+        for (Eruption er : ERUPTIONS) {
+            float t = now - er.start;
+            float a = Mth.clamp(t / 4, 0, 1) * (1 - Mth.clamp((t - BREAK) / (er.gone - BREAK), 0, 1));
+            FilmFx.ring(f, er.at.add(0, .03, 0), er.radius * .55, er.radius * .55, 0xeef6ff, .3f * a, false);
         }
     }
     private static Vec3 position(Spear s, Level level, float partial) {
@@ -330,12 +366,5 @@ final class IcemanSpearFx {
                 return pos.getY() + shape.max(Direction.Axis.Y);
         }
         return y;
-    }
-
-    /** A fast start that settles over d ticks (0 before 0). */
-    private static float snap(float t, float d) {
-        if (t <= 0) return 0;
-        float x = Math.min(1, t / d);
-        return 1 - (1 - x) * (1 - x) * (1 - x);
     }
 }

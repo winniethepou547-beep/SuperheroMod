@@ -32,7 +32,8 @@ import static com.FIRNI.superheromod.heroes.iceman.IcemanAction.*;
 /**
  * The frost meter on the client: every body's frost as the server sends it (FX_FROST, FX_DEEP_FREEZE, FX_DEEP_BREAK),
  * eased so the frost on them grows in and melts away smoothly, and what goes with it while they live: their breath
- * puffing as cold vapour from the mouth (denser the colder), frost dust and little bits of ice shed as they move, frosty
+ * puffing as cold vapour from the mouth (denser the colder), a faint cold vapour sinking off them and tiny ice crystals
+ * glinting round them, frost dust and little bits of ice shed as they move, frosty
  * footprints, a quiet crackle now and then when they are nearly frozen through, mist round the feet of the deep frozen.
  * The frost drawn on the bodies and the deep freeze's block of ice are FrostBodies; the frost on the frozen player's own
  * screen (and the slide's icy lens, FX_LENS) is FrostScreen. While the player here is deep frozen they cannot move,
@@ -53,7 +54,7 @@ public final class FrostFx {
         /** On the ground (eased 0..1, the rime round the feet follows it). */
         float grounded, groundedO;
         Vec3 last; float speed, step; boolean leftFoot;
-        int breathIn = 20, breathLeft, crackIn = 40, dustIn, bitIn;
+        int breathIn = 20, breathLeft, crackIn = 40, dustIn, bitIn, vapourIn = 10;
         /** A hard shiver for a moment after the ice round them broke (ticks left). */
         int shiver;
         /** Short-lived crystals where the brush's stream lands (body-local). */
@@ -258,6 +259,15 @@ public final class FrostFx {
             }
         }
         if (firstPerson) return;
+        // Cold coming off them from the first touch: a faint vapour sinking off the shoulders and arms (cold air falls),
+        // and from medium frost a few tiny ice crystals glinting in the air round them.
+        if (stage >= 1 && --b.vapourIn <= 0) {
+            b.vapourIn = Math.max(4, 20 - 4 * stage) + RNG.nextInt(8);
+            Vec3 at = onBody(le, .45f, .9f);
+            if (IceParticles.count(1, at) > 0) IceParticles.mist(at, vel.scale(.3).add(0, -.006, 0), (.08f + .02f * stage) * k, .01f, .06f + .025f * stage, 26);
+            if (stage >= 2 && IceParticles.count(1, at) > 0)
+                IceParticles.crystalDust(onBody(le, .2f, .9f), vel.scale(.3).add(IceParticles.jitter(.01)).add(0, -.004, 0), .014f + .01f * RNG.nextFloat(), (RNG.nextFloat() - .5f) * .4f, 16 + RNG.nextInt(10));
+        }
         // Frost dust and little bits of ice shed when they move (now and then even standing, when heavy).
         boolean moving = b.speed > .035f;
         if (stage >= 2 && (moving || stage >= 4)) {

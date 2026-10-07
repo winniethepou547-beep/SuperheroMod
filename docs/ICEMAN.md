@@ -6,9 +6,11 @@ parlayan beyaz gözler, burun, sıkılı ağız), tepesinde yukarı ve geriye do
 kırmızı, göğüsteki X'e inen siyah V yaka, koyu gri yan paneller, gri kemer). Omuzlar kırmızı, sonra kollar buz: iri buz eldivenler,
 buz yumruklar, omuzlarda ve kollarda buz dikenleri, sarkıtlar. Uyluğun yarısına kadar siyah şort, sonra buz bacaklar, dizlerde dikenler.
 
-Buz saydam değil ve kristal gibi durmuyor: gerçek buzun yapısı piksel doku olarak çizildi (parlak açık mavi gövde, kalın yerlerde
-daha koyu mavi cepler, içindeki kırılma yüzeylerinin yakaladığı kısa beyaz çizgiler, hapsolmuş küçük hava kabarcıkları; sütlü
-buzda daha beyaz, sıkışmış buz). Yüzeyi ıslak gibi parlar: ışığın sana yansıdığı yüzlerde beyaz bir parlama.
+Buz, Days of Future Past'taki gibi aşırı soğuğun havayı dondurmasıyla oluşur: önce soğuk sis ve kırağı, sonra kar gibi buz tozu,
+küçük kristal çekirdekleri, kristaller (her biri kendi zamanında, kimi önce kimi geç, kimi büyük kimi küçük) büyür, birbirine kenetlenir ve
+düzensiz, köşeli, kırık yüzlü bir buz kütlesine dönüşür. Mükemmel küp, düz rampa ya da cam gibi pürüzsüz yüzey yok. Renk çoğunlukla soğuk
+mavi; beyaz sadece kırağı ve parlama. Saydam değil, sütlü-mavi, ağırlığı olan buz. Kırılırken de aşama aşama: küçük çatlak, dallanan çatlaklar,
+parçalar bölge bölge kopar, kıymıklar saçılır, kırağı tozu ve soğuk sis kalır, sesler de bunu izler.
 
 Bütün buzlar (bedendeki buz, heykeller, kaydırak yolu, kabuk, dikenler, silahlar, düşmanların üstündeki buz) aynı buzdan yapılır.
 **Bıraktığın buzlar gerçek nesnedir:** havadaki kaydırak yolunun ve buz heykellerinin içinden geçilemez, üstlerine çıkılıp
@@ -24,7 +26,7 @@ Hiçbir şey bir anda belirmez ya da kaybolmaz.
 | Pasif | Don Ölçer | Her düşmanın 0-100 arası don ölçeri var (aşağıda). |
 | Sol tık | Buz silahları | Elindeki silahla iki vuruş (sağdan sola, soldan sağa) ve 3. vuruşta silahın bitiricisi. Sol tık **basılı**: silahın güçlü hali. |
 | Sağ tık (basılı) | Kriyojenik Fırça | Düşmana: soğuk akış. Boşluğa: buz heykeli (aşağıda). |
-| E (basılı) | Buz Cephaneliği | Silah çarkı açılır: gürz, mızrak, kılıç. Fareyle seç, E'yi bırakınca ya da sol tıkla seçilir. Kısa dokunursan çark açık kalır. E'nin başka işi yok. |
+| E (basılı) | Buz Cephaneliği | Donmuş bir buz sunağı açılır: solda gürz, ortada mızrak, sağda kılıç, her biri kendi buz kristalinin içinde. Fareyi sola / ortaya / sağa götürerek seç; E'yi bırakınca ya da sol tıkla seçilir (sunak buz tutup kırılır). Kısa dokunursan açık kalır. E'nin başka işi yok. |
 | SHIFT (basılı) | Buz Kaydırağı | 3D buz yolu üzerinde momentumla kayma (aşağıda). |
 | SHIFT + BOŞLUK | Buz yolu yükselir | Buz yolu seninle birlikte havaya, çapraz yükselir. |
 | CTRL | Sıfır Altı Kayış | Kısa, çok alçak, hızlı kayış. Arkasında yer donar. Değdiği ilk düşmana vurur, dondurur, ekranını kısa süre buzlandırır. |
@@ -77,16 +79,23 @@ donmaz. Ekran hiçbir zaman tamamen kör olmaz; hep "buzlu camın arkasından ba
   köşeler buzlu, orta daha net, dünya (ve Iceman) buzun arkasından kırılarak görünür; çatlaklar ve damlalar var.
 
 ## Buz Silahları (sol tık; E ile seç)
-Silah elinde Minecraft eşyası gibi köşeli buz bloklarından oluşur (sis çekilir, kırağı küpleri, büyüme). İlk iki vuruş sağdan sola, sonra soldan sağa.
+Silah elinde hazır belirmez, soğuktan büyür ve her silahın kendi oluşumu var: gürzde avucun çevresinde kristaller büyüyüp kalın kollarla başı örer, sap eline iner; mızrakta elden ince bir kristal çizgi fırlar, sap uzar, uç birkaç sivri parçanın birleşmesiyle oluşur; kılıçta ince bir kristalin üstüne yassı buz katmanları büyür. Her savuruş havayı dondurur: arkasında hafif soğuk sis ve buz tozu kalır (gürzde yoğun, mızrakta ince ve kısa, kılıçta sisli bir yay). İlk iki vuruş sağdan sola, sonra soldan sağa.
 Gürz ağır, mızrak hızlı, kılıç orta hızda.
 
 - **Gürz:** 3. vuruşta iki elle tepeden yere ezer: parlama, şok dalgası, yerde çatlaklar, toz, kıymıklar, sarsıntı, kısa duraklama; gürz kırılır.
-  **Basılı tut:** gürz omzunda katman katman büyür (Iceman'ın boyunun yaklaşık 3 katına kadar; sarsıntı, FOV, uğultu). Bırakınca dev ezme yapar;
+  **Basılı tut:** gürz büyütülmez, gerçekten büyür: başına yeni kristal katmanlar ve iri kristaller eklenir, iç basınçtan çatlaklar açılır (Iceman'ın boyunun yaklaşık 3 katına kadar; sarsıntı, FOV, uğultu, tam dolunca ayağının altında kırağı). Bırakınca dev ezme yapar;
   hasar, alan, itme ve havaya fırlatma büyüklükle artar. Sonra gürz kırılır.
-- **Mızrak:** 3. vuruşta God of War gibi seri dürtme (6 dürtüş). **Basılı tut:** Spartalı gibi geri çeker, ucu büyür. Ne kadar uzun tutarsan o kadar
-  düz ve hızlı gider. Saplandığı yerde çevresinden buz dikenleri fırlar, sonra mızrak çatlayıp yok olur.
-- **Kılıç:** 3. vuruşta karla ve kıymıkla hızlı bir dönüş. **Basılı tut:** Garen gibi sürekli döner, çevresindekileri girdapla içine çeker;
-  sonunda kılıç kırılır.
+- **Mızrak:** 3. vuruşta iki elle gerçek mızrak duruşuyla seri dürtme (6 dürtüş): ön el şaftta öne, arka el geride, mızrak gövdeye çapraz; arka el
+  dürtüp geri çeker, omuzlar ve kalça dönerek katılır. Her dürtüşte uçta küçük bir soğuk sis ve buz tozu kalır. **Basılı tut:** atış duruşu (arka omuz
+  geride, gövde bükülü, ön kol hedefi gösterir), ucunda yeni kristal katmanlar büyür. Saplandığı yerden büyük bir buz kristali kümesi fışkırır (ortada
+  2-3 blokluk büyük bir kristal, çevresinde orta ve küçük kristaller), sonra mızrak aşama aşama kırılır.
+- **Kılıç:** 3. vuruşta karla ve kıymıkla hızlı bir dönüş. **Basılı tut (yeni):** artık dönmez. Diz çöker, kılıcın ucunu aşağı çevirip iki eliyle
+  kavrar ve yere saplar (kılıç gerçekten toprağa girer). Saplı kılıç merkez olur: soğuk sis ve kırağı yere yayılır, çevrede kristaller büyür,
+  6 blok içindeki düşmanlar kılıca doğru çekilir (yaklaştıkça güçlenir, don kazanırlar, çok yakındakiler ara ara hasar alır). Yerdeki kırağı,
+  kristal sıraları, sis ve buz tozu kılıca doğru akar. Bırakınca (ya da süre dolunca) kılıç çatlar, sonra buz parçalarına ayrılıp dağılır.
+- Silahlar hiç birden silinmez: önce küçük, sonra büyük çatlak, parçalar ayrılır, kırılır, kıymıklar saçılır, soğuk sis kalır (gürz iri parçalar,
+  mızrak uzun kıymıklar, kılıç bıçak gibi parçalar).
+- **Elinde silah varken** SHIFT, CTRL, Q, R ya da sağ tık (fırça) kullanırsan silah kırılır. E ile çarkı açmak kırmaz.
 - Kırılan ya da fırlatılan silah kısa bir süre sonra sol tıkla yeniden oluşur.
 
 ## Kriyojenik Kabuk (Q)
@@ -130,6 +139,7 @@ seni önce Iceman yapar. Kurban tarafını (ekrandaki buz) herhangi bir kahraman
 | `/iceman test shellbreak` | Kabuğun canı sıfır: parçalanma, yorgun iniş, kalkış |
 | `/iceman test shellburst` | Kabuk patlaması |
 | `/iceman test shatteredground` | 11 blok önüne kukla, çatlaklar ona koşar |
+| `/iceman test swordplant` | Elinde kılıç ve 4,5-6 blok ötede üç kukla: sol tıkı basılı tutup kılıcı yere sapla, kuklaların çekilişini gör |
 | `/iceman test solid` | Önüne baş hizasında bir buz heykeli, sağına yükselen bir kaydırak yolu: içinden geçemediğini, üstüne çıkabildiğini dene (20 saniye) |
 
 Üçüncü şahıs kamerada (F5) izlemek en iyisi.

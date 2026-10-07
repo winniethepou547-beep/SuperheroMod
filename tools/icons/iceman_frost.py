@@ -10,6 +10,11 @@ crack_net.png    a network of fine cracks in the ice (radial cracks from a few i
                  short arcs), a dark shadow line under a bright edge line: the ice over the view about to break.
 lens_drops.png   condensation on the icy lens: many tiny droplets and some bigger ones (dark lower rim, bright highlight),
                  denser toward the edges.
+frost_crystals.png  ice crystals grown on the glass in a corner (the top-left one; the game mirrors it into the others):
+                 angular shards of blue ice radiating from the corner (each a pointed blade with two facets, one catching
+                 the light, a bright edge, a fracture line or two inside, the deeper blue at its root), long ones behind,
+                 short ones in front, frost grain round their roots; it fades out before the texture's far edges, so
+                 scaled up from the corner it reads as crystals growing in, never reaching the middle of the view.
 Run: python tools/icons/iceman_frost.py
 """
 import math, os, random
@@ -294,10 +299,84 @@ def lens_drops():
     img.save(os.path.join(OUT, 'lens_drops.png'), optimize=True)
 
 
+# ------------------------------------------------------------------ ice crystals in a corner
+def corner_crystals():
+    n, k = 512, 3
+    S = n * k
+    img = Image.new('RGBA', (S, S), (0, 0, 0, 0))
+    r = random.Random(4242)
+    shards = []
+    # Long blades from the corner itself and from along both edges near it, then short ones in front.
+    for i in range(13):
+        base = (r.uniform(0, 70), r.uniform(0, 70)) if i < 6 else ((r.uniform(0, 230), r.uniform(0, 20)) if i % 2 else (r.uniform(0, 20), r.uniform(0, 230)))
+        ang = math.radians(r.uniform(8, 82))
+        length = r.uniform(170, 400) * (1 - .25 * (i >= 6))
+        shards.append((base, ang, length, length * r.uniform(.11, .19)))
+    for i in range(22):
+        base = (r.uniform(0, 260), r.uniform(0, 30)) if i % 2 else (r.uniform(0, 30), r.uniform(0, 260))
+        if i < 6: base = (r.uniform(0, 90), r.uniform(0, 90))
+        ang = math.radians(r.uniform(0, 90))
+        length = r.uniform(45, 150)
+        shards.append((base, ang, length, length * r.uniform(.13, .24)))
+    shards.sort(key=lambda q: -q[2])
+    d = ImageDraw.Draw(img, 'RGBA')
+    light = (-.75, -.66)          # the light comes from the top-left (toward the corner)
+    for (bx, by), ang, length, width in shards:
+        ux, uy = math.cos(ang), math.sin(ang)
+        vx, vy = -uy, ux
+        w0, w1 = width * .5 * r.uniform(.8, 1.15), width * .5 * r.uniform(.8, 1.15)
+        sh = r.uniform(.66, .84)
+        s0, s1 = width * .5 * r.uniform(.55, .95), width * .5 * r.uniform(.45, .9)
+        tipo = width * r.uniform(-.25, .25)
+        P = lambda a, b: ((bx + ux * a + vx * b) * k, (by + uy * a + vy * b) * k)
+        left = [P(0, -w0), P(length * sh * r.uniform(.9, 1.05), -s0), P(length, tipo), P(length * .08, tipo * .1)]
+        right = [P(0, w1), P(length * sh * r.uniform(.9, 1.05), s1), P(length, tipo), P(length * .08, tipo * .1)]
+        # Which facet faces the light.
+        lit_left = (-vx * light[0] - vy * light[1]) > 0
+        deep = (52, 108, 178)
+        mid = (98, 166, 222)
+        pale = (168, 214, 244)
+        a_body = r.randint(150, 190)
+        d.polygon(left, fill=(pale if lit_left else mid) + (a_body,))
+        d.polygon(right, fill=(mid if lit_left else deep) + (a_body,))
+        # The root, deeper and denser.
+        root = [P(0, -w0), P(length * .22, -w0 * .95), P(length * .22, w1 * .95), P(0, w1)]
+        d.polygon(root, fill=deep + (90,))
+        # Fracture lines inside, a bright edge on the lit side, a thin dark edge on the other.
+        for _ in range(r.randint(1, 2)):
+            o = r.uniform(-.3, .3) * width
+            a0, a1 = length * r.uniform(.1, .35), length * r.uniform(.5, .85)
+            d.line([P(a0, o), P((a0 + a1) / 2, o + r.uniform(-.1, .1) * width), P(a1, o * .4)], fill=(225, 244, 255, 120), width=max(1, k))
+        edge = left if lit_left else right
+        other = right if lit_left else left
+        d.line([edge[0], edge[1], edge[2]], fill=(236, 248, 255, 235), width=max(1, int(1.4 * k)))
+        d.line([other[0], other[1], other[2]], fill=(30, 70, 130, 170), width=max(1, k))
+        d.line([P(length * .08, tipo * .1), P(length, tipo)], fill=(205, 235, 255, 150), width=max(1, k))
+    img = img.resize((n, n), Image.LANCZOS)
+    a = np.array(img, dtype=np.float64)
+    ys, xs = np.mgrid[0:n, 0:n].astype(np.float64)
+    dist = np.sqrt(xs * xs + ys * ys)
+    # Frost grain round the roots.
+    grain = fbm(n, n, 32, 4, 31)
+    speck = np.random.RandomState(9).rand(n, n)
+    frost = np.clip(1 - dist / 210, 0, 1) ** 1.5 * (.35 + .65 * grain)
+    frost_a = np.clip(frost * 150 + (speck > .992) * 160 * np.clip(1 - dist / 380, 0, 1), 0, 255)
+    fa = frost_a / 255
+    out_a = a[..., 3] / 255 + fa * (1 - a[..., 3] / 255)
+    for c, v in zip(range(3), (222, 238, 252)):
+        a[..., c] = np.where(out_a > 0, (a[..., c] * a[..., 3] / 255 + v * fa * (1 - a[..., 3] / 255)) / np.maximum(out_a, 1e-6), 0)
+    a[..., 3] = out_a * 255
+    # Fade out before the far edges of the texture.
+    a[..., 3] *= np.clip((470 - dist) / 90, 0, 1) * np.clip((n - 6 - xs) / 40, 0, 1) * np.clip((n - 6 - ys) / 40, 0, 1)
+    Image.fromarray(np.clip(a, 0, 255).astype(np.uint8), 'RGBA').save(os.path.join(OUT, 'frost_crystals.png'), optimize=True)
+
+
 os.makedirs(OUT, exist_ok=True)
-frost_atlas()
-crack_net()
-lens_drops()
-for f in ('frost_atlas.png', 'crack_net.png', 'lens_drops.png'):
+only = os.environ.get('FROST_ONLY')
+if not only or only == 'atlas': frost_atlas()
+if not only or only == 'net': crack_net()
+if not only or only == 'drops': lens_drops()
+if not only or only == 'crystals': corner_crystals()
+for f in ('frost_atlas.png', 'crack_net.png', 'lens_drops.png', 'frost_crystals.png'):
     print(f, os.path.getsize(os.path.join(OUT, f)) // 1024, 'KB')
 print('ok')

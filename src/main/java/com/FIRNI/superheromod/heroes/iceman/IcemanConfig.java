@@ -74,13 +74,13 @@ public final class IcemanConfig {
         SPEAR_DAMAGE = b.comment("Spear: damage of each of the two thrusts").defineInRange("spearDamage", 3.5, 0, 100);
         SPEAR_FLURRY_DAMAGE = b.comment("Spear: damage of each thrust of the flurry (third swing)").defineInRange("spearFlurryDamage", 2.2, 0, 100);
         SPEAR_THROW_DAMAGE = b.comment("Spear thrown: damage at full draw (less when drawn less)").defineInRange("spearThrowDamage", 12.0, 0, 200);
-        SPEAR_SPIKE_DAMAGE = b.comment("Spear thrown: damage of the ice spikes that burst round it").defineInRange("spearSpikeDamage", 5.0, 0, 100);
-        SPEAR_SPIKE_RADIUS = b.comment("Spear thrown: radius of the spikes").defineInRange("spearSpikeRadius", 3.2, 0, 15);
+        SPEAR_SPIKE_DAMAGE = b.comment("Spear thrown: damage of the cluster of ice crystals that erupts where it strikes").defineInRange("spearSpikeDamage", 5.0, 0, 100);
+        SPEAR_SPIKE_RADIUS = b.comment("Spear thrown: radius of the eruption at full draw (less when drawn less)").defineInRange("spearSpikeRadius", 3.8, 0, 15);
         SPEAR_FROST = b.comment("Spear: frost per hit").defineInRange("spearFrost", 9.0, 0, 100);
         SWORD_DAMAGE = b.comment("Sword: damage of each of the two cuts").defineInRange("swordDamage", 4.5, 0, 100);
         SWORD_FINISH_DAMAGE = b.comment("Sword: damage of the spin (third swing), to everyone round him").defineInRange("swordFinishDamage", 7.0, 0, 100);
-        SWORD_SPIN_DAMAGE = b.comment("Sword held: damage of each blow of the long spin").defineInRange("swordSpinDamage", 2.5, 0, 100);
-        SWORD_PULL_RADIUS = b.comment("Sword held: how far the spin's vortex pulls enemies in").defineInRange("swordPullRadius", 6.0, 0, 20);
+        SWORD_SPIN_DAMAGE = b.comment("Sword held (planted in the ground): damage every half second to anyone dragged up against the sword").defineInRange("swordSpinDamage", 2.5, 0, 100);
+        SWORD_PULL_RADIUS = b.comment("Sword held (planted in the ground): how far round the sword enemies are pulled toward it (harder the closer they are)").defineInRange("swordPullRadius", 6.0, 0, 20);
         SWORD_FROST = b.comment("Sword: frost per hit").defineInRange("swordFrost", 11.0, 0, 100);
         b.pop();
         b.comment("Q: the cryogenic shell (Q again: the burst)").push("shell");
