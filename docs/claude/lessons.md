@@ -4,6 +4,24 @@ Everything learned building this mod with this user, so a new session works at t
 Hero-specific details live in the hero files next to this one; this file is the general know-how. Add to it whenever
 the user corrects something or a technique works / fails (in the same commit as the change).
 
+## 0. Starting a new chat (the user opens a new chat for every new task — do ALL of this first)
+1. Make sure you have the CURRENT notes: if `docs/claude/lessons.md` is missing or CLAUDE.md is the old 50 KB one, run
+   `git fetch origin claude/laughing-noether-xy6z56 && git checkout origin/claude/laughing-noether-xy6z56 -- CLAUDE.md docs/claude tools/claude`
+   (until those notes are merged into main; then main has them).
+2. Read CLAUDE.md, this file, the hero's `docs/claude/<hero>.md` and the user's `docs/<HERO>.md`. Look at the hero's code
+   only in the parts the task touches (grep first). Check `## 7. Project state` below for open branches/PRs.
+3. Branch: continue an open PR's branch when the task continues that work (e.g. Iceman → PR #6's branch); a new request
+   gets its own branch from main and its own PR (titles start with the hero: "Iceman: ..."). The cloud may assign a branch
+   name: base it on the right starting point and push there; never push to main; merge (GitHub merge of the PR) only
+   when the user writes "beğendim", then give the main line.
+4. The user's reference images/videos are attached in the chat (the `references/` folder exists only on their PC); if a
+   task needs a reference you do not have, ask for a screenshot/frames instead of guessing.
+5. Work yourself, in order (no helper agents unless truly needed and announced). Type-check with
+   `sh tools/claude/typecheck/typecheck.sh`, preview bodies with `sh tools/claude/preview/preview.sh`, Python art/sounds
+   scripts in tools/. Gradle and the game cannot run here — say so honestly.
+6. Finish: update the notes (hero file + this file for general lessons), the Turkish user doc, commit, push, then reply in
+   Turkish: what changed, what was not checked, what to look at in game, the three copy-paste blocks.
+
 ## 1. The user and how they judge work
 - Non-programmer, writes Turkish, tests everything in game (IntelliJ runClient) and answers with screenshots, video
   timestamps or a long written spec. Their written specs are the brief: read every line, follow the order of priorities they
@@ -99,3 +117,14 @@ the user corrects something or a technique works / fails (in the same commit as 
 ## 6. Open / unverified (update as the user reports)
 - Iceman: everything after the Minecraft body (organic ice, slide, CTRL, weapons incl. sword plant and the two-hand spear,
   E shrine with left/middle/right picking, Q cocoon size, R formations, frost meter visuals, solid ice) is unseen in game.
+
+## 7. Project state (keep current)
+- Open PR: #6 `claude/laughing-noether-xy6z56` — Iceman (whole hero). Also carries these notes and tools/claude until merged.
+- Parked / unfinished by the user's word: Sandman's Colossus ultimate ("later"); Cyclops sounds unfinished; Thor, Cyclops,
+  Sandman, Ghost Rider have no left-side skill list yet; Iceman X is undesigned (do not invent it).
+- Everything else (Ghost Rider, Cyclops, Sandman, Thor, Hulk, Zed, Black Panther, Magneto, Batman) is merged in main.
+
+## 8. Reply checklist (every answer to the user)
+- Turkish, plain words, short; what was done; what could NOT be checked (game not run); what to look at in game.
+- Ask only when a decision is truly theirs (and use one clear question).
+- The three blocks with the real branch: Denemek için / Beğenmedim, eski hale dön / Beğendim (see CLAUDE.md).

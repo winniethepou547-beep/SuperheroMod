@@ -3,6 +3,11 @@
 Forge 1.20.1 mod (Java 17, package `com.FIRNI.superheromod`). Heroes: **Ghost Rider**, **Cyclops**, **Sandman**, **Thor**, **Hulk**, **Zed**, **Black Panther**, **Magneto**, **Batman**, **Iceman**.
 Older background and per-feature notes live in `docs/` (Turkish); `docs/PROJE_DEVIR_DOKUMANI.md` is the original handover.
 
+## FIRST, in every new chat
+Follow `docs/claude/lessons.md` section 0 ("Starting a new chat") before anything else: it makes sure you have the
+current notes and tools, the right branch, and the user's taste. The user opens a new chat per task and expects the
+same quality as before; the notes are how that knowledge carries over.
+
 ## Working with the user
 - The user is not a programmer and writes in **Turkish**. Answer in Turkish, plainly, without code jargon.
 - They test everything themselves **in game** (IntelliJ `runClient` on their PC) and send screenshots or video
