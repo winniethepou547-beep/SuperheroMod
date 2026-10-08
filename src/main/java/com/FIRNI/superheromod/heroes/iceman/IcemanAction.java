@@ -73,6 +73,13 @@ public final class IcemanAction {
     public static final int DEEP_TICKS = 44, DEEP_IMMUNE = 80;
     /** The encasing closes over DEEP_CLOSE ticks; the breaking out takes DEEP_BREAK ticks. */
     public static final int DEEP_CLOSE = 5, DEEP_BREAK = 10;
+    /**
+     * The deep freeze takes hold over DEEP_SEIZE ticks before it is solid (the MK1 freeze): the body keeps moving while the
+     * ice climbs over it, slower and slower, then locks mid-motion (server: speed and drift wound down; the frozen player's
+     * own input faded out; clients: the pose held). DEEP_GROW = the ticks the shell takes to grow complete (the last
+     * crystals after the lock). Both are added on top of the configured hold.
+     */
+    public static final int DEEP_SEIZE = 14, DEEP_GROW = 22;
 
     // ------------------------------------------------------------------ RMB: the brush
     /** Both hands come up over BRUSH_RAISE ticks before anything flows. */
@@ -165,8 +172,8 @@ public final class IcemanAction {
 
     // ------------------------------------------------------------------ effects (IcemanFxPacket kinds)
     public static final int FX_FROST = 1,           // a body's frost meter (power = meter, id = deep-freeze ticks left, dir.x = ticks since deep froze began or -1)
-            FX_DEEP_FREEZE = 2,                     // a body froze solid (pos = feet, power = width, dir.y = height)
-            FX_DEEP_BREAK = 3,                      // the ice round a body broke (power: 1 by itself, 2 shattered by a blow)
+            FX_DEEP_FREEZE = 2,                     // a body froze solid (pos = feet, power = width, dir.y = height, dir.x/z = the way the cold travelled, id = ticks it holds incl. DEEP_SEIZE)
+            FX_DEEP_BREAK = 3,                      // the ice round a body broke (power: 1 by itself, 2 shattered by a blow; dir.x/z = the blow's way or 0, dir.y = height)
             FX_LENS = 4,                            // to the victim only: their screen frosts over (power = strength, id = ticks, entity = Iceman)
             FX_HIT = 5,                             // a weapon hit (power = weapon, id = combo / kind)
             FX_SHATTER = 6,                         // ice breaking apart at a place (power = size, dir = push, id = how: 0 plain, 1 weapon, 2 sculpture, 3 shell, 4 spike)

@@ -47,6 +47,8 @@ public final class IcemanFrost {
         /** Ticks the deep freeze still holds (0: not frozen), when it began, until when it cannot happen again. */
         int deep; long deepAt = -1, immuneUntil;
         int sentStage = -1, sinceSent;
+        /** Where the blow that shatters the ice came from (for the cracks' start). */
+        Vec3 blowFrom;
         float slowApplied = -1;
         Frost(LivingEntity body) { this.body = body; }
     }
@@ -72,7 +74,7 @@ public final class IcemanFrost {
         f.value = Math.min(FROST_MAX, f.value + amount);
         if (f.value >= FROST_MAX) {
             if (now < f.immuneUntil) { f.value = FROST_MAX - .5f; return false; }
-            freeze(f, now);
+            freeze(f, now, p);
             return true;
         }
         return false;
@@ -84,31 +86,38 @@ public final class IcemanFrost {
         f.immuneUntil = 0; f.lastAdd = now;
         if (f.deep > 0 && value < FROST_MAX) { f.deep = 0; f.deepAt = -1; }
         f.value = Mth.clamp(value, 0, FROST_MAX);
-        if (f.value >= FROST_MAX && f.deep <= 0) freeze(f, now);
+        if (f.value >= FROST_MAX && f.deep <= 0) freeze(f, now, null);
         f.sinceSent = 999;
     }
-    private static void freeze(Frost f, long now) {
+    /**
+     * Frozen solid by the cold from `from` (an Iceman; null: a test, the cold comes at their face). The ice takes hold
+     * over DEEP_SEIZE ticks (they slow to a stop meanwhile), then holds for the configured time.
+     */
+    private static void freeze(Frost f, long now, LivingEntity from) {
         LivingEntity t = f.body;
         f.value = FROST_MAX;
-        f.deep = (int) Math.round(IcemanConfig.DEEP_FREEZE_SECONDS.get() * 20);
+        f.deep = DEEP_SEIZE + (int) Math.round(IcemanConfig.DEEP_FREEZE_SECONDS.get() * 20);
         f.deepAt = now;
-        t.setDeltaMovement(0, Math.min(0, t.getDeltaMovement().y), 0);
-        t.hurtMarked = true;
         if (t instanceof Mob mob) { mob.setTarget(null); mob.getNavigation().stop(); }
+        // Which way the cold travelled (sent so the ice grows from the side it came from).
+        Vec3 way = from != null ? t.position().subtract(from.position()) : t.getLookAngle().scale(-1);
+        way = new Vec3(way.x, 0, way.z);
+        way = way.lengthSqr() < 1e-6 ? new Vec3(0, 0, 1) : way.normalize();
         ServerLevel level = (ServerLevel) t.level();
         Vec3 at = t.position();
         level.playSound(null, at.x, at.y + 1, at.z, ModSounds.ICEMAN_DEEP_FREEZE.get(), SoundSource.PLAYERS, 1.3f, 1f);
-        level.playSound(null, at.x, at.y + 1, at.z, SoundEvents.GLASS_PLACE, SoundSource.PLAYERS, 1f, .5f);
-        send(f, FX_DEEP_FREEZE, at, new Vec3(0, t.getBbHeight(), 0), t.getBbWidth(), f.deep);
+        level.playSound(null, at.x, at.y + 1, at.z, SoundEvents.AMETHYST_CLUSTER_PLACE, SoundSource.PLAYERS, .9f, .6f);
+        send(f, FX_DEEP_FREEZE, at, new Vec3(way.x, t.getBbHeight(), way.z), t.getBbWidth(), f.deep);
         f.sinceSent = 999;
     }
     /**
      * A blow on someone deep frozen: the ice breaks round them (with a big burst) and the blow counts more. Returns the
      * damage multiplier (1 when they were not frozen).
      */
-    public static float shatter(LivingEntity t) {
+    public static float shatter(LivingEntity t, LivingEntity by) {
         Frost f = FROST.get(t.getId());
         if (f == null || f.deep <= 0) return 1;
+        f.blowFrom = by == null ? null : by.position();
         thaw(f, 2);
         return IcemanConfig.f(IcemanConfig.DEEP_SHATTER_BONUS);
     }
@@ -122,8 +131,12 @@ public final class IcemanFrost {
         ServerLevel level = (ServerLevel) t.level();
         Vec3 at = t.position();
         level.playSound(null, at.x, at.y + 1, at.z, ModSounds.ICEMAN_SHATTER.get(), SoundSource.PLAYERS, how == 2 ? 1.5f : 1.1f, how == 2 ? .85f : 1.05f);
-        level.playSound(null, at.x, at.y + 1, at.z, SoundEvents.GLASS_BREAK, SoundSource.PLAYERS, 1f, .7f);
-        send(f, FX_DEEP_BREAK, at, new Vec3(0, t.getBbHeight(), 0), how, 0);
+        level.playSound(null, at.x, at.y + 1, at.z, SoundEvents.AMETHYST_CLUSTER_BREAK, SoundSource.PLAYERS, .9f, .6f);
+        // The way the blow travelled (the cracks start where it landed); none when it broke by itself.
+        Vec3 way = f.blowFrom == null ? Vec3.ZERO : new Vec3(at.x - f.blowFrom.x, 0, at.z - f.blowFrom.z);
+        way = way.lengthSqr() < 1e-6 ? Vec3.ZERO : way.normalize();
+        f.blowFrom = null;
+        send(f, FX_DEEP_BREAK, at, new Vec3(way.x, t.getBbHeight(), way.z), how, 0);
         f.sinceSent = 999;
     }
 
@@ -138,15 +151,26 @@ public final class IcemanFrost {
             if (t.isRemoved() || !t.isAlive()) { slow(f, 0); if (f.value > 0 || f.deep > 0) { f.value = 0; f.deep = 0; sync(f, true); } it.remove(); continue; }
             long now = t.level().getGameTime();
             if (f.deep > 0) {
-                // Held in the ice: no moving (falls straight down if in the air), no turning to anyone.
-                t.setDeltaMovement(0, Math.min(0, t.getDeltaMovement().y), 0);
-                if (t instanceof ServerPlayer) t.hurtMarked = true;
+                long age = now - f.deepAt;
+                if (age < DEEP_SEIZE) {
+                    // The ice taking hold: they still move, slower and slower (a player's own input is faded out by
+                    // their client; a mob's drift is wound down here).
+                    float k = (age + 1) / (float) DEEP_SEIZE;
+                    if (!(t instanceof ServerPlayer)) {
+                        Vec3 v = t.getDeltaMovement();
+                        t.setDeltaMovement(v.x * (1 - k), Math.min(v.y, v.y * (1 - k * .5f)), v.z * (1 - k));
+                    }
+                } else {
+                    // Held in the ice: no moving (falls straight down if in the air), no turning to anyone.
+                    t.setDeltaMovement(0, Math.min(0, t.getDeltaMovement().y), 0);
+                    if (t instanceof ServerPlayer) t.hurtMarked = true;
+                }
                 if (t instanceof Mob mob) { mob.setTarget(null); mob.getNavigation().stop(); }
                 if (--f.deep <= 0) thaw(f, 1);
             } else if (f.value > 0 && now - f.lastAdd > delay) {
                 f.value = Math.max(0, f.value - decay);
             }
-            slow(f, f.deep > 0 ? 1 : f.value / FROST_MAX);
+            slow(f, f.deep > 0 ? Math.max(f.value / FROST_MAX, Math.min(1, (now - f.deepAt + 1) / (float) DEEP_SEIZE)) : f.value / FROST_MAX);
             sync(f, false);
             if (f.value <= 0 && f.deep <= 0 && f.sent <= 0 && now > f.immuneUntil) it.remove();
         }

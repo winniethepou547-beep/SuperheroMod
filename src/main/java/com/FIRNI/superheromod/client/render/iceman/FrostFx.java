@@ -105,8 +105,8 @@ public final class FrostFx {
                     if (!b.deep) {
                         b.deep = true;
                         Entity e = mc.level.getEntity(b.id);
-                        float since = p.dir().x < 0 ? DEEP_CLOSE : (float) p.dir().x;
-                        froze(b, e == null ? p.pos() : e.position(), e == null ? .6f : e.getBbWidth(), e == null ? 1.8f : e.getBbHeight(), (int) since + p.id(), since);
+                        float since = p.dir().x < 0 ? DEEP_GROW : (float) p.dir().x;
+                        froze(b, e == null ? p.pos() : e.position(), e == null ? .6f : e.getBbWidth(), e == null ? 1.8f : e.getBbHeight(), (int) since + p.id(), since, null);
                     }
                 } else if (b.deep || FrostBodies.encased(b.id)) {
                     // The deep freeze ended without a break being heard (the meter set lower): it breaks all the same.
@@ -117,26 +117,27 @@ public final class FrostFx {
                 if (p.entity() < 0) return;
                 Body b = body(p.entity());
                 b.deep = true; b.deepLeft = p.id(); b.meter = FROST_MAX;
-                froze(b, p.pos(), Math.max(.2f, p.power()), (float) Math.max(.3, p.dir().y), Math.max(DEEP_CLOSE + 2, p.id()), 0);
+                froze(b, p.pos(), Math.max(.2f, p.power()), (float) Math.max(.3, p.dir().y), Math.max(DEEP_GROW + 4, p.id()), 0, new Vec3(p.dir().x, 0, p.dir().z));
             }
             case FX_DEEP_BREAK -> {
                 if (p.entity() < 0) return;
-                thawed(body(p.entity()), p.power() >= 1.5f ? 2 : 1, true);
+                thawed(body(p.entity()), p.power() >= 1.5f ? 2 : 1, true, new Vec3(p.dir().x, 0, p.dir().z));
             }
             case FX_LENS -> FrostScreen.lens(p.power(), Math.max(6, p.id()));
             case FX_BRUSH_FROST -> brush(p);
             default -> {}
         }
     }
-    private static void froze(Body b, Vec3 feet, float width, float height, int total, float since) {
-        FrostBodies.freeze(b.id, feet, width, height, total, since);
+    private static void froze(Body b, Vec3 feet, float width, float height, int total, float since, Vec3 way) {
+        FrostBodies.freeze(b.id, feet, width, height, total, since, way);
         if (isMe(b.id)) FrostScreen.freeze(total, since);
     }
     /**
      * The ice round them broke (how: 1 by itself, 2 shattered by a blow). The frost on them drops with it at once to
      * what the server leaves them (IcemanFrost.thaw: 45, or 30 after a blow): the ice that broke off carried it away.
      */
-    private static void thawed(Body b, int how, boolean heard) {
+    private static void thawed(Body b, int how, boolean heard) { thawed(b, how, heard, null); }
+    private static void thawed(Body b, int how, boolean heard, Vec3 blow) {
         boolean was = b.deep || FrostBodies.encased(b.id);
         b.deep = false; b.deepLeft = 0;
         float left = how == 2 ? 30 : 45;
@@ -144,7 +145,7 @@ public final class FrostFx {
         else b.shown = b.shownO = Math.min(b.shown, Math.max(b.meter, 0));
         if (!was) return;
         b.shiver = 22;
-        FrostBodies.breakEncase(b.id, how);
+        FrostBodies.breakEncase(b.id, how, blow);
         if (isMe(b.id)) FrostScreen.broke(how);
     }
     /** The brush's stream on a body: frost blooms where it lands (on the side facing the Iceman brushing it). */
@@ -193,7 +194,7 @@ public final class FrostFx {
             LivingEntity le = mc.level.getEntity(b.id) instanceof LivingEntity l ? l : null;
             if (le == null || le.isRemoved()) {
                 // Gone (dead, out of sight): an ice block round them breaks, nothing is left standing.
-                if (FrostBodies.encased(b.id)) FrostBodies.breakEncase(b.id, 1);
+                if (FrostBodies.encased(b.id)) FrostBodies.breakEncase(b.id, 1, null);
                 if (isMe(b.id)) FrostScreen.broke(1);
                 FrostBodies.forget(b.id);
                 it.remove();
@@ -311,7 +312,10 @@ public final class FrostFx {
         var mc = Minecraft.getInstance();
         if (mc.player == null || e.getEntity() != mc.player || !deep(mc.player.getId())) return;
         var in = e.getInput();
-        in.forwardImpulse = 0; in.leftImpulse = 0; in.jumping = false; in.shiftKeyDown = false;
+        // While the ice takes hold they still move, slower and slower; then nothing.
+        float free = 1 - FrostShell.seized(mc.player.getId());
+        if (!FrostShell.encased(mc.player.getId())) free = 0;
+        in.forwardImpulse *= free * free; in.leftImpulse *= free * free; in.jumping = false; in.shiftKeyDown = false;
         in.up = in.down = in.left = in.right = false;
         mc.player.setSprinting(false);
     }

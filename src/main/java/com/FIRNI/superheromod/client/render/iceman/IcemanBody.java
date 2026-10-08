@@ -71,6 +71,7 @@ public final class IcemanBody {
         if (align != 0) p.mulPose(Axis.YP.rotation(align));
         p.scale(1 / 16f, 1 / 16f, 1 / 16f);
         c = IceMesh.begin(p, b, light);
+        c.frostUp = false;
         ps = p;
         c.time = t;
         c.texel = 1;
@@ -139,6 +140,7 @@ public final class IcemanBody {
         time = t;
         if (capture) handRight = handLeft = eyes = chest = weaponBase = weaponTip = null;
         c = IceMesh.begin(p, b, light);
+        c.frostUp = false;
         ps = p;
         c.time = t;
         c.texel = 1;

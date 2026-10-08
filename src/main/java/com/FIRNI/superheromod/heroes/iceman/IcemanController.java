@@ -207,7 +207,7 @@ public final class IcemanController {
      * Returns whether the body took it.
      */
     static boolean hurt(ServerPlayer p, LivingEntity t, float damage, float frost) {
-        float bonus = IcemanFrost.shatter(t);
+        float bonus = IcemanFrost.shatter(t, p);
         boolean shattered = bonus > 1;
         boolean took = false;
         if (damage > 0) {

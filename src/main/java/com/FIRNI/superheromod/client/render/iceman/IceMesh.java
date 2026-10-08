@@ -69,25 +69,33 @@ public final class IceMesh {
         public Mat alpha(float k) { return new Mat(r, g, b, Math.min(1, clear * k), Math.min(1, edge * k), milk, rim, spec, kind); }
         public Mat tint(float tr, float tg, float tb) { return new Mat(r * tr, g * tg, b * tb, clear, edge, milk, rim, spec, kind); }
         /** Which texture it is drawn with. */
-        int tex() { return kind == CLOTH_KIND || milk >= .15f || r >= .7f ? T_FROST : T_ICE; }
+        int tex() { return kind == CLOTH_KIND || milk >= .15f ? T_FROST : T_ICE; }
     }
     public static final int ICE_KIND = 0, CLOTH_KIND = 1;
     /** The ice texture's own colour, and the frost's (a material of this colour draws the texture as it is). */
-    private static final float IR = .52f, IG = .82f, IB = 1f, FR = .85f, FG = .95f, FB = 1f;
-    /** Plain ice: the bright blue body of the ice. */
-    public static final Mat CLEAR = new Mat(.52f, .82f, 1f, .96f, 1f, .04f, .9f, .9f);
-    /** Pale ice: whiter, frostier (highlights of the body, hair, plates). */
-    public static final Mat MILKY = new Mat(.76f, .92f, 1f, .97f, 1f, .2f, .65f, .6f);
+    private static final float IR = .70f, IG = .84f, IB = .96f, FR = .89f, FG = .94f, FB = .99f;
+    /*
+     * The ice after the MK1 freeze reference: thick real ice, never one colour, never glass. The texture is a milky pale
+     * blue with clear blue pockets, crystalline layers, cracks and trapped frost; on top of it every vertex reads two slow
+     * noises pinned to the piece: where the ice is CLEAR the blue sits deep inside it (darker, bluer, and a little see-
+     * through: the material's clear = its opacity there), where it is CLOUDY it is milky and opaque. Faces turned up
+     * gather frost (the white texture), the outline catches a cyan edge, wet facets a white gloss. clear is therefore
+     * the opacity of the clearest pocket (1: never see-through), edge the opacity edge-on (thick ice reads solid there).
+     */
+    /** Plain ice: milky pale blue with clear blue depth. */
+    public static final Mat CLEAR = new Mat(.70f, .84f, .96f, .8f, 1f, .04f, .9f, .9f);
+    /** Milky ice: cloudy, whiter (the frost texture tinted a little blue). */
+    public static final Mat MILKY = new Mat(.78f, .9f, .99f, .94f, 1f, .2f, .65f, .6f);
     /** The inside of a limb (rarely seen now the ice is solid). */
-    public static final Mat CORE = new Mat(.76f, .92f, 1f, .97f, 1f, .2f, .5f, .4f);
+    public static final Mat CORE = new Mat(.78f, .9f, .99f, .97f, 1f, .2f, .5f, .4f);
     /** Rime, frost: white, matt. */
-    public static final Mat FROST = new Mat(.9f, .97f, 1f, .92f, .96f, .55f, .3f, .3f);
+    public static final Mat FROST = new Mat(.93f, .97f, 1f, .95f, .97f, .55f, .3f, .3f);
     /** Deep ice: dark blue (eye sockets, shadows, old ice). */
-    public static final Mat DEEP = new Mat(.2f, .42f, .78f, .98f, 1f, 0f, .6f, .8f);
+    public static final Mat DEEP = new Mat(.3f, .5f, .84f, .9f, 1f, 0f, .6f, .8f);
     /** A fresh break: the inside, cleaner and brighter than the surface. */
-    public static final Mat FRESH = new Mat(.82f, .97f, 1f, .92f, 1f, .3f, 1f, 1.2f);
+    public static final Mat FRESH = new Mat(.86f, .95f, 1f, .88f, 1f, .3f, 1f, 1.2f);
     /** Glacier ice: thick, a deeper blue (the shell, the giant mace). */
-    public static final Mat GLACIER = new Mat(.4f, .7f, .95f, .96f, 1f, .08f, .85f, .9f);
+    public static final Mat GLACIER = new Mat(.54f, .73f, .94f, .84f, 1f, .08f, .85f, .9f);
     /** The X-Men suit (the comic Iceman): black, red, the grey of the belt. */
     public static final Mat SUIT_BLACK = new Mat(.075f, .08f, .1f, 1, 1, 0, .2f, .35f, CLOTH_KIND),
             SUIT_RED = new Mat(.74f, .07f, .085f, 1, 1, 0, .15f, .3f, CLOTH_KIND),
@@ -132,6 +140,8 @@ public final class IceMesh {
         public float texel;
         /** Where the texture is pinned (in the stack's units): set it on a moving piece so its texture moves with it. */
         public float ox, oy, oz;
+        /** The stack's +y is the world's up (world ice): faces turned up gather frost. False for a body's model space. */
+        public boolean frostUp = true;
         float cx, cy, cz, ux, uy, uz, rx, ry, rz, autoTexel = 16;
         /** The face being drawn: its own shade (broken facets never all catch the light the same). */
         float facet = 1;
@@ -189,7 +199,7 @@ public final class IceMesh {
         private final Vector4f tp = new Vector4f();
         private final Vector3f tn = new Vector3f();
         /** The last face's corners in view space and their added light (for the gloss over it). */
-        private final float[] qp = new float[12], qa = new float[4];
+        private final float[] qp = new float[12], qa = new float[4], qr = new float[4];
         private int qi;
         float texel() { return texel > 0 ? texel : autoTexel; }
         /**
@@ -218,23 +228,38 @@ public final class IceMesh {
             float nh = hl < 1e-5f ? 0 : Math.max(0, (fx * hx + fy * hy + fz * hz) / hl);
             float n2 = nh * nh, n4 = n2 * n2, n8 = n4 * n4;
             float gloss = (n8 * .35f + n8 * n8 * n4 * .9f) * mat.spec() * (.85f + .15f * Mth.sin(time * .35f + x * 2.1f + y * 1.3f + z * 1.7f));
-            float r, g, b, add;
+            float r, g, b, add, edgeLight = 0;
+            float al = Mth.lerp(rim2, mat.clear(), mat.edge());
             if (mat.kind() == CLOTH_KIND) {
                 float k = .7f + .3f * tone;
                 r = mat.r() * k; g = mat.g() * k; b = mat.b() * k;
                 add = gloss * .18f + rim2 * rim * mat.rim() * .06f;
+                al = Mth.lerp(rim2, mat.clear(), mat.edge());
             } else {
                 // The texture is the ice; this only lights it softly and tints it.
                 float k = .9f + .1f * smooth(.1f, .95f, tone);
                 if (tex == T_SKIN) { r = mat.r(); g = mat.g(); b = mat.b(); }
                 else if (tex == T_FROST) { r = Math.min(1, mat.r() / FR); g = Math.min(1, mat.g() / FG); b = Math.min(1, mat.b() / FB); }
                 else { r = Math.min(1, mat.r() / IR); g = Math.min(1, mat.g() / IG); b = Math.min(1, mat.b() / IB); }
-                if (tex != T_SKIN) { k *= facet; b = Math.min(1, b * (1 + (1 - facet) * .6f)); }
+                if (tex != T_SKIN) {
+                    k *= facet; b = Math.min(1, b * (1 + (1 - facet) * .6f));
+                    // Clear pockets (blue deep inside, a little see-through) and cloudy milky ice, pinned to the piece.
+                    float sc = texel() / TILE;
+                    float px = (x - ox) * sc, py = (y - oy) * sc, pz = (z - oz) * sc;
+                    float deep = smooth(.48f, .8f, noise(px * 1.6f + 3.1f, py * 1.6f, pz * 1.6f - 7.3f)) * (tex == T_FROST ? .35f : 1);
+                    float cloud = smooth(.5f, .85f, noise(px * 3.7f - 11.2f, py * 3.7f + 5.5f, pz * 3.7f)) * (1 - deep);
+                    r *= 1 - .5f * deep; g *= 1 - .27f * deep; b *= 1 - .03f * deep;
+                    k *= .93f + .07f * cloud;
+                    float clearA = Mth.lerp(deep, Math.min(1, mat.clear() + .1f * (1 - deep)), mat.clear());
+                    al = Mth.lerp(rim2, Mth.lerp(cloud, clearA, 1), mat.edge());
+                    if (mat.clear() >= .999f) al = Mth.lerp(rim2, 1, mat.edge());
+                    // The cyan edge: thick ice catching the light on its outline.
+                    edgeLight = rim2 * rim * mat.rim() * .22f;
+                }
                 r *= k; g *= k; b *= k;
-                add = gloss * .55f + rim2 * rim * mat.rim() * .14f;
+                add = gloss * .55f + (tex == T_SKIN ? rim2 * rim * mat.rim() * .14f : rim2 * rim * mat.rim() * .05f);
             }
             add += flash;
-            float al = Mth.lerp(rim2, mat.clear(), mat.edge());
             al = Mth.clamp(al * a * alpha, 0, 1);
             if (al <= .003f) al = 0;
             tp.set(x, y, z, 1).mul(m);
@@ -242,16 +267,18 @@ public final class IceMesh {
             batches[tex].put(tp.x, tp.y, tp.z, Mth.clamp(r, 0, 1), Mth.clamp(g, 0, 1), Mth.clamp(b, 0, 1), al, u, v, tn.x, tn.y, tn.z, emissive ? FULL : light);
             qp[qi * 3] = tp.x; qp[qi * 3 + 1] = tp.y; qp[qi * 3 + 2] = tp.z;
             qa[qi] = add * al;
+            qr[qi] = edgeLight * al;
             qi = (qi + 1) & 3;
         }
         /** The gloss of the face just drawn (its four corners), added on top of it where there is any. */
         void gloss() {
-            float top = Math.max(Math.max(qa[0], qa[1]), Math.max(qa[2], qa[3]));
+            float top = Math.max(Math.max(qa[0] + qr[0], qa[1] + qr[1]), Math.max(qa[2] + qr[2], qa[3] + qr[3]));
             qi = 0;
             if (top < .015f) return;
+            // White gloss plus the cyan of the edge.
             for (int i = 0; i < 4; i++) {
-                float k = qa[i];
-                raw(qp[i * 3], qp[i * 3 + 1], qp[i * 3 + 2], .82f * k, .93f * k, k);
+                float k = qa[i], e = qr[i];
+                raw(qp[i * 3], qp[i * 3 + 1], qp[i * 3 + 2], .82f * k + .3f * e, .93f * k + .85f * e, k + e);
             }
         }
         private static float smooth(float e0, float e1, float x) { float t = Mth.clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); }
@@ -295,6 +322,11 @@ public final class IceMesh {
         float k = c.texel() / TILE;
         float hn = (float) hash(nx * 17.3 + ny * 31.7 + nz * 7.9);
         c.facet = .86f + .18f * hn;
+        // Frost settles on faces turned up (seen from above): most of them take the white texture, not all.
+        if (c.frostUp && tex == T_ICE && mat.kind() == ICE_KIND) {
+            float vy = c.cy - ay, sn = nx * (c.cx - ax) + ny * vy + nz * (c.cz - az) < 0 ? -1 : 1;
+            if (ny * sn > .62f && hash(ax * 3.1 + az * 5.7 + ay * 1.3) < .72) tex = T_FROST;
+        }
         float anx = Math.abs(nx), any = Math.abs(ny), anz = Math.abs(nz);
         int axis = any >= anx && any >= anz ? 1 : anx >= anz ? 0 : 2;
         c.vert(tex, ax, ay, az, nx, ny, nz, tu(c, axis, ax, az) * k, tv(c, axis, ay, az) * k, mat, a);
@@ -553,4 +585,19 @@ public final class IceMesh {
         }
     }
     public static double hash(double n) { double x = Math.sin(n * 12.9898 + 78.233) * 43758.5453; return x - Math.floor(x); }
+    /** Smooth value noise in 0..1 at a point (lattice 1 unit), for the ice's slow variation. */
+    static float noise(float x, float y, float z) {
+        int x0 = Mth.floor(x), y0 = Mth.floor(y), z0 = Mth.floor(z);
+        float tx = x - x0, ty = y - y0, tz = z - z0;
+        tx = tx * tx * (3 - 2 * tx); ty = ty * ty * (3 - 2 * ty); tz = tz * tz * (3 - 2 * tz);
+        float c000 = lat(x0, y0, z0), c100 = lat(x0 + 1, y0, z0), c010 = lat(x0, y0 + 1, z0), c110 = lat(x0 + 1, y0 + 1, z0);
+        float c001 = lat(x0, y0, z0 + 1), c101 = lat(x0 + 1, y0, z0 + 1), c011 = lat(x0, y0 + 1, z0 + 1), c111 = lat(x0 + 1, y0 + 1, z0 + 1);
+        float a = Mth.lerp(tx, c000, c100), b = Mth.lerp(tx, c010, c110), c = Mth.lerp(tx, c001, c101), d = Mth.lerp(tx, c011, c111);
+        return Mth.lerp(tz, Mth.lerp(ty, a, b), Mth.lerp(ty, c, d));
+    }
+    private static float lat(int x, int y, int z) {
+        int h = x * 0x1f1f1f1f ^ y * 0x5bd1e995 ^ z * 0x27d4eb2d;
+        h ^= h >>> 15; h *= 0x2c1b3c6d; h ^= h >>> 12; h *= 0x297a2d39; h ^= h >>> 15;
+        return (h & 0xffff) / 65535f;
+    }
 }

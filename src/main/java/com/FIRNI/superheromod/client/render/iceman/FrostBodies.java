@@ -49,11 +49,7 @@ import static com.FIRNI.superheromod.heroes.iceman.IcemanAction.*;
  * <li>from 25: ice crystals up the legs, little clusters on the shoulders;</li>
  * <li>from 50: crystals on the arms (hanging a little, like icicles) and the torso, patches of crystals grown together;</li>
  * <li>from 75: heavy cover, bigger crystals and patches everywhere, a cluster on the head; the body shivers now and then;</li>
- * <li>DEEP FREEZE: ice grows round them from the ground up in DEEP_CLOSE ticks: great leaning crystals standing round
- *     the body and closing over the head, smaller ones jutting out of the mass, clusters round the feet, frost on the
- *     ground; glowing cracks run over it near the end; when it breaks it comes apart in steps (each crystal splits in
- *     two, the pieces let go one after another, tumble, shatter into chips and melt; the inside of every break clean
- *     and bright), shards, mist and the sounds of the fracture in order.</li>
+ * <li>DEEP FREEZE: the ice grows over the body following its own shape and breaks off it: FrostShell.</li>
  * </ul>
  * Crystals ride on the body's real limbs where the model is a humanoid's (its limbs read just after it is drawn), on a
  * box layout of the bounding box otherwise (four legs for animals). Fewer of them far away, none past 48 blocks.
@@ -210,146 +206,17 @@ public final class FrostBodies {
         PRINTS.add(new Print(x, le.getY() + .012, z, yaw, FrostFx.now(), 50 + 25 * stage, Mth.clamp(.35f + .18f * stage, 0, 1), RNG.nextInt(1 << 20), Mth.clamp(le.getBbWidth() / .6f, .5f, 2.2f)));
     }
 
-    // ------------------------------------------------------------------ the deep freeze
-    /**
-     * One crystal of the deep freeze: round the body at an angle (ang, radial out from the middle), its base height and
-     * top (shares of the body's height), half width, the lean outward (negative: in over the head), its growth delay
-     * (share of DEEP_CLOSE), seed, ice, how it flies when it breaks (out, up, spin), when it lets go after the break (ticks),
-     * whether it is one of the great ones (else a smaller one jutting out of the mass).
-     */
-    private record Slab(float ang, float radial, float by, float h, float r, float lean, float delay, int seed,
-                        IceMesh.Mat mat, float vOut, float vUp, float spin, float letGo, boolean great) {}
-    private static final class Encase {
-        final int entity; Vec3 feet; final float width, height, yaw, start; final int total;
-        final Slab[] slabs; final float[][] cracks; final int[] crackSlab;
-        final boolean[] shattered;
-        float broke = -1; int how; boolean crackHeard;
-        Encase(int entity, Vec3 feet, float width, float height, float yaw, float start, int total, Slab[] slabs, float[][] cracks, int[] crackSlab) {
-            this.entity = entity; this.feet = feet; this.width = width; this.height = height; this.yaw = yaw; this.start = start; this.total = total;
-            this.slabs = slabs; this.cracks = cracks; this.crackSlab = crackSlab; shattered = new boolean[slabs.length];
-        }
-        float age(float now) { return now - start; }
-    }
-    private static final Map<Integer, Encase> ENCASED = new HashMap<>();
-    /** Ticks a broken piece flies before it melts away, and how long the frost on the ground takes to melt. */
-    private static final float PIECES = 18, SKIRT = 38;
-
-    static boolean encased(int id) { Encase en = ENCASED.get(id); return en != null && en.broke < 0; }
-
-    /** Deep frozen (since: ticks since it began, when we only see it now). */
-    static void freeze(int id, Vec3 feet, float width, float height, int total, float since) {
-        var mc = Minecraft.getInstance();
-        Entity e = mc.level == null ? null : mc.level.getEntity(id);
-        float yaw = e instanceof LivingEntity le ? le.yBodyRot * Mth.DEG_TO_RAD : 0;
-        Random r = new Random(id * 31L + (long) FrostFx.now());
-        float R = width * .5f + .08f;
-        List<Slab> slabs = new ArrayList<>();
-        IceMesh.Mat[] mats = {IceMesh.GLACIER, IceMesh.CLEAR, IceMesh.GLACIER, IceMesh.MILKY};
-        // The great crystals standing round the body, each leaning its own way (they let go in order round it).
-        int n = 9;
-        float turn = r.nextFloat();
-        for (int i = 0; i < n; i++)
-            slabs.add(new Slab(Mth.TWO_PI * i / n + f(r, -.25f, .25f), R * f(r, .45f, .8f), 0, f(r, .74f, 1.08f), width * f(r, .3f, .4f) + .05f,
-                    f(r, -.06f, .12f), f(r, 0, .45f), r.nextInt(1 << 20), mats[i % 4], f(r, .05f, .1f), f(r, .06f, .14f), f(r, .12f, .26f) * (r.nextBoolean() ? 1 : -1),
-                    ((i + n * turn) % n) / n * 3.5f + f(r, 0, .8f), true));
-        // The crowns closing over the head last, leaning in.
-        for (int i = 0; i < 3; i++)
-            slabs.add(new Slab(f(r, 0, Mth.TWO_PI), R * .3f, .45f, f(r, 1.04f, 1.16f), width * .3f + .04f, -.18f, f(r, .55f, .75f), r.nextInt(1 << 20),
-                    IceMesh.CLEAR, f(r, .03f, .07f), f(r, .14f, .2f), f(r, .15f, .3f) * (r.nextBoolean() ? 1 : -1), f(r, 0, 1.2f), true));
-        // Smaller crystals jutting out of the mass (an uneven outline, never a column).
-        for (int i = 0; i < 7; i++) {
-            float by = f(r, .08f, .7f);
-            slabs.add(new Slab(f(r, 0, Mth.TWO_PI), R * f(r, .7f, .95f), by, by + f(r, .18f, .32f), width * f(r, .08f, .13f) + .02f, f(r, .5f, 1.1f), f(r, .3f, .8f),
-                    r.nextInt(1 << 20), r.nextBoolean() ? IceMesh.CLEAR : IceMesh.GLACIER, f(r, .08f, .14f), f(r, .05f, .12f), f(r, .2f, .4f) * (r.nextBoolean() ? 1 : -1),
-                    f(r, 0, 3f), false));
-        }
-        // The big cracks: random walks up and across the outer faces of a few great crystals.
-        int cn = 6;
-        float[][] cracks = new float[cn][];
-        int[] crackSlab = new int[cn];
-        for (int c = 0; c < cn; c++) {
-            crackSlab[c] = r.nextInt(n);
-            int pts = 6 + r.nextInt(4);
-            float[] p = new float[pts * 2];
-            float w = f(r, -.6f, .6f), y = f(r, .06f, .3f);
-            for (int k = 0; k < pts; k++) {
-                p[k * 2] = w; p[k * 2 + 1] = y;
-                w = Mth.clamp(w + f(r, -.32f, .32f), -.85f, .85f);
-                y = Math.min(.72f, y + f(r, .04f, .11f));
-            }
-            cracks[c] = p;
-        }
-        Encase en = new Encase(id, feet, width, height, yaw, FrostFx.now() - since, Math.max(total, DEEP_CLOSE + 2), slabs.toArray(new Slab[0]), cracks, crackSlab);
-        ENCASED.put(id, en);
-        if (since > 1) return;
-        // The air freezing in round them, a breath of cold light as it closes, cold mist rolling out over the ground.
-        Vec3 mid = feet.add(0, height * .5, 0);
-        int m = IceParticles.count(10, mid);
-        for (int i = 0; i < m; i++) {
-            double a = r.nextDouble() * Math.PI * 2, d = R * 2.4;
-            Vec3 at = feet.add(Math.cos(a) * d, height * (.1 + .8 * r.nextDouble()), Math.sin(a) * d);
-            IceParticles.crystalDust(at, mid.subtract(at).scale(.09), .02f, (r.nextFloat() - .5f) * .5f, 12);
-            IceParticles.mist(at, mid.subtract(at).scale(.07), .25f, .006f, .26f, 12);
-        }
-        IceParticles.flash(mid, height * .35f, .3f, DEEP_CLOSE + 2);
-        IceParticles.coldMist(feet.add(0, .05, 0), R * 3 + .6f, .9f);
-    }
-    /** The ice breaks (how 2: shattered by a blow, a bigger, faster burst). */
-    static void breakEncase(int id, int how) {
-        Encase en = ENCASED.get(id);
-        if (en == null || en.broke >= 0) return;
-        en.broke = FrostFx.now();
-        en.how = how;
-        Vec3 mid = en.feet.add(0, en.height * .5, 0);
-        Vec3 push = how == 2 ? IceParticles.jitter(.06).multiply(1, 0, 1) : Vec3.ZERO;
-        // The fracture in steps (crack, zone by zone, shards, mist, the shards landing, the frost's hiss).
-        IceParticles.breakApart(mid, new Vec3(0, 1, 0), en.height * .9f, en.height * (how == 2 ? .7f : .5f), push, 3, how == 2 ? 5 : 8, IceMesh.GLACIER);
-        IceParticles.flash(mid, en.height * .4f, how == 2 ? .5f : .3f, 4);
-    }
-
-    @SubscribeEvent public static void tick(TickEvent.ClientTickEvent e) {
-        if (e.phase != TickEvent.Phase.END || ENCASED.isEmpty()) return;
-        var mc = Minecraft.getInstance();
-        if (mc.level == null || mc.isPaused()) return;
-        float now = FrostFx.ticks();
-        for (Iterator<Encase> it = ENCASED.values().iterator(); it.hasNext(); ) {
-            Encase en = it.next();
-            if (en.broke < 0) {
-                // The crack before the break: heard once, as the cracks start to run.
-                if (!en.crackHeard && en.age(now) >= crackFrom(en)) {
-                    en.crackHeard = true;
-                    mc.level.playLocalSound(en.feet.x, en.feet.y + en.height * .6, en.feet.z, ModSounds.ICEMAN_CRACK.get(), SoundSource.PLAYERS, .7f, .95f, false);
-                }
-                // Never left standing: long past its time with no word from the server, it breaks by itself.
-                if (en.age(now) > en.total + 60) breakEncase(en.entity, 1);
-                continue;
-            }
-            float t = now - en.broke;
-            // Each piece bursts into chips of ice as it comes down.
-            float cos = Mth.cos(en.yaw), sin = Mth.sin(en.yaw);
-            for (int i = 0; i < en.slabs.length; i++) {
-                Slab s = en.slabs[i];
-                float ft = t - letGo(en, s);
-                if (en.shattered[i] || ft < 8) continue;
-                en.shattered[i] = true;
-                Vec3 local = piece(en, s, .5f, ft, null, 1);
-                Vec3 at = en.feet.add(local.x * cos - local.z * sin, local.y, local.x * sin + local.z * cos);
-                int n = IceParticles.count(s.great() ? 2 : 1, at);
-                for (int k = 0; k < n; k++)
-                    IceParticles.shard(at.add(IceParticles.jitter(.1)), IceParticles.jitter(.06).add(0, .05, 0), s.r() * (.6f + .5f * RNG.nextFloat()), 30 + RNG.nextInt(20), k == 0 ? IceMesh.FRESH : s.mat());
-                if (s.great() && IceParticles.count(1, at) > 0) IceParticles.mist(at, new Vec3(0, .004, 0), .25f, .015f, .2f, 22);
-            }
-            if (t > SKIRT) it.remove();
-        }
-    }
-    private static float crackFrom(Encase en) { return Math.max(DEEP_CLOSE + 4, en.total - 24); }
-    /** When a crystal lets go after the break (a blow breaks it all faster). */
-    private static float letGo(Encase en, Slab s) { return s.letGo() * (en.how == 2 ? .4f : 1); }
+    // ------------------------------------------------------------------ the deep freeze (FrostShell)
+    static boolean encased(int id) { return FrostShell.encased(id); }
+    /** Deep frozen (since: ticks since it began, when we only see it now; way: the cold's way, null = at their face). */
+    static void freeze(int id, Vec3 feet, float width, float height, int total, float since, Vec3 way) { FrostShell.freeze(id, feet, width, height, total, since, way); }
+    /** The ice breaks (how 2: shattered by a blow coming the way blow). */
+    static void breakEncase(int id, int how, Vec3 blow) { FrostShell.breakShell(id, how, blow); }
 
     // ------------------------------------------------------------------ drawing
     @SubscribeEvent public static void render(RenderLevelStageEvent e) {
         if (e.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) return;
-        if (FrostFx.BODIES.isEmpty() && ENCASED.isEmpty() && PRINTS.isEmpty()) return;
+        if (FrostFx.BODIES.isEmpty() && !FrostShell.any() && PRINTS.isEmpty()) return;
         var mc = Minecraft.getInstance();
         if (mc.level == null) return;
         IceStage st = IceStage.open(e);
@@ -374,28 +241,10 @@ public final class FrostBodies {
                 st.pose.popPose();
             }
             prints(c, st, now);
-            for (Encase en : ENCASED.values()) {
-                Entity ent = mc.level.getEntity(en.entity);
-                if (en.broke < 0 && ent != null) en.feet = ent.getPosition(st.partial);
-                if (st.distance(en.feet) > 64) continue;
-                boolean self = ent != null && ent == mc.getCameraEntity() && firstPerson;
-                st.pose.pushPose();
-                st.pose.translate(en.feet.x, en.feet.y, en.feet.z);
-                st.pose.mulPose(Axis.YP.rotation(-en.yaw));
-                c.at(st.pose);
-                c.light = IceStage.light(en.feet.add(0, en.height * .5, 0));
-                encase(c, en, now, self, st.far(en.feet));
-                st.pose.popPose();
-            }
+            FrostShell.draw(st, c, firstPerson);
             st.endIce();
-            // A cold glow inside the block as it closes.
-            FilmContext f = st.fx();
-            for (Encase en : ENCASED.values()) {
-                float age = en.age(now);
-                if (en.broke >= 0 || age > DEEP_CLOSE + 6) continue;
-                float k = 1 - Mth.clamp(age / (DEEP_CLOSE + 6), 0, 1);
-                FilmFx.glow(f, en.feet.add(0, en.height * .5, 0), en.height * .8, IceParticles.COLD_LIGHT, .3f * k);
-            }
+            // A cold glow inside the ice as it closes.
+            FrostShell.glow(st.fx());
         } finally {
             st.close();
         }
@@ -403,8 +252,8 @@ public final class FrostBodies {
 
     // reused while drawing
     private static final Vector3f P = new Vector3f(), N = new Vector3f();
-    private static final Matrix4f[] PART = {new Matrix4f(), new Matrix4f(), new Matrix4f(), new Matrix4f(), new Matrix4f(), new Matrix4f()};
-    private static final float[][] BOX = new float[6][6];
+    static final Matrix4f[] PART = {new Matrix4f(), new Matrix4f(), new Matrix4f(), new Matrix4f(), new Matrix4f(), new Matrix4f()};
+    static final float[][] BOX = new float[6][6];
     private static final Vec3 UP = new Vec3(0, 1, 0);
 
     /** Every frost site on one body (the pose is at its feet). */
@@ -483,7 +332,7 @@ public final class FrostBodies {
         }
     }
     /** Every part's place (feet-relative) this frame: from the humanoid model's limbs, or a box layout. */
-    private static void parts(LivingEntity le, boolean human, float yawDeg, float w, float h) {
+    static void parts(LivingEntity le, boolean human, float yawDeg, float w, float h) {
         if (human) {
             float s = le instanceof Player ? .9375f : Mth.clamp(h / 1.95f, .3f, 4f);
             float drop = le instanceof Player && le.isCrouching() ? -.125f : 0;
@@ -549,127 +398,7 @@ public final class FrostBodies {
         }
     }
 
-    /** The ice round the body (the pose at the feet, turned to the body's facing when it froze). */
-    private static void encase(IceMesh.Ctx c, Encase en, float now, boolean self, boolean far) {
-        float age = en.age(now), H = en.height, R = en.width * .5f + .08f;
-        float broken = en.broke < 0 ? -1 : now - en.broke;
-        // The frost on the ground and the clusters round the feet: grow as it closes, melt after the break.
-        float skirt = FilmFx.ease(age / (DEEP_CLOSE + 2)) * (broken < 0 ? 1 : 1 - FilmFx.ease(broken / SKIRT));
-        if (skirt > .01f) for (int i = 0; i < 8; i++) {
-            float a = i * Mth.TWO_PI / 8 + (float) IceMesh.hash(en.entity + i) * .6f, d = R * (1.05f + .35f * (float) IceMesh.hash(en.entity * 3 + i));
-            Vec3 at = new Vec3(Mth.cos(a) * d, .012, Mth.sin(a) * d);
-            plate(c, at, UP, (.14f + .1f * (float) IceMesh.hash(i * 7 + en.entity)) * (.4f + .6f * skirt), .02f, en.entity + i * 13, IceMesh.FROST, .85f * skirt);
-            if (far || (i & 1) == 1) continue;
-            Vec3 o = new Vec3(Mth.cos(a), 0, Mth.sin(a));
-            Vec3 p = at.scale(.9);
-            float sz = (.18f + .14f * (float) IceMesh.hash(i + en.entity * 5)) * Math.max(.6f, Math.min(1.6f, en.width / .6f));
-            float t = broken < 0 ? FilmFx.ease(age / DEEP_CLOSE) * 1.25f : 1.25f;
-            IceGrowth.cluster(c, p.x, p.y - .02, p.z, o.x * .4, 1, o.z * .4, sz * (broken < 0 ? 1 : .4f + .6f * skirt), en.entity * 17 + i, 4,
-                    IceMesh.GLACIER, t, broken < 0 ? 1 : skirt);
-        }
-        if (broken < 0) {
-            if (self) return;
-            float crackK = FilmFx.ease((age - crackFrom(en)) / Math.max(4, en.total - crackFrom(en)));
-            for (int i = 0; i < en.slabs.length; i++) {
-                Slab s = en.slabs[i];
-                if (far && !s.great()) continue;
-                float g = IceGrowth.grow(age / DEEP_CLOSE, s.delay() * .6f, .75f);
-                if (g <= .01f) continue;
-                Vec3 O = new Vec3(Mth.cos(s.ang()), 0, Mth.sin(s.ang()));
-                Vec3 A = UP.add(O.scale(s.lean()));
-                Vec3 base = O.scale(s.radial()).add(0, s.by() * H - (s.by() > 0 ? .04 : .06), 0);
-                IceGrowth.crystal(c, base.x, base.y, base.z, A.x, A.y, A.z, (s.h() - s.by()) * H + .06f, s.r(), s.seed(), s.mat(), g, 1);
-            }
-            if (crackK > .01f) for (int ci = 0; ci < en.cracks.length; ci++) crack(c, en, ci, crackK);
-            return;
-        }
-        if (self && broken < 3) return;
-        // Coming apart: each crystal stands until it lets go, glowing cracks over it; then it splits in two and the
-        // pieces fly, tumble, shrink and melt (a clean bright face where each broke).
-        for (Slab s : en.slabs) {
-            float ft = broken - letGo(en, s);
-            Vec3 O = new Vec3(Mth.cos(s.ang()), 0, Mth.sin(s.ang()));
-            float len = (s.h() - s.by()) * H + .06f;
-            if (ft < 0) {
-                Vec3 A = UP.add(O.scale(s.lean()));
-                Vec3 base = O.scale(s.radial()).add(0, s.by() * H - (s.by() > 0 ? .04 : .06), 0);
-                IceGrowth.crystal(c, base.x, base.y, base.z, A.x, A.y, A.z, len, s.r(), s.seed(), s.mat(), 1, 1);
-                Vec3 An = A.normalize();
-                Vec3 p0 = base.add(An.scale(len * .15)).add(O.scale(s.r() * 1.08));
-                Vec3 p1 = base.add(An.scale(len * (.15 + .5f * FilmFx.ease(broken / 2)))).add(O.scale(s.r() * 1.0)).add(new Vec3(-O.z, 0, O.x).scale(s.r() * .3));
-                IceMesh.vein(c, p0, p1, .012f, .9f);
-                continue;
-            }
-            float melt = 1 - FilmFx.ease((ft - 7) / (PIECES - 7));
-            if (melt <= .01f) continue;
-            for (int half = 0; half < 2; half++) {
-                float y0 = half * .5f;
-                Vec3[] axes = new Vec3[3];
-                Vec3 centre = piece(en, s, y0 + .25f, ft, axes, half == 1 ? 1.25f : .8f);
-                float hl = len * .5f * melt;
-                Vec3 base = centre.subtract(axes[0].scale(hl * .5));
-                Vec3 d = axes[0];
-                float al = (float) Math.sqrt(melt);
-                c.origin(centre);
-                IceGrowth.crystal(c, base.x, base.y, base.z, d.x, d.y, d.z, hl * (half == 0 ? 1.15f : 1), s.r() * melt, s.seed() + half * 29, s.mat(), 1, al);
-                // The clean break: bright fresh ice where it split (the top of the lower piece, the bottom of the upper).
-                Vec3 cut = half == 0 ? base.add(d.scale(hl * .8)) : base;
-                Vec3 cd = half == 0 ? d : d.scale(-1);
-                IceGrowth.crystal(c, cut.x, cut.y, cut.z, cd.x, cd.y, cd.z, hl * .22f, s.r() * .8f * melt, s.seed() + 7 + half, IceMesh.FRESH, 1, al);
-            }
-        }
-        c.ox = c.oy = c.oz = 0;
-    }
-    /**
-     * A piece of a crystal (around its share mid of the height) `t` ticks after it let go: where its middle is
-     * (body-local) and, into axes (if given), its turned axis, outward and side directions. k scales its throw (upper
-     * pieces further).
-     */
-    private static Vec3 piece(Encase en, Slab s, float mid, float t, Vec3[] axes, float k) {
-        float H = en.height, len = (s.h() - s.by()) * H;
-        Vec3 O = new Vec3(Mth.cos(s.ang()), 0, Mth.sin(s.ang())), S = new Vec3(-Mth.sin(s.ang()), 0, Mth.cos(s.ang()));
-        Vec3 A = UP.add(O.scale(s.lean())).normalize();
-        Vec3 c0 = O.scale(s.radial()).add(0, s.by() * H, 0).add(A.scale(len * mid));
-        float blow = en.how == 2 ? 1.6f : 1;
-        float out = s.vOut() * k * blow * t, up = s.vUp() * k * t - .5f * .05f * t * t;
-        Vec3 c = c0.add(O.scale(out)).add(0, up, 0);
-        if (c.y < .08) c = new Vec3(c.x, .08, c.z);
-        if (axes != null) {
-            float th = s.spin() * blow * t * (mid > .5f ? 1.2f : .8f);
-            axes[0] = IceParticles.rotate(A, S, th);
-            axes[1] = IceParticles.rotate(O, S, th);
-            axes[2] = S;
-        }
-        return c;
-    }
-    /** A crack running up a great crystal's outer side, glowing (it is about to break), its front a spark. */
-    private static void crack(IceMesh.Ctx c, Encase en, int ci, float k) {
-        Slab s = en.slabs[en.crackSlab[ci]];
-        float[] p = en.cracks[ci];
-        int n = p.length / 2;
-        float H = en.height, len = (s.h() - s.by()) * H;
-        Vec3 O = new Vec3(Mth.cos(s.ang()), 0, Mth.sin(s.ang())), S = new Vec3(-Mth.sin(s.ang()), 0, Mth.cos(s.ang()));
-        Vec3 A = UP.add(O.scale(s.lean())).normalize();
-        Vec3 base = O.scale(s.radial()).add(0, s.by() * H, 0);
-        float reach = k * (n - 1) * (1.1f - .2f * ci / (float) en.cracks.length);
-        Vec3 prev = null;
-        for (int i = 0; i < n; i++) {
-            float y = p[i * 2 + 1], w = p[i * 2];
-            // The crystal narrows toward its top: the crack keeps to its surface.
-            float rr = s.r() * (1.08f - .45f * y);
-            Vec3 at = base.add(A.scale(len * y)).add(O.scale(rr * Math.sqrt(Math.max(0, 1 - w * w * .5)))).add(S.scale(rr * w * .7));
-            if (prev != null) {
-                float seg = Mth.clamp(reach - (i - 1), 0, 1);
-                if (seg <= 0) break;
-                Vec3 to = prev.lerp(at, seg);
-                IceMesh.vein(c, prev, to, .007f + .006f * k, .95f * k);
-                if (seg < 1) { IceMesh.sparkle(c, to, .05f, .6f * k); break; }
-            }
-            prev = at;
-        }
-    }
-
     /** The body is no longer followed (gone, or its frost melted away). */
     static void forget(int id) { RIGS.remove(id); }
-    static void clear() { RIGS.clear(); ENCASED.clear(); PRINTS.clear(); PUSHED.clear(); }
+    static void clear() { RIGS.clear(); PRINTS.clear(); PUSHED.clear(); FrostShell.clear(); }
 }

@@ -83,9 +83,75 @@ def tile(pal, seed, streaks, bubbles, base):
     return np.concatenate([rgb, a], axis=2)
 
 
-# ------------------------------------------------------------------ the tiles
-ice = tile(ICE, 11, 3, 3, .5)
-frost = tile(FROST, 23, 2, 3, .5)
+# ------------------------------------------------------------------ the tiles (the world's ice: MK1 freeze quality)
+# Thick real ice is not one colour: a milky pale-blue body that scatters the light, pockets of clearer ice where the
+# blue sits deep inside it (darker toward their cores), thin crystalline layers catching the light on the slant, a few
+# internal cracks (a dark line with a bright lip), trapped frost (white specks, little clouds). His body keeps its own
+# brighter skin (ICE above); everything he GROWS uses these.
+WICE = np.array([(46, 96, 176), (66, 124, 204), (96, 156, 226), (132, 186, 238), (166, 208, 244), (192, 224, 248), (212, 235, 251), (232, 245, 254)], float)
+WFROST = np.array([(150, 190, 230), (176, 208, 238), (198, 222, 244), (214, 232, 249), (228, 240, 252), (240, 247, 254), (255, 255, 255)], float)
+
+
+def world_ice(seed):
+    r = np.random.default_rng(seed)
+    w = h = 16
+    # The milky body: mostly the upper (pale) half of the ramp, a soft broad drift and a faint grain.
+    v = .7 + .14 * (torus_noise(w, h, 8, seed) - .5) + .07 * (torus_noise(w, h, 4, seed + 1) - .5) + .03 * (r.random((h, w)) - .5)
+    # Blue pockets: irregular blobs where the ice is clear and deep (cores darker), wrapping round the tile.
+    for k in range(2):
+        cx, cy = r.uniform(0, w), r.uniform(0, h)
+        rx, ry = r.uniform(2.2, 4.2), r.uniform(1.6, 3.2)
+        ang = r.uniform(0, np.pi)
+        for y in range(h):
+            for x in range(w):
+                dx = (x - cx + w / 2) % w - w / 2
+                dy = (y - cy + h / 2) % h - h / 2
+                u = (dx * np.cos(ang) + dy * np.sin(ang)) / rx
+                q = (-dx * np.sin(ang) + dy * np.cos(ang)) / ry
+                d = np.sqrt(u * u + q * q) + .35 * (torus_noise(w, h, 4, seed + 10 + k)[y, x] - .5)
+                if d < 1: v[y, x] -= .55 * (1 - d) ** .7
+    # Thin crystalline layers: long runs on one shared slant (planes in the ice seen edge on), a little brighter, broken
+    # in places, wandering a texel now and then (never a ruled line, never a V).
+    x0, y0 = r.integers(0, w), r.integers(0, h)
+    for k in range(2):
+        x, y = (x0 + k * 7 + r.integers(0, 3)) % w, (y0 + k * 5) % h
+        for i in range(int(r.integers(8, 13))):
+            if r.random() > .2: v[y % h, x % w] += .14 + .08 * r.random()
+            x += 1
+            if i % 2 == 1: y += 1
+            if r.random() < .15: y += r.choice([-1, 1])
+    # An internal crack: a short jagged line a shade darker, a bright texel on its upper lip here and there.
+    x, y = r.integers(0, w), r.integers(0, h)
+    for i in range(int(r.integers(4, 7))):
+        v[y % h, x % w] -= .2
+        if r.random() < .5: v[(y - 1) % h, x % w] = min(1, v[(y - 1) % h, x % w] + .15)
+        x += 1
+        y += r.choice([-1, 0, 0, 1])
+    # Trapped frost: white specks and a little cloud.
+    for k in range(4):
+        bx, by = r.integers(0, w), r.integers(0, h)
+        v[by, bx] = 1.0
+    cx, cy = r.integers(0, w), r.integers(0, h)
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            if r.random() < .6: v[(cy + dy) % h, (cx + dx) % w] = min(1, v[(cy + dy) % h, (cx + dx) % w] + .2)
+    rgb = ramp(WICE, np.clip(v, 0, 1))
+    return np.concatenate([rgb, np.full((16, 16, 1), 255.0)], axis=2)
+
+
+def world_frost(seed):
+    r = np.random.default_rng(seed)
+    v = .66 + .16 * (torus_noise(16, 16, 4, seed) - .5) + .1 * (r.random((16, 16)) - .5)
+    for k in range(5):
+        v[r.integers(0, 16), r.integers(0, 16)] = 1.0
+    for k in range(3):
+        v[r.integers(0, 16), r.integers(0, 16)] -= .3
+    rgb = ramp(WFROST, np.clip(v, 0, 1))
+    return np.concatenate([rgb, np.full((16, 16, 1), 255.0)], axis=2)
+
+
+ice = world_ice(11)
+frost = world_frost(23)
 frost[0, 0] = (255, 255, 255, 255)
 
 # ------------------------------------------------------------------ the skin
