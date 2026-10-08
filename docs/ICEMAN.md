@@ -23,6 +23,24 @@ Yürürken arkasında, sağ tıktaki soğuk sisin çok daha hafif bir izi kalır
 ve arada parlayan minik buz kristalleri, geride kalıp yere doğru çöker. Ne kadar hızlı yürürse o kadar belirgin; durunca yavaşça
 söner. Miktarı istemci ayarında `walkMist` (0 kapalı, 1 normal, 2 iki kat).
 
+## Yeni buz kalitesi (MK1 referansı)
+Iceman'in oluşturduğu buz artık süt beyazı-soluk mavi: içinde koyu mavi berrak cepler (oralarda hafifçe içi görünür),
+ince kristal katmanlar, iç çatlaklar ve hapsolmuş kırağı var; yukarı bakan yüzlerde kırağı birikir, kenarlarda camgöbeği
+bir parıltı olur. Büyük kristallerin uçları kusursuz sivri değil, bazıları kırık ve eğimli. (Iceman'in kendi bedeni aynı kaldı.)
+
+**Derin Donma artık düşmanı bir buz bloğuna koymuyor; buz düşmanın kendi şeklinin üstünde büyüyor.** Soğuk hangi taraftan
+geldiyse orada küçük bir patlama, kırağı ve soğuk bulut olur; buz o noktadan gövdeye yayılır ve ayaklardan yukarı tırmanır.
+Düşman yaklaşık 0,7 saniye boyunca hareket etmeye devam eder ama giderek yavaşlar, sonra o anki hareketinin ortasında
+kilitlenir (koşuyorsa koşar pozda, vuruyorsa vuruş pozunda). Kafa, omuzlar, kollar, eller ve bacaklar okunur. Omuzlarda kalın
+kristal kütleleri, ellerde küçük kristaller, ayaklarda yere bağlanan buz ve kırağı olur; arka tarafta (soğuğun gitmediği
+tarafta) farklı boylarda ince, kıvrık buz dikenleri dağınık şekilde çıkar. Göğüs ve kollardaki buz daha berraktır, beden
+içinden görünür.
+**Kırılırken:** önce küçük bir çatlak çıkar, dallanır, başka yerlerden başlayan çatlaklar ona bağlanır; sonra kabuk kendi
+şeklinde parçalara ayrılır. Parçalar sırayla kopar (bazıları bir an daha tutunur), uçar, yere düşünce kırıntılara ayrılır;
+kırağı tozu ve soğuk sis çıkar, yerdeki kırağı erir. Sesler de bu sırayı izler.
+
+**Mızrak çarpması** artık çok daha büyük: bir büyük ana diken, iki ayrı orta boy oluşum, küçük yan kristaller ve ince buz iğneleri.
+
 ## Tuşlar
 
 | Tuş | Yetenek | Ne yapar |

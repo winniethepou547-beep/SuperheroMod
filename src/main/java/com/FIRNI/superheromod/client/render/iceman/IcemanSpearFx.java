@@ -102,7 +102,9 @@ final class IcemanSpearFx {
     }
     /** The eruption round a thrown spear (radius blocks); scale sizes it (kept for older callers: the same as erupt). */
     static void spikes(Vec3 at, float radius, float scale) {
-        erupt(at, radius, (1.6f + .35f * radius) * scale, Math.round(4 + radius * .6f), Math.round(7 + radius * 1.6f));
+        // The user's spec: the spear's impact must have real presence (one large spike, two medium formations, smaller
+        // side crystals, thin icicle-like growths), much bigger than before.
+        erupt(at, radius * 1.15f, (2.6f + .5f * radius) * scale, Math.round(4 + radius * .5f), Math.round(8 + radius * 1.6f));
     }
     /**
      * A cluster of ice crystals erupting out of the ground at (on the ground there) over radius: a central growth whose
@@ -120,8 +122,8 @@ final class IcemanSpearFx {
         List<Piece> list = new ArrayList<>();
         // The central growth: a squat foot, the big crystal a little off upright, crystals interlocking round it.
         float lean = (IceGrowth.h(seed, 1) - .5f) * .35f, lean2 = (IceGrowth.h(seed, 2) - .5f) * .35f;
-        list.add(piece(level, at, 0, 0, new Vec3(lean * .5, 1, lean2 * .5), central * .32f, central * .3f, seed + 1, 0, 0, 3, IceMesh.GLACIER));
-        list.add(piece(level, at, 0, 0, new Vec3(lean, 1, lean2), central, central * .17f, seed + 2, 0, .5f, 7, IceMesh.CLEAR));
+        list.add(piece(level, at, 0, 0, new Vec3(lean * .5, 1, lean2 * .5), central * .36f, central * .34f, seed + 1, 0, 0, 3, IceMesh.GLACIER));
+        list.add(piece(level, at, 0, 0, new Vec3(lean, 1, lean2), central, central * .19f, seed + 2, 0, .5f, 7, IceMesh.CLEAR));
         int around = 4;
         for (int i = 0; i < around; i++) {
             float a = i * Mth.TWO_PI / around + (IceGrowth.h(seed, 10 + i) - .5f) * 1.2f, tilt = .35f + .5f * IceGrowth.h(seed, 20 + i);
@@ -130,12 +132,42 @@ final class IcemanSpearFx {
             list.add(piece(level, at, -Mth.sin(a) * central * .12f, Mth.cos(a) * central * .12f, d, len, len * .2f, seed + 40 + i, 0, 1 + 2.5f * IceGrowth.h(seed, 40 + i), 5 + 3 * IceGrowth.h(seed, 50 + i),
                     i % 3 == 0 ? IceMesh.MILKY : IceMesh.CLEAR));
         }
-        // The medium clusters leaning outward, the later the further out.
+        // Two medium FORMATIONS on their own sides (never opposite, never alike): a squat foot and three or four
+        // crystals each, a little later than the centre.
+        float fa = IceGrowth.h(seed, 300) * Mth.TWO_PI;
+        for (int f = 0; f < 2; f++) {
+            float a = fa + (f == 0 ? 0 : 1.9f + 1.1f * IceGrowth.h(seed, 301));
+            float dist = er.radius * (.42f + .2f * IceGrowth.h(seed, 302 + f));
+            float x = -Mth.sin(a) * dist, z = Mth.cos(a) * dist;
+            float size = central * (f == 0 ? .58f : .44f) * (.9f + .2f * IceGrowth.h(seed, 304 + f));
+            float delay = 1 + 3 * dist / er.radius;
+            list.add(piece(level, at, x, z, new Vec3(-Mth.sin(a) * .25, 1, Mth.cos(a) * .25), size * .3f, size * .32f, seed + 310 + f, 1, delay, 3, IceMesh.GLACIER));
+            int n = 3 + (int) (IceGrowth.h(seed, 306 + f) * 1.99f);
+            for (int k = 0; k < n; k++) {
+                float aa = a + (k == 0 ? 0 : (IceGrowth.h(seed, 320 + f * 9 + k) - .5f) * 2.6f);
+                float tilt = k == 0 ? .25f + .2f * IceGrowth.h(seed, 330 + f) : .45f + .6f * IceGrowth.h(seed, 340 + f * 9 + k);
+                Vec3 d = new Vec3(-Mth.sin(aa) * Mth.sin(tilt), Mth.cos(tilt), Mth.cos(aa) * Mth.sin(tilt));
+                float len = size * (k == 0 ? 1 : .35f + .4f * IceGrowth.h(seed, 350 + f * 9 + k));
+                list.add(piece(level, at, x, z, d, len, len * (.17f + .06f * IceGrowth.h(seed, 360 + k)), seed + 370 + f * 9 + k, 1, delay + .6f + k * .9f,
+                        4 + 3 * IceGrowth.h(seed, 380 + f * 9 + k), IceGrowth.h(seed, 390 + f * 9 + k) < .3f ? IceMesh.MILKY : IceMesh.CLEAR));
+            }
+        }
+        // Thin icicle-like needles pushed out low from the feet of the growths, each its own length and way.
+        int needles = Math.max(4, IceParticles.count(Math.round(6 + er.radius * 1.5f), at));
+        for (int i = 0; i < needles; i++) {
+            float a = IceGrowth.h(seed, 400 + i) * Mth.TWO_PI, dist = er.radius * (.08f + .45f * IceGrowth.h(seed, 410 + i));
+            float tilt = .75f + .6f * IceGrowth.h(seed, 420 + i), aa = a + (IceGrowth.h(seed, 430 + i) - .5f) * .8f;
+            Vec3 d = new Vec3(-Mth.sin(aa) * Mth.sin(tilt), Mth.cos(tilt), Mth.cos(aa) * Mth.sin(tilt));
+            float len = Math.min(1.1f, central * (.12f + .2f * IceGrowth.h(seed, 440 + i)));
+            list.add(piece(level, at, -Mth.sin(a) * dist, Mth.cos(a) * dist, d, len, len * .065f, seed + 450 + i, 2, 2 + 5 * IceGrowth.h(seed, 460 + i), 3 + 2 * IceGrowth.h(seed, 470 + i),
+                    IceGrowth.h(seed, 480 + i) < .4f ? IceMesh.FRESH : IceMesh.CLEAR));
+        }
+        // Smaller side crystals in pairs, leaning outward, the later the further out.
         for (int i = 0; i < mediums; i++) {
             float a = i * Mth.TWO_PI / mediums + (IceGrowth.h(seed, 60 + i) - .5f) * .9f;
             float dist = er.radius * (.35f + .35f * IceGrowth.h(seed, 70 + i));
             float x = -Mth.sin(a) * dist, z = Mth.cos(a) * dist;
-            float size = central * (.32f + .22f * IceGrowth.h(seed, 80 + i));
+            float size = central * (.18f + .16f * IceGrowth.h(seed, 80 + i));
             float delay = 1.5f + 5 * dist / er.radius;
             for (int k = 0; k < 2; k++) {
                 float tilt = (.3f + .45f * IceGrowth.h(seed, 90 + i * 3 + k)) * (k == 0 ? 1 : 1.5f), aa = a + (k == 0 ? 0 : (IceGrowth.h(seed, 100 + i) - .5f) * 1.4f);

@@ -44,6 +44,30 @@
 - Left-behind ice is SOLID: `heroes/iceman/IceSolidEntity` (invisible synced box, `canBeCollidedWith`, soft until no body is
   in it, never saved, dies with its owner/time) under the raised slide track (`IcemanSlide`) and along sculptures
   (`IcemanBrush`); `/iceman test solid` builds a test bar and ramp.
+- MK1 ICE STANDARD (user's latest spec, Mortal Kombat 1 Sub-Zero freeze reference; "the air froze, crystals grew and connected"):
+  world ice is MILKY pale blue with clear blue pockets inside (no longer bright cyan-blue): `tools/textures/iceman_skin.py`
+  `world_ice/world_frost` (his own skin.png unchanged), and `IceMesh.vert` reads two slow noises pinned to the piece: clear
+  pockets darker/bluer and a little see-through (Mat.clear = opacity there; 1 = never), cloudy parts milky/opaque; faces turned
+  up take the frost texture (`Ctx.frostUp`, false in his body's model space), the outline a cyan edge (`qr`). Partial
+  translucency is now WANTED in places ("milky, some semi-transparent, never fully transparent / glass").
+  `IceGrowth.crystal`: ~40% have a snapped slanted top with a stub point (no pencil tips).
+- DEEP FREEZE = `FrostShell` (game: lifecycle, held pose, particles, sounds, chunk flight) + `FrostShellMesh` (pure geometry,
+  previewable: `Dump.frozen`, run `java ... Dump out.txt frozen`). A shell of rings round every part of the body's OWN pose
+  (FrostBodies.parts/rig), each vertex its own thickness/ridge/stagger and growth time (spread from the contact point on the
+  side the cold came from, `way` from the server, and climbing from the feet); shoulder masses, hand crystals, struck-side
+  clusters, scattered curved thin spines on the far side (alone or in 2-3s, never a row), medium crystals all round, ground
+  frost + foot crystals. Server `IcemanFrost`: `DEEP_SEIZE` 14 ticks of slowing before the hold (players: input faded in
+  `FrostFx.hold`; mobs: drift wound down), the hold time unchanged on top; FX_DEEP_FREEZE/BREAK carry the cold's / blow's way.
+  Held pose: `FrostShell.pose` from `HumanoidModelMixin` and the new `LivingEntityRendererMixin` (after setupAnim, require 0;
+  zombies' own arm animation runs after HumanoidModel's), body turn held in `turnPre`. Break: crack network (multi-source
+  Dijkstra over the shell's vertices, across joints) then chunks cut from the rings (2-3 points wide, 1-2 bands, caps whole)
+  letting go as the cracks reach them (some hold longer), flying, bursting into chips on landing; glass sounds swapped for
+  amethyst. Screen frost now closes over DEEP_SEIZE.
+- Spear impact (`IcemanSpearFx.spikes/erupt`): central ~1.6x bigger, two distinct medium FORMATIONS, smaller side pairs,
+  thin icicle needles (also in the mace's eruptions).
+- NOT DONE YET from that spec (user said stop for now): CTRL track volume + hit burst, SHIFT path irregular crystalline sides /
+  icicles / staged formation, SHIFT+SPACE path erupting from the ground, sword-plant inward mist/snow/frost, per-weapon swing
+  trails, a close-range review of brush/shell/ground/weapons in the new material.
 - Walk trail `IcemanWalkFx` (client, everyone sees it): as he walks, a light trail of the brush's vapour + a few ice crystals rolls
   off his back/legs and sinks behind him (about a puff every 2 ticks vs the brush's 3-4 a tick; user: "sağ clicktekinden daha az").
   Follows horizontal speed, eased in/out; off during brush/slide/dash and in water; kept low in his own first-person view;
