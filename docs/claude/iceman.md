@@ -44,7 +44,6 @@
 - Left-behind ice is SOLID: `heroes/iceman/IceSolidEntity` (invisible synced box, `canBeCollidedWith`, soft until no body is
   in it, never saved, dies with its owner/time) under the raised slide track (`IcemanSlide`) and along sculptures
   (`IcemanBrush`); `/iceman test solid` builds a test bar and ramp.
-- Body preview offline (no game needed): a /tmp scratch harness renders IcemanBody with fake MC classes (fakes for
-  PoseStack/VertexConsumer/RenderType/Vec3/Mth/Minecraft + the real JOML jar, a Dump class writing the quads, a Python
-  painter's-algorithm renderer that samples the textures per texel). Rebuild it if /tmp was wiped.
+- Body preview offline (no game needed): `tools/claude/preview` (fake MC classes, shadow stubs, JOML jar, Dump.java views,
+  render2.py samples the textures per texel); run `sh tools/claude/preview/preview.sh out.png "front,face"`.
 

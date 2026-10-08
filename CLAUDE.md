@@ -49,8 +49,9 @@ work in the cloud). Keep everything compiling; tests live in `src/test/java/com/
 - Time is not a problem for them; they prefer slower work with fewer tokens to faster work that wastes them.
 
 ## Where the details are (read the one you need, not all)
-Per-area notes, moved out of this file so every turn stays small. ALWAYS open the matching file before working on a hero
-or system, and update it (not this file) when that area changes:
+Per-area notes, moved out of this file so every turn stays small. ALWAYS read `docs/claude/lessons.md` (the general
+know-how: the user, the process that works, rejected designs, Minecraft rendering/collision gotchas, the tools) and the
+matching file before working on a hero or system; update them (not this file) when that area changes:
 - `docs/claude/film.md`: the film engine + the cinematics (Ghost Rider, Cyclops, Sandman, Thor) and what the user expects.
 - `docs/claude/thor.md`, `hulk.md`, `zed.md`, `panther.md`, `magneto.md`, `batman.md`, `iceman.md`: each hero (keys, classes,
   look, the user's rules and rejections, its X film).
@@ -72,6 +73,8 @@ or system, and update it (not this file) when that area changes:
 - Entities: hittable trap `SonicEmitterEntity`; invisible solid collision box `IceSolidEntity`; real flying blocks
   `HulkBlocks.launch` with break rules/budget in `HulkBlocks`.
 - Wheel UI with camera lock: `BatmanWheel`, `IcemanWheel`. Skill list: `HudStyle.skill`.
+- No Gradle/Minecraft here: `sh tools/claude/typecheck/typecheck.sh` (stub type-check, baseline "issues: 8") and
+  `sh tools/claude/preview/preview.sh out.png views` (offline body render) live in the repo.
 - Textures/art from Python: skins (`tools/skins`, `tools/textures/iceman_skin.py`), icons (`tools/icons`), splash (`tools/splash`),
   sounds (`tools/sounds/synth.py`); offline model preview harness (see `docs/claude/iceman.md`).
 - Ultimates: the film engine (`docs/claude/film.md`), `FilmSessions` on the server.
