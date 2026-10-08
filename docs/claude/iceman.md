@@ -44,6 +44,10 @@
 - Left-behind ice is SOLID: `heroes/iceman/IceSolidEntity` (invisible synced box, `canBeCollidedWith`, soft until no body is
   in it, never saved, dies with its owner/time) under the raised slide track (`IcemanSlide`) and along sculptures
   (`IcemanBrush`); `/iceman test solid` builds a test bar and ramp.
+- Walk trail `IcemanWalkFx` (client, everyone sees it): as he walks, a light trail of the brush's vapour + a few ice crystals rolls
+  off his back/legs and sinks behind him (about a puff every 2 ticks vs the brush's 3-4 a tick; user: "sağ clicktekinden daha az").
+  Follows horizontal speed, eased in/out; off during brush/slide/dash and in water; kept low in his own first-person view;
+  amount = client config `walkMist` (0 off..2).
 - Body preview offline (no game needed): `tools/claude/preview` (fake MC classes, shadow stubs, JOML jar, Dump.java views,
   render2.py samples the textures per texel); run `sh tools/claude/preview/preview.sh out.png "front,face"`.
 

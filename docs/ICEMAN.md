@@ -19,6 +19,10 @@ geçene kadar yumuşaktır (takılmazsın); sonra senin için de katıdır.
 
 Hiçbir şey bir anda belirmez ya da kaybolmaz.
 
+Yürürken arkasında, sağ tıktaki soğuk sisin çok daha hafif bir izi kalır: sırtından ve bacaklarından süzülen mavimsi-beyaz buhar
+ve arada parlayan minik buz kristalleri, geride kalıp yere doğru çöker. Ne kadar hızlı yürürse o kadar belirgin; durunca yavaşça
+söner. Miktarı istemci ayarında `walkMist` (0 kapalı, 1 normal, 2 iki kat).
+
 ## Tuşlar
 
 | Tuş | Yetenek | Ne yapar |

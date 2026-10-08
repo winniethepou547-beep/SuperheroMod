@@ -32,7 +32,7 @@ public final class IcemanConfig {
 
     // ------------------------------------------------------------------ client
     public static final ForgeConfigSpec CLIENT;
-    public static final ForgeConfigSpec.DoubleValue EFFECTS, SHAKE, SCREEN_FROST;
+    public static final ForgeConfigSpec.DoubleValue EFFECTS, SHAKE, SCREEN_FROST, WALK_MIST;
     public static final ForgeConfigSpec.IntValue FAR_DETAIL;
 
     static {
@@ -113,6 +113,7 @@ public final class IcemanConfig {
         EFFECTS = c.comment("Amount of ice effects (shards, mist, frost dust): 0..2").defineInRange("effects", 1.0, 0, 2);
         SHAKE = c.comment("Camera shake strength: 0..2").defineInRange("shake", 1.0, 0, 2);
         SCREEN_FROST = c.comment("How strong the frost on your own screen is when you are frozen: 0..1.5").defineInRange("screenFrost", 1.0, 0, 1.5);
+        WALK_MIST = c.comment("Cold vapour trailing behind him as he walks (a lighter breath of the brush's mist): 0 off..2").defineInRange("walkMist", 1.0, 0, 2);
         FAR_DETAIL = c.comment("Beyond this many blocks the ice is drawn with less detail").defineInRange("farDetail", 28, 4, 256);
         c.pop();
         CLIENT = c.build();
