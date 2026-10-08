@@ -191,7 +191,8 @@ public class AbilityKeyHandler {
 
             // A Magneto spike in them: left click pulls at it (SpikeClient), it does not attack.
             if (com.FIRNI.superheromod.client.render.magneto.SpikeClient.stuck() || com.FIRNI.superheromod.client.render.batman.BatmanClient.wheelOpen()
-                    || com.FIRNI.superheromod.client.render.batman.BatmanBound.bound()) checkSlot(AbilitySlot.LMB, false);
+                    || com.FIRNI.superheromod.client.render.batman.BatmanBound.bound()
+                    || com.FIRNI.superheromod.client.render.iceman.IcemanClient.wheelOpen()) checkSlot(AbilitySlot.LMB, false);
             else checkSlot(AbilitySlot.LMB, mc.options.keyAttack.isDown());
             checkSlot(AbilitySlot.RMB, mc.options.keyUse.isDown());
             // Itis SHIFT'te (egilme kaldirildi), sprint CTRL'de kaliyor

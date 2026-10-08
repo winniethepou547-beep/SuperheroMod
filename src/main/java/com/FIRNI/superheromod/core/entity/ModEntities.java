@@ -66,6 +66,16 @@ public final class ModEntities {
                             com.FIRNI.superheromod.heroes.batman.BatmobileEntity::new, MobCategory.MISC)
                     .sized(3.0f, 1.7f).clientTrackingRange(12).updateInterval(20).fireImmune().noSave().build("batmobile"));
 
+    /**
+     * The invisible solid box under Iceman's ice (heroes/iceman/IceSolidEntity): the slide's track and the brush
+     * sculptures cannot be walked through; never moves (so almost never updated), never saved.
+     */
+    public static final RegistryObject<EntityType<com.FIRNI.superheromod.heroes.iceman.IceSolidEntity>> ICE_SOLID =
+            ENTITY_TYPES.register("ice_solid", () -> EntityType.Builder
+                    .<com.FIRNI.superheromod.heroes.iceman.IceSolidEntity>of(
+                            com.FIRNI.superheromod.heroes.iceman.IceSolidEntity::new, MobCategory.MISC)
+                    .sized(1.0f, .35f).clientTrackingRange(10).updateInterval(20).fireImmune().noSave().build("ice_solid"));
+
     public static void register(IEventBus modEventBus) {
         ENTITY_TYPES.register(modEventBus);
     }

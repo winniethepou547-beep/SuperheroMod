@@ -92,7 +92,17 @@ public final class Champions {
                     new Skill("SHIFT", "Koşu", "Basılı tut: normal yürüyüşün 1,3 katı hızla koşar."),
                     new Skill("CTRL", "Takla", "İleri dalıp omzunun üstünden uzun bir takla; ortasında hasar almaz. 3 saniyede bir."),
                     new Skill("BOŞLUK", "Pelerinle Süzülme", "Havadayken basılı tut: pelerin kanat gibi açılır, baktığın yöne süzülürsün; aşağı bakınca hızlanır."),
-                    new Skill("X", "Kara Şövalye", "Sinematik: karanlık avluda lambanın altında kalan hedefin etrafında bir görünüp bir kaybolur, kancayla havaya çeker, yapışkan bomba ve çift ayak tekmesiyle şehrin üstüne fırlatır, Batwing tarar, son Batarang onu duvara çiviler."))));
+                    new Skill("X", "Kara Şövalye", "Sinematik: karanlık avluda lambanın altında kalan hedefin etrafında bir görünüp bir kaybolur, kancayla havaya çeker, yapışkan bomba ve çift ayak tekmesiyle şehrin üstüne fırlatır, Batwing tarar, son Batarang onu duvara çiviler."))),
+            new Champion("iceman", "ICEMAN", "Bobby Drake — Buzun Efendisi", 0xFF8FD8FF, List.of(
+                    new Skill("PASİF", "Don Ölçer", "Her düşmanın don ölçeri var: arttıkça nefesi buharlaşır, bacaklarını, omuzlarını, kollarını buz kaplar, yavaşlar, ekranı buğulanır. 100'de DERİN DONMA: buz kalıbının içinde kısa süre kımıldayamaz."),
+                    new Skill("SOL", "Buz Silahları", "Elinde kristallerden oluşan silahla iki vuruş (sağdan sola, soldan sağa) ve bitirici. Gürz: iki elle tepeden ezme; basılı tut: katman katman büyür, dev ezme. Mızrak: seri dürtme; basılı tut: geri çekip fırlat, saplandığı yerde buz dikenleri. Kılıç: hızlı dönüş; basılı tut: düşmanları içine çeken girdap."),
+                    new Skill("SAĞ", "Kriyojenik Fırça", "Basılı tut. Düşmana: soğuk sis ve kristal akışı onu hızla dondurur. Boşluğa: fareyi gezdirdiğin yol boyunca gerçek bir buz heykeli büyür (mermileri durdurur, kimse içinden geçemez)."),
+                    new Skill("E", "Buz Cephaneliği", "Basılı tut: silah çarkı açılır, gürz, mızrak ya da kılıç seç."),
+                    new Skill("SHIFT", "Buz Kaydırağı", "Basılı tut: altında sürekli buz yolu oluşur, uzun ve kontrollü kayarsın; baktığın yöne tırmanır ya da dalarsın. Değdiğin düşmanın ekranı buzlu merceğe döner."),
+                    new Skill("CTRL", "Sıfır Altı Kayış", "Kısa, çok alçak ve hızlı kayış; değdiğin düşmanı dondurarak vurur."),
+                    new Skill("Q", "Kriyojenik Kabuk", "Ayaktan başa buz kabuk; kabuk darbeleri alır, sen içinde iyileşirsin. Kırılırsa yorgun bir inişle yere düşersin. Tekrar Q: kabuk 360 derece patlar, herkesi savurur."),
+                    new Skill("R", "Parçalanmış Zemin", "Ellerini yere vurursun: çatlaklar yerin altından hedefe koşar, buz dikenleri onu havaya fırlatır. Donmuş hedefe çok daha güçlü."),
+                    new Skill("X", "Ultimate", "Henüz tasarlanmadı."))));
 
     /** How many card slots the grid always shows (the rest are "?" for the heroes to come). */
     public static final int MIN_SLOTS = 18;
