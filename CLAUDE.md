@@ -87,7 +87,8 @@ matching file before working on a hero or system; update them (not this file) wh
   sample froze Ghost Rider's arms; brace-less ifs doubled sounds.
 
 ## Working economically (the user asked: fewer tokens, never less quality)
-- Do the work yourself, in order; use helper agents only when a task truly needs parallel work, and say so first.
+- Do the work yourself, in order, by default. Use helper agents when the task truly needs them for quality (no need to ask
+  the user: their rule is "quality stays the same; time is no problem"), but never just for speed.
 - Read only the parts of files you need (grep, then ranges); do not re-read what you already have.
 - Keep previews/renders to what decides something. Commit/push only finished work to the request's branch.
 

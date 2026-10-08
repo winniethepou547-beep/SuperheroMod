@@ -16,7 +16,7 @@ the user corrects something or a technique works / fails (in the same commit as 
    when the user writes "beğendim", then give the main line.
 4. The user's reference images/videos are attached in the chat (the `references/` folder exists only on their PC); if a
    task needs a reference you do not have, ask for a screenshot/frames instead of guessing.
-5. Work yourself, in order (no helper agents unless truly needed and announced). Type-check with
+5. Work yourself, in order (helper agents only when quality truly needs them; no need to ask, never just for speed). Type-check with
    `sh tools/claude/typecheck/typecheck.sh`, preview bodies with `sh tools/claude/preview/preview.sh`, Python art/sounds
    scripts in tools/. Gradle and the game cannot run here — say so honestly.
 6. Finish: update the notes (hero file + this file for general lessons), the Turkish user doc, commit, push, then reply in
@@ -39,7 +39,7 @@ the user corrects something or a technique works / fails (in the same commit as 
 - Pushing to the test branch is NOT merging. They once asked "beğendim demedim, neden pushladın" — explain that the branch
   is a separate box; merge only on "beğendim". When agents are mid-edit, don't commit half work; push finished work.
 - Time is not a problem for them; tokens are. Prefer doing work yourself in order over many parallel helper agents (one
-  Iceman request with 5 helpers cost ~1.6M tokens). Never lower quality to save tokens.
+  Iceman request with 5 helpers cost ~1.6M tokens). Never lower quality to save tokens; when an agent is truly needed for quality, use it without asking.
 
 ## 2. The process that gave the best results (Magneto, Batman era)
 1. Read the hero's notes + the user's spec/reference. List each point; map it to a file.
