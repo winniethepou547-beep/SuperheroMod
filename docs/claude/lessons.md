@@ -56,8 +56,9 @@ the user corrects something or a technique works / fails (in the same commit as 
    (Pillow) for textures/icons/splash. Check the picture before handing over.
 7. Type-check (tools/claude/typecheck/typecheck.sh), then re-read the diff adversarially: null/removed entities,
    logout/death/hero-change cleanup, level change, unbounded lists, per-frame allocations, partial-tick interpolation.
-8. Add a `/<hero> test ...` command for every new feature so the user can see it alone (dummies = NoAI adult husks
-   with high HP, removed after a while).
+8. Test commands (`/<hero> test ...`, dummies = NoAI adult husks with high HP) ONLY when the user asks for one; do not
+   add one for every feature, and do not list test commands in the reply unless asked (user: "sana dersem command yaz,
+   her şeyde gerek yok").
 9. Update the hero notes + the Turkish user doc (docs/HERO.md) in the same commit.
 
 ## 3. Design lessons (what was rejected, what worked)
@@ -133,5 +134,6 @@ the user corrects something or a technique works / fails (in the same commit as 
 
 ## 8. Reply checklist (every answer to the user)
 - Turkish, plain words, short; what was done; what could NOT be checked (game not run); what to look at in game.
+- No chat/test commands in the reply unless the user asked for them.
 - Ask only when a decision is truly theirs (and use one clear question).
 - The three blocks with the real branch: Denemek için / Beğenmedim, eski hale dön / Beğendim (see CLAUDE.md).
