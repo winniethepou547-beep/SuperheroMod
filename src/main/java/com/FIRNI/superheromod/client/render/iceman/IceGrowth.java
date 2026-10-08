@@ -101,9 +101,30 @@ public final class IceGrowth {
         Mat frost = IceMesh.MILKY;
         band(c, R0, R1, n, mat, null, seed, alpha);
         band(c, R1, R2, n, mat, frost, seed + 17, alpha);
-        // The broken top: a point off the axis.
-        float ax = x0 + ex * L + F[0] * lu * 1.6f + F[3] * lv * 1.6f, ay = y0 + ey * L + F[1] * lu * 1.6f + F[4] * lv * 1.6f, az = z0 + ez * L + F[2] * lu * 1.6f + F[5] * lv * 1.6f;
-        for (int i = 0; i < n; i++) {
+        // The top: a point well off the axis, at its own height; on some crystals snapped off instead (a slanted broken
+        // face with a stub of a point standing on it): never a neat pencil tip.
+        float off = 1.6f + 1.4f * h(seed, 12), top = L * (.86f + .14f * h(seed, 13));
+        float ax = x0 + ex * top + F[0] * lu * off + F[3] * lv * off, ay = y0 + ey * top + F[1] * lu * off + F[4] * lv * off, az = z0 + ez * top + F[2] * lu * off + F[5] * lv * off;
+        if (h(seed, 11) < .4f && R > len * .08f) {
+            // The snapped top: each corner raised along the axis by its side of a slanted plane.
+            float sx = Mth.cos(h(seed, 14) * Mth.TWO_PI), sy = Mth.sin(h(seed, 14) * Mth.TWO_PI), slope = (.15f + .25f * h(seed, 15)) * L;
+            float cx = 0, cy = 0, cz = 0;
+            for (int i = 0; i < n; i++) {
+                float px = R2[i * 3] - x0, py = R2[i * 3 + 1] - y0, pz = R2[i * 3 + 2] - z0;
+                float u = (px * F[0] + py * F[1] + pz * F[2]) / Math.max(1e-5f, R), v = (px * F[3] + py * F[4] + pz * F[5]) / Math.max(1e-5f, R);
+                float lift = slope * (.5f + .5f * (u * sx + v * sy)) * (.8f + .4f * h(seed, 600 + i));
+                R1[i * 3] = R2[i * 3] + ex * lift; R1[i * 3 + 1] = R2[i * 3 + 1] + ey * lift; R1[i * 3 + 2] = R2[i * 3 + 2] + ez * lift;
+                cx += R1[i * 3]; cy += R1[i * 3 + 1]; cz += R1[i * 3 + 2];
+            }
+            band(c, R2, R1, n, mat, frost, seed + 29, alpha);
+            cx /= n; cy /= n; cz /= n;
+            // The broken face (fresh, a little milky), and a stub of the point on it off centre.
+            float kx = cx + (ax - cx) * .35f, ky = cy + (ay - cy) * .35f, kz = cz + (az - cz) * .35f;
+            for (int i = 0; i < n; i++) {
+                int j = (i + 1) % n;
+                IceMesh.tri(c, R1[i * 3], R1[i * 3 + 1], R1[i * 3 + 2], R1[j * 3], R1[j * 3 + 1], R1[j * 3 + 2], kx, ky, kz, h(seed, 500 + i) < .6f ? frost : IceMesh.FRESH, alpha);
+            }
+        } else for (int i = 0; i < n; i++) {
             int j = (i + 1) % n;
             IceMesh.tri(c, R2[i * 3], R2[i * 3 + 1], R2[i * 3 + 2], R2[j * 3], R2[j * 3 + 1], R2[j * 3 + 2], ax, ay, az, h(seed, 500 + i) < .5f ? frost : mat, alpha);
         }

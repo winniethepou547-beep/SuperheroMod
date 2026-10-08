@@ -48,7 +48,7 @@ import static com.FIRNI.superheromod.heroes.iceman.IcemanAction.*;
  *     textures/gui/iceman/frost_atlas.png from tools/icons/iceman_frost.py) creeping in from the edges, the picture soft
  *     there; high = heavy frost in the corners, a colder picture, a slight vignette, cracks starting from the corners as
  *     it nears 100; the brush on them makes the frosty edges flare as it lands.</li>
- * <li>DEEP FREEZE: in DEEP_CLOSE ticks the frost grows over most of the view from the edges (the centre still readable),
+ * <li>DEEP FREEZE: in DEEP_SEIZE ticks the frost grows over most of the view from the edges (the centre still readable),
  *     a short white flash, crack lines spread, the world's sounds dip (quieter, duller); near the end a whole network of
  *     cracks; when it breaks, the screen's ice splits into pieces that fall away, a short flash, the sound comes back.</li>
  * <li>The ice slide's lens (FX_LENS, to the one it touched): frosted corners, a clearer centre, the world wobbling
@@ -91,7 +91,7 @@ public final class FrostScreen {
         float now = FrostFx.now();
         frozen = true;
         deepStart = now - since;
-        deepTotal = Math.max(DEEP_CLOSE + 2, total);
+        deepTotal = Math.max(DEEP_SEIZE + 2, total);
         breakStart = -1e5f; shards = null;
         Random r = new Random(RNG.nextLong());
         deepCracks = new Crack[4 + r.nextInt(2)];
@@ -153,8 +153,8 @@ public final class FrostScreen {
         if (m < 75) return 4f + (m - 50) / 25 * 2.4f;
         return 6.4f + Math.min(1, (m - 75) / 25) * 1.6f;
     }
-    /** While deep frozen: the frost grows over most of the view in DEEP_CLOSE ticks. */
-    private static float deepCover(float now) { return Mth.lerp(FilmFx.ease((now - deepStart) / DEEP_CLOSE), 8f, 11.7f); }
+    /** While deep frozen: the frost grows over most of the view in DEEP_SEIZE ticks. */
+    private static float deepCover(float now) { return Mth.lerp(FilmFx.ease((now - deepStart) / DEEP_SEIZE), 8f, 11.7f); }
     /** The world's sounds while frozen over: 0 = as they are. */
     private static float muffled() {
         float now = FrostFx.now();
@@ -190,7 +190,7 @@ public final class FrostScreen {
         if (S <= .001f || (cover < .01f && lp < .01f && !breaking && flashK < .01f && !frozen)) return;
         // The crystals in the corners: from medium frost, full while frozen over, a little with the slide's lens; falling
         // away as the deep freeze's ice breaks.
-        float crystals = Math.max(Math.max(.75f * FilmFx.ease((m - 40) / 55), frozen ? .75f + .25f * FilmFx.ease(deepAge / DEEP_CLOSE) : 0), .45f * Mth.clamp(lp, 0, 1));
+        float crystals = Math.max(Math.max(.75f * FilmFx.ease((m - 40) / 55), frozen ? .75f + .25f * FilmFx.ease(deepAge / DEEP_SEIZE) : 0), .45f * Mth.clamp(lp, 0, 1));
         float crystalsOut = 0;
         if (!frozen && shards != null && bt >= 0 && bt < 10) { crystalsOut = FilmFx.ease(bt / 8); crystals = Math.max(crystals, 1 - crystalsOut); }
         float cold = S * FilmFx.ease((m - 35) / 45);
@@ -307,7 +307,7 @@ public final class FrostScreen {
             }
             if (deepCracks != null && (frozen || breaking)) {
                 float fade = frozen ? 1 : 1 - Mth.clamp(bt / 4, 0, 1);
-                float early = FilmFx.ease((deepAge - DEEP_CLOSE * .6f) / 7), late = FilmFx.ease((deepAge - lateFrom()) / Math.max(4, deepTotal - lateFrom()));
+                float early = FilmFx.ease((deepAge - DEEP_SEIZE * .6f) / 7), late = FilmFx.ease((deepAge - lateFrom()) / Math.max(4, deepTotal - lateFrom()));
                 float reveal = frozen ? .6f * early + .4f * late : 1;
                 for (Crack c : deepCracks) { list.add(c); how.add(new float[]{reveal, fade * Math.min(1, S)}); }
             }
@@ -373,7 +373,7 @@ public final class FrostScreen {
         }
         BufferUploader.drawWithShader(buf.end());
     }
-    private static float lateFrom() { return Math.max(DEEP_CLOSE + 4, deepTotal * .62f); }
+    private static float lateFrom() { return Math.max(DEEP_SEIZE + 4, deepTotal * .62f); }
 
     /** The grid's points: where (0..1, y down), how near an edge (1 at the edges, 0 in the middle), how near a corner, the frost's mask. */
     private static void grid(float asp, float meterPres, float lp, float S) {

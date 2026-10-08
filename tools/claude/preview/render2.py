@@ -35,7 +35,7 @@ def render(name, verts):
         z = np.mean([p[2] for p in P])
         if kind == 'G':
             col = np.mean([v[3:6] for v in vs], axis=0)
-            items.append((z - float(os.environ.get('ADDBIAS', 1e-4)), 'add', [(p[0], p[1]) for p in P], col)); continue
+            items.append((z - float(os.environ.get('ADDBIAS', 1e-4)), 'add', [(p[0], p[1]) for p in P], col, 1)); continue
         n = vs[0][7:10]; nl = np.linalg.norm(n); n = n / nl if nl > 0 else n
         lit = min(1, .4 + .6 * (max(0, n.dot(L0)) + max(0, n.dot(L1))))
         a = np.mean([v[6] for v in vs])
@@ -56,13 +56,13 @@ def render(name, verts):
                 if tx[3] < .1: continue
                 corners = [bil(s0, r0, P := np.array([p[:2] for p in [proj(v) for v in vs]])), bil(s1, r0, P), bil(s1, r1, P), bil(s0, r1, P)]
                 vc = bil((s0 + s1) / 2, (r0 + r1) / 2, np.array(cols))
-                items.append((z, 'fill', [tuple(c) for c in corners], tx[:3] * vc * lit))
+                items.append((z, 'fill', [tuple(c) for c in corners], tx[:3] * vc * lit, a))
     items.sort(key=lambda t: -t[0])
     im = Image.fromarray((np.clip(img, 0, 1) * 255).astype(np.uint8))
-    d = ImageDraw.Draw(im)
-    for z, kind, pts, col in items:
+    d = ImageDraw.Draw(im, 'RGBA')
+    for z, kind, pts, col, al in items:
         if kind == 'fill':
-            d.polygon(pts, fill=tuple((np.clip(col, 0, 1) * 255).astype(int)))
+            d.polygon(pts, fill=tuple((np.clip(col, 0, 1) * 255).astype(int)) + (int(np.clip(al, 0, 1) * 255),))
         else:
             xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
             x0, x1, y0, y1 = int(max(0, min(xs))), int(min(W - 1, max(xs))) + 1, int(max(0, min(ys))), int(min(H - 1, max(ys))) + 1
@@ -72,7 +72,7 @@ def render(name, verts):
             mk = np.asarray(m, float)[..., None] / 255
             arr = np.asarray(im, float) / 255
             arr[y0:y1, x0:x1] = np.minimum(1, arr[y0:y1, x0:x1] + col * mk)
-            im = Image.fromarray((arr * 255).astype(np.uint8)); d = ImageDraw.Draw(im)
+            im = Image.fromarray((arr * 255).astype(np.uint8)); d = ImageDraw.Draw(im, 'RGBA')
     if not os.environ.get("KEY"): ImageDraw.Draw(im).text((6, 6), name, fill=(0, 0, 0))
     return im
 names = sys.argv[3].split(',') if len(sys.argv) > 3 else list(groups)

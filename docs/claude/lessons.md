@@ -56,8 +56,9 @@ the user corrects something or a technique works / fails (in the same commit as 
    (Pillow) for textures/icons/splash. Check the picture before handing over.
 7. Type-check (tools/claude/typecheck/typecheck.sh), then re-read the diff adversarially: null/removed entities,
    logout/death/hero-change cleanup, level change, unbounded lists, per-frame allocations, partial-tick interpolation.
-8. Add a `/<hero> test ...` command for every new feature so the user can see it alone (dummies = NoAI adult husks
-   with high HP, removed after a while).
+8. Test commands (`/<hero> test ...`, dummies = NoAI adult husks with high HP) ONLY when the user asks for one; do not
+   add one for every feature, and do not list test commands in the reply unless asked (user: "sana dersem command yaz,
+   her şeyde gerek yok").
 9. Update the hero notes + the Turkish user doc (docs/HERO.md) in the same commit.
 
 ## 3. Design lessons (what was rejected, what worked)
@@ -74,6 +75,10 @@ the user corrects something or a technique works / fails (in the same commit as 
   target to the lagging drawn arm → compare target to target.
 - Hulk: the face read as a troll → square heroic face; everything scaled to his 1.5x body (effects from fists/chest).
 - Sandman: the defender's body language in the film matters most; attacks must read as attacks (one arm, not the guard).
+- Iceman ice (MK1 spec): "see-through" was rejected earlier, but the user's real target is MILKY ice with clear blue depth and
+  SOME semi-transparent areas (never glass, never fully transparent, never uniform white or uniform blue). A frozen body must
+  keep its silhouette (ice grown over the pose), not sit in a block. Small detail pieces must be scattered, never a row/comb
+  (checked in the preview: the first version of the spines read as a comb from the side).
 - General: when a spec names a reference move (Garen spin, Marvel Rivals Wolverine, God of War flurry, Elden Ring roll),
   match its rhythm and silhouette; the user checks against it.
 
@@ -108,6 +113,7 @@ the user corrects something or a technique works / fails (in the same commit as 
 ## 5. Tools (in the repo, so every session has them)
 - `sh tools/claude/typecheck/typecheck.sh [letter]` — javac against stubs; prints real errors; baseline "issues: 8".
   It does NOT check Minecraft/Forge calls: grep the repo for an existing use of every MC API you call.
+- Preview now alpha-blends (render2.py) and has `Dump.frozen` scenes (args: `out.txt frozen`).
 - `sh tools/claude/preview/preview.sh out.png "front,three-quarter,face"` — offline render of IcemanBody (fake MC classes,
   shadow stubs for heavy classes in preview/src, Dump.java views). Extend Dump.java for new views or other meshes; the
   same approach works for any box hero.
@@ -120,11 +126,14 @@ the user corrects something or a technique works / fails (in the same commit as 
 
 ## 7. Project state (keep current)
 - Open PR: #6 `claude/laughing-noether-xy6z56` — Iceman (whole hero). Also carries these notes and tools/claude until merged.
+- Open PR: #7 `claude/superheromod-setup-abnmd0` (base: #6's branch) — Iceman walk mist + MK1 ice rework (material, deep
+  freeze, spear impact); the rest of the MK1 spec is listed as not done in iceman.md.
 - Parked / unfinished by the user's word: Sandman's Colossus ultimate ("later"); Cyclops sounds unfinished; Thor, Cyclops,
   Sandman, Ghost Rider have no left-side skill list yet; Iceman X is undesigned (do not invent it).
 - Everything else (Ghost Rider, Cyclops, Sandman, Thor, Hulk, Zed, Black Panther, Magneto, Batman) is merged in main.
 
 ## 8. Reply checklist (every answer to the user)
 - Turkish, plain words, short; what was done; what could NOT be checked (game not run); what to look at in game.
+- No chat/test commands in the reply unless the user asked for them.
 - Ask only when a decision is truly theirs (and use one clear question).
 - The three blocks with the real branch: Denemek için / Beğenmedim, eski hale dön / Beğendim (see CLAUDE.md).

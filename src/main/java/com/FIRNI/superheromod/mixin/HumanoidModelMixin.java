@@ -23,6 +23,8 @@ public abstract class HumanoidModelMixin {
                                             float limbSwingAmount, float ageInTicks,
                                             float netHeadYaw, float headPitch,
                                             CallbackInfo ci) {
+        // Deep frozen by Iceman: the limbs held (also from LivingEntityRendererMixin, after subclasses' own animation).
+        com.FIRNI.superheromod.client.render.iceman.FrostShell.pose((HumanoidModel<?>) (Object) this, entity);
         if ((Object) this instanceof PlayerModel<?> model) {
             HeroArmPose.apply(model, entity, ageInTicks);
         }
