@@ -35,6 +35,19 @@ If they want an already-merged change undone, revert it on GitHub yourself and g
 `./gradlew backdropPreview -Pout=<dir>` renders the film backdrop shader offscreen to PNGs (needs a GPU; may not
 work in the cloud). Keep everything compiling; tests live in `src/test/java/com/FIRNI/superheromod/`.
 
+## The user's taste (learned from their corrections — apply everywhere)
+- Real physics and real objects over drawn tricks: the cape block uses the real cloth (a drawn curtain was rejected), the
+  sword is planted INTO the ground, debris is real blocks, left-behind ice is solid.
+- Nothing pops in or out, nothing snaps: things form and break in stages, poses ease, effects stay anchored to the body.
+- No darkening/colour filters over the screen to fake mood (rejected in Thor's film); no see-through "glass" materials.
+- Not "mathematical/AI-looking": no perfect shapes, uniform repeats or clean splines; organic variation with control.
+- Scale must read in game: primary effects big enough to see at once; secondary details subtle, never particle spam.
+- Body language matters most in fights: attacks must read as attacks, both hands on what they hold, weight in every move.
+- Their reference (video/image) is the brief: follow it closely, then adapt to Minecraft.
+- When the user corrects something, write the lesson here (general) or in the hero's `docs/claude/*.md` (specific)
+  in the same commit, so no later session repeats the mistake.
+- Time is not a problem for them; they prefer slower work with fewer tokens to faster work that wastes them.
+
 ## Where the details are (read the one you need, not all)
 Per-area notes, moved out of this file so every turn stays small. ALWAYS open the matching file before working on a hero
 or system, and update it (not this file) when that area changes:
